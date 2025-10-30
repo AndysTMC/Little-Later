@@ -1,0 +1,235 @@
+name: Build & Release
+
+# Trigger on version tags (v1.0.0) or manual dispatch
+on:
+    push:
+        tags:
+            - 'v*'
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: 'Tag name for release (e.g. v1.0.0)'
+                required: true
+                default: 'v0.0.0'
+
+# Prevent duplicate runs
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+# Required permissions for creating releases
+permissions:
+    contents: write
+    packages: write
+
+jobs:
+    # ═══════════════════════════════════════════════════════════
+    # 1. BUILD WINDOWS (.exe)
+    # ═══════════════════════════════════════════════════════════
+    build-windows:
+        runs-on: windows-latest
+        defaults:
+            run:
+                shell: pwsh
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Install pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10.18.3
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '20'
+                  cache: 'pnpm'
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Build Shared Package
+              run: pnpm --filter little-shared run build
+
+            - name: Build Windows App
+              run: pnpm --filter little-local run build
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Upload Windows Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: little-local-windows
+                  path: apps/little-local/dist/*.exe
+                  if-no-files-found: error
+
+    # ═══════════════════════════════════════════════════════════
+    # 2. BUILD macOS (.dmg)
+    # ═══════════════════════════════════════════════════════════
+    build-macos:
+        runs-on: macos-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Install pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10.18.3
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '20'
+                  cache: 'pnpm'
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Build Shared Package
+              run: pnpm --filter little-shared run build
+
+            - name: Build macOS App
+              run: pnpm --filter little-local run build
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Upload macOS Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: little-local-macos
+                  path: apps/little-local/dist/*.dmg
+                  if-no-files-found: error
+
+    # ═══════════════════════════════════════════════════════════
+    # 3. BUILD LINUX (.AppImage)
+    # ═══════════════════════════════════════════════════════════
+    build-linux:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Install pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10.18.3
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '20'
+                  cache: 'pnpm'
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Build Shared Package
+              run: pnpm --filter little-shared run build
+
+            - name: Install Linux packaging tools
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y fakeroot dpkg rpm
+
+            - name: Build Linux App
+              run: pnpm --filter little-local run build
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Upload Linux Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: little-local-linux
+                  path: apps/little-local/dist/*.AppImage
+                  if-no-files-found: error
+
+    # ═══════════════════════════════════════════════════════════
+    # 4. BUILD CHROME EXTENSION + FINALIZE RELEASE
+    # ═══════════════════════════════════════════════════════════
+    build-extension-and-release:
+        runs-on: ubuntu-latest
+        needs: [build-windows, build-macos, build-linux]
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Install pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10.18.3
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '20'
+                  cache: 'pnpm'
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Build Shared Package
+              run: pnpm --filter little-shared run build
+
+            - name: Build Chrome Extension
+              run: pnpm --filter little-later run build
+
+            # Download all platform artifacts
+            - name: Download All Artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: artifacts
+
+            # Package everything + generate individual SHA256 files
+            - name: Package Release & Generate Checksums
+              run: |
+                  mkdir -p dist-release
+                  cd dist-release
+
+                  # Extract version from tag (remove 'v' prefix)
+                  VERSION="${{ github.event.inputs.tag || github.ref_name }}"
+                  VERSION="${VERSION#v}"
+
+                  # Copy Chrome extension
+                  if [ -f "${{ github.workspace }}/apps/little-later/dist/manifest.json" ]; then
+                    cd "${{ github.workspace }}/apps/little-later/dist"
+                    zip -r "${{ github.workspace }}/dist-release/Little-Later-${VERSION}.zip" .
+                    cd "${{ github.workspace }}/dist-release"
+                  else
+                    echo "Chrome extension not found!"
+                    exit 1
+                  fi
+
+                  # Copy platform binaries
+                  cp ${{ github.workspace }}/artifacts/little-local-windows/*.exe . 2>/dev/null || echo "No Windows build"
+                  cp ${{ github.workspace }}/artifacts/little-local-macos/*.dmg . 2>/dev/null || echo "No macOS build"
+                  cp ${{ github.workspace }}/artifacts/little-local-linux/*.AppImage . 2>/dev/null || echo "No Linux build"
+
+                  # Generate individual SHA256 files for release assets (excluding .sha256 files)
+                  for file in *; do
+                    if [[ -f "$file" && ! "$file" =~ \.sha256$ ]]; then
+                      sha256sum "$file" > "${file}.sha256"
+                    fi
+                  done
+
+                  # Generate checksums.txt with only the original files (not .sha256 files)
+                  for file in *; do
+                    if [[ -f "$file" && ! "$file" =~ \.sha256$ && "$file" != "checksums.txt" ]]; then
+                      sha256sum "$file" >> checksums.txt
+                    fi
+                  done
+
+            # Create GitHub Release
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2.4.0
+              with:
+                  tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+                  name: Release ${{ github.event.inputs.tag || github.ref_name }}
+                  files: |
+                      dist-release/*
+                  draft: false
+                  prerelease: false
+                  fail_on_unmatched_files: true
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

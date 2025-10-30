@@ -1,0 +1,76 @@
+{
+    "name": "little-local",
+    "version": "1.0.0",
+    "description": "An electron application that serves as a companion for Little Later Chrome Extension",
+    "main": "build/main.js",
+    "type": "commonjs",
+    "scripts": {
+        "dev": "tsc -b && cpy assets build && cpy views build && electron .",
+        "build": "tsc -b && cpy assets build && cpy views build && electron-builder",
+        "postinstall": "node ./node_modules/electron/install.js && electron-rebuild",
+        "type-check": "tsc --noEmit"
+    },
+    "repository": "https://github.com/AndysTMC/Project-L",
+    "keywords": [
+        "Electron",
+        "quick",
+        "start",
+        "tutorial",
+        "demo"
+    ],
+    "author": "GitHub",
+    "license": "CC0-1.0",
+    "devDependencies": {
+        "@types/auto-launch": "^5.0.5",
+        "@types/better-sqlite3": "^7.6.13",
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.3",
+        "@types/multer": "^2.0.0",
+        "@types/node": "^24.0.12",
+        "electron": "^38.3.0",
+        "electron-builder": "^26.0.12",
+        "typescript": "^5.6.2"
+    },
+    "dependencies": {
+        "@electron/rebuild": "4.0.1",
+        "auto-launch": "^5.0.6",
+        "better-sqlite3": "^12.2.0",
+        "cors": "^2.8.5",
+        "cpy-cli": "^6.0.0",
+        "dexie": "^4.0.11",
+        "electron-store": "^10.1.0",
+        "express": "^5.1.0",
+        "file-type": "^21.0.0",
+        "jszip": "^3.10.1",
+        "little-shared": "workspace:*",
+        "multer": "^2.0.2",
+        "openai": "^5.10.1",
+        "socket.io": "^4.8.1"
+    },
+    "build": {
+        "productName": "Little Local",
+        "appId": "com.andys.littlelocal",
+        "asar": true,
+        "publish": null,
+        "files": [
+            "build/**/*",
+            "package.json"
+        ],
+        "directories": {
+            "buildResources": "build/assets",
+            "output": "dist"
+        },
+        "win": {
+            "target": "nsis",
+            "icon": "build/assets/icon.ico"
+        },
+        "mac": {
+            "target": "dmg",
+            "icon": "build/assets/icon.icns"
+        },
+        "linux": {
+            "target": "AppImage",
+            "icon": "build/assets/icon.png"
+        }
+    }
+}

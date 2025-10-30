@@ -1,0 +1,132 @@
+{
+    "name": "little-shared",
+    "version": "1.0.0",
+    "description": "",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "scripts": {
+        "prestart": "tsc -b",
+        "build": "tsc -b --clean && tsc -b",
+        "dev": "tsc --watch"
+    },
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "require": "./dist/index.js",
+            "default": "./dist/index.js"
+        },
+        "./utils/crypto": {
+            "types": "./dist/utils/crypto.d.ts",
+            "import": "./dist/utils/crypto.js",
+            "require": "./dist/utils/crypto.js",
+            "default": "./dist/utils/crypto.js"
+        },
+        "./utils/crypto.js": {
+            "types": "./dist/utils/crypto.d.ts",
+            "import": "./dist/utils/crypto.js",
+            "require": "./dist/utils/crypto.js",
+            "default": "./dist/utils/crypto.js"
+        },
+        "./utils/datetime": {
+            "types": "./dist/utils/datetime.d.ts",
+            "import": "./dist/utils/datetime.js",
+            "require": "./dist/utils/datetime.js",
+            "default": "./dist/utils/datetime.js"
+        },
+        "./utils/datetime.js": {
+            "types": "./dist/utils/datetime.d.ts",
+            "import": "./dist/utils/datetime.js",
+            "require": "./dist/utils/datetime.js",
+            "default": "./dist/utils/datetime.js"
+        },
+        "./utils/misc": {
+            "types": "./dist/utils/misc.d.ts",
+            "import": "./dist/utils/misc.js",
+            "require": "./dist/utils/misc.js",
+            "default": "./dist/utils/misc.js"
+        },
+        "./utils/misc.js": {
+            "types": "./dist/utils/misc.d.ts",
+            "import": "./dist/utils/misc.js",
+            "require": "./dist/utils/misc.js",
+            "default": "./dist/utils/misc.js"
+        },
+        "./utils/reminder": {
+            "types": "./dist/utils/reminder.d.ts",
+            "import": "./dist/utils/reminder.js",
+            "require": "./dist/utils/reminder.js",
+            "default": "./dist/utils/reminder.js"
+        },
+        "./utils/reminder.js": {
+            "types": "./dist/utils/reminder.d.ts",
+            "import": "./dist/utils/reminder.js",
+            "require": "./dist/utils/reminder.js",
+            "default": "./dist/utils/reminder.js"
+        },
+        "./utils/task": {
+            "types": "./dist/utils/task.d.ts",
+            "import": "./dist/utils/task.js",
+            "require": "./dist/utils/task.js",
+            "default": "./dist/utils/task.js"
+        },
+        "./utils/task.js": {
+            "types": "./dist/utils/task.d.ts",
+            "import": "./dist/utils/task.js",
+            "require": "./dist/utils/task.js",
+            "default": "./dist/utils/task.js"
+        },
+        "./constants": {
+            "types": "./dist/constants.d.ts",
+            "import": "./dist/constants.js",
+            "require": "./dist/constants.js",
+            "default": "./dist/constants.js"
+        },
+        "./constants.js": {
+            "types": "./dist/constants.d.ts",
+            "import": "./dist/constants.js",
+            "require": "./dist/constants.js",
+            "default": "./dist/constants.js"
+        },
+        "./enums": {
+            "types": "./dist/enums.d.ts",
+            "import": "./dist/enums.js",
+            "require": "./dist/enums.js",
+            "default": "./dist/enums.js"
+        },
+        "./enums.js": {
+            "types": "./dist/enums.d.ts",
+            "import": "./dist/enums.js",
+            "require": "./dist/enums.js",
+            "default": "./dist/enums.js"
+        },
+        "./types": {
+            "types": "./dist/types.d.ts",
+            "import": "./dist/types.js",
+            "require": "./dist/types.js",
+            "default": "./dist/types.js"
+        },
+        "./types.js": {
+            "types": "./dist/types.d.ts",
+            "import": "./dist/types.js",
+            "require": "./dist/types.js",
+            "default": "./dist/types.js"
+        }
+    },
+    "sideEffects": false,
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "module",
+    "packageManager": "pnpm@10.18.3",
+    "devDependencies": {
+        "typescript": "^5.6.2"
+    },
+    "dependencies": {
+        "@formkit/tempo": "^0.1.2",
+        "@msgpack/msgpack": "^3.1.2"
+    },
+    "files": [
+        "dist"
+    ]
+}

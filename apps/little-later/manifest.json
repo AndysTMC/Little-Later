@@ -1,0 +1,48 @@
+{
+	"manifest_version": 3,
+	"name": "Little Later",
+	"version": "0.1",
+	"description": "A chrome extension to help you be more productive via reminders, tasks and saves.",
+	"key": "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDL/fSC2D0S0xK7JlVnRp+RsyxDwatZOSYP6rztdK61vscPdoOPoBq7g8N/vjvi3DvWIMcNYoX0g45i8oYmhuBbN1QwFVzpoLTM0x8V5338WvhMetTtkx/1YKNKEyZ9Q3c8FG1EOGqVceHALgnqK6W3bAFTPq9xHPr2dFbbuStBW1m4F0VdIFCHXa4sAKHDO5Acrq+qMGWjxStLjIsqivmo7C17DMgaH1ZUndwXKbiFMpWGe/f/jXAunA+1C5TkcxRLo2WErmehCweiyBKUWDxBpmYsoh9nK+d8J/15WjMqAdU5nmwrSSr3NnW1xK4Ec/qaq3oOXhSBgFRixIayd42PAgMBAAECggEAGNQPdKAudCIYqjVfjl28LOxVO5H7nF/Q+tL5V8rXO5ZoKBZRVk6IXRZhLyUk/ixhZA3tQaXM5BaMYrgIt/ERUZ40XaiGpzDrkJqJsrglpMIgbT6Yt/8rk/QagSOU5bOBHwuQGQ480B+3oxUiGSG4M9EDgEb67OuNaCh/gegnFEx7G9+qg52WToHnn+xw7FT5cdYU+wfxcJi2yhIEDCdnPzj8UFmJHddTONYx1Fbk5IDHDRc8Onnf5iOPbxthyW6W96y13sdI/X47DhlwO5Ggb1rE/Cz4oEfwrUtgvjZonKXJ4KogdqGpupYKiacg6fpThYeOsXab7K78DZvRvCfjQQKBgQDn+fcQEwfVh2Z+zEa/pT51p0FE7scnhTHWCe7SgmXx0FQ7C5aGoBLDfS531k7XlCsGYvtiXO/dhn58YzHhZ28W0WXMJ9XggQraQUVYjN+wRgIfnD01+Irm9tIfkQbjQzFAm+LDm4cDf5Qme7dayO3uVHcjmY8NlLFTIg8L+BzrXwKBgQDhHhUMbNxGfd9o/4dcthgiIpkqmD/pkUtmHMSoY/7WS3svQ28w300MMWbKYSOrlBjW/WMk+XqZpxWhRQ0LKdEeoeWy1wrmnFBD6+Hn2RFrUq8G3Chr+FtDlAhT1SOoo32tNOpJTgbSqwM3rgyO3qXQto/GpOhFs5E2NabCQTO70QKBgQDA+SnTj2E2+hoDZP99sYLR8L7VDyVQ9PZOLZkkOSGBFWLcc3lWqJazVNFxEzAnGbTo7TJd0x4e1CEobIQ0FA1PmAXs3T6IMhDLGv0K+rWiN7rQfPJWkVlLZQvLAqQOLfks3AC55AlemaSulsAin39+gXlSfg2IqKcSlwSZWl8EVQKBgQCMWW/wBjKy9CkEUkN3RsP3DDEIAFHgcchbSlZFUcqAmiCbz+QTyTRFBMu8IyHVCAkQiHt2gt+vyh7PI7jFG/YXrgICJNXT/uJ/5iE6pfeZPLyIf1voLLfhgvpKIdkQe5WQFix3NWFFmH7yCN4leKRSYm9y/j8drZ07+ekUtQfm8QKBgFPctmwF5iKHqLNdlBirU6nRcdbPuvDe8OThCzKTXXS8k8kZQzdUx6Hzu4rPJ3AUDQTwxnZaYh8J8iYJTZe18HhQiw5J278tPPZR9MTWL9Tj0OD3xl5OYuN4U7OiGUA/6x6Yx/O2jv4TY83b1gwS+oIhmlXXyeDjSrAXljn3zXFT",
+	"trial_tokens": [
+		"AtyoxhzXQWmViBDpI0RNLIAYucVMmxw1GPFDHwh6gyX++0He4xgPIYT3dYMM7puLqILrtGAzdbuEBS5PZI90DwwAAAB7eyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8va2dvaG9vZGVpbmFwZWdsYmJjZmpkbW9sbnBvbXBrZ2QiLCJmZWF0dXJlIjoiQUlQcm9tcHRBUElNdWx0aW1vZGFsSW5wdXQiLCJleHBpcnkiOjE3NzQzMTA0MDB9",
+		"Ak1q5wNWFKUKr3e1bfgOFD226QXZMW2SqgFT9DlnOgbSWbYwwBB2MVmfTrjoeaUSQ8DMV1G3XNwYayPscMm/cQYAAABseyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8va2dvaG9vZGVpbmFwZWdsYmJjZmpkbW9sbnBvbXBrZ2QiLCJmZWF0dXJlIjoiQUlXcml0ZXJBUEkiLCJleHBpcnkiOjE3Njk0NzIwMDB9",
+		"AkiEIyPQAVfHoNRDYL/+8rP2jzXCU7P8w7DPg9gbE2dy3fHcevPDHcjV/KjNJPTw0dOe6dlAIltXSycXQTPRqA8AAABueyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8va2dvaG9vZGVpbmFwZWdsYmJjZmpkbW9sbnBvbXBrZ2QiLCJmZWF0dXJlIjoiQUlSZXdyaXRlckFQSSIsImV4cGlyeSI6MTc2OTQ3MjAwMH0=",
+		"AnX1tVgqupeCmUSjX7i86s+tfk+aXJgVrC9cqqw8LUa+eNNH67xz+jSPRzspS7DNHbw3KcmLtCZ0yVEkEurRTwIAAABxeyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8va2dvaG9vZGVpbmFwZWdsYmJjZmpkbW9sbnBvbXBrZ2QiLCJmZWF0dXJlIjoiQUlQcm9vZnJlYWRlckFQSSIsImV4cGlyeSI6MTc3OTE0ODgwMH0="
+	],
+	"permissions": [
+		"cookies",
+		"declarativeContent",
+		"scripting",
+		"storage",
+		"tabs",
+		"activeTab",
+		"unlimitedStorage",
+		"contextMenus",
+		"alarms",
+		"declarativeNetRequest",
+		"notifications"
+	],
+	"optional_permissions": [],
+	"host_permissions": ["<all_urls>"],
+	"action": {
+		"default_popup": "index.html",
+		"width": 500,
+		"height": 600
+	},
+	"background": {
+		"service_worker": "src/background/background.ts",
+		"type": "module"
+	},
+	"web_accessible_resources": [
+		{
+			"resources": ["src/assets/*", "public/*", "*"],
+			"matches": ["<all_urls>"]
+		}
+	],
+	"icons": {
+		"16": "icons/little-later-16x16.png",
+		"48": "icons/little-later-48x48.png",
+		"128": "icons/little-later-128x128.png"
+	}
+}

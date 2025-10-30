@@ -1,0 +1,11 @@
+packages:
+    - apps/*
+    - packages/*
+
+ignoredBuiltDependencies:
+    - '@parcel/watcher'
+    - '@swc/core'
+    - better-sqlite3
+    - electron
+    - electron-winstaller
+    - esbuild
