@@ -38,20 +38,10 @@ export type LAIOutputContent = {
 };
 
 export type LAISettings = {
-    assist: {
-        provider: Exclude<LAI_PROVIDERS, LAI_PROVIDERS.CHROME_AI>;
-        apiKey: string;
-        model: string;
-    };
-    rephrase: {
-        provider: LAI_PROVIDERS;
-    };
-    generate: {
-        provider: LAI_PROVIDERS;
-    };
-    summarize: {
-        provider: LAI_PROVIDERS;
-    };
+    provider: LAI_PROVIDERS;
+    baseUrl: string;
+    apiKey: string;
+    model: string;
 };
 
 type LDailyRecurringInfo = {
@@ -73,7 +63,7 @@ export type LDueTaskSchedule = {
 };
 
 export type LHomeSearchResult = {
-    data: LVisualBM | LReminder | LTask;
+    data: LVisualBM | LReminder | LTask | LNote;
     type: LHOME_SEARCH_RESULT_TYPE;
     noOfMatches: number;
     totalLengthMatched: number;
@@ -122,7 +112,6 @@ export type LVaultDataPostDecrypt = {
 };
 
 export type LChromeStorageRecords = {
-    littleLocalConfig: LittleLocalConfig;
     userSettings: LUserSettings;
     toasts: Array<LToast>;
 };
@@ -307,11 +296,6 @@ type LYearlyRecurringInfo = {
     time: LTime;
     type: LRECURRING_TYPE.YEARLY;
     weekDay: null;
-};
-
-export type LittleLocalConfig = {
-    isEnabled: boolean;
-    port: number;
 };
 
 export type LUserProfileInsert = Omit<LUserProfile, 'userId' | 'theme' | 'isCurrent'> & {

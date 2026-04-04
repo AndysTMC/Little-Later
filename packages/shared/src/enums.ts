@@ -4,8 +4,9 @@ export enum LACTIONS {
 }
 
 export enum LAI_PROVIDERS {
-    GROQ = 'Groq',
-    CHROME_AI = 'ChromeAI',
+    OLLAMA = 'Ollama',
+    LM_STUDIO = 'LM Studio',
+    CUSTOM = 'Custom',
 }
 
 export enum LEXPORT_TYPE {
@@ -23,12 +24,14 @@ export enum LHOME_MAIN_CONTENT {
     SAVES = 'saves',
     REMINDERS = 'reminders',
     TASKS = 'tasks',
+    NOTES = 'notes',
 }
 
 export enum LHOME_SEARCH_RESULT_TYPE {
     SAVE = 'save',
     TASK = 'task',
     REMINDER = 'reminder',
+    NOTE = 'note',
 }
 
 export enum LTHEME {
@@ -108,13 +111,7 @@ export enum LDB_TABLES {
     USER_VAULTS = 'user-vaults',
 }
 
-export enum LSTORAGE_PROVIDERS {
-    CHROME = 'chrome',
-    LITTLE_LOCAL = 'little-local',
-}
-
 export enum LCHROME_STORAGE_KEYS {
-    LITTLE_LOCAL_CONFIG = 'littleLocalConfig',
     USER_SETTINGS = 'userSettings',
     TOASTS = 'toasts',
 }

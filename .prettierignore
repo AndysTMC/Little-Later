@@ -2,9 +2,8 @@ node_modules
 dist
 build
 coverage
-pnpm-lock.yaml
+bun.lock
+bun.lockb
 package-lock.json
-apps/**/dist
-apps/**/node_modules
 packages/**/dist
 packages/**/node_modules

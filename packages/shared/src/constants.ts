@@ -11,17 +11,6 @@ export const LDATE_LANGUAGE = 'en';
 
 export const LEMPTY_PASSWORD = 'EMPTY_PASSWORD';
 
-export const LLOCAL_CONFIG_STORAGE_KEY = 'little_local_config';
-
-export const LINITIAL_LL_CONFIG = {
-    get value() {
-        return {
-            isEnabled: false,
-            port: 3000,
-        };
-    },
-};
-
 export const LEMPTY_VAULT_DATA_POST_DECRYPT = {
     get value(): LVaultDataPostDecryptTables {
         return {
@@ -53,20 +42,10 @@ export const LINITIAL_USER_SETTINGS = {
     get value() {
         return {
             ai: {
-                assist: {
-                    provider: LAI_PROVIDERS.GROQ,
-                    apiKey: '',
-                    model: '',
-                },
-                rephrase: {
-                    provider: LAI_PROVIDERS.CHROME_AI,
-                },
-                generate: {
-                    provider: LAI_PROVIDERS.CHROME_AI,
-                },
-                summarize: {
-                    provider: LAI_PROVIDERS.CHROME_AI,
-                },
+                provider: LAI_PROVIDERS.OLLAMA,
+                baseUrl: 'http://127.0.0.1:11434/v1',
+                apiKey: '',
+                model: '',
             },
             guide: {
                 isFirstTimeUser: true,
@@ -111,5 +90,3 @@ export const LSAVE_NOTE_LENGTH = 256;
 export const LTIME_FORMAT = 'HH:mm:ssZ';
 
 export const LDATE_FORMAT = 'YYYY-MM-DDTHH:mm:ssZ';
-
-export const BASE_LL_URL = 'http://localhost:';

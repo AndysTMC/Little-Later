@@ -6,6 +6,37 @@ type PackedBlob = { __type: 'blob'; mime: string; bytes: Uint8Array };
 
 type PackedValue = PackedPrimitive | PackedBlob | PackedValue[] | { [key: string]: PackedValue };
 
+const PBKDF2_SALT_LENGTH = 16;
+const AES_GCM_IV_LENGTH = 12;
+const PBKDF2_ITERATIONS = 100000;
+
+const deriveAesKey = async (
+    password: string,
+    salt: Uint8Array,
+    usage: 'encrypt' | 'decrypt'
+): Promise<CryptoKey> => {
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(password),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveKey']
+    );
+
+    return crypto.subtle.deriveKey(
+        {
+            name: 'PBKDF2',
+            salt: toArrayBuffer(salt),
+            iterations: PBKDF2_ITERATIONS,
+            hash: 'SHA-256',
+        },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        [usage]
+    );
+};
+
 export async function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
     return new Uint8Array(await blob.arrayBuffer());
 }
@@ -27,29 +58,10 @@ export async function encrypt<T>(password: string, data: T): Promise<Blob> {
 
     const packed = encode(preparedData);
 
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const salt = crypto.getRandomValues(new Uint8Array(PBKDF2_SALT_LENGTH));
+    const iv = crypto.getRandomValues(new Uint8Array(AES_GCM_IV_LENGTH));
 
-    const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        new TextEncoder().encode(password),
-        { name: 'PBKDF2' },
-        false,
-        ['deriveKey']
-    );
-
-    const key = await crypto.subtle.deriveKey(
-        {
-            name: 'PBKDF2',
-            salt,
-            iterations: 100000,
-            hash: 'SHA-256',
-        },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        true,
-        ['encrypt']
-    );
+    const key = await deriveAesKey(password, salt, 'encrypt');
 
     const ciphertext = await crypto.subtle.encrypt(
         { name: 'AES-GCM', iv },
@@ -65,30 +77,15 @@ export async function encrypt<T>(password: string, data: T): Promise<Blob> {
 export async function decrypt<T>(password: string, encryptedData: Blob): Promise<T> {
     const combined = await blobToUint8Array(encryptedData);
 
-    const salt = combined.slice(0, 16);
-    const iv = combined.slice(16, 28);
-    const ciphertext = combined.slice(28);
+    if (combined.byteLength <= PBKDF2_SALT_LENGTH + AES_GCM_IV_LENGTH) {
+        throw new Error('Decryption failed: Incorrect password or corrupted data');
+    }
 
-    const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        new TextEncoder().encode(password),
-        { name: 'PBKDF2' },
-        false,
-        ['deriveKey']
-    );
+    const salt = combined.slice(0, PBKDF2_SALT_LENGTH);
+    const iv = combined.slice(PBKDF2_SALT_LENGTH, PBKDF2_SALT_LENGTH + AES_GCM_IV_LENGTH);
+    const ciphertext = combined.slice(PBKDF2_SALT_LENGTH + AES_GCM_IV_LENGTH);
 
-    const key = await crypto.subtle.deriveKey(
-        {
-            name: 'PBKDF2',
-            salt,
-            iterations: 100000,
-            hash: 'SHA-256',
-        },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        true,
-        ['decrypt']
-    );
+    const key = await deriveAesKey(password, salt, 'decrypt');
 
     try {
         const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);

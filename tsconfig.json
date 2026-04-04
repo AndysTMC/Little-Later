@@ -1,14 +1,8 @@
 {
-    "extends": "./tsconfig.base.json",
-    "compilerOptions": {
-        "composite": true,
-        "declaration": true,
-        "sourceMap": true
-    },
-    "files": [],
-    "references": [
-        { "path": "./packages/shared" },
-        { "path": "./apps/little-later" },
-        { "path": "./apps/little-local" }
-    ]
+	"files": [],
+	"references": [
+		{ "path": "./packages/shared" },
+		{ "path": "./tsconfig.app.json" },
+		{ "path": "./tsconfig.node.json" }
+	]
 }
