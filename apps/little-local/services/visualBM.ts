@@ -5,6 +5,14 @@ import { LDateUtl } from 'little-shared/utils/datetime.js';
 import { createLink, deleteLink } from './link.js';
 import { createNote, updateNote } from './note.js';
 import { getUserSettings } from './settings.js';
+
+const normalizeVisualBM = (visualBM: LVisualBM): LVisualBM => {
+    return {
+        ...visualBM,
+        customName: visualBM.customName ?? visualBM.title,
+    };
+};
+
 export const putVisualBM = (
     visualBMInsert: LVisualBMInsert,
     noteCreates: LNote[],
@@ -36,7 +44,7 @@ export const putVisualBM = (
     } else {
         const params = {
             ...visualBMInsert,
-            customName: visualBMInsert.title,
+            customName: visualBMInsert.customName ?? visualBMInsert.title,
             hasBrowsed: LINT_BOOLEAN.TRUE,
             lastBrowseDate: LDateUtl.getNow(),
             isSaved: LINT_BOOLEAN.FALSE,
@@ -125,11 +133,13 @@ export const updateVisualBM = (url: string, modifications: Partial<LVisualBM>): 
 
         const info = db
             .prepare(
-                `INSERT INTO visualBMTbl (url, title, isSaved, hasBrowsed, lastBrowseDate) VALUES (?, ?, ?, ?, ?)`
+                `INSERT INTO visualBMTbl (url, title, customName, isSaved, hasBrowsed, lastBrowseDate)
+                 VALUES (?, ?, ?, ?, ?, ?)`
             )
             .run(
                 url,
                 modifications.title,
+                modifications.customName ?? modifications.title,
                 modifications.isSaved ?? LINT_BOOLEAN.FALSE,
                 LINT_BOOLEAN.TRUE,
                 LDateUtl.getNow()
@@ -174,17 +184,20 @@ export const updateVisualBM = (url: string, modifications: Partial<LVisualBM>): 
 
 export const getVisualBM = (id: number): LVisualBM | undefined => {
     const sql = `SELECT * FROM visualBMTbl WHERE id = ?`;
-    return db.prepare(sql).get(id) as LVisualBM | undefined;
+    const visualBM = db.prepare(sql).get(id) as LVisualBM | undefined;
+    return visualBM ? normalizeVisualBM(visualBM) : undefined;
 };
 
 export const getVisualBMs = (): LVisualBM[] => {
     const sql = 'SELECT * FROM visualBMTbl';
-    return db.prepare(sql).all() as LVisualBM[];
+    const visualBMs = db.prepare(sql).all() as LVisualBM[];
+    return visualBMs.map(normalizeVisualBM);
 };
 
 export const getVisualBMByUrl = (url: string): LVisualBM | undefined => {
     const sql = `SELECT * FROM visualBMTbl WHERE url = ?`;
-    return db.prepare(sql).get(url) as LVisualBM | undefined;
+    const visualBM = db.prepare(sql).get(url) as LVisualBM | undefined;
+    return visualBM ? normalizeVisualBM(visualBM) : undefined;
 };
 
 export const updateVisualBMPreview = (vbmUrl: string, preview: Buffer): void => {

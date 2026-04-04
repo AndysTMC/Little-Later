@@ -1,7 +1,27 @@
 import { db, resetLLDB } from "../utils/db";
 import { getLLConfig, updateLLConfig } from "../utils/littleLocal";
-import { LUserVault, LUserAvatar, LUserProfile } from "little-shared/types";
+import {
+	LUserVault,
+	LUserAvatar,
+	LUserProfile,
+	LUserSettings,
+} from "little-shared/types";
+import { LINT_BOOLEAN } from "little-shared/enums";
 import JSZip from "jszip";
+import { getUserSettings } from "./settings";
+
+type CurrentProfileSnapshot = {
+	currentUserId: number;
+	userSettings: LUserSettings;
+	tables: {
+		linkTbl: unknown[];
+		noteTbl: unknown[];
+		reminderTbl: unknown[];
+		taskTbl: unknown[];
+		visualBMTbl: unknown[];
+		vbmPreviewIds: number[];
+	};
+};
 
 export const switchToLittleLocal = async () => {
 	const llConfig = await getLLConfig();
@@ -43,6 +63,53 @@ export const switchToLittleLocal = async () => {
 			);
 		}
 	});
+
+	const currentUserProfile = await db.userProfileTbl
+		.where("isCurrent")
+		.equals(LINT_BOOLEAN.TRUE)
+		.first();
+
+	if (currentUserProfile) {
+		const [linkTbl, noteTbl, reminderTbl, taskTbl, visualBMTbl, vbmPreviewTbl] =
+			await Promise.all([
+				db.linkTbl.toArray(),
+				db.noteTbl.toArray(),
+				db.reminderTbl.toArray(),
+				db.taskTbl.toArray(),
+				db.visualBMTbl.toArray(),
+				db.vbmPreviewTbl.toArray(),
+			]);
+		const userSettings = await getUserSettings();
+		const snapshotZip = new JSZip();
+		const metadata: CurrentProfileSnapshot = {
+			currentUserId: currentUserProfile.userId,
+			userSettings,
+			tables: {
+				linkTbl,
+				noteTbl,
+				reminderTbl,
+				taskTbl,
+				visualBMTbl,
+				vbmPreviewIds: vbmPreviewTbl.map((preview) => preview.vbmId),
+			},
+		};
+		snapshotZip.file("metadata.json", JSON.stringify(metadata));
+		for (const preview of vbmPreviewTbl) {
+			snapshotZip.file(`previews/${preview.vbmId}.bin`, preview.blob);
+		}
+		const snapshotBytes = await snapshotZip.generateAsync({
+			type: "uint8array",
+		});
+		const snapshotArrayBuffer = new ArrayBuffer(snapshotBytes.byteLength);
+		new Uint8Array(snapshotArrayBuffer).set(snapshotBytes);
+		formData.append(
+			"currentSnapshot",
+			new Blob([snapshotArrayBuffer], {
+				type: "application/octet-stream",
+			}),
+			"currentSnapshot.bin",
+		);
+	}
 
 	const response = await fetch(
 		`http://localhost:${llConfig.port}/api/switch/toLittleLocal`,

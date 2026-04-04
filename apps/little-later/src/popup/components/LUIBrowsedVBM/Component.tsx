@@ -85,7 +85,7 @@ const Component = ({
 								: "text-neutral-900"
 						} line-clamp-3 leading-snug text-pretty break-all text-ellipsis`}
 					>
-						{visualBM.customName}
+						{visualBM.customName || visualBM.title}
 					</div>
 					<div
 						className={`flex w-full grow flex-col justify-end gap-y-1 pb-0.5`}
