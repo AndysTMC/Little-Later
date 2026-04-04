@@ -18,27 +18,31 @@ function keepAlive() {
 	}, 20000);
 }
 
-chrome.runtime.onInstalled.addListener(async () => {
-	chrome.storage.local.clear();
-	chrome.contextMenus.create({
-		id: "convertPageToSave",
-		title: "Save page",
-		contexts: ["page"],
-	});
-	chrome.contextMenus.create({
-		id: "noteThis",
-		title: "Note text",
-		contexts: ["selection"],
-	});
-	chrome.contextMenus.create({
-		id: "noteQuickSummary",
-		title: "Note quick summary (AI)",
-		contexts: ["selection"],
-	});
-	chrome.contextMenus.create({
-		id: "noteKeypoints",
-		title: "Note keypoints (AI)",
-		contexts: ["selection"],
+chrome.runtime.onInstalled.addListener(async (details) => {
+	if (details.reason === "install") {
+		chrome.storage.local.clear();
+	}
+	chrome.contextMenus.removeAll(() => {
+		chrome.contextMenus.create({
+			id: "convertPageToSave",
+			title: "Save page",
+			contexts: ["page"],
+		});
+		chrome.contextMenus.create({
+			id: "noteThis",
+			title: "Note text",
+			contexts: ["selection"],
+		});
+		chrome.contextMenus.create({
+			id: "noteQuickSummary",
+			title: "Note quick summary (AI)",
+			contexts: ["selection"],
+		});
+		chrome.contextMenus.create({
+			id: "noteKeypoints",
+			title: "Note keypoints (AI)",
+			contexts: ["selection"],
+		});
 	});
 	keepAlive();
 });
@@ -52,7 +56,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 		if (tab?.id !== undefined) {
 			await saveActiveWebPage();
 		}
-	} else if (info.menuItemId === "addToNotes") {
+	} else if (info.menuItemId === "noteThis") {
 		if (tab?.id !== undefined && info.selectionText) {
 			await createNote({ content: info.selectionText });
 		}

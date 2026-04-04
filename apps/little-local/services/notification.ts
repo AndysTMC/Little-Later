@@ -53,6 +53,7 @@ export const createNotifications = (): void => {
                     }
                     deleteLink(vbmLink);
                 }
+                deleteReminder(reminder.id);
             } else {
                 createReminderNotification(reminder);
                 deleteReminder(reminder.id);

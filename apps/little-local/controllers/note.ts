@@ -6,7 +6,6 @@ import { DB_CHANGE_KEYS } from '../enums';
 
 export const createNoteEP = async (req: Request, res: Response) => {
     const { noteInsert } = req.body as { noteInsert: LNoteInsert };
-    console.log(req.body);
     if (!noteInsert) {
         return res.status(400).send('Note data is required');
     }
@@ -74,4 +73,5 @@ export const deleteNoteEP = async (req: Request, res: Response) => {
     deleteNote(parseInt(id, 10));
     res.sendStatus(204);
     appEmitter.emit(DB_CHANGE_KEYS.notesChange);
+    appEmitter.emit(DB_CHANGE_KEYS.linksChange);
 };

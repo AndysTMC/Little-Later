@@ -96,7 +96,7 @@ export const createUser = async (
 };
 
 export const deleteUser = async (userId: number): Promise<void> => {
-	const response = await localFetch("/user" + userId, {
+	const response = await localFetch("/user/" + userId, {
 		method: "DELETE",
 	});
 	if (response.use) {

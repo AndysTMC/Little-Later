@@ -4,7 +4,7 @@ import { getNote } from "../../../services/note";
 import { saveActiveWebPage } from "../../../services/visualBM";
 
 const toolCall = async (id: number): Promise<() => Promise<void>> => {
-	const note = getNote(id);
+	const note = await getNote(id);
 	if (note === undefined) {
 		throw new Error("Note not found");
 	}

@@ -1,7 +1,6 @@
 import { LLINK_TYPE } from 'little-shared/enums.js';
 import { LLinkInsert } from 'little-shared/types.js';
 import { db } from '../db.js';
-import { deleteNote } from './note.js';
 import { deleteReminder } from './reminder.js';
 
 export const createLink = (linkInsert: LLinkInsert): number => {
@@ -56,7 +55,17 @@ export const deleteLink = (linkInsert: LLinkInsert): void => {
         case LLINK_TYPE.NOTE_VBM:
             delete linkInsert.reminderId;
             delete linkInsert.taskId;
-            deleteNote(linkInsert.noteId);
+            if (linkInsert.noteId !== undefined && linkInsert.noteId !== null) {
+                const noteId = linkInsert.noteId;
+                const whereClause = Object.keys(linkInsert)
+                    .filter((key) => linkInsert[key as keyof LLinkInsert] !== undefined)
+                    .map((key) => `${key} = @${key}`)
+                    .join(' AND ');
+                db.prepare(`DELETE FROM linkTbl WHERE ${whereClause}`).run(linkInsert);
+                db.prepare('DELETE FROM linkTbl WHERE noteId = ?').run(noteId);
+                db.prepare('DELETE FROM noteTbl WHERE id = ?').run(noteId);
+                return;
+            }
             break;
         case LLINK_TYPE.REMINDER_TASK:
             delete linkInsert.noteId;

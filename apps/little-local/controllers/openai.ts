@@ -12,9 +12,10 @@ export const createV1ChatCompletions = async (req: Request, res: Response) => {
     if (!userSettings.ai) {
         return res.status(403).send('AI features are disabled in user settings.');
     }
+    const provider = userSettings.ai.assist.provider;
     const api = new OpenAI({
         apiKey: userSettings.ai.assist.apiKey,
-        baseURL: baseUrls.get(userSettings.ai.assist.apiKey) || 'https://api.openai.com/v1',
+        baseURL: baseUrls.get(provider) || 'https://api.openai.com/v1',
     });
     const body = req.body as OpenAI.Chat.Completions.ChatCompletionCreateParams;
     const response = await api.chat.completions.create(body);

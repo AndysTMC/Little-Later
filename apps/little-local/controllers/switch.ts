@@ -84,7 +84,6 @@ export const switchToChromeEP = async (req: Request, res: Response) => {
         .prepare('SELECT * FROM userAvatarTbl')
         .all() as LUserAvatar[];
     const userVaults: LUserVault[] = db.prepare('SELECT * FROM userVaultTbl').all() as LUserVault[];
-    console.log(userProfiles, userAvatars, userVaults);
     const zip = new JSZip();
 
     zip.file('userProfiles.json', JSON.stringify(userProfiles, null, 2));

@@ -28,6 +28,8 @@ export const putTaskEP = async (req: Request, res: Response) => {
     const id = putTask(taskInsert, vbmInsertIds, vbmDeleteIds, reminderType);
     res.status(200).json(id);
     appEmitter.emit(DB_CHANGE_KEYS.tasksChange);
+    appEmitter.emit(DB_CHANGE_KEYS.linksChange);
+    appEmitter.emit(DB_CHANGE_KEYS.remindersChange);
 };
 
 export const updateTaskEP = async (req: Request, res: Response) => {
@@ -69,4 +71,6 @@ export const deleteTaskEP = async (req: Request, res: Response) => {
     deleteTask(parseInt(id, 10));
     res.sendStatus(204);
     appEmitter.emit(DB_CHANGE_KEYS.tasksChange);
+    appEmitter.emit(DB_CHANGE_KEYS.linksChange);
+    appEmitter.emit(DB_CHANGE_KEYS.remindersChange);
 };

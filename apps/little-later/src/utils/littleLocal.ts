@@ -37,7 +37,12 @@ const localFetch = async (
 			`http://localhost:${llConfig.port}/api${normalizedPath}`,
 			init,
 		);
-		if (response.status == 200) {
+		if (response.status === 204) {
+			return {
+				use: true,
+			};
+		}
+		if (response.ok) {
 			return {
 				use: true,
 				response: response,

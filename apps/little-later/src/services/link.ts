@@ -1,7 +1,6 @@
 import { LLINK_TYPE } from "little-shared/enums";
 import { LLink, LLinkInsert } from "little-shared/types";
 import { db } from "../utils/db";
-import { deleteNote } from "./note";
 import { deleteReminder } from "./reminder";
 import { localFetch } from "../utils/littleLocal";
 export const createLink = async (linkInsert: LLinkInsert): Promise<number> => {
@@ -88,17 +87,42 @@ export const createLink = async (linkInsert: LLinkInsert): Promise<number> => {
 	linkInsert.vbmId = linkInsert.vbmId ?? null;
 	linkInsert.taskId = linkInsert.taskId ?? null;
 
+	const response = await localFetch("/link", {
+		method: "POST",
+		body: JSON.stringify({ linkInsert }),
+		headers: { "Content-Type": "application/json" },
+	});
+	if (response.use) {
+		const result = await response.response?.json();
+		return result;
+	}
+
 	const id = await db.linkTbl.add(linkInsert);
 	return id;
 };
 
 export const deleteLink = async (linkInsert: LLinkInsert): Promise<void> => {
+	const response = await localFetch("/link", {
+		method: "DELETE",
+		body: JSON.stringify({ linkInsert }),
+		headers: { "Content-Type": "application/json" },
+	});
+	if (response.use) {
+		return;
+	}
+
 	delete linkInsert.id;
 	switch (linkInsert.type) {
 		case LLINK_TYPE.NOTE_VBM:
 			delete linkInsert.reminderId;
 			delete linkInsert.taskId;
-			await deleteNote(linkInsert.noteId);
+			if (linkInsert.noteId !== undefined && linkInsert.noteId !== null) {
+				const noteId = linkInsert.noteId;
+				await db.linkTbl.where(linkInsert).delete();
+				await db.linkTbl.where("noteId").equals(noteId).delete();
+				await db.noteTbl.delete(noteId);
+				return;
+			}
 			break;
 		case LLINK_TYPE.REMINDER_TASK:
 			delete linkInsert.noteId;

@@ -42,6 +42,10 @@ export const putVisualBMEP = async (req: Request, res: Response) => {
     );
     res.status(200).send(id);
     appEmitter.emit(DB_CHANGE_KEYS.visualBMsChange);
+    appEmitter.emit(DB_CHANGE_KEYS.notesChange);
+    appEmitter.emit(DB_CHANGE_KEYS.remindersChange);
+    appEmitter.emit(DB_CHANGE_KEYS.tasksChange);
+    appEmitter.emit(DB_CHANGE_KEYS.linksChange);
 };
 
 export const updateVisualBMEP = async (req: Request, res: Response) => {
@@ -56,6 +60,10 @@ export const updateVisualBMEP = async (req: Request, res: Response) => {
     const vbmId = updateVisualBM(url, modifications);
     res.status(200).send(vbmId);
     appEmitter.emit(DB_CHANGE_KEYS.visualBMsChange);
+    appEmitter.emit(DB_CHANGE_KEYS.notesChange);
+    appEmitter.emit(DB_CHANGE_KEYS.remindersChange);
+    appEmitter.emit(DB_CHANGE_KEYS.tasksChange);
+    appEmitter.emit(DB_CHANGE_KEYS.linksChange);
 };
 
 export const updateVisualBMPreviewEP = async (req: Request, res: Response) => {
@@ -100,7 +108,6 @@ export const getVisualBMEP = async (req: Request, res: Response) => {
 
 export const getVisualBMByUrlEP = async (req: Request, res: Response) => {
     const { url } = req.query as { url: string };
-    console.log('Url: ', url);
     if (!url) {
         res.status(400).send('URL is required');
         return;

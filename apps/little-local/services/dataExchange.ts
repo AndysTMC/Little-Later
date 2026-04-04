@@ -31,6 +31,7 @@ export const exportDataImportable = async (): Promise<Buffer> => {
         }
         vaultTablesData[tableName as keyof LVaultDataPostDecryptTables] = records as any;
     }
+    userVaultPostDecrypt.tables = vaultTablesData as LVaultDataPostDecryptTables;
     const userVaultDataPostEncrypt = await encrypt<LVaultDataPostDecrypt>(
         LEMPTY_PASSWORD,
         userVaultPostDecrypt
@@ -110,44 +111,59 @@ export const exportDataReadable = async (): Promise<Buffer> => {
     const jsonBuffer = Buffer.from(jsonArrayBuffer);
     return jsonBuffer;
 };
-export const importData = async (buffer: ArrayBuffer): Promise<void> => {
-    const view = new DataView(buffer);
+const toArrayBuffer = (buffer: ArrayBuffer | Buffer): ArrayBuffer => {
+    if (buffer instanceof ArrayBuffer) {
+        return buffer;
+    }
+    const arrayBufferLike = buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength
+    );
+    const bytes = new Uint8Array(arrayBufferLike);
+    const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(arrayBuffer).set(bytes);
+    return arrayBuffer;
+};
+
+export const importData = async (buffer: ArrayBuffer | Buffer): Promise<void> => {
+    const normalizedBuffer = toArrayBuffer(buffer);
+    const view = new DataView(normalizedBuffer);
     let offset = 0;
-    if (offset + 4 > buffer.byteLength) {
+    if (offset + 4 > normalizedBuffer.byteLength) {
         throw new Error('Invalid import file: too short for profile length');
     }
     const profileLength = view.getUint32(offset, true);
     offset += 4;
-    if (offset + profileLength > buffer.byteLength) {
+    if (offset + profileLength > normalizedBuffer.byteLength) {
         throw new Error('Invalid profile length');
     }
-    const profileBytes = new Uint8Array(buffer, offset, profileLength);
+    const profileBytes = new Uint8Array(normalizedBuffer, offset, profileLength);
     offset += profileLength;
-    if (offset + 4 > buffer.byteLength) {
+    if (offset + 4 > normalizedBuffer.byteLength) {
         throw new Error('Invalid import file: too short for avatar length');
     }
     const avatarLength = view.getUint32(offset, true);
     offset += 4;
-    if (offset + avatarLength > buffer.byteLength) {
+    if (offset + avatarLength > normalizedBuffer.byteLength) {
         throw new Error('Invalid avatar length');
     }
-    const avatarBytes = new Uint8Array(buffer, offset, avatarLength);
+    const avatarBytes = new Uint8Array(normalizedBuffer, offset, avatarLength);
     // const avatarBlob = new Blob([avatarBytes]);
     offset += avatarLength;
-    if (offset + 4 > buffer.byteLength) {
+    if (offset + 4 > normalizedBuffer.byteLength) {
         throw new Error('Invalid import file: too short for vault length');
     }
     const vaultLength = view.getUint32(offset, true);
     offset += 4;
-    if (offset + vaultLength > buffer.byteLength) {
+    if (offset + vaultLength > normalizedBuffer.byteLength) {
         throw new Error('Invalid vault length');
     }
-    const vaultBytes = new Uint8Array(buffer, offset, vaultLength);
+    const vaultBytes = new Uint8Array(normalizedBuffer, offset, vaultLength);
     // const userVaultDataPostEncrypt = new Blob([vaultBytes], {
     // 	type: "application/octet-stream",
     // });
     offset += vaultLength;
-    if (offset !== buffer.byteLength) {
+    if (offset !== normalizedBuffer.byteLength) {
         throw new Error('Extra data in the import file');
     }
     let profileJson;

@@ -13,7 +13,31 @@ import { encrypt } from "little-shared/utils/crypto";
 import { getCurrentUserProfile, getUserAvatar } from "./user";
 import { LINT_BOOLEAN } from "little-shared/enums";
 import { localFetch } from "../utils/littleLocal";
+
+const getDownloadFilename = (
+	contentDisposition: string | null,
+	fallback: string,
+): string => {
+	if (!contentDisposition) return fallback;
+	const match = contentDisposition.match(/filename="?([^"]+)"?/i);
+	return match?.[1] ?? fallback;
+};
+
 export const exportDataImportable = async (): Promise<void> => {
+	const localResponse = await localFetch("/dataExchange/exportDataImportable");
+	if (localResponse.use) {
+		if (!localResponse.response) {
+			throw new Error("Failed to export importable data from Little Local");
+		}
+		const blob = await localResponse.response.blob();
+		const filename = getDownloadFilename(
+			localResponse.response.headers.get("content-disposition"),
+			"Little-Later-Importable.lldat",
+		);
+		downloadBlob(blob, filename);
+		return;
+	}
+
 	const currentUserProfile = await getCurrentUserProfile();
 	if (!currentUserProfile) throw new Error("No current user profile found");
 	const userSettings = await getUserSettings();
@@ -69,6 +93,20 @@ export const exportDataImportable = async (): Promise<void> => {
 };
 
 export const exportDataReadable = async (): Promise<void> => {
+	const localResponse = await localFetch("/dataExchange/exportDataReadable");
+	if (localResponse.use) {
+		if (!localResponse.response) {
+			throw new Error("Failed to export readable data from Little Local");
+		}
+		const blob = await localResponse.response.blob();
+		const filename = getDownloadFilename(
+			localResponse.response.headers.get("content-disposition"),
+			"Little-Later-Readable.json",
+		);
+		downloadBlob(blob, filename);
+		return;
+	}
+
 	const dbBlob = await exportLLDB();
 	const dbJSONString = await dbBlob.text();
 	const dbJSON = JSON.parse(dbJSONString);
@@ -96,7 +134,7 @@ const downloadBlob = (blob: Blob, filename: string): void => {
 
 export const importData = async (blob: Blob): Promise<void> => {
 	const buffer = await blob.arrayBuffer();
-	const response = await localFetch("/note", {
+	const response = await localFetch("/dataExchange/importData", {
 		method: "POST",
 		body: buffer,
 		headers: { "Content-Type": "application/octet-stream" },

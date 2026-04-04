@@ -21,7 +21,7 @@ export const exportDataReadableEP = async (req: Request, res: Response) => {
 };
 
 export const importDataEP = async (req: Request, res: Response) => {
-    const buffer = req.body as ArrayBuffer;
-    importData(buffer);
+    const buffer = req.body as Buffer;
+    await importData(buffer);
     res.sendStatus(204);
 };

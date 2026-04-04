@@ -22,7 +22,6 @@ export const createReminderEP = async (req: Request, res: Response) => {
 };
 
 export const putReminderEP = async (req: Request, res: Response) => {
-    console.log('putReminderEP called with body:', req.body);
     const { reminderInsert, vbmInsertIds, vbmDeleteIds } = req.body as {
         reminderInsert: LReminderInsert;
         vbmInsertIds: Array<number>;
@@ -34,6 +33,7 @@ export const putReminderEP = async (req: Request, res: Response) => {
     const id = putReminder(reminderInsert, vbmInsertIds, vbmDeleteIds);
     res.status(200).json(id);
     appEmitter.emit(DB_CHANGE_KEYS.remindersChange);
+    appEmitter.emit(DB_CHANGE_KEYS.linksChange);
 };
 
 export const updateReminderEP = async (req: Request, res: Response) => {
@@ -75,4 +75,5 @@ export const deleteReminderEP = async (req: Request, res: Response) => {
     deleteReminder(parseInt(id, 10));
     res.sendStatus(204);
     appEmitter.emit(DB_CHANGE_KEYS.remindersChange);
+    appEmitter.emit(DB_CHANGE_KEYS.linksChange);
 };

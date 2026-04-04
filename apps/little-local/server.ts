@@ -23,11 +23,19 @@ export default () => {
     const app = express();
     const server = http.createServer(app);
     initializeDatabase();
+    const isAllowedOrigin = (origin: string | undefined) => {
+        if (!origin) return true;
+        return (
+            origin.startsWith('chrome-extension://') ||
+            origin.startsWith('http://localhost') ||
+            origin.startsWith('http://127.0.0.1')
+        );
+    };
     const io: Server = new Server(server, {
         cors: {
             origin: (origin, callback) => {
                 console.log('CORS origin:', origin);
-                if ((origin && origin.startsWith('chrome-extension://')) || true) {
+                if (isAllowedOrigin(origin)) {
                     callback(null, true);
                 } else {
                     callback(new Error('Not allowed by CORS'));
@@ -44,7 +52,7 @@ export default () => {
         cors({
             origin: (origin, callback) => {
                 console.log('CORS origin:', origin);
-                if ((origin && origin.startsWith('chrome-extension://')) || true) {
+                if (isAllowedOrigin(origin)) {
                     callback(null, true);
                 } else {
                     callback(new Error('Not allowed by CORS'));

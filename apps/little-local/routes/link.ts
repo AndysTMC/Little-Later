@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import {} from '../controllers/note';
 import asyncHandler from '../utils/asyncHandler';
-import { getLinks } from '../services/link';
-import { getLinksEP } from '../controllers/link';
+import { createLinkEP, deleteLinkEP, getLinksEP } from '../controllers/link';
 
 const router: Router = Router();
 
+router.post('/', asyncHandler(createLinkEP));
+router.delete('/', asyncHandler(deleteLinkEP));
 router.get('/', asyncHandler(getLinksEP));
 
 export default router;

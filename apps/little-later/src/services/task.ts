@@ -129,6 +129,7 @@ export const updateTask = async (
 	const response = await localFetch("/task/" + id, {
 		method: "PATCH",
 		body: JSON.stringify({ modifications }),
+		headers: { "Content-Type": "application/json" },
 	});
 	if (response.use) {
 		return;

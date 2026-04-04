@@ -358,13 +358,13 @@ export class GroqAI extends LittleAI {
 					break;
 				}
 				case getUserAppThemePrefTool.function.name: {
-					const theme = toolCalls.getUserAppThemePref();
+					const theme = await toolCalls.getUserAppThemePref();
 					output.message = "Your app theme is " + theme;
 					output.expression = LFACE_EXPRESSION.SLIGHTLY_SMILING;
 					break;
 				}
 				case getUserNameTool.function.name: {
-					const userName = toolCalls.getUserName();
+					const userName = await toolCalls.getUserName();
 					output.message = "Your name is " + userName;
 					output.expression = LFACE_EXPRESSION.SLIGHTLY_SMILING;
 					break;

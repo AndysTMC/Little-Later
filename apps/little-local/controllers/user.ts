@@ -99,7 +99,8 @@ export const updateUserAvatarEP = async (req: Request, res: Response) => {
     if (!buffer) {
         return res.status(400).send('Avatar data is required');
     }
-    updateUserAvatar(parseInt(userId, 10), buffer);
+    const avatar = buffer.length > 0 ? buffer : null;
+    updateUserAvatar(parseInt(userId, 10), avatar);
     res.sendStatus(204);
     appEmitter.emit(DB_CHANGE_KEYS.userAvatarsChange);
 };
