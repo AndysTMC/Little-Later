@@ -1,55 +1,65 @@
 # AGENTS.md
 
-This is a quick onboarding guide for coding agents working in this repository.
+Quick onboarding notes for coding agents working in `D:\Projects\Little-Later`.
 
-## Project at a glance
+## Project shape
 
-- Monorepo managed with Bun workspaces.
-- Main workspace:
-  - repo root: Chrome extension (MV3) built with Vite + React + TypeScript.
-  - `packages/shared`: shared enums, types, constants, and utilities.
-- Architecture is extension-local-first using Dexie + `chrome.storage.local`.
+- Bun workspace monorepo
+- Root workspace = the Chrome extension
+- `packages/shared` = shared domain types, enums, constants, and utility helpers
+- Architecture is extension-only and local-first; do not assume a backend exists
 
-## Workspace map
+## Key folders
 
-- Root:
-  - `package.json`: workspace scripts (`build`, `typecheck`, formatting).
-  - `tsconfig.json`: project references for shared + extension.
-- Extension:
-  - `manifest.json`: MV3 manifest.
-  - `src/background/background.ts`: service worker.
-  - `src/popup/App.tsx`: popup routes/providers.
-  - `src/services/*`: app business logic.
-  - `src/utils/db.ts`: Dexie schema and import/export helpers.
-- Shared:
-  - `packages/shared/src/types.ts`
-  - `packages/shared/src/enums.ts`
-  - `packages/shared/src/constants.ts`
-  - `packages/shared/src/utils/*`
+- `manifest.json` - MV3 manifest and release version
+- `src/background/background.ts` - service worker, alarms, notifications, capture, context menu entry points
+- `src/popup/App.tsx` - popup routing
+- `src/popup/components` - reusable UI pieces
+- `src/popup/pages` - route-level pages
+- `src/services` - feature logic, AI runtime, notifications, import/export
+- `src/utils/db.ts` - Dexie schema and reset/export helpers
+- `packages/shared/src` - shared types, crypto, datetime, reminder/task helpers
+- `tests` - Vitest coverage and Playwright flows
+- `scripts/ai-live-*.ts` - optional live AI smoke/validation runners
 
 ## Commands
 
-- Install deps: `bun install`
-- Build all: `bun run build`
+- Install: `bun install`
+- Dev server: `bun run dev`
+- Build: `bun run build`
 - Type-check: `bun run typecheck`
+- Unit/integration tests: `bun run test`
+- Playwright: `bun run test:e2e`
+- Live AI smoke: `bun run test:ai:live`
+- Live AI matrix: `bun run test:ai:live:validate`
 - Format check: `bun run format:check`
-- Extension:
-  - Dev: `bun run dev`
-  - Build: `bun run build`
-  - Test: `bun run test`
-- Shared:
-  - Build: `bun run --filter little-shared build`
 
-## Implementation notes
+## AI notes
 
-- Data model changes usually require updates to:
-  - Shared types/enums/constants
-  - Dexie schema in `src/utils/db.ts`
-  - Extension service logic
-- In dev/non-production, `src/utils/chrome.ts` uses `localStorage`; production uses `chrome.storage.local`.
-- Profile vault encryption/decryption is in shared crypto utils (`AES-GCM` + `PBKDF2`).
+- Extension AI supports Ollama, LM Studio, and custom OpenAI-compatible providers
+- Ollama and LM Studio use built-in local URLs
+- Live AI scripts read optional env vars from `.env` via Bun; see `.env.example`
+- AI task/save create-update tools are intentionally disabled right now; keep tool contracts aligned with the shipped UI/runtime behavior
 
-## Release
+## Storage notes
 
-- Workflow: `.github/workflows/release.yml`
-- Builds shared package + extension and publishes `Little-Later-{version}.zip` with SHA256 files.
+- Production storage uses `chrome.storage.local`
+- Dev/test fallback storage lives in `src/utils/chrome.ts` via `localStorage`
+- IndexedDB schema lives in `src/utils/db.ts`
+- Locked-profile encryption is implemented in `packages/shared/src/utils/crypto.ts`
+
+## Cleanup + release expectations
+
+- Generated files like `dist-release/` and `*.tsbuildinfo` should stay out of commits
+- If you change versions, update all three files:
+    - `manifest.json`
+    - `package.json`
+    - `packages/shared/package.json`
+- Tagging `v*` triggers `.github/workflows/release.yml`, which builds the extension zip and checksum assets
+- GitHub supplies source archives automatically for tagged releases
+
+## Useful implementation reminders
+
+- Data-model changes usually need matching updates in shared types, Dexie schema, services, and tests
+- Reminder/task/bookmark changes often ripple into AI tool schemas and runtime tests
+- This repo prefers compact, documented fixes over large speculative refactors

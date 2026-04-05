@@ -13,6 +13,8 @@ import { encrypt } from "little-shared/utils/crypto";
 import { getCurrentUserProfile, getUserAvatar } from "./user";
 import { LINT_BOOLEAN } from "little-shared/enums";
 
+// Dexie export helpers return slightly different blob-like values across the
+// browser, Bun, and jsdom test environments, so these readers stay defensive.
 const readBlobText = async (blobLike: unknown): Promise<string> => {
 	if (
 		blobLike &&
@@ -84,7 +86,7 @@ const readBlobArrayBuffer = async (blobLike: unknown): Promise<ArrayBuffer> => {
 		Array.isArray((blobLike as { data?: unknown }).data)
 	) {
 		const bytes = Uint8Array.from(
-			((blobLike as { data: Array<unknown> }).data).filter(
+			(blobLike as { data: Array<unknown> }).data.filter(
 				(item): item is number =>
 					typeof item === "number" && Number.isFinite(item),
 			),
@@ -98,6 +100,8 @@ export const exportDataImportable = async (): Promise<void> => {
 	const currentUserProfile = await getCurrentUserProfile();
 	if (!currentUserProfile) throw new Error("No current user profile found");
 	const userSettings = await getUserSettings();
+	// Importable exports bundle profile metadata, avatar bytes, and the encrypted
+	// vault payload into one binary envelope so another device can restore it.
 	const userVaultPostDecrypt: LVaultDataPostDecrypt = {
 		tables: LEMPTY_VAULT_DATA_POST_DECRYPT.value,
 		userSettings: userSettings,

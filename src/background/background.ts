@@ -12,6 +12,43 @@ import { LittleAI } from "../services/ai";
 
 const LOCAL_AI_ORIGIN_RULE_ID = 91001;
 let keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
+let lastCapturedTabSignature = "";
+let lastCaptureAt = 0;
+
+const CAPTURE_THROTTLE_MS = 15000;
+
+// Only normal web pages can be screenshot reliably from the MV3 service worker.
+const isCapturableTabUrl = (url?: string): url is string => {
+	if (!url) {
+		return false;
+	}
+	return /^https?:\/\//i.test(url);
+};
+
+// Wrap the callback API so the worker can safely skip unsupported windows/tabs.
+const captureVisibleTab = async (
+	windowId: number,
+): Promise<string | undefined> => {
+	return await new Promise((resolve) => {
+		chrome.tabs.captureVisibleTab(
+			windowId,
+			{ format: "jpeg", quality: 85 },
+			(dataUrl) => {
+				if (chrome.runtime.lastError) {
+					const message =
+						chrome.runtime.lastError.message ??
+						"captureVisibleTab failed.";
+					console.debug(
+						`Skipping tab capture for window ${windowId}: ${message}`,
+					);
+					resolve(undefined);
+					return;
+				}
+				resolve(dataUrl);
+			},
+		);
+	});
+};
 
 const configureLocalAIRequestHeaders = async (): Promise<void> => {
 	const rules: Array<chrome.declarativeNetRequest.Rule> = [
@@ -19,7 +56,8 @@ const configureLocalAIRequestHeaders = async (): Promise<void> => {
 			id: LOCAL_AI_ORIGIN_RULE_ID,
 			priority: 1,
 			action: {
-				type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+				type: chrome.declarativeNetRequest.RuleActionType
+					.MODIFY_HEADERS,
 				requestHeaders: [
 					{
 						header: "Origin",
@@ -55,9 +93,7 @@ function keepAlive() {
 		return;
 	}
 	keepAliveIntervalId = setInterval(() => {
-		chrome.runtime.getPlatformInfo(function (info) {
-			console.log("Keeping service worker alive. Platform: " + info.os);
-		});
+		chrome.runtime.getPlatformInfo(() => void chrome.runtime.lastError);
 	}, 20000);
 }
 
@@ -133,42 +169,55 @@ const captureActiveTab = async () => {
 	if (!currentUserProfile) return;
 	const activeTab = await getActiveTab();
 	if (!activeTab) return;
-	const activeTabUrl = activeTab.url || "about:blank";
-	if (!activeTabUrl.startsWith("https:")) return;
-	const activeTabTitle = activeTab.title || "Untitled";
-	chrome.tabs.captureVisibleTab(
-		{ format: "jpeg", quality: 100 },
-		async (dataUrl) => {
-			if (chrome.runtime.lastError) {
-				console.log("Error capturing tab:", chrome.runtime.lastError);
-				return;
-			}
-			if (!activeTab || !activeTab.url || !activeTab.title) return;
-			const response = await fetch(dataUrl);
-			const imageBlob = await response.blob();
-			await updateVisualBM(activeTabUrl, {
-				title: activeTabTitle,
-				hasBrowsed: LINT_BOOLEAN.TRUE,
-			});
-			await updateVisualBMPreview(activeTabUrl, imageBlob);
-		},
-	);
+	if (
+		!isCapturableTabUrl(activeTab.url) ||
+		activeTab.windowId === undefined
+	) {
+		return;
+	}
+
+	const activeTabUrl = activeTab.url;
+	const activeTabTitle = activeTab.title?.trim() || "Untitled";
+	const signature = `${activeTab.windowId}:${activeTabUrl}:${activeTabTitle}`;
+	const now = Date.now();
+	if (
+		signature === lastCapturedTabSignature &&
+		now - lastCaptureAt < CAPTURE_THROTTLE_MS
+	) {
+		return;
+	}
+
+	try {
+		const dataUrl = await captureVisibleTab(activeTab.windowId);
+		if (!dataUrl) {
+			return;
+		}
+		const response = await fetch(dataUrl);
+		const imageBlob = await response.blob();
+		await updateVisualBM(activeTabUrl, {
+			title: activeTabTitle,
+			hasBrowsed: LINT_BOOLEAN.TRUE,
+		});
+		await updateVisualBMPreview(activeTabUrl, imageBlob);
+		lastCapturedTabSignature = signature;
+		lastCaptureAt = now;
+	} catch (error) {
+		console.warn("Unable to persist captured tab preview.", error);
+	}
 };
 
 chrome.tabs.onActivated.addListener(async () => {
-	captureActiveTab();
+	void captureActiveTab();
 });
 
 chrome.tabs.onUpdated.addListener(async (_, changeInfo) => {
 	if (changeInfo.status === "complete") {
-		captureActiveTab();
+		void captureActiveTab();
 	}
 });
 
-chrome.tabs.onRemoved.addListener(async () => {
-	captureActiveTab();
-});
-
+// Tab events are best-effort, so these alarms keep notifications and preview
+// capture fresh even after the MV3 worker gets suspended.
 chrome.alarms.create("createNotifications", {
 	delayInMinutes: 0.5,
 	periodInMinutes: 0.5,
@@ -176,17 +225,16 @@ chrome.alarms.create("createNotifications", {
 
 chrome.alarms.create("captureActiveTab", {
 	delayInMinutes: 0.5,
-	periodInMinutes: 0.1,
-});
-
-chrome.alarms.create("storeFromCloud", {
-	delayInMinutes: 0.1,
-	periodInMinutes: 0.15,
+	periodInMinutes: 0.5,
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
 	if (alarm.name === "createNotifications") {
-		await createNotifications();
+		try {
+			await createNotifications();
+		} catch (error) {
+			console.error("Failed to create notifications.", error);
+		}
 	}
 	if (alarm.name === "captureActiveTab") {
 		await captureActiveTab();

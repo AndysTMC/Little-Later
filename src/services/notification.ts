@@ -20,39 +20,46 @@ import { deleteLink } from "./link";
 export const createNotifications = async (): Promise<void> => {
 	const reminders = await db.reminderTbl.toArray();
 	for (const reminder of reminders) {
-		const reminderLinks = await db.linkTbl
-			.where("reminderId")
-			.equals(reminder.id)
-			.toArray();
-		const vbmLinks = reminderLinks.filter(
-			(link) => link.type === LLINK_TYPE.REMINDER_VBM,
-		);
-		const taskLink = reminderLinks.find(
-			(link) => link.type === LLINK_TYPE.REMINDER_TASK,
-		);
+		try {
+			// Process each reminder independently so one broken record never blocks
+			// the rest of the notification queue.
+			const reminderLinks = await db.linkTbl
+				.where("reminderId")
+				.equals(reminder.id)
+				.toArray();
+			const vbmLinks = reminderLinks.filter(
+				(link) => link.type === LLINK_TYPE.REMINDER_VBM,
+			);
+			const taskLink = reminderLinks.find(
+				(link) => link.type === LLINK_TYPE.REMINDER_TASK,
+			);
 
-		if (isTargetDateReached(reminder)) {
-			if (taskLink) {
-				if (taskLink.type !== LLINK_TYPE.REMINDER_TASK) {
-					continue;
-				}
-				const task = taskLink
-					? await db.taskTbl.get(taskLink.taskId)
-					: undefined;
-				if (task) {
-					await createTaskReminderNotification(task);
-					if (task.schedule.type === LTASK_SCHEDULE_TYPE.RECURRING) {
-						await updateReminder(reminder.id, {
-							targetDate: getNextTargetDateFromRecurringInfo(
-								task.schedule.recurringInfo,
-							),
-							lastNotificationDate: LDateUtl.getNow(),
-						});
+			if (isTargetDateReached(reminder)) {
+				if (taskLink) {
+					if (taskLink.type !== LLINK_TYPE.REMINDER_TASK) {
 						continue;
 					}
+					const task = taskLink
+						? await db.taskTbl.get(taskLink.taskId)
+						: undefined;
+					if (task) {
+						await createTaskReminderNotification(task);
+						if (
+							task.schedule.type === LTASK_SCHEDULE_TYPE.RECURRING
+						) {
+							await updateReminder(reminder.id, {
+								targetDate: getNextTargetDateFromRecurringInfo(
+									task.schedule.recurringInfo,
+								),
+								lastNotificationDate: LDateUtl.getNow(),
+							});
+							continue;
+						}
+					}
+					await deleteLink(taskLink);
+					continue;
 				}
-				await deleteLink(taskLink);
-			} else {
+
 				if (vbmLinks.length > 0) {
 					for (const vbmLink of vbmLinks) {
 						if (vbmLink.type !== LLINK_TYPE.REMINDER_VBM) {
@@ -75,48 +82,53 @@ export const createNotifications = async (): Promise<void> => {
 					await createReminderNotification(reminder);
 				}
 				await deleteReminder(reminder.id);
-			}
-		} else if (shouldNotifyNow(reminder)) {
-			if (taskLink) {
-				if (taskLink.type !== LLINK_TYPE.REMINDER_TASK) {
-					continue;
-				}
-				const task = taskLink
-					? await db.taskTbl.get(taskLink.taskId)
-					: undefined;
-				if (task) {
-					await createTaskReminderNotification(task);
-				} else {
-					await deleteLink(taskLink);
-					continue;
-				}
-			} else {
-				if (vbmLinks.length > 0) {
-					for (const vbmLink of vbmLinks) {
-						if (vbmLink.type !== LLINK_TYPE.REMINDER_VBM) {
-							continue;
-						}
-						const vbm = await db.visualBMTbl.get(vbmLink.vbmId);
-						if (vbm) {
-							const vbmPreview = await db.vbmPreviewTbl.get(
-								vbm.id,
-							);
-							await createVBMReminderNotification(
-								vbm,
-								vbmPreview,
-								reminder,
-							);
-						} else {
-							await deleteLink(vbmLink);
-						}
+			} else if (shouldNotifyNow(reminder)) {
+				if (taskLink) {
+					if (taskLink.type !== LLINK_TYPE.REMINDER_TASK) {
+						continue;
+					}
+					const task = taskLink
+						? await db.taskTbl.get(taskLink.taskId)
+						: undefined;
+					if (task) {
+						await createTaskReminderNotification(task);
+					} else {
+						await deleteLink(taskLink);
+						continue;
 					}
 				} else {
-					await createReminderNotification(reminder);
+					if (vbmLinks.length > 0) {
+						for (const vbmLink of vbmLinks) {
+							if (vbmLink.type !== LLINK_TYPE.REMINDER_VBM) {
+								continue;
+							}
+							const vbm = await db.visualBMTbl.get(vbmLink.vbmId);
+							if (vbm) {
+								const vbmPreview = await db.vbmPreviewTbl.get(
+									vbm.id,
+								);
+								await createVBMReminderNotification(
+									vbm,
+									vbmPreview,
+									reminder,
+								);
+							} else {
+								await deleteLink(vbmLink);
+							}
+						}
+					} else {
+						await createReminderNotification(reminder);
+					}
 				}
+				await updateReminder(reminder.id, {
+					lastNotificationDate: LDateUtl.getNow(),
+				});
 			}
-			await updateReminder(reminder.id, {
-				lastNotificationDate: LDateUtl.getNow(),
-			});
+		} catch (error) {
+			console.error(
+				`Failed to process reminder notification ${reminder.id}.`,
+				error,
+			);
 		}
 	}
 };
@@ -155,12 +167,15 @@ export const createTaskReminderNotification = async (
 	});
 };
 
+// Build a worker-safe data URL so Chrome can show VBM previews in notifications.
 const blobToDataUrl = (blob: Blob): Promise<string> => {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onload = () => resolve(reader.result as string);
-		reader.onerror = reject;
-		reader.readAsDataURL(blob);
+	return blob.arrayBuffer().then((buffer) => {
+		let binary = "";
+		const bytes = new Uint8Array(buffer);
+		for (let index = 0; index < bytes.length; index += 1) {
+			binary += String.fromCharCode(bytes[index]);
+		}
+		return `data:${blob.type || "application/octet-stream"};base64,${btoa(binary)}`;
 	});
 };
 
@@ -204,9 +219,31 @@ export const createChromeNativeNotification = async ({
 	imageUrl?: string;
 	showOpen?: boolean;
 }): Promise<void> => {
+	// Chrome rejects some image notifications depending on platform/state. We
+	// retry once as a plain basic notification so reminders are still delivered.
+	const createWithOptions = async (
+		options: chrome.notifications.NotificationOptions<true>,
+	): Promise<void> => {
+		await new Promise<void>((resolve, reject) => {
+			chrome.notifications.create(id, options, (notificationId) => {
+				if (chrome.runtime.lastError) {
+					reject(
+						new Error(
+							chrome.runtime.lastError.message ??
+								`Failed to create notification ${id}.`,
+						),
+					);
+					return;
+				}
+				void notificationId;
+				resolve();
+			});
+		});
+	};
+
 	const options: chrome.notifications.NotificationOptions<true> = {
 		type: imageUrl ? "image" : "basic",
-		iconUrl: "/images/ll-icon-128.png",
+		iconUrl: chrome.runtime.getURL("images/ll-icon-128.png"),
 		imageUrl,
 		title: "Little Later",
 		message,
@@ -224,13 +261,22 @@ export const createChromeNativeNotification = async ({
 				]
 			: undefined,
 	};
-	chrome.notifications.create(id, options, (notificationId) => {
-		if (chrome.runtime.lastError) {
-			console.error(
-				`Failed to create notification with id ${id}: ${chrome.runtime.lastError.message}`,
+
+	try {
+		await createWithOptions(options);
+	} catch (error) {
+		if (imageUrl) {
+			console.warn(
+				`Image notification ${id} failed. Retrying without preview image.`,
+				error,
 			);
-		} else {
-			console.log(`Notification created with id: ${notificationId}`);
+			await createWithOptions({
+				...options,
+				imageUrl: undefined,
+				type: "basic",
+			});
+			return;
 		}
-	});
+		throw error;
+	}
 };

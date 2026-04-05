@@ -435,28 +435,28 @@ const Page = () => {
 					) : displayStep >= 13 && displayStep <= 15 ? (
 						<DefaultGuide
 							key="guide-13-15"
-							shortQuote="Smart Integrations: Everything Connected"
-							longQuote="Seamless connections bring your information together—integrations unite tasks, notes, and saves, making your workspace smarter and more powerful."
+							shortQuote="Connected Workflow: Everything Linked"
+							longQuote="Bookmarks, notes, reminders, and tasks can be linked together so the context around your work stays close by and easy to revisit."
 							illustrations={[
 								{
 									image: "/images/guide/integration/1r.png",
 									caption:
-										"All you saves, tasks, reminders and notes linked together to boost your productivity.",
+										"Keep related bookmarks, tasks, reminders, and notes connected in one place.",
 								},
 								{
 									image: "/images/guide/integration/2r.png",
 									caption:
-										"Make a note tied to a visual bookmark.",
+										"Attach a note directly to a visual bookmark when context matters.",
 								},
 								{
 									image: "/images/guide/integration/3r.png",
 									caption:
-										"Create a task connecting a visual bookmark and a reminder effortlessly",
+										"Connect a task to a bookmark and a reminder without leaving the flow.",
 								},
 								{
 									image: "/images/guide/integration/4r.png",
 									caption:
-										"Set a reminder linked to a visual bookmark.",
+										"Build reminders that point back to the page you care about.",
 								},
 							]}
 							displayStep={displayStep}
