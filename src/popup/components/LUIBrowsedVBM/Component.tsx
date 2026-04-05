@@ -4,7 +4,7 @@ import { twMerge } from "tailwind-merge";
 import { LINT_BOOLEAN, LTHEME } from "little-shared/enums";
 import { CircleNotchIcon, TrashIcon } from "@phosphor-icons/react";
 import { entryTransitions } from "../../../route-transitions";
-import { LReminderIcon, LSaveIcon, LTaskIcon } from "../LUIIcons";
+import { LReminderIcon, LVBMIcon, LTaskIcon } from "../LUIIcons";
 import { useTheme } from "../../hooks/useTheme";
 import { LVisualBM } from "little-shared/types";
 import { fakeWait } from "little-shared/utils/misc";
@@ -118,7 +118,7 @@ const Component = ({
 							>
 								{!isCreatingSave ? (
 									<LUIThemedIcon
-										Icon={LSaveIcon}
+										Icon={LVBMIcon}
 										color={
 											theme === LTHEME.DARK
 												? visualBM.isSaved
@@ -216,3 +216,4 @@ const Component = ({
 };
 
 export { Component as LUIBrowsedVBM };
+

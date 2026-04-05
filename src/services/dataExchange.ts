@@ -13,6 +13,87 @@ import { encrypt } from "little-shared/utils/crypto";
 import { getCurrentUserProfile, getUserAvatar } from "./user";
 import { LINT_BOOLEAN } from "little-shared/enums";
 
+const readBlobText = async (blobLike: unknown): Promise<string> => {
+	if (
+		blobLike &&
+		typeof blobLike === "object" &&
+		"text" in blobLike &&
+		typeof (blobLike as { text: unknown }).text === "function"
+	) {
+		return await (blobLike as { text: () => Promise<string> }).text();
+	}
+	if (
+		blobLike &&
+		typeof blobLike === "object" &&
+		"arrayBuffer" in blobLike &&
+		typeof (blobLike as { arrayBuffer: unknown }).arrayBuffer === "function"
+	) {
+		const bytes = await (
+			blobLike as { arrayBuffer: () => Promise<ArrayBuffer> }
+		).arrayBuffer();
+		return new TextDecoder().decode(bytes);
+	}
+	if (typeof FileReader !== "undefined" && blobLike instanceof Blob) {
+		return await new Promise<string>((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => {
+				if (typeof reader.result === "string") {
+					resolve(reader.result);
+					return;
+				}
+				reject(new Error("Could not read exported data."));
+			};
+			reader.onerror = () =>
+				reject(new Error("Could not read exported data."));
+			reader.readAsText(blobLike);
+		});
+	}
+	throw new Error("Could not read exported data.");
+};
+
+const readBlobArrayBuffer = async (blobLike: unknown): Promise<ArrayBuffer> => {
+	if (
+		blobLike &&
+		typeof blobLike === "object" &&
+		"arrayBuffer" in blobLike &&
+		typeof (blobLike as { arrayBuffer: unknown }).arrayBuffer === "function"
+	) {
+		return await (
+			blobLike as { arrayBuffer: () => Promise<ArrayBuffer> }
+		).arrayBuffer();
+	}
+	if (typeof FileReader !== "undefined" && blobLike instanceof Blob) {
+		return await new Promise<ArrayBuffer>((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => {
+				if (reader.result instanceof ArrayBuffer) {
+					resolve(reader.result);
+					return;
+				}
+				reject(new Error("Could not read exported data."));
+			};
+			reader.onerror = () =>
+				reject(new Error("Could not read exported data."));
+			reader.readAsArrayBuffer(blobLike);
+		});
+	}
+	if (
+		blobLike &&
+		typeof blobLike === "object" &&
+		"data" in blobLike &&
+		Array.isArray((blobLike as { data?: unknown }).data)
+	) {
+		const bytes = Uint8Array.from(
+			((blobLike as { data: Array<unknown> }).data).filter(
+				(item): item is number =>
+					typeof item === "number" && Number.isFinite(item),
+			),
+		);
+		return bytes.buffer;
+	}
+	throw new Error("Could not read exported data.");
+};
+
 export const exportDataImportable = async (): Promise<void> => {
 	const currentUserProfile = await getCurrentUserProfile();
 	if (!currentUserProfile) throw new Error("No current user profile found");
@@ -31,13 +112,13 @@ export const exportDataImportable = async (): Promise<void> => {
 	);
 	const avatarBlob =
 		(await getUserAvatar(currentUserProfile.userId)) ?? new Blob();
-	const avatarBuffer = await avatarBlob.arrayBuffer();
+	const avatarBuffer = await readBlobArrayBuffer(avatarBlob);
 	currentUserProfile.isCurrent = LINT_BOOLEAN.FALSE;
 	const profileJsonBlob = new Blob([JSON.stringify(currentUserProfile)], {
 		type: "application/json",
 	});
-	const profileJsonBuffer = await profileJsonBlob.arrayBuffer();
-	const vaultBuffer = await userVaultDataPostEncrypt.arrayBuffer();
+	const profileJsonBuffer = await readBlobArrayBuffer(profileJsonBlob);
+	const vaultBuffer = await readBlobArrayBuffer(userVaultDataPostEncrypt);
 	const profileLength = new Uint32Array([profileJsonBuffer.byteLength]);
 	const avatarLength = new Uint32Array([avatarBuffer.byteLength]);
 	const vaultLength = new Uint32Array([vaultBuffer.byteLength]);
@@ -70,7 +151,7 @@ export const exportDataImportable = async (): Promise<void> => {
 
 export const exportDataReadable = async (): Promise<void> => {
 	const dbBlob = await exportLLDB();
-	const dbJSONString = await dbBlob.text();
+	const dbJSONString = await readBlobText(dbBlob);
 	const dbJSON = JSON.parse(dbJSONString);
 	const userSettings = await getUserSettings();
 	const exportable = {

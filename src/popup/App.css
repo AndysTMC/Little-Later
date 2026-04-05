@@ -29,3 +29,35 @@
 .no-scrollbar::-webkit-scrollbar {
 	display: none;
 }
+
+.little-light-thin-scrollbar::-webkit-scrollbar {
+	width: 3px;
+}
+
+.little-light-thin-scrollbar::-webkit-scrollbar-thumb {
+	background: rgb(120, 120, 120);
+	border-radius: 50px;
+}
+
+.little-light-thin-scrollbar::-webkit-scrollbar-track {
+	background: rgb(200, 200, 200);
+	border-radius: 50px;
+}
+
+.little-dark-thin-scrollbar::-webkit-scrollbar {
+	width: 3px;
+}
+
+.little-dark-thin-scrollbar::-webkit-scrollbar-thumb {
+	background: rgb(200, 200, 200);
+	border-radius: 50px;
+}
+
+.little-dark-thin-scrollbar::-webkit-scrollbar-track {
+	background: rgb(120, 120, 120);
+	border-radius: 50px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
+}

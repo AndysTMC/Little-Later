@@ -28,9 +28,10 @@ import { LUISettings } from "./pages/LUISettings/Page";
 import { LUIAISettings } from "./pages/LUIAISettings/Page";
 import { LUIExport } from "./pages/LUIExport/Page";
 import { LUILock } from "./pages/LUILock/Page";
-import { LUISave } from "./pages/LUISave/Page";
+import { LUIVBM } from "./pages/LUIVBM/Page";
 import { LUITask } from "./pages/LUITask/Page";
 import { LUIReminder } from "./pages/LUIReminder/Page";
+import { LUINote } from "./pages/LUINote/Page";
 import { LUIToasts } from "./components/LUIToasts/Component";
 import { LUIMiscSettings } from "./pages/LUIMiscSettings/Page";
 
@@ -50,56 +51,6 @@ function AnimatedRoutes() {
 			window.removeEventListener("beforeunload", handleBeforeUnload);
 		};
 	}, [location, navigate]);
-
-	// useEffect(() => {
-	// 	db.visualBMTbl.bulkPut([
-	// 		{
-	// 			title: "Vite | Next Generation Frontend Tooling",
-	// 			url: "https://vite.dev/",
-	// 			customName: "Vite | Next Generation Frontend Tooling",
-	// 			hasBrowsed: 1,
-	// 			lastBrowseDate: "2025-07-17T01:05:21+05:30",
-	// 			isSaved: 0,
-	// 			id: 2,
-	// 		},
-	// 		{
-	// 			title: "Google Gemini",
-	// 			url: "https://gemini.google.com/app",
-	// 			customName: "Google Gemini",
-	// 			hasBrowsed: 1,
-	// 			lastBrowseDate: "2025-07-17T01:05:22+05:30",
-	// 			isSaved: 0,
-	// 			id: 4,
-	// 		},
-	// 		{
-	// 			title: "Home • Angular",
-	// 			url: "https://angular.dev/",
-	// 			customName: "Home • Angular",
-	// 			hasBrowsed: 1,
-	// 			lastBrowseDate: "2025-07-17T01:05:19+05:30",
-	// 			isSaved: 0,
-	// 			id: 5,
-	// 		},
-	// 		{
-	// 			title: "TanStack Virtual",
-	// 			url: "https://tanstack.com/virtual/latest",
-	// 			customName: "TanStack Virtual",
-	// 			hasBrowsed: 1,
-	// 			lastBrowseDate: "2025-07-17T01:05:29+05:30",
-	// 			isSaved: 0,
-	// 			id: 39,
-	// 		},
-	// 		{
-	// 			title: "Rest In Pease",
-	// 			url: "https://rest.in.pease.com/virtual/latest",
-	// 			customName: "Rest In Peace",
-	// 			hasBrowsed: 1,
-	// 			lastBrowseDate: "2025-08-17T01:05:29+05:30",
-	// 			isSaved: 0,
-	// 			id: 40,
-	// 		},
-	// 	]);
-	// });
 
 	useEffect(() => {
 		const rootElement = document.getElementById("root");
@@ -139,9 +90,10 @@ function AnimatedRoutes() {
 				<Route path="/settings/misc" element={<LUIMiscSettings />} />
 				<Route path="/export" element={<LUIExport />} />
 				<Route path="/lock" element={<LUILock />} />
-				<Route path="/save/:id" element={<LUISave />} />
+				<Route path="/vbm/:id" element={<LUIVBM />} />
 				<Route path="/task/:id" element={<LUITask />} />
 				<Route path="/reminder/:id" element={<LUIReminder />} />
+				<Route path="/note/:id" element={<LUINote />} />
 			</Routes>
 		</AnimatePresence>
 	);
@@ -161,3 +113,4 @@ function App() {
 }
 
 export default App;
+

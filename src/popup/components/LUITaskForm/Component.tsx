@@ -16,7 +16,7 @@ import { LUILabel } from "../LUILabel/Component";
 import { LUISelectT1 } from "../LUISelectT1/Component";
 import { LUIDateNumInput } from "../LUIDateNumInput/Component";
 import { LUIDateTimeInput } from "../LUIDateTimeInput/Component";
-import { LUISaveLinks } from "../LUISaveLinks/Component";
+import { LUIVBMLinks } from "../LUIVBMLinks/Component";
 import { LUITimeInput } from "../LUITimeInput/Component";
 import { useEffect, useState } from "react";
 import { fakeWait } from "little-shared/utils/misc";
@@ -565,7 +565,7 @@ const Component = ({
 						</div>
 					) : null}
 				</div>
-				<LUISaveLinks
+				<LUIVBMLinks
 					saves={saves}
 					linkedSaveIds={linkedSaveIds}
 					handleSaveLinking={handleSaveLinking}
@@ -585,3 +585,4 @@ const Component = ({
 };
 
 export { Component as LUITaskForm };
+

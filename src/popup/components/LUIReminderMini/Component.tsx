@@ -188,7 +188,7 @@ const Component = ({
 									<LUILink
 										key={save!.id}
 										content={save!.customName}
-										navigateTo={"/save/" + save!.id}
+										navigateTo={"/vbm/" + save!.id}
 										hoverBackground={
 											theme === LTHEME.DARK
 												? "bg-neutral-900"
@@ -225,3 +225,4 @@ const Component = ({
 };
 
 export { Component as LUIReminderMini };
+

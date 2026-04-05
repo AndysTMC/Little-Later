@@ -11,11 +11,13 @@ const Component = ({
 	name,
 	onClick,
 	passedTheme,
+	disabled = false,
 }: {
 	className?: string;
 	name: string;
 	onClick: () => Promise<void>;
 	passedTheme: LTHEME;
+	disabled?: boolean;
 }) => {
 	const { theme: profileTheme } = useTheme();
 	const theme = passedTheme ?? profileTheme;
@@ -32,15 +34,22 @@ const Component = ({
 
 	return (
 		<button
+			disabled={disabled || isExpanded}
 			className={twMerge(
 				`h-12 w-72 ${
 					theme === LTHEME.DARK
 						? "border-white bg-black hover:bg-neutral-900"
 						: "border-black bg-white hover:bg-neutral-100"
-				} flex overflow-hidden rounded-lg border ${className} ${isExpanded ? "cursor-progress" : "cursor-pointer"}`,
+				} flex overflow-hidden rounded-lg border ${className} ${
+					isExpanded
+						? "cursor-progress"
+						: disabled
+							? "cursor-not-allowed opacity-60"
+							: "cursor-pointer"
+				}`,
 				className,
 			)}
-			onClick={!isExpanded ? handleClick : () => {}}
+			onClick={!isExpanded && !disabled ? handleClick : () => {}}
 		>
 			<motion.div
 				className={` ${theme === LTHEME.DARK ? "bg-white text-black" : "bg-black text-white"} flex h-full items-center justify-center ${!isExpanded ? "" : "rounded-lg"} `}

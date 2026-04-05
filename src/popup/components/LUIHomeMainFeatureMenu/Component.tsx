@@ -2,7 +2,7 @@ import { LTHEME, LHOME_MAIN_CONTENT } from "little-shared/enums";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { twMerge } from "tailwind-merge";
-import { LSaveIcon, LTaskIcon, LReminderIcon } from "../LUIIcons";
+import { LVBMIcon, LTaskIcon, LReminderIcon } from "../LUIIcons";
 import { NotebookIcon } from "@phosphor-icons/react";
 
 const Component = ({
@@ -20,7 +20,7 @@ const Component = ({
 		{
 			content: LHOME_MAIN_CONTENT.SAVES,
 			label: "Saves",
-			icon: LSaveIcon,
+			icon: LVBMIcon,
 		},
 		{
 			content: LHOME_MAIN_CONTENT.TASKS,
@@ -58,7 +58,9 @@ const Component = ({
 					return (
 						<div
 							key={tab.content}
-							className={`flex h-full ${isActive ? "grow" : "px-4"} cursor-pointer items-center justify-center gap-x-1 transition-colors duration-300 ${
+							className={`flex h-full cursor-pointer items-center justify-center gap-x-1 transition-colors duration-300 ${
+								isActive ? "min-w-0 grow px-4" : "w-14 shrink-0"
+							} ${
 								isActive
 									? theme === LTHEME.DARK
 										? "bg-white text-black"
@@ -89,3 +91,4 @@ const Component = ({
 };
 
 export { Component as LUIHomeMainFeatureMenu };
+

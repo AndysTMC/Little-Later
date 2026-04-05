@@ -23,7 +23,7 @@ const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
 					description: "The URL of the website",
 				},
 			},
-			required: ["domain", "query", "url"],
+			required: [],
 			additionalProperties: false,
 		},
 		strict: true,

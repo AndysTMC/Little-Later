@@ -11,7 +11,7 @@ const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
 	function: {
 		name: "search_tasks",
 		description:
-			"Function to search tasks by information, label, priority, type, recurringInfo, and deadlineTS",
+			"Search tasks by information, label, priority, type, recurringInfo, and deadlineDate. If you need a concrete date string, call format_date_time first and pass date criteria for partial date matching.",
 		parameters: {
 			type: "object",
 			properties: {
@@ -36,6 +36,34 @@ const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
 				deadlineDate: {
 					type: "string",
 					description: "The deadline date of the task",
+				},
+				deadlineDateCriteria: {
+					type: "object",
+					description:
+						"Optional date-part criteria for deadlineDate matching. Enable fields you want compared.",
+					properties: {
+						year: { type: "boolean" },
+						month: { type: "boolean" },
+						day: { type: "boolean" },
+						hour: { type: "boolean" },
+						minute: { type: "boolean" },
+						second: { type: "boolean" },
+					},
+					additionalProperties: false,
+				},
+				finishDateCriteria: {
+					type: "object",
+					description:
+						"Optional date-part criteria for finishDate matching. Enable fields you want compared.",
+					properties: {
+						year: { type: "boolean" },
+						month: { type: "boolean" },
+						day: { type: "boolean" },
+						hour: { type: "boolean" },
+						minute: { type: "boolean" },
+						second: { type: "boolean" },
+					},
+					additionalProperties: false,
 				},
 				recurringInfo: {
 					anyOf: [
@@ -131,14 +159,7 @@ const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
 					],
 				},
 			},
-			required: [
-				"query",
-				"scheduleType",
-				"priority",
-				"finishDate",
-				"deadlineDate",
-				"recurringInfo",
-			],
+			required: [],
 			additionalProperties: false,
 		},
 		strict: true,

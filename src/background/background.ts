@@ -10,8 +10,51 @@ import {
 import { createNote } from "../services/note";
 import { LittleAI } from "../services/ai";
 
+const LOCAL_AI_ORIGIN_RULE_ID = 91001;
+let keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
+
+const configureLocalAIRequestHeaders = async (): Promise<void> => {
+	const rules: Array<chrome.declarativeNetRequest.Rule> = [
+		{
+			id: LOCAL_AI_ORIGIN_RULE_ID,
+			priority: 1,
+			action: {
+				type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+				requestHeaders: [
+					{
+						header: "Origin",
+						operation:
+							chrome.declarativeNetRequest.HeaderOperation.SET,
+						value: "http://127.0.0.1",
+					},
+				],
+			},
+			condition: {
+				resourceTypes: [
+					chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
+					chrome.declarativeNetRequest.ResourceType.WEBSOCKET,
+				],
+				regexFilter: "^https?://(localhost|127\\.0\\.0\\.1)(:[0-9]+)?/",
+			},
+		},
+	];
+	try {
+		await chrome.declarativeNetRequest.updateDynamicRules({
+			removeRuleIds: [LOCAL_AI_ORIGIN_RULE_ID],
+			addRules: rules,
+		});
+	} catch (error) {
+		console.warn("Unable to configure local AI request headers.", error);
+	}
+};
+
+void configureLocalAIRequestHeaders();
+
 function keepAlive() {
-	setInterval(() => {
+	if (keepAliveIntervalId !== null) {
+		return;
+	}
+	keepAliveIntervalId = setInterval(() => {
 		chrome.runtime.getPlatformInfo(function (info) {
 			console.log("Keeping service worker alive. Platform: " + info.os);
 		});
@@ -19,6 +62,7 @@ function keepAlive() {
 }
 
 chrome.runtime.onInstalled.addListener(async (details) => {
+	await configureLocalAIRequestHeaders();
 	if (details.reason === "install") {
 		chrome.storage.local.clear();
 	}
@@ -48,6 +92,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 
 chrome.runtime.onStartup.addListener(async (): Promise<void> => {
+	await configureLocalAIRequestHeaders();
 	keepAlive();
 });
 

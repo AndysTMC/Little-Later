@@ -3,11 +3,15 @@ import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
 import { getDBTables } from "../../../utils/db";
 import { searchNotesByText } from "../../../utils/note";
+import { extractSemanticIds } from "./_utils/extractSemanticIds";
 
 const toolCall = async (ai: LittleAI, query: string): Promise<Array<LNote>> => {
 	const { noteTbl } = await getDBTables(["noteTbl"]);
 	if (noteTbl === undefined) {
 		throw new Error("Note table is not available in the database.");
+	}
+	if (query.trim() === "") {
+		return noteTbl;
 	}
 	let resultNotes: LNote[] = noteTbl.slice();
 	const filteredNotes = searchNotesByText(noteTbl, query);
@@ -29,11 +33,11 @@ const toolCall = async (ai: LittleAI, query: string): Promise<Array<LNote>> => {
 		IDJSONSchema,
 		IDJSONObjectInstruction,
 	);
-	const symanticNoteIds = (response as { ids: number[] }).ids;
-	const symanticNotes = noteTbl.filter((note) =>
-		symanticNoteIds.includes(note.id),
+	const semanticNoteIds = extractSemanticIds(response);
+	const semanticNotes = noteTbl.filter((note) =>
+		semanticNoteIds.includes(note.id),
 	);
-	symanticNotes.forEach((note) => {
+	semanticNotes.forEach((note) => {
 		if (!queryNotes.includes(note)) {
 			queryNotes.push(note);
 		}

@@ -14,7 +14,7 @@ const toolCall = () => {
 	return `
                 Latest Date & Time Information:
                 - Year: ${year}
-                - Month: ${monthName} (${month})
+                - Month: ${monthName} (${month + 1})
                 - Day: ${day}
                 - Week Day: ${weekDayName}
                 - Time (24-hour): ${hours24}:${minutes}

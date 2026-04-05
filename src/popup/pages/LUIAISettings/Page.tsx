@@ -178,6 +178,7 @@ const Page = () => {
 										Provider
 									</div>
 									<LUISelectT2
+										testId="ai-provider-select"
 										options={AIProviderList}
 										currentOption={
 											aiSettings?.provider ?? LAI_PROVIDERS.OLLAMA
@@ -223,7 +224,7 @@ const Page = () => {
 								)}
 
 								<LUITextInputT1
-									name="API Key (Optional for local providers)"
+									name="API Key (Custom provider only)"
 									passedValue={aiSettings?.apiKey ?? ""}
 									onChange={(value) => {
 										setAISettings((prevSettings) =>
@@ -239,6 +240,7 @@ const Page = () => {
 										success: true,
 										error: "",
 									})}
+									disabled={aiSettings?.provider !== LAI_PROVIDERS.CUSTOM}
 									lengthLimit={256}
 									disableLengthCounter
 								/>
@@ -254,6 +256,7 @@ const Page = () => {
 										Models
 									</div>
 									<div
+										data-testid="ai-model-list"
 										className={`h-max max-h-44 w-full overflow-y-auto rounded-xl border p-1 ${
 											theme === LTHEME.DARK
 												? "border-neutral-700 bg-black"
@@ -287,6 +290,8 @@ const Page = () => {
 												return (
 													<div
 														key={modelName}
+														data-testid="ai-model-option"
+														data-model-name={modelName}
 														className={`mb-1 flex h-9 w-full cursor-pointer items-center justify-between rounded-lg px-3 text-sm transition-colors last:mb-0 ${
 															isSelected
 																? theme === LTHEME.DARK

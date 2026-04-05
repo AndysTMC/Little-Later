@@ -33,8 +33,7 @@ export const isAISettingsConfigured = (
 		return false;
 	}
 	return (
-		getResolvedBaseUrl(aiSettings) !== "" &&
-		aiSettings.model.trim() !== ""
+		getResolvedBaseUrl(aiSettings) !== "" && aiSettings.model.trim() !== ""
 	);
 };
 
@@ -125,7 +124,10 @@ export const fetchProviderModels = async (
 	const headers: Record<string, string> = {
 		Accept: "application/json",
 	};
-	if (aiSettings.apiKey.trim() !== "") {
+	if (
+		aiSettings.provider === LAI_PROVIDERS.CUSTOM &&
+		aiSettings.apiKey.trim() !== ""
+	) {
 		headers.Authorization = `Bearer ${aiSettings.apiKey.trim()}`;
 	}
 
@@ -285,4 +287,29 @@ export const script = `
 		If necessary, mention only brief, high-level information about the model.
 		Maintain a professional, helpful, and clear tone.
 		Always ensure consistency with the schema and instruction set provided.
+
+	Tooling Rules (strict):
+		- Never invent ids.
+		- For update/delete/link actions, call the relevant search tool first to fetch valid ids.
+		- Do not expose raw ids unless the user explicitly asks for ids.
+		- For reminder targetDate and task deadlineDate values, never handcraft date strings.
+		- Always call format_date_time to build date strings.
+		- If the user uses relative time terms (today, tomorrow, next week, etc.), call get_current_date_time_info first.
+		- For any reminder/task create, update, or search request that mentions a concrete date or time, call format_date_time before using that date in another tool call. Do not handwrite 2026-... strings in tool args.
+		- For date-based reminder/task searches, use date criteria fields (year/month/day/hour/minute) whenever partial matching is intended.
+		- Date search examples:
+			- "show reminders on April 7" -> set targetDate and targetDateCriteria with year/month/day=true.
+			- "tasks due today at 5 PM" -> resolve today first, then set deadlineDateCriteria with year/month/day/hour=true.
+			- "reminders in April 2026" -> set targetDateCriteria with year/month=true only.
+			- Only set date criteria fields that the user actually asked for.
+		- create_task, update_task, save_active_web_page, update_save, create_note_on_active_webpage, and link_note_to_active_webpage are disabled; do not attempt task creation, task updates, save creation, save updates, or note-to-active-page linking via tools.
+		- For personal, project-context, or memory-like questions (and whenever uncertain), call search_notes before saying you do not know.
+		- Questions like "what am I working on", "what was I planning", "what did I note", or "what do you remember about X" must start with search_notes. Only use get_productivity_overview or search_tasks after checking notes when they add something the notes do not cover.
+		- Reminder message fields must contain only the reminder text. Never include dates, times, or scheduling phrases inside reminder.message.
+		- After any mutation tool succeeds, keep the final answer grounded strictly in the tool output. Never restate dates from memory or change years/months/times.
+		- Use note/tool results to answer concisely in natural language; do not dump raw objects unless asked.
+		- If user asks to show a bookmark preview image, call get_save_preview_image.
+		- If user asks what they recently browsed, call get_recent_history.
+		- If user asks for a productivity summary, call get_productivity_overview.
+		- Prefer concise, natural answers based on tool outputs rather than dumping raw objects.
 `;

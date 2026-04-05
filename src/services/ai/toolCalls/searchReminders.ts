@@ -4,6 +4,11 @@ import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
 import { getDBTables } from "../../../utils/db";
 import { searchRemindersByText } from "little-shared/utils/reminder";
+import { extractSemanticIds } from "./_utils/extractSemanticIds";
+import {
+	dateMatchesCriteria,
+	LDateMatchCriteria,
+} from "./_utils/dateFilters";
 
 const toolCall = async (
 	ai: LittleAI,
@@ -11,10 +16,12 @@ const toolCall = async (
 		query,
 		type,
 		targetDate,
+		targetDateCriteria,
 	}: {
 		query?: string;
 		type?: LREMINDER_TYPE;
 		targetDate?: LDate;
+		targetDateCriteria?: LDateMatchCriteria;
 	},
 ) => {
 	const { reminderTbl } = await getDBTables(["reminderTbl"]);
@@ -24,9 +31,7 @@ const toolCall = async (
 	}
 
 	if (!query && !type && !targetDate) {
-		throw new Error(
-			"At least one of the query, type, or target timestamp must be provided.",
-		);
+		return reminderTbl;
 	}
 
 	let resultReminders: LReminder[] = reminderTbl.slice();
@@ -50,11 +55,11 @@ const toolCall = async (
 			IDJSONSchema,
 			IDJSONObjectInstruction,
 		);
-		const symanticReminderIds = (response as { ids: number[] }).ids;
-		const symanticReminders = reminderTbl.filter((reminder) =>
-			symanticReminderIds.includes(reminder.id),
+		const semanticReminderIds = extractSemanticIds(response);
+		const semanticReminders = reminderTbl.filter((reminder) =>
+			semanticReminderIds.includes(reminder.id),
 		);
-		symanticReminders.forEach((reminder) => {
+		semanticReminders.forEach((reminder) => {
 			if (!queryReminders.includes(reminder)) {
 				queryReminders.push(reminder);
 			}
@@ -72,8 +77,12 @@ const toolCall = async (
 		);
 	}
 	if (targetDate) {
-		const targetTSFilteredReminders = resultReminders.filter(
-			(reminder) => reminder.targetDate === targetDate,
+		const targetTSFilteredReminders = resultReminders.filter((reminder) =>
+			dateMatchesCriteria(
+				reminder.targetDate,
+				targetDate,
+				targetDateCriteria,
+			),
 		);
 		resultReminders = resultReminders.filter((reminder) =>
 			targetTSFilteredReminders.includes(reminder),

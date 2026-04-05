@@ -8,11 +8,13 @@ import { twMerge } from "tailwind-merge";
 
 const Component = <T extends string>({
 	className,
+	testId,
 	options,
 	currentOption,
 	onOptionChange,
 }: {
 	className?: string;
+	testId?: string;
 	options: Array<T>;
 	currentOption: T;
 	onOptionChange: (option: T) => void;
@@ -22,6 +24,7 @@ const Component = <T extends string>({
 	return (
 		<div
 			className={twMerge(`group relative h-8 w-40 rounded-sm`, className)}
+			data-testid={testId}
 			tabIndex={0}
 			onBlur={() => setIsMenuOpen(false)}
 			onKeyDown={(e) => {

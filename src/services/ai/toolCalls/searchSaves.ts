@@ -3,6 +3,7 @@ import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
 import { getDBTables } from "../../../utils/db";
 import { searchSavesByText } from "../../../utils/visualBM";
+import { extractSemanticIds } from "./_utils/extractSemanticIds";
 
 const toolCall = async (
 	ai: LittleAI,
@@ -17,10 +18,10 @@ const toolCall = async (
 	},
 ): Promise<LVisualBM[]> => {
 	const { visualBMTbl } = await getDBTables(["visualBMTbl"]);
-	const saves = visualBMTbl.filter((x) => x.isSaved);
-	if (saves === undefined) {
+	if (visualBMTbl === undefined) {
 		throw new Error("Something went wrong while fetching saves.");
 	}
+	const saves = visualBMTbl.filter((x) => x.isSaved);
 	let resultSaves: LVisualBM[] = saves.slice();
 	if (query) {
 		const querySaves: LVisualBM[] = [];
@@ -46,11 +47,11 @@ const toolCall = async (
 			IDJSONSchema,
 			IDJSONObjectInstruction,
 		);
-		const symanticSaveIds = (response as { ids: number[] }).ids;
-		const symanticSaves = saves.filter((save) =>
-			symanticSaveIds.includes(save.id),
+		const semanticSaveIds = extractSemanticIds(response);
+		const semanticSaves = saves.filter((save) =>
+			semanticSaveIds.includes(save.id),
 		);
-		symanticSaves.forEach((save) => {
+		semanticSaves.forEach((save) => {
 			if (!querySaves.includes(save)) {
 				querySaves.push(save);
 			}
@@ -58,18 +59,16 @@ const toolCall = async (
 		resultSaves = resultSaves.filter((save) => querySaves.includes(save));
 	}
 	if (domain) {
+		const normalizedDomain = domain.toLowerCase();
 		const domainFilteredSaves = resultSaves.filter((save) =>
-			save.url.includes(domain),
+			save.url.toLowerCase().includes(normalizedDomain),
 		);
 		resultSaves = resultSaves.filter((save) =>
 			domainFilteredSaves.includes(save),
 		);
 	}
 	if (url) {
-		const urlFilteredSaves = resultSaves.filter((save) => save.url === url);
-		resultSaves = resultSaves.concat(
-			resultSaves.filter((save) => urlFilteredSaves.includes(save)),
-		);
+		resultSaves = resultSaves.filter((save) => save.url === url);
 	}
 	return resultSaves;
 };

@@ -9,7 +9,7 @@ import { fakeWait, capitalize } from "little-shared/utils/misc";
 import { HomeContext } from "../../contexts/Home";
 import { useTheme } from "../../hooks/useTheme";
 import { FlagIcon, NotePencilIcon } from "@phosphor-icons/react";
-import { LSaveIcon, LReminderIcon } from "../LUIIcons";
+import { LVBMIcon, LReminderIcon } from "../LUIIcons";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LUIGroup } from "../LUIGroup/Component";
 import { LUILink } from "../LUILink/Component";
@@ -237,7 +237,7 @@ const Component = ({
 											{linkedSaves.length}
 										</div>
 										<LUIThemedIcon
-											Icon={LSaveIcon}
+											Icon={LVBMIcon}
 											color={
 												theme === LTHEME.DARK
 													? "white"
@@ -322,7 +322,7 @@ const Component = ({
 										<LUILink
 											key={save.id}
 											content={save!.customName}
-											navigateTo={"/save/" + save.id}
+											navigateTo={"/vbm/" + save.id}
 											hoverBackground={
 												theme === LTHEME.DARK
 													? "bg-neutral-900"
@@ -461,3 +461,4 @@ const Component = ({
 };
 
 export { Component as LUITaskMini };
+

@@ -4,19 +4,28 @@ import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
 import { getDBTables } from "../../../utils/db";
 import { searchTasksByText } from "little-shared/utils/task";
+import { extractSemanticIds } from "./_utils/extractSemanticIds";
+import {
+	dateMatchesCriteria,
+	LDateMatchCriteria,
+} from "./_utils/dateFilters";
 
 const toolCall = async (
 	ai: LittleAI,
 	{
 		deadlineDate,
+		deadlineDateCriteria,
 		finishDate,
+		finishDateCriteria,
 		priority,
 		query,
 		recurringInfo,
 		scheduleType,
 	}: {
 		deadlineDate?: LDate;
+		deadlineDateCriteria?: LDateMatchCriteria;
 		finishDate?: LDate;
+		finishDateCriteria?: LDateMatchCriteria;
 		priority?: LTASK_PRIORITY;
 		query?: string;
 		recurringInfo?: LRecurringInfo;
@@ -48,11 +57,11 @@ const toolCall = async (
 			IDJSONSchema,
 			IDJSONObjectInstruction,
 		);
-		const symanticTaskIds = (response as { ids: number[] }).ids;
-		const symanticTasks = taskTbl.filter((task) =>
-			symanticTaskIds.includes(task.id),
+		const semanticTaskIds = extractSemanticIds(response);
+		const semanticTasks = taskTbl.filter((task) =>
+			semanticTaskIds.includes(task.id),
 		);
-		symanticTasks.forEach((task) => {
+		semanticTasks.forEach((task) => {
 			if (!queryTasks.includes(task)) {
 				queryTasks.push(task);
 			}
@@ -76,10 +85,12 @@ const toolCall = async (
 		);
 	}
 	if (recurringInfo) {
+		const recurringInfoJSON = JSON.stringify(recurringInfo);
 		const recurringInfoFilteredTasks = resultTasks.filter(
 			(task) =>
 				task.schedule.type === LTASK_SCHEDULE_TYPE.RECURRING &&
-				task.schedule.recurringInfo === recurringInfo,
+				JSON.stringify(task.schedule.recurringInfo) ===
+					recurringInfoJSON,
 		);
 		resultTasks = resultTasks.filter((task) =>
 			recurringInfoFilteredTasks.includes(task),
@@ -89,7 +100,11 @@ const toolCall = async (
 		const deadlineTSFilteredTasks = resultTasks.filter(
 			(task) =>
 				task.schedule.type === LTASK_SCHEDULE_TYPE.DUE &&
-				task.schedule.deadlineInfo.deadlineDate === deadlineDate,
+				dateMatchesCriteria(
+					task.schedule.deadlineInfo.deadlineDate,
+					deadlineDate,
+					deadlineDateCriteria,
+				),
 		);
 		resultTasks = resultTasks.filter((task) =>
 			deadlineTSFilteredTasks.includes(task),
@@ -97,7 +112,13 @@ const toolCall = async (
 	}
 	if (finishDate !== undefined) {
 		const isFinishedFilteredTasks = resultTasks.filter(
-			(task) => task.finishDate === finishDate,
+			(task) =>
+				task.finishDate !== null &&
+				dateMatchesCriteria(
+					task.finishDate,
+					finishDate,
+					finishDateCriteria,
+				),
 		);
 		resultTasks = resultTasks.filter((task) =>
 			isFinishedFilteredTasks.includes(task),

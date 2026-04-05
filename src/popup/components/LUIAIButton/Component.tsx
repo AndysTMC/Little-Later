@@ -18,10 +18,14 @@ const Component = ({
 	const { theme } = useTheme();
 	const [isLoading, setIsLoading] = useState(false);
 	const handleClick = async () => {
+		if (isLoading) return;
 		setIsLoading(true);
-		await fakeWait();
-		await onClick();
-		setIsLoading(false);
+		try {
+			await fakeWait();
+			await onClick();
+		} finally {
+			setIsLoading(false);
+		}
 	};
 	return (
 		<button

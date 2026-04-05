@@ -13,7 +13,7 @@ import { LReminderIcon } from "../LUIIcons";
 import { LUIDateTimeInput } from "../LUIDateTimeInput/Component";
 import { LUILabel } from "../LUILabel/Component";
 import { LUISelectT1 } from "../LUISelectT1/Component";
-import { LUISaveLinks } from "../LUISaveLinks/Component";
+import { LUIVBMLinks } from "../LUIVBMLinks/Component";
 import { LUICUButton } from "../LUICUButton/Component";
 import { putReminder } from "../../../services/reminder";
 import { fakeWait } from "little-shared/utils/misc";
@@ -183,7 +183,7 @@ const Component = ({
 						/>
 					</div>
 				</div>
-				<LUISaveLinks
+				<LUIVBMLinks
 					saves={saves}
 					linkedSaveIds={linkedSaveIds}
 					handleSaveLinking={handleSaveLinking}
@@ -203,3 +203,4 @@ const Component = ({
 };
 
 export { Component as LUIReminderForm };
+

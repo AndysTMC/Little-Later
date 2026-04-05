@@ -12,7 +12,8 @@ const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
 			properties: {
 				message: {
 					type: "string",
-					description: "The message of the reminder",
+					description:
+						"The reminder text only. Do not include date, time, or scheduling words in this field.",
 				},
 				targetDate: {
 					type: "string",
@@ -21,11 +22,11 @@ const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
 				type: {
 					type: "string",
 					description:
-						"The type of reminder (default is normal if not specified)",
+						"The type of reminder (optional, defaults to normal when omitted)",
 					enum: [LREMINDER_TYPE.NORMAL, LREMINDER_TYPE.ESCALATING],
 				},
 			},
-			required: ["message", "targetDate", "type"],
+			required: ["message", "targetDate"],
 			additionalProperties: false,
 		},
 		strict: true,

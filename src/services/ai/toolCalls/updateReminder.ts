@@ -22,7 +22,7 @@ const toolCall = async (
 		...reminder,
 		message: message ?? reminder.message,
 		type: type ?? reminder.type,
-		targetTS: targetDate ?? reminder.targetDate,
+		targetDate: targetDate ?? reminder.targetDate,
 	};
 	return async () => {
 		await updateReminder(reminder.id, modifiedReminder);

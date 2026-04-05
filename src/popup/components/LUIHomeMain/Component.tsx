@@ -18,14 +18,14 @@ import {
 import { useTheme } from "../../hooks/useTheme";
 import { AnimatePresence, motion } from "framer-motion";
 import { HomeContext } from "../../contexts/Home";
-import { useLocation, useOutletContext } from "react-router";
+import { useLocation, useNavigate, useOutletContext } from "react-router";
 import { LUISearchBar } from "../LUISearchBar/Component";
 import { LUIHomeMainNav } from "../LUINavs/LUIHomeMainNav/Component";
-import { LUISaveMini } from "../LUISaveMini/Component";
+import { LUIVBMMini } from "../LUIVBMMini/Component";
 import { LUITaskMini } from "../LUITaskMini/Component";
 import { LUIReminderMini } from "../LUIReminderMini/Component";
 import { LUIHomeMainFeatureMenu } from "../LUIHomeMainFeatureMenu/Component";
-import { LUISaves } from "../LUISaves/Component";
+import { LUIVBMs } from "../LUIVBMs/Component";
 import { LUITasks } from "../LUITasks/Component";
 import { LUIReminders } from "../LUIReminders/Component";
 import { twMerge } from "tailwind-merge";
@@ -36,8 +36,8 @@ import { searchNotesByText } from "../../../utils/note";
 import { entryTransitions } from "../../../route-transitions";
 import { usePagination } from "../../hooks/usePagination";
 import { LUIPagination } from "../LUIPagination/Component";
-import { LUINoteNoEdit } from "../LUINoteNoEdit/Component";
-import { LUIHomeNotes } from "../LUIHomeNotes/Component";
+import { LUINotes } from "../LUINotes/Component";
+import { LUINoteMini } from "../LUINoteMini/Component";
 
 const Component = () => {
 	const {
@@ -74,6 +74,7 @@ const Component = () => {
 		[links, notes],
 	);
 	const location = useLocation();
+	const navigate = useNavigate();
 
 	const [subEntryTransition] = useState(location.state?.subEntryTransition);
 
@@ -260,7 +261,7 @@ const Component = () => {
 											LHOME_SEARCH_RESULT_TYPE.SAVE
 										) {
 											return (
-												<LUISaveMini
+												<LUIVBMMini
 													links={links}
 													notes={notes}
 													reminders={reminders}
@@ -287,7 +288,7 @@ const Component = () => {
 											);
 										}
 										if (
-											result.type ==
+											result.type ===
 											LHOME_SEARCH_RESULT_TYPE.REMINDER
 										) {
 											return (
@@ -302,13 +303,18 @@ const Component = () => {
 											);
 										}
 										if (
-											result.type ==
+											result.type ===
 											LHOME_SEARCH_RESULT_TYPE.NOTE
 										) {
 											return (
-												<LUINoteNoEdit
+												<LUINoteMini
 													key={`${result.type}-${result.data.id}`}
+													className="break-inside-auto"
 													note={result.data as LNote}
+													onOpen={(note) =>
+														navigate(`/note/${note.id}`)
+													}
+													showDelete={false}
 												/>
 											);
 										}
@@ -354,7 +360,7 @@ const Component = () => {
 											exit={{ opacity: 0 }}
 											transition={{ duration: 0.2 }}
 										>
-											<LUISaves
+											<LUIVBMs
 												links={links}
 												notes={notes}
 												reminders={reminders}
@@ -420,7 +426,7 @@ const Component = () => {
 											exit={{ opacity: 0 }}
 											transition={{ duration: 0.2 }}
 										>
-											<LUIHomeNotes notes={unlinkedNotes} />
+											<LUINotes notes={unlinkedNotes} />
 										</motion.div>
 									)}
 								</AnimatePresence>
@@ -434,3 +440,4 @@ const Component = () => {
 };
 
 export { Component as LUIHomeMain };
+
