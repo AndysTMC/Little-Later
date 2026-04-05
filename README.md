@@ -1,19 +1,24 @@
 # Little Later
 
-![Little Later logo](./assets/logos-and-animations/little-light-icon-b.png)
+<img src="./assets/logos-and-animations/little-light-icon-b.png" width="150" />
 
 Little Later is a local-first Chrome extension for visual bookmarks, tasks, reminders, notes, and AI-assisted workflows.
 
-There is no backend or hosted sync layer in this project. User data stays in the browser profile and can be protected with the built-in encrypted profile vault.
+There is no backend or hosted sync layer in this project. User data is stored locally in the browser profile and can be protected using the built-in encrypted profile vault. While no system can guarantee absolute security, this approach keeps your data under your control.
 
-## What ships in v2.0.0
+## Features
 
-- Visual bookmarks with live page previews, saves, and history
-- Tasks with ad-hoc, due, and recurring schedules
-- Reminders with browser notifications and bookmark/task links
-- Notes with card browsing, a dedicated editor, and Markdown preview/edit modes
-- AI Assist with Ollama, LM Studio, and custom OpenAI-compatible providers
-- Profile export/import, local encryption, and theme support
+- Visual Bookmarks with live page previews, saves, and browsing history
+- Tasks supporting ad-hoc, due-date, and recurring schedules
+- Reminders with browser notifications and quick links to bookmarks/tasks
+- Notes with card-based browsing, a dedicated editor, and Markdown edit/preview modes
+- AI Assist compatible with Ollama, LM Studio, and custom OpenAI-compatible providers
+- Profile Management with export/import, local encryption, and theme support
+
+## In V2.0.0
+- Refined UI with several usability improvements
+- Enhanced AI Assist for smoother integration with external providers
+- Removed the local server component — the project is now fully extension-based
 
 ## Tech stack
 
@@ -131,3 +136,18 @@ Each release also includes SHA256 checksum files. GitHub automatically provides 
 ## License
 
 MIT - see [LICENSE.md](./LICENSE.md).
+
+## Acknowledgements
+
+[React](https://reactjs.org/)
+| [Vite](https://vitejs.dev/)
+| [Dexie.js](https://dexie.org/)
+| [TypeScript](https://www.typescriptlang.org/)
+| [Framer Motion](https://www.framer.com/motion/)
+| [Tailwind CSS](https://tailwindcss.com/)
+| [OpenAI](https://openai.com/)
+| [Node.js](https://nodejs.org/)
+| [Bun](https://bun.sh/)
+| [Prettier](https://prettier.io/)
+
+Fell
