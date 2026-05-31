@@ -6,6 +6,15 @@ Little Later is a local-first Chrome extension for visual bookmarks, tasks, remi
 
 There is no backend or hosted sync layer in this project. User data is stored locally in the browser profile and can be protected using the built-in encrypted profile vault. While no system can guarantee absolute security, this approach keeps your data under your control.
 
+<img src="./assets/logos-and-animations/little-light-icon-b.png" width="150" />
+
+<img width="400" height="480" alt="1761487550378" src="https://github.com/user-attachments/assets/6b833d48-c4b0-4548-b2b4-46a8e1b4b08c" />
+<img width="400" height="480" alt="1761487613165" src="https://github.com/user-attachments/assets/86e86c83-ce91-43fb-b48f-fa9e54b8f06a" />
+<img width="400" height="480" alt="1761487575388" src="https://github.com/user-attachments/assets/cf5858e4-a7f6-4c20-b703-3b98b17c5c43" />
+<img width="400" height="480" alt="1761487588790" src="https://github.com/user-attachments/assets/b6e3e9b0-b4c8-4698-bc10-b87b195a6734" />
+<img width="480" height="270" alt="1761487627545" src="https://github.com/user-attachments/assets/70275a57-3d3b-47a6-9f64-9550e40dec87" />
+
+
 ## Features
 
 - Visual Bookmarks with live page previews, saves, and browsing history
