@@ -3,7 +3,7 @@ import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
 import { useLittleTransition } from "../../hooks/useLittleTransition";
-import { useNavigate, useOutletContext } from "react-router";
+import { useLocation, useNavigate, useOutletContext } from "react-router";
 import { LUIBasicNav } from "../LUINavs/LUIBasicNav/Component";
 import { LUITaskForm } from "../LUITaskForm/Component";
 import { LLink, LTask, LVisualBM } from "little-shared/types";
@@ -27,6 +27,11 @@ const Component = () => {
 		defaultExit: exitTransitions.slideUpToDown,
 	});
 	const navigate = useNavigate();
+	const location = useLocation();
+	const prelinkedVbmId =
+		typeof location.state?.passedVbmId === "number"
+			? location.state.passedVbmId
+			: undefined;
 
 	const additionalSubmitCallback = () => {
 		navigate("/home", {
@@ -48,6 +53,7 @@ const Component = () => {
 				links={links}
 				saves={saves}
 				tasks={tasks}
+				prelinkedVbmId={prelinkedVbmId}
 				additionalSubmitCallback={additionalSubmitCallback}
 			/>
 		</motion.div>

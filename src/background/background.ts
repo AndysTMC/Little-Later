@@ -12,6 +12,7 @@ import {
 } from "../services/visualBM";
 import { createNote } from "../services/note";
 import { LittleAI } from "../services/ai";
+import { getUserSettings } from "../services/settings";
 
 const LOCAL_AI_ORIGIN_RULE_ID = 91001;
 let keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -53,7 +54,33 @@ const captureVisibleTab = async (
 	});
 };
 
+const escapeRegex = (value: string): string =>
+	value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const collectLocalAIPorts = async (): Promise<Array<string>> => {
+	const ports = new Set(["11434", "1234"]);
+	try {
+		const settings = await getUserSettings();
+		const customBaseUrl = settings.ai?.baseUrl?.trim();
+		if (customBaseUrl) {
+			const parsed = new URL(customBaseUrl);
+			if (
+				parsed.hostname === "localhost" ||
+				parsed.hostname === "127.0.0.1"
+			) {
+				ports.add(
+					parsed.port || (parsed.protocol === "https:" ? "443" : "80"),
+				);
+			}
+		}
+	} catch {
+		// Settings may be unavailable while the worker is booting.
+	}
+	return [...ports];
+};
+
 const configureLocalAIRequestHeaders = async (): Promise<void> => {
+	const ports = (await collectLocalAIPorts()).map(escapeRegex).join("|");
 	const rules: Array<chrome.declarativeNetRequest.Rule> = [
 		{
 			id: LOCAL_AI_ORIGIN_RULE_ID,
@@ -75,7 +102,7 @@ const configureLocalAIRequestHeaders = async (): Promise<void> => {
 					chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
 					chrome.declarativeNetRequest.ResourceType.WEBSOCKET,
 				],
-				regexFilter: "^https?://(localhost|127\\.0\\.0\\.1)(:[0-9]+)?/",
+				regexFilter: `^https?://(localhost|127\\.0\\.0\\.1):(${ports})/`,
 			},
 		},
 	];
@@ -90,6 +117,14 @@ const configureLocalAIRequestHeaders = async (): Promise<void> => {
 };
 
 void configureLocalAIRequestHeaders();
+
+if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
+	chrome.storage.onChanged.addListener((changes) => {
+		if (changes.userSettings) {
+			void configureLocalAIRequestHeaders();
+		}
+	});
+}
 
 function keepAlive() {
 	if (keepAliveIntervalId !== null) {

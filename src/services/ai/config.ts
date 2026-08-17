@@ -172,12 +172,7 @@ export const IDJSONSchema: ResponseFormatJSONSchema.JSONSchema = {
 
 export const IDJSONObjectInstruction = `
     Respond using the following JSON format:
-    {
-        ids: [
-            "xxxxx...",
-            "xxxxx...",
-        ],
-    }
+    {"ids":[1,2]}
 `;
 
 export const script = `

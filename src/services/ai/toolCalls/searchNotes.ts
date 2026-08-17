@@ -4,6 +4,10 @@ import { LittleAI } from "../../../services/ai";
 import { getDBTables } from "../../../utils/db";
 import { searchNotesByText } from "../../../utils/note";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
+import {
+	pickSemanticCandidates,
+	quoteForPrompt,
+} from "./_utils/semanticSearch";
 
 const toolCall = async (ai: LittleAI, query: string): Promise<Array<LNote>> => {
 	const { noteTbl } = await getDBTables(["noteTbl"]);
@@ -21,12 +25,19 @@ const toolCall = async (ai: LittleAI, query: string): Promise<Array<LNote>> => {
 			queryNotes.push(note);
 		}
 	});
+	const semanticCandidates = pickSemanticCandidates(
+		queryNotes,
+		noteTbl,
+	).map((note) => ({
+		id: note.id,
+		snippet: note.content.slice(0, 200),
+	}));
 	const response = await ai.getStructuredResponse(
 		`
             Here is a list of notes in JSON format:
-            ${JSON.stringify(noteTbl, null, 2)}
+            ${JSON.stringify(semanticCandidates)}
 
-            The user's query is: "${query}".
+            The user's query is: "${quoteForPrompt(query)}".
 
             Find all relevant ids of notes where the content matches or relates to the query.
         `,

@@ -6,6 +6,10 @@ import { getDBTables } from "../../../utils/db";
 import { searchRemindersByText } from "little-shared/utils/reminder";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
+	pickSemanticCandidates,
+	quoteForPrompt,
+} from "./_utils/semanticSearch";
+import {
 	dateMatchesCriteria,
 	LDateMatchCriteria,
 } from "./_utils/dateFilters";
@@ -43,12 +47,21 @@ const toolCall = async (
 				queryReminders.push(reminder);
 			}
 		});
+		const remindersToSend = pickSemanticCandidates(
+			queryReminders,
+			reminderTbl,
+		).map((reminder) => ({
+			id: reminder.id,
+			message: reminder.message,
+			type: reminder.type,
+			targetDate: reminder.targetDate,
+		}));
 		const response = await ai.getStructuredResponse(
 			`
                 Here is a list of reminders in JSON format:
-                ${JSON.stringify(reminderTbl, null, 2)}
+                ${JSON.stringify(remindersToSend)}
 
-                The user's query is: "${query}".
+                The user's query is: "${quoteForPrompt(query)}".
 
                 Find all relevant ids of reminders where the message matches or relates to the query.
             `,

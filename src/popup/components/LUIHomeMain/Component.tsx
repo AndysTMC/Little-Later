@@ -174,7 +174,7 @@ const Component = () => {
 				}
 			}
 
-			const matchedNotes = searchNotesByText(unlinkedNotes, word);
+			const matchedNotes = searchNotesByText(notes, word);
 			for (const note of matchedNotes) {
 				const existingResult = results.find(
 					(result) =>

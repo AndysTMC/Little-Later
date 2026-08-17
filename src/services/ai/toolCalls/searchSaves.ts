@@ -4,6 +4,10 @@ import { LittleAI } from "../../../services/ai";
 import { getDBTables } from "../../../utils/db";
 import { searchSavesByText } from "../../../utils/visualBM";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
+import {
+	pickSemanticCandidates,
+	quoteForPrompt,
+} from "./_utils/semanticSearch";
 
 const toolCall = async (
 	ai: LittleAI,
@@ -31,16 +35,20 @@ const toolCall = async (
 				querySaves.push(save);
 			}
 		});
-		const savesToSend = saves.map((save) => ({
-			...save,
-			preview: "img",
-		}));
+		const savesToSend = pickSemanticCandidates(querySaves, saves).map(
+			(save) => ({
+				id: save.id,
+				name: save.customName,
+				title: save.title,
+				url: save.url,
+			}),
+		);
 		const response = await ai.getStructuredResponse(
 			`
                 Here is a list of saves in JSON format:
-                ${JSON.stringify(savesToSend, null, 2)}
+                ${JSON.stringify(savesToSend)}
 
-                The user's query is: "${query}".
+                The user's query is: "${quoteForPrompt(query)}".
 
                 Find all relevant ids of saves where the name, domain, or notes (if present) match or relate to the query.
             `,

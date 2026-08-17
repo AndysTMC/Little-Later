@@ -6,6 +6,10 @@ import { getDBTables } from "../../../utils/db";
 import { searchTasksByText } from "little-shared/utils/task";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
+	pickSemanticCandidates,
+	quoteForPrompt,
+} from "./_utils/semanticSearch";
+import {
 	dateMatchesCriteria,
 	LDateMatchCriteria,
 } from "./_utils/dateFilters";
@@ -45,12 +49,20 @@ const toolCall = async (
 				queryTasks.push(task);
 			}
 		});
+		const tasksToSend = pickSemanticCandidates(queryTasks, taskTbl).map(
+			(task) => ({
+				id: task.id,
+				label: task.label,
+				information: task.information,
+				priority: task.priority,
+			}),
+		);
 		const response = await ai.getStructuredResponse(
 			`
                 Here is a list of tasks in JSON format:
-                ${JSON.stringify(taskTbl, null, 2)}
+                ${JSON.stringify(tasksToSend)}
 
-                The user's query is: "${query}".
+                The user's query is: "${quoteForPrompt(query)}".
 
                 Find all relevant ids of tasks where the information matches or relates to the query.
             `,

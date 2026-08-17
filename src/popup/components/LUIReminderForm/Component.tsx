@@ -30,6 +30,7 @@ const Component = ({
 	reminders,
 	saves,
 	id,
+	prelinkedVbmId,
 	additionalSubmitCallback = () => {},
 }: {
 	className?: string;
@@ -37,6 +38,7 @@ const Component = ({
 	reminders: Array<LReminder>;
 	saves: Array<LVisualBM>;
 	id?: number;
+	prelinkedVbmId?: number;
 	additionalSubmitCallback?: () => void;
 }) => {
 	const { theme } = useTheme();
@@ -90,10 +92,19 @@ const Component = ({
 		if (!reminder) {
 			return;
 		}
+		if (!validateMessage(reminder.message).success) {
+			return;
+		}
 		await fakeWait();
 		await putReminder(reminder, saveIC.inserts, saveIC.deletes);
 		additionalSubmitCallback();
 	};
+
+	useEffect(() => {
+		if (prelinkedVbmId !== undefined) {
+			saveIC.insert(prelinkedVbmId);
+		}
+	}, [prelinkedVbmId]);
 
 	useEffect(() => {
 		if (!aiRephrase) {
@@ -197,6 +208,7 @@ const Component = ({
 					name={id ? "Update" : "Create"}
 					onClick={handleReminderCU}
 					passedTheme={theme}
+					disabled={!validateMessage(reminder.message).success}
 				/>
 			</div>
 		</div>

@@ -40,6 +40,7 @@ const Component = ({
 		navigate("/home/new-task", {
 			state: {
 				passedWebDataUrl: webDataUrl,
+				passedVbmId: visualBM.id,
 				subEntryTransition: entryTransitions.slideUp,
 			},
 		});
@@ -50,6 +51,7 @@ const Component = ({
 		navigate("/home/new-reminder", {
 			state: {
 				passedWebDataUrl: webDataUrl,
+				passedVbmId: visualBM.id,
 				subEntryTransition: entryTransitions.slideUp,
 			},
 		});

@@ -3,6 +3,7 @@ import { getUserSettings } from "./settings";
 import {
 	LEMPTY_VAULT_DATA_POST_DECRYPT,
 	LEMPTY_PASSWORD,
+	LMAX_NAME_LENGTH,
 } from "little-shared/constants";
 import {
 	LUserProfile,
@@ -11,7 +12,7 @@ import {
 } from "little-shared/types";
 import { encrypt } from "little-shared/utils/crypto";
 import { getCurrentUserProfile, getUserAvatar } from "./user";
-import { LINT_BOOLEAN } from "little-shared/enums";
+import { LINT_BOOLEAN, LTHEME } from "little-shared/enums";
 
 // Dexie export helpers return slightly different blob-like values across the
 // browser, Bun, and jsdom test environments, so these readers stay defensive.
@@ -160,12 +161,39 @@ export const exportDataReadable = async (): Promise<void> => {
 	const userSettings = await getUserSettings();
 	const exportable = {
 		db: dbJSON,
-		userSettings,
+		userSettings: {
+			...userSettings,
+			ai: {
+				...userSettings.ai,
+				apiKey: "",
+			},
+		},
 	};
 	const exportableBlob = new Blob([JSON.stringify(exportable, null, 2)], {
 		type: "application/json",
 	});
 	downloadBlob(exportableBlob, "Little-Later-Readable.json");
+};
+
+const normalizeImportedProfile = (
+	value: unknown,
+): Pick<LUserProfile, "name" | "theme"> => {
+	if (!value || typeof value !== "object") {
+		throw new Error("Invalid user profile: expected an object");
+	}
+	const rawName = (value as { name?: unknown }).name;
+	if (typeof rawName !== "string" || rawName.trim() === "") {
+		throw new Error("Invalid user profile: missing name");
+	}
+	const rawTheme = (value as { theme?: unknown }).theme;
+	const theme =
+		rawTheme === LTHEME.DARK || rawTheme === LTHEME.LIGHT
+			? rawTheme
+			: LTHEME.LIGHT;
+	return {
+		name: rawName.trim().slice(0, LMAX_NAME_LENGTH),
+		theme,
+	};
 };
 
 const downloadBlob = (blob: Blob, filename: string): void => {
@@ -180,7 +208,7 @@ const downloadBlob = (blob: Blob, filename: string): void => {
 };
 
 export const importData = async (blob: Blob): Promise<void> => {
-	const buffer = await blob.arrayBuffer();
+	const buffer = await readBlobArrayBuffer(blob);
 	const view = new DataView(buffer);
 	let offset = 0;
 	if (offset + 4 > buffer.byteLength) {
@@ -226,18 +254,18 @@ export const importData = async (blob: Blob): Promise<void> => {
 	} catch {
 		throw new Error("Failed to parse user profile JSON");
 	}
-	if (!profileJson.userId) {
-		throw new Error("Invalid user profile: missing userId");
-	}
-	const currentUserProfile: LUserProfile = profileJson;
-
-	await db.userProfileTbl.put(currentUserProfile, currentUserProfile.userId);
+	const importedProfile = normalizeImportedProfile(profileJson);
+	const userId = await db.userProfileTbl.add({
+		name: importedProfile.name,
+		theme: importedProfile.theme,
+		isCurrent: LINT_BOOLEAN.FALSE,
+	});
 	await db.userVaultTbl.put({
-		userId: currentUserProfile.userId,
+		userId,
 		data: userVaultDataPostEncrypt,
 	});
 	await db.userAvatarTbl.put({
-		userId: currentUserProfile.userId,
+		userId,
 		blob: avatarBlob,
 	});
 };
