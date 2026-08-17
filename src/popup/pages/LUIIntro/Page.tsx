@@ -44,7 +44,9 @@ const Page = () => {
 					src="/videos/little-later-animation.mp4"
 					autoPlay
 					muted
+					playsInline
 					onEnded={handleVideoEnd}
+					onError={handleVideoEnd}
 					className="h-56 w-56 object-cover"
 				/>
 			</motion.div>
@@ -90,6 +92,13 @@ const Page = () => {
 					Later
 				</motion.div>
 			</div>
+			<button
+				type="button"
+				className="mt-8 cursor-pointer text-sm font-semibold text-neutral-500 underline-offset-4 hover:text-black hover:underline"
+				onClick={handleVideoEnd}
+			>
+				Skip intro
+			</button>
 		</motion.div>
 	);
 };

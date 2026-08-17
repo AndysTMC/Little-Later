@@ -15,6 +15,7 @@ const Component = ({
 	validate = () => ({ success: true, error: "" }),
 	disabled = false,
 	disableLengthCounter = false,
+	inputType = "text",
 }: {
 	className?: string;
 	name: string;
@@ -24,6 +25,7 @@ const Component = ({
 	validate: (value: string) => Validation;
 	disabled?: boolean;
 	disableLengthCounter?: boolean;
+	inputType?: "text" | "password" | "url";
 }) => {
 	const [focused, setFocused] = useState(false);
 	const { theme } = useTheme();
@@ -62,18 +64,26 @@ const Component = ({
 								transition: { duration: 0.3 },
 							}}
 						>
-							<LUILabel name={name} className="px-4" />
+							<LUILabel
+								name={name}
+								htmlFor={`little-input-${name.replace(/\s+/g, "-").toLowerCase()}`}
+								className="px-4"
+							/>
 						</motion.div>
 					) : null}
 				</AnimatePresence>
 			</div>
 			<input
-				type="text"
+				id={`little-input-${name.replace(/\s+/g, "-").toLowerCase()}`}
+				type={inputType}
+				autoComplete={inputType === "password" ? "off" : undefined}
+				aria-invalid={error !== null}
+				maxLength={lengthLimit}
 				className={`h-10 w-full border ${
 					theme === LTHEME.DARK
 						? "border-neutral-700 bg-black text-white focus:border-neutral-300"
 						: "border-neutral-300 bg-white text-black focus:border-neutral-700"
-				} z-10 rounded-xl px-4 text-base transition-all duration-300 outline-none ${disabled ? "cursor-not-allowed" : "cursor-text"} `}
+				} z-10 rounded-xl px-4 text-base transition-all duration-300 ${disabled ? "cursor-not-allowed" : "cursor-text"} `}
 				placeholder={focused ? "" : name}
 				value={passedValue}
 				onChange={handleOnChange}

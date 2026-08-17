@@ -79,12 +79,12 @@ const Component = ({
 					<div
 						className={`text-5xl font-extrabold text-pretty opacity-10`}
 					>
-						Seems less?
+						No saves yet?
 					</div>
 					<div
 						className={`text-center text-5xl font-extrabold text-pretty opacity-10`}
 					>
-						Way to History!
+						Browse a page or check History!
 					</div>
 				</div>
 			)}

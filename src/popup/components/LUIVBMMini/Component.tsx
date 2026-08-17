@@ -1,7 +1,7 @@
 import { LLink, LNote, LReminder, LTask, LVisualBM } from "little-shared/types";
 import { LINT_BOOLEAN, LLINK_TYPE, LTHEME } from "little-shared/enums";
 import { ArrowSquareRightIcon } from "@phosphor-icons/react";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import Markdown from "react-markdown";
 import { twMerge } from "tailwind-merge";
@@ -14,7 +14,6 @@ import { LUILink } from "../LUILink/Component";
 import { HomeContext } from "../../contexts/Home";
 import { useTheme } from "../../hooks/useTheme";
 import { useLazyVBMImage } from "../../hooks/useLazyVBMImage";
-import { useNavigate } from "react-router";
 import { updateVisualBM } from "../../../services/visualBM";
 
 const Component = ({
@@ -35,7 +34,6 @@ const Component = ({
 	disableNavs?: boolean;
 }) => {
 	const { theme } = useTheme();
-	const navigate = useNavigate();
 	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
 		useContext(HomeContext);
 	const [isExpanded, setIsExpanded] = useState(false);
@@ -79,14 +77,6 @@ const Component = ({
 	};
 
 	const { preview, elementRef } = useLazyVBMImage(save.id);
-
-	useEffect(() => {
-		if (save.hasBrowsed) {
-			navigate("/home", {
-				state: { entryTransition: entryTransitions.fade },
-			});
-		}
-	}, [navigate, save]);
 
 	return (
 		<div ref={elementRef} className={twMerge(`h-max w-full`, className)}>

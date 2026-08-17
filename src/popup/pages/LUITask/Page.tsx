@@ -22,7 +22,9 @@ const Page = () => {
 	const saves = visualBMs?.filter((x) => x.isSaved);
 	const tasks = useTasks();
 	const { id } = useParams();
+	const parsedId = Number.parseInt(id ?? "", 10);
 	const loading = useLoading([id, links, saves, tasks]);
+	const task = tasks?.find((item) => item.id === parsedId);
 	return (
 		<motion.div
 			className={`h-full w-full select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} `}
@@ -38,12 +40,24 @@ const Page = () => {
 					animate={{ opacity: 1 }}
 				>
 					<LUIBasicNav navigateTo="/home" />
-					<LUITaskForm
-						id={parseInt(id!)}
-						links={links!}
-						saves={saves!}
-						tasks={tasks!}
-					/>
+					{task ? (
+						<LUITaskForm
+							id={parsedId}
+							links={links!}
+							saves={saves!}
+							tasks={tasks!}
+						/>
+					) : (
+						<div
+							className={`flex h-full w-full items-center justify-center px-6 text-center text-2xl font-extrabold opacity-20 ${
+								theme === LTHEME.DARK
+									? "text-white"
+									: "text-black"
+							}`}
+						>
+							Task not found.
+						</div>
+					)}
 				</motion.div>
 			)}
 		</motion.div>

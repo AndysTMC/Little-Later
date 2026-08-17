@@ -45,8 +45,10 @@ const Component = ({
 				<div
 					className={`flex h-max w-full items-center justify-start gap-x-1`}
 				>
-					<div
-						className={`flex h-max w-max cursor-pointer items-center gap-x-1`}
+					<button
+						type="button"
+						aria-expanded={isOpen}
+						className={`flex h-max w-max cursor-pointer items-center gap-x-1 bg-transparent`}
 						onClick={() => setIsOpen(!isOpen)}
 					>
 						<div
@@ -60,7 +62,7 @@ const Component = ({
 							weight="bold"
 							className={arrowSizeMap[headerTextSize]}
 						/>
-					</div>
+					</button>
 
 					{pagination && pagination.batchCount > 1 && isOpen ? (
 						<LUIPagination

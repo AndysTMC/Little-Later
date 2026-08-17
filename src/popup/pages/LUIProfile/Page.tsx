@@ -15,6 +15,7 @@ import { updateUserAvatar, updateUserProfile } from "../../../services/user";
 import { useUserAvatar } from "../../hooks/useUserAvatar";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
+import { LMAX_NAME_LENGTH } from "little-shared/constants";
 
 const Page = () => {
 	const { theme, toggleTheme } = useTheme();
@@ -63,7 +64,7 @@ const Page = () => {
 	}, [name, currentUserProfile]);
 
 	const validateName = (name: string) => {
-		if (name.length > 32) {
+		if (name.length > LMAX_NAME_LENGTH) {
 			return { success: false, error: "Name is too long" };
 		}
 		return { success: true, error: "" };
@@ -105,7 +106,7 @@ const Page = () => {
 									name="Name"
 									passedValue={name}
 									onChange={handleUpdateName}
-									lengthLimit={32}
+									lengthLimit={LMAX_NAME_LENGTH}
 									validate={validateName}
 								/>
 							</div>

@@ -21,13 +21,14 @@ const Component = ({
 }) => {
 	const { theme } = useTheme();
 	return (
-		<motion.div
+		<motion.button
+			type="button"
 			className={twMerge(
 				`flex h-max w-full flex-col items-center justify-center ${
 					theme === LTHEME.DARK
-						? "bg-black hover:bg-neutral-800 focus:bg-neutral-800"
-						: "bg-white hover:bg-neutral-200 focus:bg-neutral-200"
-				} outline-none`,
+						? "bg-black hover:bg-neutral-800"
+						: "bg-white hover:bg-neutral-200"
+				}`,
 				className,
 			)}
 			initial={{ opacity: 0, y: -10 }}
@@ -35,12 +36,6 @@ const Component = ({
 			transition={{ duration: 0.1, delay: animationDelay }}
 			exit={{ opacity: 0, y: -10, transition: { duration: 0.1 } }}
 			onClick={onClick}
-			tabIndex={0}
-			onKeyDown={(e) => {
-				if (e.key === "Enter") {
-					onClick?.();
-				}
-			}}
 		>
 			<div
 				className={`flex h-9 w-full cursor-pointer items-center justify-start gap-x-3 px-3 ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
@@ -53,7 +48,7 @@ const Component = ({
 					className={`h-0 w-36 shadow-none ${theme === LTHEME.DARK ? "border-neutral-700" : "border-neutral-300"} `}
 				/>
 			) : null}
-		</motion.div>
+		</motion.button>
 	);
 };
 

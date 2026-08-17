@@ -93,10 +93,7 @@ const Page = () => {
 			setModels(fetchedModels);
 			setIsFetchingModels(false);
 
-			if (
-				fetchedModels.length > 0 &&
-				!fetchedModels.includes(aiSettings.model)
-			) {
+			if (fetchedModels.length > 0 && aiSettings.model.trim() === "") {
 				setAISettings((prevSettings) =>
 					prevSettings
 						? {
@@ -190,6 +187,7 @@ const Page = () => {
 								{aiSettings?.provider === LAI_PROVIDERS.CUSTOM ? (
 									<LUITextInputT1
 										name="Base URL"
+										inputType="url"
 										passedValue={aiSettings?.baseUrl ?? ""}
 										onChange={(value) => {
 											setAISettings((prevSettings) =>
@@ -225,6 +223,7 @@ const Page = () => {
 
 								<LUITextInputT1
 									name="API Key (Custom provider only)"
+									inputType="password"
 									passedValue={aiSettings?.apiKey ?? ""}
 									onChange={(value) => {
 										setAISettings((prevSettings) =>
@@ -288,7 +287,8 @@ const Page = () => {
 												const isSelected =
 													(aiSettings?.model ?? "") === modelName;
 												return (
-													<div
+													<button
+														type="button"
 														key={modelName}
 														data-testid="ai-model-option"
 														data-model-name={modelName}
@@ -330,7 +330,7 @@ const Page = () => {
 															weight="fill"
 															className="size-4"
 														/>
-													</div>
+													</button>
 												);
 											})
 										)}

@@ -17,7 +17,6 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import rehypeRaw from "rehype-raw";
 import {
 	applyNoteFormatting,
 	NoteFormattingAction,
@@ -286,19 +285,15 @@ const Component = ({
 
 						<textarea
 							ref={textareaRef}
-							className={`w-full grow resize-none overflow-y-auto p-2 text-sm outline-none ${theme}-thin-scrollbar ${
+							className={`w-full grow resize-none overflow-y-auto p-2 text-sm outline-none select-text ${theme}-thin-scrollbar ${
 								theme === LTHEME.DARK
 									? "bg-neutral-900 text-white"
 									: "bg-neutral-100 text-black"
 							}`}
 							value={draftContent}
+							aria-label="Note content"
 							onChange={(event) =>
 								handleDraftChange(event.target.value)
-							}
-							onInput={(event) =>
-								handleDraftChange(
-									(event.target as HTMLTextAreaElement).value,
-								)
 							}
 							onKeyDown={(event) => {
 								const withModifier =
@@ -376,11 +371,10 @@ const Component = ({
 					</div>
 				) : (
 					<div
-						className={`w-full grow overflow-y-auto px-4 py-2 text-sm ${theme}-thin-scrollbar ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
+						className={`w-full grow overflow-y-auto px-4 py-2 text-sm select-text ${theme}-thin-scrollbar ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
 					>
 						<ReactMarkdown
 							remarkPlugins={[remarkGfm, remarkBreaks]}
-							rehypePlugins={[rehypeRaw]}
 							components={{
 								a: ({ ...props }) => (
 									<a

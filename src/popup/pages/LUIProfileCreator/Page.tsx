@@ -11,6 +11,7 @@ import { LUIAvatarInput } from "../../components/LUIAvatarInput/Component";
 import { LUICUButton } from "../../components/LUICUButton/Component";
 import { createUser } from "../../../services/user";
 import { LTHEME } from "little-shared/enums";
+import { LMAX_NAME_LENGTH } from "little-shared/constants";
 
 const Page = () => {
 	const { entry, exit } = useLittleTransition({
@@ -25,11 +26,12 @@ const Page = () => {
 	const avatarInputRef = useRef<HTMLInputElement>(null);
 
 	const handleCreate = async () => {
-		if (name === "") {
+		const trimmedName = name.trim();
+		if (trimmedName === "" || trimmedName.length > LMAX_NAME_LENGTH) {
 			return;
 		}
 		await fakeWait();
-		await createUser(name, avatar);
+		await createUser(trimmedName, avatar);
 		navigate("/browse-profiles", {
 			state: { entryTransition: entryTransitions.slideRight },
 		});
@@ -68,7 +70,7 @@ const Page = () => {
 					</div>
 					<div className="flex h-12 w-full items-center justify-center">
 						<div
-							className={`bg-enutral-100 flex h-12 w-72 items-center rounded-lg border border-solid border-neutral-300`}
+							className={`flex h-12 w-72 items-center rounded-lg border border-solid border-neutral-300 bg-neutral-100`}
 						>
 							<div
 								className={`flex h-12 w-16 items-center justify-center`}
@@ -82,8 +84,11 @@ const Page = () => {
 							</div>
 							<div className={`h-full grow`}>
 								<input
+									id="little-new-profile-name"
 									type="text"
 									placeholder="Name"
+									aria-label="Profile name"
+									maxLength={LMAX_NAME_LENGTH}
 									value={name}
 									onChange={(event) =>
 										setName(event.target.value)

@@ -21,6 +21,7 @@ import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../../hooks/useTheme";
 import { LAISettings, LUserProfile } from "little-shared/types";
 import { useUserAvatar } from "../../../hooks/useUserAvatar";
+import { useObjectUrl } from "../../../hooks/useObjectUrl";
 import { isAISettingsConfigured } from "../../../../services/ai/config";
 
 const Component = ({
@@ -39,6 +40,7 @@ const Component = ({
 	};
 
 	const userAvatar = useUserAvatar(currentUserProfile.userId);
+	const avatarUrl = useObjectUrl(userAvatar?.blob);
 
 	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
 		useContext(HomeContext);
@@ -118,46 +120,49 @@ const Component = ({
 				className={`relative flex h-full grow items-center justify-end gap-x-2 pr-2`}
 			>
 				{isAISettingsConfigured(aiSettings) ? (
-					<div
-						className={`h-max w-max cursor-pointer rounded-full p-1 active:scale-90 hover:${theme === LTHEME.DARK ? "bg-neutral-800" : "bg-neutral-200"}`}
+					<button
+						type="button"
+						aria-label="Open AI Assist"
+						className={`h-max w-max cursor-pointer rounded-full p-1 active:scale-90 ${
+							theme === LTHEME.DARK
+								? "hover:bg-neutral-800"
+								: "hover:bg-neutral-200"
+						}`}
 						onClick={handleAIClick}
-						tabIndex={0}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") {
-								handleAIClick();
-							}
-						}}
 					>
 						<LUIThemedIcon
 							Icon={SparkleIcon}
 							weight="regular"
 							className="size-7"
 						/>
-					</div>
+					</button>
 				) : null}
-				<div
+				<button
+					type="button"
+					aria-label={
+						theme === LTHEME.DARK
+							? "Switch to light theme"
+							: "Switch to dark theme"
+					}
 					className={`h-max w-max ${
 						theme === LTHEME.DARK
 							? "hover:bg-neutral-800"
 							: "hover:bg-neutral-200"
 					} cursor-pointer rounded-full p-1`}
 					onClick={toggleTheme}
-					tabIndex={0}
-					onKeyDown={(e) => {
-						if (e.key === "Enter") {
-							toggleTheme();
-						}
-					}}
 				>
 					<LUIThemedIcon
 						Icon={theme === LTHEME.DARK ? MoonIcon : SunDimIcon}
 						weight="fill"
 						className="size-7"
 					/>
-				</div>
+				</button>
 				<div className="relative h-max w-max">
-					<div
-						className={`h-max w-max rounded-full border-4 ${
+					<button
+						type="button"
+						aria-label="Open profile menu"
+						aria-expanded={isMenuOpen}
+						className={`h-max w-max rounded-full border-4 bg-transparent ${
 							isMenuOpen
 								? theme === LTHEME.DARK
 									? "border-neutral-700"
@@ -165,20 +170,16 @@ const Component = ({
 								: "border-transparent"
 						} cursor-pointer`}
 						onClick={toggleMenu}
-						tabIndex={0}
 						onKeyDown={(e) => {
 							if (e.key === "Escape") {
 								setIsMenuOpen(false);
 							}
-							if (e.key === "Enter") {
-								toggleMenu();
-							}
 						}}
 					>
-						{userAvatar?.blob ? (
+						{avatarUrl ? (
 							<img
-								src={URL.createObjectURL(userAvatar.blob)}
-								alt={currentUserProfile.name}
+								src={avatarUrl}
+								alt=""
 								className={`h-7 w-7 rounded-full object-cover`}
 								draggable="false"
 							/>
@@ -189,7 +190,7 @@ const Component = ({
 								className="size-7"
 							/>
 						)}
-					</div>
+					</button>
 				</div>
 			</div>
 			<div className={`absolute top-14 right-4 z-20 h-max w-36`}>
@@ -200,7 +201,7 @@ const Component = ({
 								theme === LTHEME.DARK
 									? "border-neutral-700 bg-black"
 									: "border-neutral-300 bg-white"
-							} overflow-clip rounded-lg border border-solid border-neutral-300 shadow-lg`}
+							} overflow-clip rounded-lg border border-solid shadow-lg`}
 							initial={{ opacity: 0, y: -10 }}
 							animate={{
 								opacity: 1,

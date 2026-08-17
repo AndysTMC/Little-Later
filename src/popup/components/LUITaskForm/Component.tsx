@@ -21,7 +21,11 @@ import { LUITimeInput } from "../LUITimeInput/Component";
 import { useEffect, useState } from "react";
 import { fakeWait } from "little-shared/utils/misc";
 import { putTask } from "../../../services/task";
-import { LNONE } from "little-shared/constants";
+import {
+	LMAX_TASK_INFORMATION_LENGTH,
+	LMAX_TASK_LABEL_LENGTH,
+	LNONE,
+} from "little-shared/constants";
 import { LUICUButton } from "../LUICUButton/Component";
 import { LDateUtl, LTimeUtl } from "little-shared/utils/datetime";
 import { getTaskInsert } from "little-shared/utils/task";
@@ -64,7 +68,7 @@ const Component = ({
 		LREMINDER_TYPE | undefined
 	>();
 	const validateInformation = (value: string) => {
-		if (value.length > 256) {
+		if (value.length > LMAX_TASK_INFORMATION_LENGTH) {
 			return {
 				success: false,
 				error: "Information is too long",
@@ -76,7 +80,7 @@ const Component = ({
 		};
 	};
 	const validateLabel = (value: string) => {
-		if (value.length > 32) {
+		if (value.length > LMAX_TASK_LABEL_LENGTH) {
 			return {
 				success: false,
 				error: "Label is too long",
@@ -214,7 +218,7 @@ const Component = ({
 						} as LTask)
 					}
 					validate={validateInformation}
-					lengthLimit={256}
+					lengthLimit={LMAX_TASK_INFORMATION_LENGTH}
 				/>
 				<div className={`flex h-max w-full gap-x-2`}>
 					<LUIAIButton
@@ -236,7 +240,7 @@ const Component = ({
 						} as LTask)
 					}
 					validate={validateLabel}
-					lengthLimit={32}
+					lengthLimit={LMAX_TASK_LABEL_LENGTH}
 				/>
 				<div className={`my-2 flex h-max w-full gap-x-2`}>
 					<div className={`flex h-full w-full flex-col gap-y-1`}>
@@ -454,7 +458,7 @@ const Component = ({
 								<LUIDateNumInput
 									name="Day"
 									passedValue={
-										task.schedule.recurringInfo.day + 1
+										task.schedule.recurringInfo.day
 									}
 									onChange={(day) =>
 										setTask({
@@ -464,12 +468,15 @@ const Component = ({
 												recurringInfo: {
 													...task.schedule
 														.recurringInfo,
-													day: day - 1,
+													day,
 												},
 											},
 										} as LTask)
 									}
 									onShift={(shift) => {
+										const currentDay =
+											task.schedule.recurringInfo
+												?.day ?? 1;
 										setTask({
 											...task,
 											schedule: {
@@ -478,19 +485,9 @@ const Component = ({
 													...task.schedule
 														.recurringInfo,
 													day:
-														task.schedule
-															.recurringInfo &&
-														task.schedule
-															.recurringInfo
-															.day !== null
-															? (28 +
-																	task
-																		.schedule
-																		.recurringInfo
-																		.day +
-																	shift) %
-																28
-															: 1,
+														((currentDay - 1 + shift + 28) %
+															28) +
+														1,
 												},
 											},
 										} as LTask);

@@ -67,6 +67,7 @@ const Component = ({
 					</div>
 					<button
 						type="button"
+						aria-label="Create note"
 						className="flex h-full w-max cursor-pointer items-center justify-center active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
 						onClick={createNewNote}
 						disabled={isCreating}

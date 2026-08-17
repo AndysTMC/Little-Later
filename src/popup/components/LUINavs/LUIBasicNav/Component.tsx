@@ -53,11 +53,13 @@ const Component = ({
 			</div>
 			{goBackDisabled ? null : (
 				<div className={`flex h-full grow items-center justify-end`}>
-					<div
+					<button
+						type="button"
+						aria-label="Go back"
 						className={`flex h-full cursor-pointer items-center justify-center px-3`}
 						onClick={handleGoBack}
 					>
-						<button
+						<span
 							className={`flex h-full items-center justify-center gap-x-1 transition-transform duration-100 ease-in-out hover:-translate-x-1 active:translate-x-0`}
 						>
 							<LUIThemedIcon
@@ -71,8 +73,8 @@ const Component = ({
 							>
 								Go Back
 							</span>
-						</button>
-					</div>
+						</span>
+					</button>
 				</div>
 			)}
 		</div>

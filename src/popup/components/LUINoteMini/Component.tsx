@@ -4,7 +4,6 @@ import { TrashIcon } from "@phosphor-icons/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import rehypeRaw from "rehype-raw";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
@@ -70,7 +69,6 @@ const Component = ({
 			>
 				<ReactMarkdown
 					remarkPlugins={[remarkGfm, remarkBreaks]}
-					rehypePlugins={[rehypeRaw]}
 					components={{
 						p: ({ ...props }) => <p {...props} className="mb-1" />,
 						ul: ({ ...props }) => (
@@ -97,6 +95,7 @@ const Component = ({
 				{showDelete ? (
 					<button
 						type="button"
+						aria-label="Delete note"
 						className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-all active:scale-95 ${
 							theme === LTHEME.DARK
 								? "hover:bg-neutral-700"

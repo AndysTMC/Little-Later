@@ -96,10 +96,10 @@ const Component = () => {
 						className={`flex w-full grow flex-col items-center justify-center py-8 ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
 					>
 						<div className="text-5xl font-extrabold text-pretty opacity-10">
-							Feeling empty?
+							No history yet?
 						</div>
 						<div className="text-5xl font-extrabold text-pretty opacity-10">
-							Start Browse!
+							Visit a page to start capturing.
 						</div>
 					</div>
 				)}

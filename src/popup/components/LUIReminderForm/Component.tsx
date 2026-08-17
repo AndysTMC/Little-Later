@@ -19,6 +19,7 @@ import { putReminder } from "../../../services/reminder";
 import { fakeWait } from "little-shared/utils/misc";
 import { useEffect, useState } from "react";
 import { getReminderInsert } from "little-shared/utils/reminder";
+import { LMAX_REMINDER_MESSAGE_LENGTH } from "little-shared/constants";
 import { useIdCache } from "../../hooks/useIdCache";
 import { LUIAIButton } from "../LUIAIButton/Component";
 import { LittleAI } from "../../../services/ai";
@@ -62,7 +63,7 @@ const Component = ({
 				success: false,
 				error: "Message cannot be empty",
 			};
-		} else if (value.length > 256) {
+		} else if (value.length > LMAX_REMINDER_MESSAGE_LENGTH) {
 			return {
 				success: false,
 				error: "Message is too long",
@@ -141,7 +142,7 @@ const Component = ({
 						} as LReminder)
 					}
 					validate={validateMessage}
-					lengthLimit={256}
+					lengthLimit={LMAX_REMINDER_MESSAGE_LENGTH}
 				/>
 				<div className={`h-max w-full shrink-0`}>
 					<LUIAIButton

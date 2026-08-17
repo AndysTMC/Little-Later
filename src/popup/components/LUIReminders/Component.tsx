@@ -74,12 +74,12 @@ const Component = ({
 					<div
 						className={`text-5xl font-extrabold text-pretty opacity-10`}
 					>
-						No alerts?
+						No reminders yet?
 					</div>
 					<div
 						className={`text-5xl font-extrabold text-pretty opacity-10`}
 					>
-						Start browsing!
+						Tap New Reminder!
 					</div>
 				</div>
 			)}

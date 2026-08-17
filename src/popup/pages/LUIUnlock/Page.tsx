@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import { useLittleTransition } from "../../hooks/useLittleTransition";
-import { LTHEME } from "little-shared/enums";
+import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { useNavigate, useParams } from "react-router";
 import { unlockUser } from "../../../services/user";
 import { useTheme } from "../../hooks/useTheme";
@@ -12,6 +12,7 @@ import { useUserProfiles } from "../../hooks/useUserProfiles";
 import { useEffect, useState } from "react";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
+import { createToast } from "../../../services/toasts";
 
 const Page = () => {
 	const { theme } = useTheme();
@@ -33,11 +34,21 @@ const Page = () => {
 		if (savedUP === undefined) {
 			return;
 		}
-		await unlockUser(savedUP.userId, password);
-		setExit(exitTransitions.zoomIn);
-		navigate("/home", {
-			state: { entryTransition: entryTransitions.zoomIn },
-		});
+		try {
+			await unlockUser(savedUP.userId, password);
+			setExit(exitTransitions.zoomIn);
+			navigate("/home", {
+				state: { entryTransition: entryTransitions.zoomIn },
+			});
+		} catch (error) {
+			console.error("Failed to unlock profile.", error);
+			await createToast(
+				error instanceof Error
+					? error.message
+					: "Couldn't unlock this profile.",
+				LTOAST_TYPE.ERROR,
+			);
+		}
 	};
 	useEffect(() => {
 		if (userProfiles) {
@@ -68,11 +79,23 @@ const Page = () => {
 						navigateTo="/browse-profiles"
 						entryTransition={entryTransitions.zoomIn}
 					/>
-					<LUIAuthGate
-						type="Unlock"
-						userProfile={savedUP!}
-						handleFunction={handleUnlock}
-					/>
+					{savedUP ? (
+						<LUIAuthGate
+							type="Unlock"
+							userProfile={savedUP}
+							handleFunction={handleUnlock}
+						/>
+					) : (
+						<div
+							className={`flex h-full w-full items-center justify-center px-6 text-center text-2xl font-extrabold opacity-20 ${
+								theme === LTHEME.DARK
+									? "text-white"
+									: "text-black"
+							}`}
+						>
+							Profile not found.
+						</div>
+					)}
 				</motion.div>
 			)}
 		</motion.div>

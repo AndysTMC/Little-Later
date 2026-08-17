@@ -90,6 +90,8 @@ const Component = () => {
 		Array<LHomeSearchResult>
 	>([]);
 
+	const [searchQuery, setSearchQuery] = useState("");
+
 	const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
 
 	const [isReady, setIsReady] = useState<boolean>(false);
@@ -102,18 +104,22 @@ const Component = () => {
 	};
 
 	const handleSearch = async (text: string): Promise<void> => {
-		if (!text) {
+		const query = text.trim();
+		setSearchQuery(query);
+		if (!query) {
 			if (searchResults.length !== 0) setSearchResults([]);
 			return;
 		}
 
-		const words = text.split(" ");
+		const words = query.split(/\s+/);
 		const results: LHomeSearchResult[] = [];
 		for (const word of words) {
 			const searchSaves = searchSavesByText(saves, word);
 			for (const save of searchSaves) {
 				const existingResult = results.find(
-					(result) => result.data.id === save.id,
+					(result) =>
+						result.type === LHOME_SEARCH_RESULT_TYPE.SAVE &&
+						result.data.id === save.id,
 				);
 				if (existingResult) {
 					existingResult.noOfMatches += 1;
@@ -131,7 +137,9 @@ const Component = () => {
 			const searchTasks = searchTasksByText(tasks, word);
 			for (const task of searchTasks) {
 				const existingResult = results.find(
-					(result) => result.data.id === task.id,
+					(result) =>
+						result.type === LHOME_SEARCH_RESULT_TYPE.TASK &&
+						result.data.id === task.id,
 				);
 				if (existingResult) {
 					existingResult.noOfMatches += 1;
@@ -149,7 +157,9 @@ const Component = () => {
 			const searchReminders = searchRemindersByText(reminders, word);
 			for (const reminder of searchReminders) {
 				const existingResult = results.find(
-					(result) => result.data.id === reminder.id,
+					(result) =>
+						result.type === LHOME_SEARCH_RESULT_TYPE.REMINDER &&
+						result.data.id === reminder.id,
 				);
 				if (existingResult) {
 					existingResult.noOfMatches += 1;
@@ -167,7 +177,9 @@ const Component = () => {
 			const matchedNotes = searchNotesByText(unlinkedNotes, word);
 			for (const note of matchedNotes) {
 				const existingResult = results.find(
-					(result) => result.data.id === note.id,
+					(result) =>
+						result.type === LHOME_SEARCH_RESULT_TYPE.NOTE &&
+						result.data.id === note.id,
 				);
 				if (existingResult) {
 					existingResult.noOfMatches += 1;
@@ -229,7 +241,7 @@ const Component = () => {
 			</div>
 
 			<AnimatePresence mode="wait">
-				{isSearchFocused ? (
+				{isSearchFocused && searchQuery !== "" ? (
 					<motion.div
 						key="search"
 						className={`flex w-full grow flex-col gap-y-1 overflow-y-hidden ${theme}-scrollbar`}

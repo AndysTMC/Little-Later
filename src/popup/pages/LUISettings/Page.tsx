@@ -43,7 +43,8 @@ function LUISettingsCell({
 		});
 	};
 	return (
-		<div
+		<button
+			type="button"
 			className={`flex h-10 w-full items-center justify-start gap-x-2 ${theme === LTHEME.DARK ? "hover:bg-neutral-900" : "hover:bg-neutral-100"} group cursor-pointer rounded-full p-1`}
 			onClick={handleOnClick}
 		>
@@ -72,7 +73,7 @@ function LUISettingsCell({
 					/>
 				</div>
 			</div>
-		</div>
+		</button>
 	);
 }
 

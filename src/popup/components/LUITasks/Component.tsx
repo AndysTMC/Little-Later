@@ -59,55 +59,61 @@ const Component = ({
 				className,
 			)}
 		>
-			<LUIGroup title="Missed">
-				{missedTasks.map((task) => (
-					<LUITaskMini
-						links={links}
-						reminders={reminders}
-						saves={saves}
-						key={task.id}
-						task={task}
-					/>
-				))}
-			</LUIGroup>
-			<LUIGroup title="Active">
-				{activeTasks.map((task) => (
-					<LUITaskMini
-						links={links}
-						reminders={reminders}
-						saves={saves}
-						key={task.id}
-						task={task}
-					/>
-				))}
-			</LUIGroup>
-			<LUIGroup
-				title="Finished"
-				pagination={{ currentBatch, batchCount, onBatchChange }}
-			>
-				{paginationFinishedTasks.map((task) => (
-					<LUITaskMini
-						links={links}
-						reminders={reminders}
-						saves={saves}
-						key={task.id}
-						task={task}
-					/>
-				))}
-			</LUIGroup>
-			{tasks.length <= 1 ? (
+			{missedTasks.length > 0 ? (
+				<LUIGroup title="Missed">
+					{missedTasks.map((task) => (
+						<LUITaskMini
+							links={links}
+							reminders={reminders}
+							saves={saves}
+							key={task.id}
+							task={task}
+						/>
+					))}
+				</LUIGroup>
+			) : null}
+			{activeTasks.length > 0 ? (
+				<LUIGroup title="Active">
+					{activeTasks.map((task) => (
+						<LUITaskMini
+							links={links}
+							reminders={reminders}
+							saves={saves}
+							key={task.id}
+							task={task}
+						/>
+					))}
+				</LUIGroup>
+			) : null}
+			{finishedTasks.length > 0 ? (
+				<LUIGroup
+					title="Finished"
+					pagination={{ currentBatch, batchCount, onBatchChange }}
+				>
+					{paginationFinishedTasks.map((task) => (
+						<LUITaskMini
+							links={links}
+							reminders={reminders}
+							saves={saves}
+							key={task.id}
+							task={task}
+						/>
+					))}
+				</LUIGroup>
+			) : null}
+			{tasks.length === 0 ? (
 				<div
 					className={`flex min-h-52 w-full grow flex-col items-center justify-center py-8 ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
 				>
 					<div
 						className={`text-5xl font-extrabold text-pretty opacity-10`}
 					>
-						Quick Add,
+						No tasks yet?
 					</div>
 					<div
 						className={`text-5xl font-extrabold text-pretty opacity-10`}
 					>
-						Easy Track!
+						Tap New Task!
 					</div>
 				</div>
 			) : null}

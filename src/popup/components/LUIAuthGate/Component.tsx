@@ -15,6 +15,7 @@ import { fakeWait } from "little-shared/utils/misc";
 import { useNavigate } from "react-router";
 import { twMerge } from "tailwind-merge";
 import { useUserAvatar } from "../../hooks/useUserAvatar";
+import { useObjectUrl } from "../../hooks/useObjectUrl";
 
 const Component = ({
 	className,
@@ -31,25 +32,29 @@ const Component = ({
 	const navigate = useNavigate();
 
 	const [isOperationInProgress, setIsOperationInProgress] = useState(false);
+	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
 	const [password, setPassword] = useState("");
 
 	const userAvatar = useUserAvatar(userProfile.userId);
+	const avatarUrl = useObjectUrl(userAvatar?.blob);
 
 	const handleGo = async () => {
 		setIsOperationInProgress(true);
-		await fakeWait();
-		const isAuthenticated = await authenticateUser(
-			userProfile.userId,
-			password === "" ? undefined : password,
-		);
-		if (!isAuthenticated && type === "Unlock") {
+		try {
+			await fakeWait();
+			const isAuthenticated = await authenticateUser(
+				userProfile.userId,
+				password === "" ? undefined : password,
+			);
+			if (!isAuthenticated && type === "Unlock") {
+				setUnlockWarning("Incorrect password");
+				return;
+			}
+			await handleFunction(password === "" ? undefined : password);
+		} finally {
 			setIsOperationInProgress(false);
-			setUnlockWarning("Incorrect password");
-			return;
 		}
-		await handleFunction(password === "" ? undefined : password);
-		setIsOperationInProgress(false);
 	};
 
 	const handleSubmit = async (event: React.FormEvent) => {
@@ -58,8 +63,17 @@ const Component = ({
 	};
 
 	const handleDelete = async () => {
-		await deleteUser(userProfile.userId);
-		navigate("/browse-profiles");
+		if (!isConfirmingDelete) {
+			setIsConfirmingDelete(true);
+			return;
+		}
+		setIsOperationInProgress(true);
+		try {
+			await deleteUser(userProfile.userId);
+			navigate("/browse-profiles");
+		} finally {
+			setIsOperationInProgress(false);
+		}
 	};
 
 	const [lockInfo, setLockInfo] = useState("Continue with passwordless");
@@ -106,10 +120,10 @@ const Component = ({
 				<div
 					className={`flex h-max w-full items-center justify-center ${isOperationInProgress ? "mt-20 animate-bounce" : ""} pt-5 transition-all delay-300 duration-300`}
 				>
-					{userAvatar?.blob ? (
+					{avatarUrl ? (
 						<img
-							src={URL.createObjectURL(userAvatar.blob)}
-							alt="avatar"
+							src={avatarUrl}
+							alt={`${userProfile.name} avatar`}
 							className="h-32 w-32 rounded-full object-cover"
 							draggable={false}
 						/>
@@ -157,15 +171,27 @@ const Component = ({
 									/>
 								</div>
 								<div className={`h-full grow`}>
+									<label
+										htmlFor="little-auth-password"
+										className="visually-hidden"
+									>
+										Password
+									</label>
 									<input
+										id="little-auth-password"
 										type="password"
 										placeholder="Password"
 										name="password"
-										autoComplete="on"
-										value={password}
-										onChange={(event) =>
-											setPassword(event.target.value)
+										autoComplete={
+											type === "Unlock"
+												? "current-password"
+												: "new-password"
 										}
+										value={password}
+										onChange={(event) => {
+											setPassword(event.target.value);
+											setIsConfirmingDelete(false);
+										}}
 										className={`h-full w-full text-xl font-thin ${
 											theme === LTHEME.DARK
 												? "text-white"
@@ -265,14 +291,18 @@ const Component = ({
 						>
 							<button
 								className={`h-12 w-72 ${
-									theme === LTHEME.DARK
-										? "border-black bg-white text-black hover:bg-neutral-100"
-										: "border-white bg-black text-white hover:bg-neutral-900"
+									isConfirmingDelete
+										? "bg-red-600 text-white hover:bg-red-700"
+										: theme === LTHEME.DARK
+											? "border-black bg-white text-black hover:bg-neutral-100"
+											: "border-white bg-black text-white hover:bg-neutral-900"
 								} flex cursor-pointer items-center justify-center rounded-lg`}
 								onClick={handleDelete}
 								type="button"
 							>
-								Delete
+								{isConfirmingDelete
+									? "Confirm delete"
+									: "Delete"}
 							</button>
 						</motion.div>
 					) : null}

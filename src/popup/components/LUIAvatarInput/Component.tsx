@@ -2,6 +2,7 @@ import { NotePencilIcon, UserIcon, XCircleIcon } from "@phosphor-icons/react";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LTHEME } from "little-shared/enums";
 import { twMerge } from "tailwind-merge";
+import { useObjectUrl } from "../../hooks/useObjectUrl";
 
 const Component = ({
 	className,
@@ -16,6 +17,7 @@ const Component = ({
 	avatarInputRef: React.RefObject<HTMLInputElement>;
 	theme: LTHEME;
 }) => {
+	const avatarUrl = useObjectUrl(avatar);
 	const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		if (!event.target.files) return;
 		const blob = event.target.files[0];
@@ -32,6 +34,7 @@ const Component = ({
 		<div className={twMerge(`relative h-max w-max`, className)}>
 			<input
 				type="file"
+				accept="image/*"
 				onChange={handleAvatarChange}
 				ref={avatarInputRef}
 				className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
@@ -42,10 +45,10 @@ const Component = ({
 				<div
 					className={`relative h-28 w-28 rounded-full border-2 ${theme === LTHEME.DARK ? "border-neutral-700" : "border-neutral-300"}`}
 				>
-					{avatar ? (
+					{avatarUrl ? (
 						<img
-							src={URL.createObjectURL(avatar)}
-							alt="Default Avatar"
+							src={avatarUrl}
+							alt="Profile photo"
 							className={`h-full w-full rounded-full object-cover`}
 						/>
 					) : (
@@ -75,7 +78,9 @@ const Component = ({
 				</div>
 			</label>
 			{avatar ? (
-				<div
+				<button
+					type="button"
+					aria-label="Remove profile photo"
 					className={`absolute top-0 right-0 m-0 flex h-max w-max cursor-pointer items-center justify-center rounded-full p-0`}
 					onClick={removeAvatar}
 				>
@@ -85,7 +90,7 @@ const Component = ({
 						color={theme === LTHEME.DARK ? "white" : "black"}
 						className="h-6 w-6"
 					/>
-				</div>
+				</button>
 			) : null}
 		</div>
 	);

@@ -23,7 +23,7 @@ const Page = () => {
 
 	return (
 		<motion.div
-			className={`h-full w-full overflow-y-hidden select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} `}
+			className={`h-full w-full overflow-y-hidden ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} `}
 			{...entry}
 			{...exit}
 		>

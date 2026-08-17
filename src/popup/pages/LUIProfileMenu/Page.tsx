@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { LTHEME } from "little-shared/enums";
+import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import { useLittleTransition } from "../../hooks/useLittleTransition";
@@ -12,6 +12,7 @@ import { LUIProfileMini } from "../../components/LUIProfileMini/Component";
 import { useUserProfiles } from "../../hooks/useUserProfiles";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { useLoading } from "../../hooks/useLoading";
+import { createToast } from "../../../services/toasts";
 
 const Page = () => {
 	const { entry, exit, setExit } = useLittleTransition({});
@@ -39,7 +40,21 @@ const Page = () => {
 	) => {
 		if (!e.target.files?.length) return;
 		const blob = e.target.files[0];
-		await importData(blob);
+		try {
+			await importData(blob);
+			await createToast(
+				"Profile imported. Unlock it to continue.",
+				LTOAST_TYPE.SUCCESS,
+			);
+		} catch (error) {
+			console.error("Failed to import profile.", error);
+			await createToast(
+				"Couldn't import that file. Choose a Little Later profile export.",
+				LTOAST_TYPE.ERROR,
+			);
+		} finally {
+			e.target.value = "";
+		}
 	};
 
 	return (
@@ -71,8 +86,10 @@ const Page = () => {
 							>
 								<div className="col-span-1 flex h-max w-max flex-col items-center justify-center">
 									<div className="h-2 w-full"></div>
-									<div
-										className={`flex h-max w-max cursor-pointer items-center justify-start p-1 transition-transform duration-300 ease-in-out hover:scale-110`}
+									<button
+										type="button"
+										aria-label="Create a new profile"
+										className={`flex h-max w-max cursor-pointer items-center justify-start bg-transparent p-1 transition-transform duration-300 ease-in-out hover:scale-110`}
 										onClick={handleNewProfile}
 									>
 										<svg
@@ -89,7 +106,7 @@ const Page = () => {
 												d="M12 4.5v15m7.5-7.5h-15"
 											/>
 										</svg>
-									</div>
+									</button>
 									<div
 										className={`h-max w-max text-lg font-semibold`}
 									>
@@ -98,8 +115,10 @@ const Page = () => {
 								</div>
 								<div className="col-span-1 flex h-max w-full flex-col items-center justify-center">
 									<div className="h-2 w-full"></div>
-									<div
-										className={`h-max w-max p-1 active:bg-neutral-100`}
+									<button
+										type="button"
+										aria-label="Import a profile"
+										className={`h-max w-max bg-transparent p-1 active:bg-neutral-100`}
 										onClick={handleImportProfile}
 									>
 										<div
@@ -112,7 +131,7 @@ const Page = () => {
 												passedTheme={LTHEME.LIGHT}
 											/>
 										</div>
-									</div>
+									</button>
 									<div
 										className={`h-max w-full text-center text-lg font-semibold text-wrap break-words`}
 									>
@@ -137,6 +156,8 @@ const Page = () => {
 
 					<input
 						type="file"
+						accept=".lldat,application/octet-stream"
+						aria-label="Import profile file"
 						ref={fileInputRef}
 						style={{ display: "none" }}
 						onChange={handleFileInputChange}

@@ -1,23 +1,85 @@
-@import url("https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,300..900;1,300..900&display=swap");
 @import "tailwindcss";
 
+@font-face {
+	font-family: "Rubik";
+	src: url("/fonts/Rubik-VariableFont_wght.ttf") format("truetype");
+	font-weight: 300 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Rubik";
+	src: url("/fonts/Rubik-Italic-VariableFont_wght.ttf") format("truetype");
+	font-weight: 300 900;
+	font-style: italic;
+	font-display: swap;
+}
+
 :root {
-	font-family: "Rubik", serif;
+	font-family: "Rubik", sans-serif;
 	width: 500px;
 	height: 600px;
 	display: flex;
+	--ll-bg: #ffffff;
+	--ll-fg: #000000;
+	--ll-muted: #737373;
+	--ll-border: #d4d4d4;
+	--ll-surface: #f5f5f5;
+	--ll-hover: #e5e5e5;
+	--ll-danger: #dc2626;
+	--ll-radius: 0.5rem;
+	--ll-nav-height: 4rem;
+}
+
+#root.bg-black {
+	--ll-bg: #000000;
+	--ll-fg: #ffffff;
+	--ll-muted: #a3a3a3;
+	--ll-border: #404040;
+	--ll-surface: #171717;
+	--ll-hover: #262626;
+	--ll-danger: #ef4444;
 }
 
 html,
 body,
 #root {
-	font-family: "Rubik", serif;
+	font-family: "Rubik", sans-serif;
 	font-size: 16px;
 	display: flex;
 	width: 100%;
 	height: 100%;
 	margin: 0;
 	overflow: hidden;
+}
+
+:focus-visible {
+	outline: 2px solid var(--ll-fg);
+	outline-offset: 2px;
+}
+
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+[role="tab"]:focus:not(:focus-visible) {
+	outline: none;
+}
+
+.ll-page {
+	background: var(--ll-bg);
+	color: var(--ll-fg);
+}
+
+.visually-hidden:where(:not(:focus-within, :active)) {
+	position: absolute !important;
+	clip-path: inset(50%) !important;
+	overflow: hidden !important;
+	width: 1px !important;
+	height: 1px !important;
+	margin: -1px !important;
+	padding: 0 !important;
+	border: 0 !important;
+	white-space: nowrap !important;
 }
 
 @layer utilities {

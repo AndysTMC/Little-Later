@@ -8,8 +8,11 @@ import { MotionProps } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import { fakeWait } from "little-shared/utils/misc";
 import { getUserSettings } from "../../../services/settings";
+import { createToast } from "../../../services/toasts";
+import { LTOAST_TYPE } from "little-shared/enums";
 import { LUserProfile } from "little-shared/types";
 import { useUserAvatar } from "../../hooks/useUserAvatar";
+import { useObjectUrl } from "../../hooks/useObjectUrl";
 
 const Component = ({
 	className,
@@ -27,6 +30,7 @@ const Component = ({
 	const [isAuthenticating, setIsAuthenticating] = useState(false);
 
 	const userAvatar = useUserAvatar(userProfile.userId);
+	const avatarUrl = useObjectUrl(userAvatar?.blob);
 
 	const handleClick = async () => {
 		setIsAuthenticating(true);
@@ -34,7 +38,18 @@ const Component = ({
 		const authenticated = await authenticateUser(userProfile.userId);
 		setIsAuthenticating(false);
 		if (authenticated) {
-			await unlockUser(userProfile.userId);
+			try {
+				await unlockUser(userProfile.userId);
+			} catch (error) {
+				console.error("Failed to unlock profile.", error);
+				await createToast(
+					error instanceof Error
+						? error.message
+						: "Couldn't unlock this profile.",
+					LTOAST_TYPE.ERROR,
+				);
+				return;
+			}
 			const settings = await getUserSettings();
 			if (settings.guide.isFirstTimeUser) {
 				changeExit(exitTransitions.slideLeft);
@@ -62,18 +77,20 @@ const Component = ({
 			)}
 		>
 			<div className="h-2 w-full"></div>
-			<div
-				className={`flex h-max w-max cursor-pointer items-center justify-start p-1 transition-transform duration-300 ease-in-out ${
+			<button
+				type="button"
+				aria-label={`Open profile ${name}`}
+				className={`flex h-max w-max cursor-pointer items-center justify-start bg-transparent p-1 transition-transform duration-300 ease-in-out ${
 					isAuthenticating
 						? "animate-bounce-profile"
 						: "hover:-translate-y-1"
 				}`}
 				onClick={handleClick}
 			>
-				{userAvatar?.blob ? (
+				{avatarUrl ? (
 					<img
-						src={URL.createObjectURL(userAvatar.blob)}
-						alt="Little Later Logo"
+						src={avatarUrl}
+						alt=""
 						className={`h-24 w-24 rounded-full object-cover`}
 						draggable="false"
 					/>
@@ -84,7 +101,7 @@ const Component = ({
 						className="size-24"
 					/>
 				)}
-			</div>
+			</button>
 			<div
 				className={`line-clamp-2 h-max max-h-full text-center text-lg text-ellipsis`}
 			>

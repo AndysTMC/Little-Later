@@ -36,6 +36,7 @@ const Component = ({
 	const handleUnfocus = () => {
 		setText("");
 		setIsFocused(false);
+		void handleSearch("");
 	};
 	return (
 		<div
@@ -62,20 +63,23 @@ const Component = ({
 			</div>
 
 			<input
-				type="text"
+				type="search"
 				value={text}
 				placeholder="Search"
+				aria-label="Search saves, tasks, reminders, and notes"
 				onChange={(e) => handleOnChange(e.target.value)}
 				onFocus={handleFocus}
 				className={`h-full grow text-sm font-bold text-neutral-500 ${theme === LTHEME.DARK ? "focus:text-neutral-100" : "focus:text-neutral-900"} rounded-full px-1 placeholder-current outline-none`}
 			/>
 			{isFocused ? (
-				<div
+				<button
+					type="button"
+					aria-label="Clear search"
 					className={`flex h-full w-8 items-center justify-center bg-transparent ${theme === LTHEME.DARK ? "hover:bg-neutral-800" : "hover:bg-neutral-200"} cursor-pointer rounded-full`}
 					onClick={handleUnfocus}
 				>
 					<LUIThemedIcon Icon={XIcon} className={`size-4`} />
-				</div>
+				</button>
 			) : null}
 		</div>
 	);

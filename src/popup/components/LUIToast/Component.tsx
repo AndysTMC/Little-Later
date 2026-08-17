@@ -15,8 +15,9 @@ const Component = ({
 }) => {
 	return (
 		<div
+			role="status"
 			className={twMerge(
-				`justify-left flex w-96 items-center gap-x-1 rounded-lg px-2 py-1 opacity-90 ${theme === LTHEME.DARK ? "bg-neutral-900" : "bg-neutral-100"} outline-1 outline-neutral-500`,
+				`flex w-96 items-center justify-start gap-x-1 rounded-lg px-2 py-1 opacity-90 ${theme === LTHEME.DARK ? "bg-neutral-900" : "bg-neutral-100"} outline-1 outline-neutral-500`,
 				className,
 			)}
 		>

@@ -114,12 +114,18 @@ const Component = ({
 							<div
 								className={`flex size-22 shrink-0 items-center justify-center`}
 							>
-								<div
-									className={`flex size-8 items-center justify-center border-1 border-neutral-500 hover:${
+								<button
+									type="button"
+									aria-label={
+										isTaskFinished(task)
+											? "Mark task as unfinished"
+											: "Mark task as finished"
+									}
+									className={`flex size-8 items-center justify-center border-1 border-neutral-500 ${
 										theme === LTHEME.DARK
-											? "bg-neutral-700"
-											: "bg-neutral-300"
-									} cursor-pointer rounded-full active:scale-95`}
+											? "hover:bg-neutral-700"
+											: "hover:bg-neutral-300"
+									} cursor-pointer rounded-full bg-transparent active:scale-95`}
 									onClick={handleMark}
 								>
 									<LUIThemedIcon
@@ -131,7 +137,7 @@ const Component = ({
 										}
 										className={`size-5`}
 									/>
-								</div>
+								</button>
 							</div>
 						) : null}
 

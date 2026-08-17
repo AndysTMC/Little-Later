@@ -119,7 +119,7 @@ const Page = () => {
 			reminders === undefined ||
 			tasks === undefined ||
 			visualBMs === undefined ? (
-				!hasLoadedOnce ? (
+				!hasLoadedOnce.current ? (
 					<LUILoading />
 				) : null
 			) : (

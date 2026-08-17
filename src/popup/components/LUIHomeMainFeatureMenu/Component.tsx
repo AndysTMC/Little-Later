@@ -47,6 +47,8 @@ const Component = ({
 			)}
 		>
 			<div
+				role="tablist"
+				aria-label="Home features"
 				className={`flex h-8 w-4/5 overflow-hidden rounded-full border ${
 					theme === LTHEME.DARK
 						? "border-neutral-800"
@@ -56,7 +58,11 @@ const Component = ({
 				{tabs.map((tab) => {
 					const isActive = currentContent === tab.content;
 					return (
-						<div
+						<button
+							type="button"
+							role="tab"
+							aria-selected={isActive}
+							aria-label={tab.label}
 							key={tab.content}
 							className={`flex h-full cursor-pointer items-center justify-center gap-x-1 transition-colors duration-300 ${
 								isActive ? "min-w-0 grow px-4" : "w-14 shrink-0"
@@ -82,7 +88,7 @@ const Component = ({
 									{tab.label}
 								</span>
 							) : null}
-						</div>
+						</button>
 					);
 				})}
 			</div>

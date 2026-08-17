@@ -722,6 +722,13 @@ const Component = ({ className }: { className?: string }) => {
 			});
 			setCurrentLAIOutput(aiOutput);
 			setCanUndo(aiAssist.hasUndoAction());
+		} catch {
+			setCurrentLAIOutput({
+				message:
+					"Something went wrong. Check AI settings and try again.",
+				actions: [],
+				expression: LFACE_EXPRESSION.FROWNING,
+			});
 		} finally {
 			setIsAsking(false);
 			requestLockRef.current = false;

@@ -63,7 +63,12 @@ const Component = ({
 		>
 			<div className={`w-max`}>
 				<input
-					className={`flex rounded-full px-1 ${theme === LTHEME.DARK ? "text-white" : "text-black"} text-center focus:${theme === LTHEME.DARK ? "bg-neutral-800" : "bg-neutral-200"} outline-none`}
+					className={`flex rounded-full px-1 text-center ${
+						theme === LTHEME.DARK
+							? "text-white focus:bg-neutral-800"
+							: "text-black focus:bg-neutral-200"
+					} outline-none`}
+					aria-label="Numeric value"
 					type="text"
 					style={{ width: `${32 + maxLength * 8}px` }}
 					inputMode="numeric"
@@ -78,8 +83,14 @@ const Component = ({
 					onBlur={handleBlur}
 				/>
 			</div>
-			<div
-				className={`w-max cursor-pointer rounded-full p-1 hover:${theme === LTHEME.DARK ? "bg-neutral-800" : "bg-neutral-200"}`}
+			<button
+				type="button"
+				aria-label="Decrease value"
+				className={`w-max cursor-pointer rounded-full p-1 ${
+					theme === LTHEME.DARK
+						? "hover:bg-neutral-800"
+						: "hover:bg-neutral-200"
+				}`}
 				onClick={() => handleShift(-1)}
 			>
 				<LUIThemedIcon
@@ -87,9 +98,15 @@ const Component = ({
 					weight="regular"
 					className={`size-4`}
 				/>
-			</div>
-			<div
-				className={`w-max cursor-pointer rounded-full p-1 hover:${theme === LTHEME.DARK ? "bg-neutral-800" : "bg-neutral-200"} `}
+			</button>
+			<button
+				type="button"
+				aria-label="Increase value"
+				className={`w-max cursor-pointer rounded-full p-1 ${
+					theme === LTHEME.DARK
+						? "hover:bg-neutral-800"
+						: "hover:bg-neutral-200"
+				}`}
 				onClick={() => handleShift(1)}
 			>
 				<LUIThemedIcon
@@ -97,7 +114,7 @@ const Component = ({
 					weight="regular"
 					className={`size-4`}
 				/>
-			</div>
+			</button>
 		</div>
 	);
 };

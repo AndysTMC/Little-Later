@@ -22,7 +22,9 @@ const Page = () => {
 	const visualBMs = useVisualBMs();
 	const saves = visualBMs?.filter((visualBM) => visualBM.isSaved);
 	const { id } = useParams();
+	const parsedId = Number.parseInt(id ?? "", 10);
 	const loading = useLoading([id, links, reminders, saves]);
+	const reminder = reminders?.find((item) => item.id === parsedId);
 
 	return (
 		<motion.div
@@ -39,12 +41,24 @@ const Page = () => {
 					animate={{ opacity: 1 }}
 				>
 					<LUIBasicNav navigateTo="/home" />
-					<LUIReminderForm
-						id={parseInt(id!)}
-						links={links!}
-						reminders={reminders!}
-						saves={saves!}
-					/>
+					{reminder ? (
+						<LUIReminderForm
+							id={parsedId}
+							links={links!}
+							reminders={reminders!}
+							saves={saves!}
+						/>
+					) : (
+						<div
+							className={`flex h-full w-full items-center justify-center px-6 text-center text-2xl font-extrabold opacity-20 ${
+								theme === LTHEME.DARK
+									? "text-white"
+									: "text-black"
+							}`}
+						>
+							Reminder not found.
+						</div>
+					)}
 				</motion.div>
 			)}
 		</motion.div>

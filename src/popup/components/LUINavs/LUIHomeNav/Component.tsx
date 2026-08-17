@@ -52,7 +52,10 @@ const Component = ({ className }: { className?: string }) => {
 				className,
 			)}
 		>
-			<div
+			<button
+				type="button"
+				aria-label="History"
+				aria-pressed={activeRoute === LLOWER_HOME_NAV_ROUTES.HISTORY}
 				className={`group flex h-full w-full cursor-pointer flex-col items-center justify-center py-1 ${
 					theme === LTHEME.DARK
 						? activeRoute === LLOWER_HOME_NAV_ROUTES.HISTORY
@@ -107,11 +110,22 @@ const Component = ({ className }: { className?: string }) => {
 				>
 					History
 				</div>
-			</div>
+			</button>
 
 			{/* New LTask Button */}
-			<div
-				className={`group flex h-full w-full cursor-pointer flex-col items-center justify-center py-1`}
+			<button
+				type="button"
+				aria-label="New task"
+				aria-pressed={activeRoute === LLOWER_HOME_NAV_ROUTES.NEW_TASK}
+				className={`group flex h-full w-full cursor-pointer flex-col items-center justify-center py-1 ${
+					theme === LTHEME.DARK
+						? activeRoute === LLOWER_HOME_NAV_ROUTES.NEW_TASK
+							? "bg-white"
+							: ""
+						: activeRoute === LLOWER_HOME_NAV_ROUTES.NEW_TASK
+							? "bg-black"
+							: ""
+				}`}
 				onClick={() => handleRoute(LLOWER_HOME_NAV_ROUTES.NEW_TASK)}
 			>
 				<div
@@ -147,15 +161,36 @@ const Component = ({ className }: { className?: string }) => {
 					/>
 				</div>
 				<div
-					className={`flex h-max w-full items-center justify-center text-sm font-medium ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
+					className={`flex h-max w-full items-center justify-center text-sm font-medium ${
+						theme === LTHEME.DARK
+							? activeRoute === LLOWER_HOME_NAV_ROUTES.NEW_TASK
+								? "text-black"
+								: "text-white"
+							: activeRoute === LLOWER_HOME_NAV_ROUTES.NEW_TASK
+								? "text-white"
+								: "text-black"
+					} `}
 				>
 					New Task
 				</div>
-			</div>
+			</button>
 
 			{/* New LReminder Button */}
-			<div
-				className={`group flex h-full w-full cursor-pointer flex-col items-center justify-center py-1`}
+			<button
+				type="button"
+				aria-label="New reminder"
+				aria-pressed={
+					activeRoute === LLOWER_HOME_NAV_ROUTES.NEW_REMINDER
+				}
+				className={`group flex h-full w-full cursor-pointer flex-col items-center justify-center py-1 ${
+					theme === LTHEME.DARK
+						? activeRoute === LLOWER_HOME_NAV_ROUTES.NEW_REMINDER
+							? "bg-white"
+							: ""
+						: activeRoute === LLOWER_HOME_NAV_ROUTES.NEW_REMINDER
+							? "bg-black"
+							: ""
+				}`}
 				onClick={() => handleRoute(LLOWER_HOME_NAV_ROUTES.NEW_REMINDER)}
 			>
 				<div
@@ -193,11 +228,21 @@ const Component = ({ className }: { className?: string }) => {
 					/>
 				</div>
 				<div
-					className={`flex h-max w-full items-center justify-center text-sm font-medium ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
+					className={`flex h-max w-full items-center justify-center text-sm font-medium ${
+						theme === LTHEME.DARK
+							? activeRoute ===
+								LLOWER_HOME_NAV_ROUTES.NEW_REMINDER
+								? "text-black"
+								: "text-white"
+							: activeRoute ===
+								  LLOWER_HOME_NAV_ROUTES.NEW_REMINDER
+								? "text-white"
+								: "text-black"
+					} `}
 				>
 					New Reminder
 				</div>
-			</div>
+			</button>
 		</div>
 	);
 };

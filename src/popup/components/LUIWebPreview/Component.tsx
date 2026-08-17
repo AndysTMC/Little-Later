@@ -3,6 +3,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { GoogleChromeLogoIcon, ImageIcon } from "@phosphor-icons/react";
 import { twMerge } from "tailwind-merge";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
+import { useObjectUrl } from "../../hooks/useObjectUrl";
 
 const Component = ({
 	className,
@@ -16,12 +17,15 @@ const Component = ({
 	scaleType?: "short" | "medium" | "full";
 }) => {
 	const { theme } = useTheme();
+	const previewUrl = useObjectUrl(previewBlob);
+	const imageSrc =
+		previewUrl ?? `/images/web-preview-holder-${theme}.png`;
 	const handleOpenSave = () => {
-		window.open(url, "_blank");
+		window.open(url, "_blank", "noopener,noreferrer");
 	};
 	const handleOpenImage = () => {
-		if (!previewBlob) return;
-		window.open(URL.createObjectURL(previewBlob), "_blank");
+		if (!previewUrl) return;
+		window.open(previewUrl, "_blank", "noopener,noreferrer");
 	};
 	if (scaleType === "short") {
 		return (
@@ -32,17 +36,15 @@ const Component = ({
 				)}
 			>
 				<img
-					src={
-						previewBlob === undefined
-							? `/images/web-preview-holder-${theme}.png`
-							: URL.createObjectURL(previewBlob)
-					}
+					src={imageSrc}
+					alt=""
 					className={`z-0 h-full w-full object-cover`}
 					onContextMenu={(e) => {
 						e.preventDefault();
 					}}
 				/>
-				<div
+				<button
+					type="button"
 					className={`absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 ${theme === LTHEME.DARK ? "bg-white/50" : "bg-black/50"} z-10 cursor-pointer transition-all duration-100`}
 					onClick={handleOpenSave}
 				>
@@ -57,7 +59,7 @@ const Component = ({
 					>
 						Open
 					</span>
-				</div>
+				</button>
 			</div>
 		);
 	} else if (scaleType === "medium") {
@@ -69,17 +71,15 @@ const Component = ({
 				)}
 			>
 				<img
-					src={
-						previewBlob === undefined
-							? `/images/web-preview-holder-${theme}.png`
-							: URL.createObjectURL(previewBlob)
-					}
+					src={imageSrc}
+					alt=""
 					className={`z-0 h-full w-full object-cover`}
 					onContextMenu={(e) => {
 						e.preventDefault();
 					}}
 				/>
-				<div
+				<button
+					type="button"
 					className={`absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 ${theme === LTHEME.DARK ? "bg-white/50" : "bg-black/50"} z-10 cursor-pointer transition-all duration-100`}
 					onClick={handleOpenSave}
 				>
@@ -94,7 +94,7 @@ const Component = ({
 					>
 						Open
 					</span>
-				</div>
+				</button>
 			</div>
 		);
 	} else {
@@ -109,11 +109,8 @@ const Component = ({
 					className={`flex aspect-[16/9] w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border-2 ${theme === LTHEME.DARK ? "border-neutral-700" : "border-neutral-300"} group relative`}
 				>
 					<img
-						src={
-							previewBlob === undefined
-								? `/images/web-preview-holder-${theme}.png`
-								: URL.createObjectURL(previewBlob)
-						}
+						src={imageSrc}
+						alt=""
 						className={`z-0 h-full w-full object-cover`}
 						onContextMenu={(e) => {
 							e.preventDefault();
@@ -125,7 +122,8 @@ const Component = ({
 						<div
 							className={`flex h-max w-full flex-col items-end gap-y-1`}
 						>
-							<div
+							<button
+								type="button"
 								className={`flex items-center gap-x-1 text-xs font-semibold ${
 									theme === LTHEME.DARK
 										? "bg-neutral-100 text-neutral-900"
@@ -148,9 +146,10 @@ const Component = ({
 								>
 									Open
 								</span>
-							</div>
+							</button>
 							{previewBlob ? (
-								<div
+								<button
+									type="button"
 									className={`flex items-center gap-x-1 text-xs font-semibold ${
 										theme === LTHEME.DARK
 											? "bg-neutral-100 text-neutral-900"
@@ -173,7 +172,7 @@ const Component = ({
 									>
 										Open
 									</span>
-								</div>
+								</button>
 							) : null}
 						</div>
 					</div>

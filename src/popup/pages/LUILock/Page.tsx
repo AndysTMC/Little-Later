@@ -62,11 +62,23 @@ const Page = () => {
 						navigateTo="/home"
 						entryTransition={entryTransitions.zoomIn}
 					/>
-					<LUIAuthGate
-						type="Lock"
-						userProfile={savedUP!}
-						handleFunction={handleLock}
-					/>
+					{savedUP ? (
+						<LUIAuthGate
+							type="Lock"
+							userProfile={savedUP}
+							handleFunction={handleLock}
+						/>
+					) : (
+						<div
+							className={`flex h-full w-full items-center justify-center px-6 text-center text-2xl font-extrabold opacity-20 ${
+								theme === LTHEME.DARK
+									? "text-white"
+									: "text-black"
+							}`}
+						>
+							No profile to lock.
+						</div>
+					)}
 				</motion.div>
 			)}
 		</motion.div>

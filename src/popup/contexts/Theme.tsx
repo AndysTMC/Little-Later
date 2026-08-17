@@ -25,9 +25,8 @@ const ContextProvider: React.FC<ProviderProps> = ({ children }) => {
 	const toggleTheme = useCallback(async () => {
 		if (!userProfile) return;
 		const newTheme = theme === LTHEME.DARK ? LTHEME.LIGHT : LTHEME.DARK;
-		updateUserProfile(userProfile.userId, { theme: newTheme }).then(() => {
-			setTheme(newTheme);
-		});
+		await updateUserProfile(userProfile.userId, { theme: newTheme });
+		setTheme(newTheme);
 	}, [theme, userProfile]);
 
 	useEffect(() => {

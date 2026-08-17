@@ -71,7 +71,7 @@ const Component = ({
 					name={"hh"}
 					passedValue={LDateUtl.getHour12HF(date)}
 					onChange={(value) =>
-						onChange(LDateUtl.setHour(date, value))
+						onChange(LDateUtl.setHour12HF(date, value))
 					}
 					onShift={(shift) =>
 						onChange(LDateUtl.shiftHour(date, shift))

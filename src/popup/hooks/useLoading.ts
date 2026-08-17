@@ -1,16 +1,20 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-const useLoading = (deps: React.DependencyList) => {
-	const [isLoading, setIsLoading] = useState(
-		deps.some((dep) => dep === undefined),
-	);
+const useLoading = (deps: ReadonlyArray<unknown>) => {
+	const isReady = deps.every((dep) => dep !== undefined);
+	const [isLoading, setIsLoading] = useState(!isReady);
 	useEffect(() => {
-		if (deps.every((dep) => dep !== undefined)) {
-			setTimeout(() => {
-				setIsLoading(false);
-			}, 300);
+		if (!isReady) {
+			setIsLoading(true);
+			return;
 		}
-	}, [deps]);
+		const timeout = window.setTimeout(() => {
+			setIsLoading(false);
+		}, 300);
+		return () => {
+			window.clearTimeout(timeout);
+		};
+	}, [isReady]);
 
 	return isLoading;
 };
