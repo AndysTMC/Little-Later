@@ -30,6 +30,7 @@ export const deleteReminder = async (id: number): Promise<void> => {
 		}
 	}
 	await db.reminderTbl.delete(id);
+	await db.linkTbl.where("reminderId").equals(id).delete();
 };
 
 export const createReminder = async (
@@ -50,9 +51,14 @@ export const putReminder = async (
 		"rw",
 		[db.reminderTbl, db.linkTbl],
 		async () => {
+			const existingReminder = reminderInsert.id
+				? await db.reminderTbl.get(reminderInsert.id)
+				: undefined;
 			reminderInsert.id = await db.reminderTbl.put({
 				...reminderInsert,
-				lastNotificationDate: LDateUtl.getNow(),
+				lastNotificationDate:
+					existingReminder?.lastNotificationDate ??
+					LDateUtl.getNow(),
 			});
 			for (const vbmID of vbmInsertIds) {
 				await createLink({

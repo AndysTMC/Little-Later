@@ -212,12 +212,14 @@ export const createChromeNativeNotification = async ({
 	priority,
 	imageUrl,
 	showOpen,
+	requireInteraction = true,
 }: {
 	id: string;
 	message: string;
 	priority: number;
 	imageUrl?: string;
 	showOpen?: boolean;
+	requireInteraction?: boolean;
 }): Promise<void> => {
 	// Chrome rejects some image notifications depending on platform/state. We
 	// retry once as a plain basic notification so reminders are still delivered.
@@ -248,7 +250,7 @@ export const createChromeNativeNotification = async ({
 		title: "Little Later",
 		message,
 		isClickable: true,
-		requireInteraction: true,
+		requireInteraction,
 		priority,
 		buttons: showOpen
 			? [

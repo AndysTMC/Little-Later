@@ -65,9 +65,9 @@ export const getStartIntervalDateFromRecurringInfo = (recurringInfo: LRecurringI
 export const getEndIntervalDateFromRecurringInfo = (recurringInfo: LRecurringInfo): LDate => {
     const { type } = recurringInfo;
     let date: LDate = LDateUtl.getNow();
-    LDateUtl.setHour(date, 23);
-    LDateUtl.setMinute(date, 59);
-    LDateUtl.setSecond(date, 59);
+    date = LDateUtl.setHour(date, 23);
+    date = LDateUtl.setMinute(date, 59);
+    date = LDateUtl.setSecond(date, 59);
     if (type === LRECURRING_TYPE.WEEKLY) {
         date = LDateUtl.setWeekDay(date, 6);
     } else if (type === LRECURRING_TYPE.MONTHLY) {

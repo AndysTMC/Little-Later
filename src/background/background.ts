@@ -1,5 +1,8 @@
 import { LINT_BOOLEAN } from "little-shared/enums";
-import { createNotifications } from "../services/notification";
+import {
+	createChromeNativeNotification,
+	createNotifications,
+} from "../services/notification";
 import { getActiveTab } from "../utils/chrome";
 import { getCurrentUserProfile } from "../services/user";
 import {
@@ -132,34 +135,80 @@ chrome.runtime.onStartup.addListener(async (): Promise<void> => {
 	keepAlive();
 });
 
+const notifyContextAction = async (message: string): Promise<void> => {
+	try {
+		await createChromeNativeNotification({
+			id: `contextAction${Date.now()}`,
+			message,
+			priority: 0,
+			requireInteraction: false,
+		});
+	} catch (error) {
+		console.warn("Unable to show context menu confirmation.", error);
+	}
+};
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+	const currentUserProfile = await getCurrentUserProfile();
+	if (!currentUserProfile) {
+		await notifyContextAction("Unlock a profile first.");
+		return;
+	}
 	if (info.menuItemId === "convertPageToSave") {
 		if (tab?.id !== undefined) {
-			await saveActiveWebPage();
+			try {
+				await saveActiveWebPage();
+				await notifyContextAction("Page saved to Little Later.");
+			} catch (error) {
+				console.error("Failed to save page from context menu.", error);
+				await notifyContextAction("Couldn't save this page.");
+			}
 		}
 	} else if (info.menuItemId === "noteThis") {
 		if (tab?.id !== undefined && info.selectionText) {
-			await createNote({ content: info.selectionText });
+			try {
+				await createNote({ content: info.selectionText });
+				await notifyContextAction("Selection saved as a note.");
+			} catch (error) {
+				console.error("Failed to create note from context menu.", error);
+				await notifyContextAction("Couldn't save that note.");
+			}
 		}
 	} else if (info.menuItemId === "noteQuickSummary") {
 		if (tab?.id !== undefined && info.selectionText) {
-			const aiSummarize = await LittleAI.getLAISummarizeInstance();
-			const summary = await aiSummarize.summarize(info.selectionText, {
-				type: "tldr",
-				length: "medium",
-				format: "plain-text",
-			});
-			await createNote({ content: summary });
+			try {
+				const aiSummarize = await LittleAI.getLAISummarizeInstance();
+				const summary = await aiSummarize.summarize(info.selectionText, {
+					type: "tldr",
+					length: "medium",
+					format: "plain-text",
+				});
+				await createNote({ content: summary });
+				await notifyContextAction("Quick summary saved as a note.");
+			} catch (error) {
+				console.error("Failed to summarize selection.", error);
+				await notifyContextAction(
+					"Couldn't create an AI summary. Check AI settings.",
+				);
+			}
 		}
 	} else if (info.menuItemId === "noteKeypoints") {
 		if (tab?.id !== undefined && info.selectionText) {
-			const aiSummarize = await LittleAI.getLAISummarizeInstance();
-			const keypoints = await aiSummarize.summarize(info.selectionText, {
-				type: "key-points",
-				length: "medium",
-				format: "plain-text",
-			});
-			await createNote({ content: keypoints });
+			try {
+				const aiSummarize = await LittleAI.getLAISummarizeInstance();
+				const keypoints = await aiSummarize.summarize(info.selectionText, {
+					type: "key-points",
+					length: "medium",
+					format: "plain-text",
+				});
+				await createNote({ content: keypoints });
+				await notifyContextAction("Key points saved as a note.");
+			} catch (error) {
+				console.error("Failed to extract key points.", error);
+				await notifyContextAction(
+					"Couldn't create AI key points. Check AI settings.",
+				);
+			}
 		}
 	}
 });
@@ -241,14 +290,34 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 	}
 });
 
+const getNotificationPayload = (notificationId: string): string => {
+	const separator = notificationId.indexOf("::");
+	return separator === -1 ? "" : notificationId.slice(separator + 2);
+};
+
+const openNotificationTarget = (notificationId: string): void => {
+	if (notificationId.startsWith("vbmReminder")) {
+		const vbmUrl = getNotificationPayload(notificationId);
+		if (vbmUrl) {
+			void chrome.tabs.create({ url: vbmUrl });
+		}
+		return;
+	}
+	if (chrome.action?.openPopup) {
+		void chrome.action.openPopup();
+	}
+};
+
 chrome.notifications.onButtonClicked.addListener(
 	(notificationId, buttonIndex) => {
-		if (notificationId.startsWith("vbmReminder")) {
-			if (buttonIndex === 1) {
-				const vbmUrl = notificationId.split("::")[1];
-				chrome.tabs.create({ url: vbmUrl });
-			}
-			chrome.notifications.clear(notificationId);
+		if (notificationId.startsWith("vbmReminder") && buttonIndex === 1) {
+			openNotificationTarget(notificationId);
 		}
+		chrome.notifications.clear(notificationId);
 	},
 );
+
+chrome.notifications.onClicked.addListener((notificationId) => {
+	openNotificationTarget(notificationId);
+	chrome.notifications.clear(notificationId);
+});

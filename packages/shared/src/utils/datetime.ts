@@ -187,7 +187,15 @@ class LDateUtl {
     public static setHour12HF(ldate: LDate, hour: number): LDate {
         const d = parseLDate(ldate);
         const currentMer = LDateUtl.getMerideum(ldate);
-        const h24 = hour + (currentMer === LMERIDEUM.PM ? 12 : 0);
+        const normalizedHour = ((hour - 1) % 12) + 1;
+        const h24 =
+            currentMer === LMERIDEUM.PM
+                ? normalizedHour === 12
+                    ? 12
+                    : normalizedHour + 12
+                : normalizedHour === 12
+                  ? 0
+                  : normalizedHour;
         d.setHours(h24);
         return format(d, LDATE_FORMAT, LDATE_LANGUAGE) as LDate;
     }
@@ -317,7 +325,15 @@ class LTimeUtl {
     public static setHour12HF(ltime: LTime, hour: number): LTime {
         const d = parseLTime(ltime);
         const currentMer = LTimeUtl.getMerideum(ltime);
-        const h24 = hour + (currentMer === LMERIDEUM.PM ? 12 : 0);
+        const normalizedHour = ((hour - 1) % 12) + 1;
+        const h24 =
+            currentMer === LMERIDEUM.PM
+                ? normalizedHour === 12
+                    ? 12
+                    : normalizedHour + 12
+                : normalizedHour === 12
+                  ? 0
+                  : normalizedHour;
         d.setHours(h24);
         return format(d, LTIME_FORMAT, LTIME_LANGUAGE) as LTime;
     }

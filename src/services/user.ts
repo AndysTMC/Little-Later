@@ -68,7 +68,10 @@ export const createUser = async (
 		userId,
 		data: vaultDataPostEncrypt,
 	});
-	await updateUserSettings(LINITIAL_USER_SETTINGS.value);
+	const currentUserProfile = await getCurrentUserProfile();
+	if (!currentUserProfile) {
+		await updateUserSettings(LINITIAL_USER_SETTINGS.value);
+	}
 	return userId;
 };
 
@@ -77,9 +80,14 @@ export const deleteUser = async (userId: number): Promise<void> => {
 	if (!userProfile) {
 		throw new Error(`No user profile found for ID: ${userId}`);
 	}
+	const isDeletingCurrentUser =
+		userProfile.isCurrent === LINT_BOOLEAN.TRUE;
 	await db.userAvatarTbl.delete(userProfile.userId);
 	await db.userVaultTbl.delete(userProfile.userId);
 	await db.userProfileTbl.delete(userProfile.userId);
+	if (!isDeletingCurrentUser) {
+		return;
+	}
 	await db.linkTbl.clear();
 	await db.noteTbl.clear();
 	await db.reminderTbl.clear();
@@ -93,11 +101,10 @@ export const getCurrentUserProfile = async (): Promise<
 	LUserProfile | undefined
 > => {
 	try {
-		const currentUserProfile = db.userProfileTbl
+		return await db.userProfileTbl
 			.where("isCurrent")
 			.equals(LINT_BOOLEAN.TRUE)
 			.first();
-		return currentUserProfile;
 	} catch (error) {
 		console.error("Error fetching current user profile:", error);
 		return undefined;
@@ -108,6 +115,12 @@ export const unlockUser = async (
 	id: number,
 	password?: string,
 ): Promise<void> => {
+	const currentUserProfile = await getCurrentUserProfile();
+	if (currentUserProfile && currentUserProfile.userId !== id) {
+		throw new Error(
+			"Lock the current profile before unlocking another.",
+		);
+	}
 	const userVault = await db.userVaultTbl.get(id);
 	if (!userVault) {
 		throw new Error(`No user vault found for user ID: ${id}`);

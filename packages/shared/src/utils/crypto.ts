@@ -69,7 +69,13 @@ export async function encrypt<T>(password: string, data: T): Promise<Blob> {
         toArrayBuffer(packed)
     );
 
-    const combined = new Uint8Array([...salt, ...iv, ...new Uint8Array(ciphertext)]);
+    const ciphertextBytes = new Uint8Array(ciphertext);
+    const combined = new Uint8Array(
+        salt.length + iv.length + ciphertextBytes.length
+    );
+    combined.set(salt, 0);
+    combined.set(iv, salt.length);
+    combined.set(ciphertextBytes, salt.length + iv.length);
 
     return uint8ArrayToBlob(combined);
 }

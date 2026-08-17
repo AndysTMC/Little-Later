@@ -853,7 +853,12 @@ export class OpenAICompatibleAI extends LittleAI {
 				return this.buildLLMErrorOutput(error);
 			}
 
-			const assistantMessage = completion.choices[0].message;
+			const assistantMessage = completion.choices?.[0]?.message;
+			if (!assistantMessage) {
+				return this.buildLLMErrorOutput(
+					new Error("The model returned an empty response."),
+				);
+			}
 			this.appendMessage({
 				role: "assistant",
 				content: assistantMessage.content ?? "",

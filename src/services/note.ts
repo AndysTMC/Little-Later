@@ -11,6 +11,7 @@ export const createNote = async (noteInsert: LNoteInsert): Promise<number> => {
 };
 
 export const deleteNote = async (id: number): Promise<void> => {
+	await db.linkTbl.where("noteId").equals(id).delete();
 	await db.noteTbl.delete(id);
 };
 

@@ -31,6 +31,9 @@ export const getNextNotifyingDate = (reminder: LReminder): LDate => {
 };
 
 export const shouldNotifyNow = (reminder: LReminder): boolean => {
+    if (reminder.type !== LREMINDER_TYPE.ESCALATING) {
+        return false;
+    }
     const now = LDateUtl.getNow();
     const { targetDate } = reminder;
 

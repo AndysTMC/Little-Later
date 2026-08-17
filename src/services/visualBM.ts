@@ -101,14 +101,19 @@ export const updateVisualBM = async (
 			.and((vbm) => vbm.isSaved === LINT_BOOLEAN.FALSE)
 			.count();
 		if (totalVBMCount >= userSettings.misc.VBMLimit) {
-			await db.visualBMTbl
+			const stale = await db.visualBMTbl
 				.orderBy("lastBrowseDate")
 				.and((vbm) => vbm.isSaved === LINT_BOOLEAN.FALSE)
 				.limit(totalVBMCount - userSettings.misc.VBMLimit + 1)
-				.delete();
+				.toArray();
+			const staleIds = stale.map((vbm) => vbm.id);
+			if (staleIds.length > 0) {
+				await db.vbmPreviewTbl.bulkDelete(staleIds);
+				await db.visualBMTbl.bulkDelete(staleIds);
+			}
 		}
 		if (sameOriginVBMCount >= userSettings.misc.VBMSameOriginLimit) {
-			await db.visualBMTbl
+			const stale = await db.visualBMTbl
 				.orderBy("lastBrowseDate")
 				.and((vbm) => vbm.url.startsWith(urlObj.origin))
 				.and((vbm) => vbm.isSaved === LINT_BOOLEAN.FALSE)
@@ -117,15 +122,20 @@ export const updateVisualBM = async (
 						userSettings.misc.VBMSameOriginLimit +
 						1,
 				)
-				.delete();
+				.toArray();
+			const staleIds = stale.map((vbm) => vbm.id);
+			if (staleIds.length > 0) {
+				await db.vbmPreviewTbl.bulkDelete(staleIds);
+				await db.visualBMTbl.bulkDelete(staleIds);
+			}
 		}
 		const newVbmId = await db.visualBMTbl.add({
 			url: url,
 			title: modifications.title,
 			customName: modifications.title,
-			hasBrowsed: LINT_BOOLEAN.TRUE,
+			hasBrowsed: modifications.hasBrowsed ?? LINT_BOOLEAN.TRUE,
 			lastBrowseDate: LDateUtl.getNow(),
-			isSaved: LINT_BOOLEAN.FALSE,
+			isSaved: modifications.isSaved ?? LINT_BOOLEAN.FALSE,
 		});
 		return newVbmId;
 	}

@@ -64,6 +64,7 @@ export const setChromeStorageRecords = (
 				JSON.stringify(records.toasts),
 			);
 		}
+		window.dispatchEvent(new Event("little-storage-change"));
 
 		return Promise.resolve();
 	}
@@ -85,10 +86,9 @@ export const getActiveWebDetails = async (): Promise<{
 	let url: string | undefined;
 	let title: string | undefined;
 	try {
-		await getActiveTab().then((tab) => {
-			url = tab?.url;
-			title = tab?.title;
-		});
+		const tab = await getActiveTab();
+		url = tab?.url;
+		title = tab?.title;
 	} catch {
 		url = window.location.href;
 		title = window.document.title;
