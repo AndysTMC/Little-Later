@@ -47,7 +47,9 @@ type Scenario = {
 	expectedTools?: Array<string>;
 	forbiddenTools?: Array<string>;
 	expectExpression?: LFACE_EXPRESSION;
-	validate?: (output: Awaited<ReturnType<OpenAICompatibleAIType["prompt"]>>) => Promise<string | null> | string | null;
+	validate?: (
+		output: Awaited<ReturnType<OpenAICompatibleAIType["prompt"]>>,
+	) => Promise<string | null> | string | null;
 };
 
 const DEFAULT_MODEL = "google/gemma-4-31b-it";
@@ -78,7 +80,9 @@ const extractModels = (payload: unknown): Array<string> => {
 						if (!item || typeof item !== "object") {
 							return null;
 						}
-						return "id" in item && typeof item.id === "string" ? item.id : null;
+						return "id" in item && typeof item.id === "string"
+							? item.id
+							: null;
 					})
 					.filter((value): value is string => value !== null)
 			: [];
@@ -93,7 +97,9 @@ const extractModels = (payload: unknown): Array<string> => {
 						if ("name" in item && typeof item.name === "string") {
 							return item.name;
 						}
-						return "id" in item && typeof item.id === "string" ? item.id : null;
+						return "id" in item && typeof item.id === "string"
+							? item.id
+							: null;
 					})
 					.filter((value): value is string => value !== null)
 			: [];
@@ -178,7 +184,8 @@ const setupDomEnvironment = (): (() => void) => {
 			clear: () => {
 				storageMap.clear();
 			},
-			key: (index: number) => Array.from(storageMap.keys())[index] ?? null,
+			key: (index: number) =>
+				Array.from(storageMap.keys())[index] ?? null,
 			get length() {
 				return storageMap.size;
 			},
@@ -343,9 +350,13 @@ const createAI = (
 
 	return new (class extends OpenAICompatibleAIClass {
 		protected override async createChatCompletion(
-			params: Parameters<OpenAICompatibleAIType["prompt"]>[1] extends never
+			params: Parameters<
+				OpenAICompatibleAIType["prompt"]
+			>[1] extends never
 				? never
-				: Parameters<typeof OpenAICompatibleAIClass.prototype["createChatCompletion"]>[0],
+				: Parameters<
+						(typeof OpenAICompatibleAIClass.prototype)["createChatCompletion"]
+					>[0],
 		) {
 			try {
 				return await super.createChatCompletion(params);
@@ -356,7 +367,10 @@ const createAI = (
 		}
 
 		protected override buildLLMErrorOutput(error: unknown) {
-			console.error("[live-debug] normalized request error", this.toLLMRequestError(error));
+			console.error(
+				"[live-debug] normalized request error",
+				this.toLLMRequestError(error),
+			);
 			return super.buildLLMErrorOutput(error);
 		}
 	})(baseConfig);
@@ -408,7 +422,9 @@ const scenarios: Array<Scenario> = [
 		prompt: "Use the available tools and tell me my name.",
 		expectedTools: ["get_user_name"],
 		validate: (output) =>
-			output.message.includes("Alex") ? null : "response did not mention Alex",
+			output.message.includes("Alex")
+				? null
+				: "response did not mention Alex",
 	},
 	{
 		name: "get_user_app_theme_pref",
@@ -433,8 +449,7 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "create_note",
-		prompt:
-			"Use the available tools and create a note with this exact content: Launch checklist and rollout plan.",
+		prompt: "Use the available tools and create a note with this exact content: Launch checklist and rollout plan.",
 		expectedTools: ["create_note"],
 		validate: async () => {
 			const notes = await db.noteTbl.toArray();
@@ -447,8 +462,7 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "search_notes",
-		prompt:
-			"Use the available tools and find the note about Project Phoenix, then answer briefly.",
+		prompt: "Use the available tools and find the note about Project Phoenix, then answer briefly.",
 		expectedTools: ["search_notes"],
 		validate: (output) =>
 			includesNormalized(output.message, "project phoenix")
@@ -457,14 +471,12 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "personal_context_note_lookup",
-		prompt:
-			"What am I currently working on? If you are unsure, use the available tools before answering.",
+		prompt: "What am I currently working on? If you are unsure, use the available tools before answering.",
 		expectedTools: ["search_notes"],
 	},
 	{
 		name: "update_note",
-		prompt:
-			"Use the available tools. Find the Project Phoenix note and update it so the content becomes exactly: Project Phoenix planning notes (updated).",
+		prompt: "Use the available tools. Find the Project Phoenix note and update it so the content becomes exactly: Project Phoenix planning notes (updated).",
 		expectedTools: ["search_notes", "update_note"],
 		validate: async () => {
 			const note = await db.noteTbl.get(1);
@@ -475,8 +487,7 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "create_reminder",
-		prompt:
-			"Use the available tools and create a normal reminder that says Doctor appointment for April 7 2026 at 10:30 AM.",
+		prompt: "Use the available tools and create a normal reminder that says Doctor appointment for April 7 2026 at 10:30 AM.",
 		expectedTools: ["format_date_time", "create_reminder"],
 		validate: async () => {
 			const reminders = await db.reminderTbl.toArray();
@@ -491,8 +502,7 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "search_reminders",
-		prompt:
-			"Use the available tools and show reminders on April 5 2026 about standup.",
+		prompt: "Use the available tools and show reminders on April 5 2026 about standup.",
 		expectedTools: ["format_date_time", "search_reminders"],
 		validate: (output) =>
 			output.message.toLowerCase().includes("standup")
@@ -501,9 +511,12 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "update_reminder",
-		prompt:
-			"Use the available tools. Find the Daily standup reminder and move it to April 5 2026 at 7:15 PM.",
-		expectedTools: ["search_reminders", "format_date_time", "update_reminder"],
+		prompt: "Use the available tools. Find the Daily standup reminder and move it to April 5 2026 at 7:15 PM.",
+		expectedTools: [
+			"search_reminders",
+			"format_date_time",
+			"update_reminder",
+		],
 		validate: async () => {
 			const reminder = await db.reminderTbl.get(1);
 			return reminder?.targetDate.startsWith("2026-04-05T19:15:00")
@@ -513,8 +526,7 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "search_tasks",
-		prompt:
-			"Use the available tools and find high priority tasks due on April 6 2026.",
+		prompt: "Use the available tools and find high priority tasks due on April 6 2026.",
 		expectedTools: ["format_date_time", "search_tasks"],
 		validate: (output) =>
 			output.message.toLowerCase().includes("ship ai reliability update")
@@ -561,8 +573,7 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "multi_tool_overview_history",
-		prompt:
-			"Use the available tools and give me a productivity overview, then include my recent browsing history too.",
+		prompt: "Use the available tools and give me a productivity overview, then include my recent browsing history too.",
 		expectedTools: ["get_productivity_overview", "get_recent_history"],
 		validate: (output) =>
 			(output.message.toLowerCase().includes("history") ||
@@ -582,16 +593,16 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "delete_note",
-		prompt:
-			"Use the available tools. Find the note named Disposable note to delete and delete it.",
+		prompt: "Use the available tools. Find the note named Disposable note to delete and delete it.",
 		expectedTools: ["search_notes", "delete_note"],
 		validate: async () =>
-			(await db.noteTbl.get(2)) === undefined ? null : "note was not deleted",
+			(await db.noteTbl.get(2)) === undefined
+				? null
+				: "note was not deleted",
 	},
 	{
 		name: "delete_reminder",
-		prompt:
-			"Use the available tools. Find the reminder named Reminder to delete and delete it.",
+		prompt: "Use the available tools. Find the reminder named Reminder to delete and delete it.",
 		expectedTools: ["search_reminders", "delete_reminder"],
 		validate: async () =>
 			(await db.reminderTbl.get(2)) === undefined
@@ -600,8 +611,7 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "delete_save",
-		prompt:
-			"Use the available tools. Find the save named Delete Me Save and delete it.",
+		prompt: "Use the available tools. Find the save named Delete Me Save and delete it.",
 		expectedTools: ["search_saves", "delete_save"],
 		validate: async () => {
 			const save = await db.visualBMTbl.get(48);
@@ -612,11 +622,12 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "delete_task",
-		prompt:
-			"Use the available tools. Find the task named Task to delete and delete it.",
+		prompt: "Use the available tools. Find the task named Task to delete and delete it.",
 		expectedTools: ["search_tasks", "delete_task"],
 		validate: async () =>
-			(await db.taskTbl.get(2)) === undefined ? null : "task was not deleted",
+			(await db.taskTbl.get(2)) === undefined
+				? null
+				: "task was not deleted",
 	},
 	{
 		name: "get_current_date_time_info",
@@ -631,8 +642,7 @@ const scenarios: Array<Scenario> = [
 	},
 	{
 		name: "format_date_time",
-		prompt:
-			"Use the available tools and format April 8 2026 9:45 AM as a Little Later datetime string.",
+		prompt: "Use the available tools and format April 8 2026 9:45 AM as a Little Later datetime string.",
 		expectedTools: ["format_date_time"],
 		validate: (output) =>
 			output.message.includes("2026-04-08T09:45:00")
@@ -640,46 +650,30 @@ const scenarios: Array<Scenario> = [
 				: "formatted datetime was not returned",
 	},
 	{
-		name: "disabled_create_task",
-		prompt:
-			"Use the available tools. Create a high priority task to pay rent on April 8 2026 at 8 AM.",
-		forbiddenTools: ["create_task", "update_task"],
-		validate: (output) =>
-			output.message.toLowerCase().includes("disabled") ||
-			output.message.toLowerCase().includes("not supported") ||
-			output.message.toLowerCase().includes("not able") ||
-			output.message.toLowerCase().includes("don't have a tool") ||
-			output.message.toLowerCase().includes("does not include") ||
-			output.message.toLowerCase().includes("doesn't support") ||
-			output.message.toLowerCase().includes("doesn’t support") ||
-			output.message.toLowerCase().includes("isn't supported") ||
-			output.message.toLowerCase().includes("can’t") ||
-			output.message.toLowerCase().includes("can't") ||
-			output.message.toLowerCase().includes("cannot") ||
-			output.message.toLowerCase().includes("unable")
+		name: "create_task",
+		prompt: "Use the available tools. Create a high priority task labeled Rent with details Pay rent due April 8 2026 at 8 AM.",
+		expectedTools: ["format_date_time", "create_task"],
+		validate: async () => {
+			const tasks = await db.taskTbl.toArray();
+			return tasks.some(
+				(task) =>
+					task.label.toLowerCase().includes("rent") ||
+					task.information.toLowerCase().includes("pay rent"),
+			)
 				? null
-				: "response did not clearly refuse the disabled task creation path",
+				: "created task was not found";
+		},
 	},
 	{
-		name: "disabled_update_save",
-		prompt:
-			"Use the available tools. Rename my Hotstar save to Streaming Home.",
-		forbiddenTools: ["update_save", "save_active_web_page"],
-		validate: (output) =>
-			output.message.toLowerCase().includes("disabled") ||
-			output.message.toLowerCase().includes("not supported") ||
-			output.message.toLowerCase().includes("not able") ||
-			output.message.toLowerCase().includes("don't have a tool") ||
-			output.message.toLowerCase().includes("does not include") ||
-			output.message.toLowerCase().includes("doesn't support") ||
-			output.message.toLowerCase().includes("doesn’t support") ||
-			output.message.toLowerCase().includes("isn't supported") ||
-			output.message.toLowerCase().includes("can’t") ||
-			output.message.toLowerCase().includes("can't") ||
-			output.message.toLowerCase().includes("cannot") ||
-			output.message.toLowerCase().includes("unable")
+		name: "update_save",
+		prompt: "Use the available tools. Rename my Hotstar save to Streaming Home.",
+		expectedTools: ["search_saves", "update_save"],
+		validate: async () => {
+			const save = await db.visualBMTbl.get(47);
+			return save?.customName === "Streaming Home"
 				? null
-				: "response did not clearly refuse the disabled save update path",
+				: "save was not renamed";
+		},
 	},
 ];
 
@@ -697,13 +691,18 @@ const runScenario = async (
 	const progress: Array<string> = [];
 	try {
 		const ai = createAI(baseUrl, apiKey, model);
-		const output = await ai.prompt(scenario.prompt, {
+		let output = await ai.prompt(scenario.prompt, {
 			onProgress: (event) => {
 				progress.push(
-					[event.stage, event.toolName, event.message].filter(Boolean).join(":"),
+					[event.stage, event.toolName, event.message]
+						.filter(Boolean)
+						.join(":"),
 				);
 			},
 		});
+		if (output.confirmation) {
+			output = await ai.confirmPendingMutations();
+		}
 		const executedTools = recorder.getExecutions();
 		const expectedTools = scenario.expectedTools ?? [];
 		const forbiddenTools = scenario.forbiddenTools ?? [];
@@ -774,23 +773,25 @@ const run = async (): Promise<void> => {
 
 	try {
 		({ db, resetLLDB } = await import("../src/utils/db"));
-		({ OpenAICompatibleAI: OpenAICompatibleAIClass } = await import(
-			"../src/services/ai/main"
-		));
-		({ toolRegistry: liveToolRegistry } = await import(
-			"../src/services/ai/toolRegistry"
-		));
+		({ OpenAICompatibleAI: OpenAICompatibleAIClass } =
+			await import("../src/services/ai/main"));
+		({ toolRegistry: liveToolRegistry } =
+			await import("../src/services/ai/toolRegistry"));
 
 		console.log(`[live] validating provider ${baseUrl}`);
 		console.log(`[live] requested model ${model}`);
 
 		const models = await fetchAvailableModels(baseUrl, apiKey);
 		if (models.length === 0) {
-			throw new Error("Model discovery failed: no models returned by the live provider.");
+			throw new Error(
+				"Model discovery failed: no models returned by the live provider.",
+			);
 		}
 		console.log(`[live] discovered ${models.length} model(s).`);
 		if (!models.includes(model)) {
-			console.warn(`[live] requested model was not listed by /models, continuing anyway.`);
+			console.warn(
+				`[live] requested model was not listed by /models, continuing anyway.`,
+			);
 		}
 
 		const selectedScenarios =
@@ -798,11 +799,17 @@ const run = async (): Promise<void> => {
 				? scenarios
 				: scenarios.filter(
 						(scenario) =>
-							scenario.name.toLowerCase().includes(scenarioFilter) ||
-							scenario.prompt.toLowerCase().includes(scenarioFilter),
+							scenario.name
+								.toLowerCase()
+								.includes(scenarioFilter) ||
+							scenario.prompt
+								.toLowerCase()
+								.includes(scenarioFilter),
 					);
 		if (selectedScenarios.length === 0) {
-			throw new Error(`No live validation scenarios matched filter: ${scenarioFilter}`);
+			throw new Error(
+				`No live validation scenarios matched filter: ${scenarioFilter}`,
+			);
 		}
 
 		const results: Array<ScenarioResult> = [];
@@ -812,7 +819,9 @@ const run = async (): Promise<void> => {
 			results.push(result);
 			const status = result.passed ? "PASS" : "FAIL";
 			const tools =
-				result.executedTools.length > 0 ? result.executedTools.join(", ") : "(none)";
+				result.executedTools.length > 0
+					? result.executedTools.join(", ")
+					: "(none)";
 			console.log(`[${status}] ${result.name}`);
 			console.log(`  prompt: ${result.prompt}`);
 			console.log(`  tools: ${tools}`);
@@ -825,7 +834,9 @@ const run = async (): Promise<void> => {
 
 		const passed = results.filter((result) => result.passed).length;
 		const failed = results.length - passed;
-		console.log(`\n[live] summary: ${passed}/${results.length} passed, ${failed} failed.`);
+		console.log(
+			`\n[live] summary: ${passed}/${results.length} passed, ${failed} failed.`,
+		);
 
 		if (failed > 0) {
 			process.exitCode = 1;

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Quick onboarding notes for coding agents working in `D:\Projects\Little-Later`.
+Quick onboarding notes for coding agents working in this repository.
 
 ## Project shape
 
@@ -33,13 +33,14 @@ Quick onboarding notes for coding agents working in `D:\Projects\Little-Later`.
 - Live AI smoke: `bun run test:ai:live`
 - Live AI matrix: `bun run test:ai:live:validate`
 - Format check: `bun run format:check`
+- Popup screenshots: `bun run screenshots` (writes `artifacts/screenshots/`)
 
 ## AI notes
 
 - Extension AI supports Ollama, LM Studio, and custom OpenAI-compatible providers
 - Ollama and LM Studio use built-in local URLs
 - Live AI scripts read optional env vars from `.env` via Bun; see `.env.example`
-- AI task/save create-update tools are intentionally disabled right now; keep tool contracts aligned with the shipped UI/runtime behavior
+- AI task/save create-update tools are enabled and require in-chat user confirmation before they run; keep tool contracts aligned with that confirmation flow
 
 ## Storage notes
 

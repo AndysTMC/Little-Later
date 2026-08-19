@@ -34,6 +34,7 @@ const Component = ({
 
 	return (
 		<button
+			type="button"
 			disabled={disabled || isExpanded}
 			className={twMerge(
 				`h-12 w-72 ${

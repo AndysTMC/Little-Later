@@ -79,11 +79,11 @@ const Component = ({
 				autoComplete={inputType === "password" ? "off" : undefined}
 				aria-invalid={error !== null}
 				maxLength={lengthLimit}
-				className={`h-10 w-full border ${
+				className={`h-10 w-full appearance-none border outline-none focus:outline-none focus-visible:outline-none ${
 					theme === LTHEME.DARK
-						? "border-neutral-700 bg-black text-white focus:border-neutral-300"
-						: "border-neutral-300 bg-white text-black focus:border-neutral-700"
-				} z-10 rounded-xl px-4 text-base transition-all duration-300 ${disabled ? "cursor-not-allowed" : "cursor-text"} `}
+						? "border-neutral-700 bg-neutral-950 text-neutral-50 placeholder:text-neutral-500 focus:border-neutral-400"
+						: "border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-700"
+				} z-10 rounded-xl px-4 text-base transition-colors duration-200 ${disabled ? "cursor-not-allowed" : "cursor-text"} `}
 				placeholder={focused ? "" : name}
 				value={passedValue}
 				onChange={handleOnChange}

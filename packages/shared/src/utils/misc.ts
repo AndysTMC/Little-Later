@@ -1,5 +1,3 @@
-import { LCHAR_LIST } from '../constants.js';
-
 export const capitalize = (str: string): string => {
     return str.charAt(0).toUpperCase() + str.slice(1);
 };
@@ -8,16 +6,8 @@ export const cloneObject = <T>(obj: T): T => {
     return JSON.parse(JSON.stringify(obj));
 };
 
-export const createId = (): string => {
-    let id = '';
-    for (let i = 0; i < 16; i++) {
-        id += LCHAR_LIST[Math.floor(Math.random() * LCHAR_LIST.length)];
-    }
-    return id;
-};
-
 export const fakeWait = async ({ waitPeriod }: { waitPeriod?: number } = {}) => {
-    await new Promise((resolve) => setTimeout(resolve, waitPeriod ?? 1200));
+    await new Promise((resolve) => setTimeout(resolve, waitPeriod ?? 400));
 };
 
 export const getDomainFromUrl = (url: string): string => {

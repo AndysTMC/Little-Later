@@ -1,8 +1,3 @@
-export enum LACTIONS {
-    CONVERT_PAGE_TO_SAVE = 'convert-page-to-save',
-    ADD_TO_NOTES = 'add-to-notes',
-}
-
 export enum LAI_PROVIDERS {
     OLLAMA = 'Ollama',
     LM_STUDIO = 'LM Studio',
@@ -70,12 +65,6 @@ export enum LREMINDER_TYPE {
     ESCALATING = 'escalating',
 }
 
-export enum LSCRIPT_CONTENT {
-    NOTIFICATIONS = 'notifications',
-    AI = 'ai',
-    None = 'none',
-}
-
 export enum LTASK_PRIORITY {
     LOW = 'low',
     MEDIUM = 'medium',
@@ -98,26 +87,10 @@ export enum LWEEKDAY_NAMES {
     SATURDAY = 'saturday',
 }
 
-export enum LDB_TABLES {
-    IMAGES = 'images',
-    LINKS = 'links',
-    NOTES = 'notes',
-    NOTIFICATIONS = 'notifications',
-    REMINDERS = 'reminders',
-    TASKS = 'tasks',
-    VISUAL_BMS = 'visual-bms',
-    USER_PROFILES = 'user-profiles',
-    USER_SETTINGS = 'user-settings',
-    USER_VAULTS = 'user-vaults',
-}
-
 export enum LCHROME_STORAGE_KEYS {
     USER_SETTINGS = 'userSettings',
     TOASTS = 'toasts',
-}
-
-export enum LIMAGE_TYPE {
-    WEB_PREVIEW = 'web-preview',
+    ACTIVE_USER_ID = 'activeUserId',
 }
 
 export enum LINT_BOOLEAN {

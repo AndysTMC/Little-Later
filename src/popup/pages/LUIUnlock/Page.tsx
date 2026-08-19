@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { createToast } from "../../../services/toasts";
+import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
 
 const Page = () => {
 	const { theme } = useTheme();
@@ -52,9 +53,10 @@ const Page = () => {
 	};
 	useEffect(() => {
 		if (userProfiles) {
+			const parsedId = Number.parseInt(id ?? "", 10);
 			const up = userProfiles?.find(
-				(x) => id && x.userId == parseInt(id),
-			) as LUserProfile | undefined;
+				(x) => Number.isFinite(parsedId) && x.userId === parsedId,
+			);
 			if (up) {
 				setSavedUP(up);
 			}
@@ -86,15 +88,7 @@ const Page = () => {
 							handleFunction={handleUnlock}
 						/>
 					) : (
-						<div
-							className={`flex h-full w-full items-center justify-center px-6 text-center text-2xl font-extrabold opacity-20 ${
-								theme === LTHEME.DARK
-									? "text-white"
-									: "text-black"
-							}`}
-						>
-							Profile not found.
-						</div>
+						<LUIEmptyState title="Profile not found." />
 					)}
 				</motion.div>
 			)}

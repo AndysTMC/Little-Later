@@ -16,6 +16,11 @@ import {
 	LRecurringInfo,
 	LReminder,
 } from "little-shared/types";
+import {
+	LMAX_REMINDER_MESSAGE_LENGTH,
+	LMAX_TASK_INFORMATION_LENGTH,
+	LMAX_TASK_LABEL_LENGTH,
+} from "little-shared/constants";
 import { db } from "../../utils/db";
 import { ResponseFormatJSONSchema } from "openai/resources.mjs";
 import toolCalls from "./toolCalls";
@@ -28,6 +33,7 @@ import {
 import tools, {
 	createNoteTool,
 	createReminderTool,
+	createTaskTool,
 	deleteNoteTool,
 	deleteReminderTool,
 	deleteSaveTool,
@@ -40,6 +46,7 @@ import tools, {
 	getSavePreviewImageTool,
 	getUserAppThemePrefTool,
 	getUserNameTool,
+	saveActiveWebPageTool,
 	searchNotesTool,
 	searchRemindersTool,
 	searchSavesTool,
@@ -47,6 +54,8 @@ import tools, {
 	setUserAppThemePrefTool,
 	updateNoteTool,
 	updateReminderTool,
+	updateSaveTool,
+	updateTaskTool,
 } from "./tools";
 
 type StructuredResponseProvider = {
@@ -112,6 +121,16 @@ const asTrimmedString = (value: unknown): string | undefined => {
 	}
 	const trimmed = asText.trim();
 	return trimmed === "" ? undefined : trimmed;
+};
+
+const clampText = (
+	value: string | undefined,
+	maxLength: number,
+): string | undefined => {
+	if (value === undefined) {
+		return undefined;
+	}
+	return value.length > maxLength ? value.slice(0, maxLength) : value;
 };
 
 const asInteger = (value: unknown): number | undefined => {
@@ -258,7 +277,10 @@ const captureDeleteReminderUndo = async (
 	if (!reminder) {
 		return undefined;
 	}
-	const reminderLinks = await db.linkTbl.where("reminderId").equals(id).toArray();
+	const reminderLinks = await db.linkTbl
+		.where("reminderId")
+		.equals(id)
+		.toArray();
 	const reminderSnapshot = cloneDeep(reminder);
 	const linkSnapshot = cloneDeep(reminderLinks);
 	return {
@@ -289,7 +311,11 @@ const captureDeleteSaveUndo = async (
 	).filter((note): note is NonNullable<typeof note> => note !== undefined);
 
 	const noteLinks = (
-		await Promise.all(noteIds.map((noteId) => db.linkTbl.where("noteId").equals(noteId).toArray()))
+		await Promise.all(
+			noteIds.map((noteId) =>
+				db.linkTbl.where("noteId").equals(noteId).toArray(),
+			),
+		)
 	).flat();
 
 	const saveSnapshot = cloneDeep(save);
@@ -321,7 +347,8 @@ const captureDeleteTaskUndo = async (
 	const reminderIds = taskLinks
 		.filter(
 			(link) =>
-				link.type === LLINK_TYPE.REMINDER_TASK && link.reminderId !== null,
+				link.type === LLINK_TYPE.REMINDER_TASK &&
+				link.reminderId !== null,
 		)
 		.map((link) => link.reminderId!) as Array<number>;
 
@@ -329,9 +356,7 @@ const captureDeleteTaskUndo = async (
 		await Promise.all(
 			reminderIds.map((reminderId) => db.reminderTbl.get(reminderId)),
 		)
-	).filter(
-		(reminder): reminder is LReminder => reminder !== undefined,
-	);
+	).filter((reminder): reminder is LReminder => reminder !== undefined);
 
 	const reminderLinks = (
 		await Promise.all(
@@ -370,9 +395,7 @@ const requireString = (value: unknown, fieldName: string): string => {
 const requireValidDateString = (value: unknown, fieldName: string): LDate => {
 	const dateValue = asDateString(value);
 	if (!dateValue) {
-		throw new Error(
-			`${fieldName} must be in YYYY-MM-DDTHH:mm:ssZ format.`,
-		);
+		throw new Error(`${fieldName} must be in YYYY-MM-DDTHH:mm:ssZ format.`);
 	}
 	return dateValue;
 };
@@ -405,10 +428,7 @@ const deriveNoteLabel = (content: string): string => {
 const temporalSuffixPattern =
 	/\s+(?:for|on)\s+(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*|\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?|\d{4}-\d{2}-\d{2}|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday).*/i;
 
-const sanitizeReminderMessage = (
-	value: string,
-	targetDate?: LDate,
-): string => {
+const sanitizeReminderMessage = (value: string, targetDate?: LDate): string => {
 	const normalized = value.replace(/\s+/g, " ").trim();
 	if (normalized === "" || !targetDate) {
 		return normalized;
@@ -520,10 +540,12 @@ const toolDefinitions: Array<ToolDefinition> = [
 		normalizeArgs: (args) => {
 			const targetDateInput = asTrimmedString(args.targetDate);
 			const targetDate = asDateString(targetDateInput);
-			const rawMessage =
+			const rawMessage = clampText(
 				asTrimmedString(args.message) ??
-				asTrimmedString(args.content) ??
-				asTrimmedString(args.text);
+					asTrimmedString(args.content) ??
+					asTrimmedString(args.text),
+				LMAX_REMINDER_MESSAGE_LENGTH,
+			);
 			return {
 				message: rawMessage
 					? sanitizeReminderMessage(rawMessage, targetDate)
@@ -568,6 +590,64 @@ const toolDefinitions: Array<ToolDefinition> = [
 			await action();
 			return {
 				message: `Created reminder "${message}" for ${targetDate}.`,
+				expression: LFACE_EXPRESSION.SLIGHTLY_SMILING,
+			};
+		},
+	},
+	{
+		tool: createTaskTool,
+		safety: SAFETY.mutate,
+		normalizeArgs: (args) => {
+			const deadlineDateInput = asTrimmedString(args.deadlineDate);
+			const deadlineDate = asDateString(deadlineDateInput);
+			return {
+				information: clampText(
+					asTrimmedString(args.information) ??
+						asTrimmedString(args.message) ??
+						asTrimmedString(args.text),
+					LMAX_TASK_INFORMATION_LENGTH,
+				),
+				label: clampText(
+					asTrimmedString(args.label),
+					LMAX_TASK_LABEL_LENGTH,
+				),
+				priority: asEnum(args.priority, [
+					LTASK_PRIORITY.LOW,
+					LTASK_PRIORITY.MEDIUM,
+					LTASK_PRIORITY.HIGH,
+				]),
+				deadlineDate,
+				deadlineDateInvalid:
+					deadlineDateInput !== undefined &&
+					deadlineDate === undefined,
+			};
+		},
+		execute: async (args) => {
+			if (args.deadlineDateInvalid === true) {
+				throw new Error(
+					"deadlineDate must be in YYYY-MM-DDTHH:mm:ssZ format.",
+				);
+			}
+			const information = requireString(args.information, "information");
+			const label =
+				asTrimmedString(args.label) ??
+				summarizeInlineText(information, 20);
+			const priority =
+				asEnum(args.priority, [
+					LTASK_PRIORITY.LOW,
+					LTASK_PRIORITY.MEDIUM,
+					LTASK_PRIORITY.HIGH,
+				]) ?? LTASK_PRIORITY.LOW;
+			const deadlineDate = asDateString(args.deadlineDate);
+			const action = await toolCalls.createTask({
+				information,
+				label,
+				priority,
+				deadlineDate,
+			});
+			await action();
+			return {
+				message: `Created task "${label}".`,
 				expression: LFACE_EXPRESSION.SLIGHTLY_SMILING,
 			};
 		},
@@ -649,14 +729,19 @@ const toolDefinitions: Array<ToolDefinition> = [
 		safety: SAFETY.external,
 		normalizeArgs: (args) => ({
 			type:
-				asEnum(args.type, [LEXPORT_TYPE.READABLE, LEXPORT_TYPE.IMPORTABLE]) ??
-				LEXPORT_TYPE.READABLE,
+				asEnum(args.type, [
+					LEXPORT_TYPE.READABLE,
+					LEXPORT_TYPE.IMPORTABLE,
+				]) ?? LEXPORT_TYPE.READABLE,
 		}),
 		execute: async (args) => {
 			const type =
-				asEnum(args.type, [LEXPORT_TYPE.READABLE, LEXPORT_TYPE.IMPORTABLE]) ??
-				LEXPORT_TYPE.READABLE;
-			const action = await toolCalls.exportData({ type });
+				asEnum(args.type, [
+					LEXPORT_TYPE.READABLE,
+					LEXPORT_TYPE.IMPORTABLE,
+				]) ?? LEXPORT_TYPE.READABLE;
+			const password = asTrimmedString(args.password);
+			const action = await toolCalls.exportData({ type, password });
 			await action();
 			return {
 				message: "Export completed.",
@@ -754,8 +839,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 		execute: async () => {
 			const overview = await toolCalls.getProductivityOverview();
 			return {
-				message:
-					`Overview: ${overview.tasks.pending} pending tasks, ${overview.reminders.upcoming} upcoming reminders, ${overview.saves.total} saves, ${overview.notes.total} notes.`,
+				message: `Overview: ${overview.tasks.pending} pending tasks, ${overview.reminders.upcoming} upcoming reminders, ${overview.saves.total} saves, ${overview.notes.total} notes.`,
 				modelPayload: overview,
 				expression: LFACE_EXPRESSION.SLIGHTLY_SMILING,
 			};
@@ -775,7 +859,8 @@ const toolDefinitions: Array<ToolDefinition> = [
 				url: asTrimmedString(args.url),
 				query: asTrimmedString(args.query),
 			});
-			const saveName = preview.save.customName || preview.save.title || "save";
+			const saveName =
+				preview.save.customName || preview.save.title || "save";
 			const markdown = `Preview for **${saveName}**:\n\n![${saveName}](${preview.previewUrl})`;
 			return {
 				message: markdown,
@@ -865,15 +950,18 @@ const toolDefinitions: Array<ToolDefinition> = [
 			targetDateCriteria: asDateCriteria(args.targetDateCriteria),
 		}),
 		execute: async (args, context) => {
-			const reminders = await toolCalls.searchReminders(context.ai as any, {
-				query: asString(args.query),
-				type: asEnum(args.type, [
-					LREMINDER_TYPE.NORMAL,
-					LREMINDER_TYPE.ESCALATING,
-				]),
-				targetDate: asDateString(args.targetDate),
-				targetDateCriteria: asDateCriteria(args.targetDateCriteria),
-			});
+			const reminders = await toolCalls.searchReminders(
+				context.ai as any,
+				{
+					query: asString(args.query),
+					type: asEnum(args.type, [
+						LREMINDER_TYPE.NORMAL,
+						LREMINDER_TYPE.ESCALATING,
+					]),
+					targetDate: asDateString(args.targetDate),
+					targetDateCriteria: asDateCriteria(args.targetDateCriteria),
+				},
+			);
 			if (reminders.length === 0) {
 				return {
 					message: "No reminders found.",
@@ -1049,15 +1137,18 @@ const toolDefinitions: Array<ToolDefinition> = [
 		safety: SAFETY.mutate,
 		normalizeArgs: (args) => {
 			const targetDateInput =
-				asTrimmedString(args.targetDate) ?? asTrimmedString(args.targetTS);
+				asTrimmedString(args.targetDate) ??
+				asTrimmedString(args.targetTS);
 			const targetDate = asDateString(targetDateInput);
 			return {
 				id: asInteger(args.id),
 				message: (() => {
-					const rawMessage =
+					const rawMessage = clampText(
 						asTrimmedString(args.message) ??
-						asTrimmedString(args.content) ??
-						asTrimmedString(args.text);
+							asTrimmedString(args.content) ??
+							asTrimmedString(args.text),
+						LMAX_REMINDER_MESSAGE_LENGTH,
+					);
 					return rawMessage
 						? sanitizeReminderMessage(rawMessage, targetDate)
 						: rawMessage;
@@ -1103,6 +1194,94 @@ const toolDefinitions: Array<ToolDefinition> = [
 			};
 		},
 	},
+	{
+		tool: updateTaskTool,
+		safety: SAFETY.mutate,
+		normalizeArgs: (args) => {
+			const deadlineDateInput = asTrimmedString(args.deadlineDate);
+			const deadlineDate = asDateString(deadlineDateInput);
+			return {
+				id: asInteger(args.id),
+				information: clampText(
+					asTrimmedString(args.information),
+					LMAX_TASK_INFORMATION_LENGTH,
+				),
+				label: clampText(
+					asTrimmedString(args.label),
+					LMAX_TASK_LABEL_LENGTH,
+				),
+				priority: asEnum(args.priority, [
+					LTASK_PRIORITY.LOW,
+					LTASK_PRIORITY.MEDIUM,
+					LTASK_PRIORITY.HIGH,
+				]),
+				deadlineDate,
+				deadlineDateInvalid:
+					deadlineDateInput !== undefined &&
+					deadlineDate === undefined,
+			};
+		},
+		execute: async (args) => {
+			if (args.deadlineDateInvalid === true) {
+				throw new Error(
+					"deadlineDate must be in YYYY-MM-DDTHH:mm:ssZ format.",
+				);
+			}
+			const id = requireId(args.id);
+			const action = await toolCalls.updateTask({
+				id,
+				information: asTrimmedString(args.information),
+				label: asTrimmedString(args.label),
+				priority: asEnum(args.priority, [
+					LTASK_PRIORITY.LOW,
+					LTASK_PRIORITY.MEDIUM,
+					LTASK_PRIORITY.HIGH,
+				]),
+				deadlineDate: asDateString(args.deadlineDate),
+			});
+			await action();
+			return {
+				message: `Updated task ${id}.`,
+				expression: LFACE_EXPRESSION.SLIGHTLY_SMILING,
+			};
+		},
+	},
+	{
+		tool: saveActiveWebPageTool,
+		safety: SAFETY.mutate,
+		normalizeArgs: () => ({}),
+		execute: async () => {
+			const action = await toolCalls.saveActiveWebPage();
+			await action();
+			return {
+				message: "Saved the current page.",
+				expression: LFACE_EXPRESSION.SLIGHTLY_SMILING,
+			};
+		},
+	},
+	{
+		tool: updateSaveTool,
+		safety: SAFETY.mutate,
+		normalizeArgs: (args) => ({
+			id: asInteger(args.id),
+			customName: clampText(
+				asTrimmedString(args.customName) ??
+					asTrimmedString(args.name) ??
+					asTrimmedString(args.title),
+				LMAX_TASK_INFORMATION_LENGTH,
+			),
+		}),
+		execute: async (args) => {
+			const id = requireId(args.id);
+			const customName = requireString(args.customName, "customName");
+			const action = await toolCalls.updateSave({ id, customName });
+			await action();
+			return {
+				message: `Updated save "${customName}".`,
+				expression: LFACE_EXPRESSION.SLIGHTLY_SMILING,
+			};
+		},
+	},
 ];
 
 const toolRegistry = new Map<string, ToolDefinition>(
@@ -1115,9 +1294,15 @@ const toolRegistry = new Map<string, ToolDefinition>(
 	]),
 );
 
+const toolRequiresConfirmation = (toolName: string): boolean => {
+	const definition = toolRegistry.get(toolName);
+	return Boolean(definition && definition.safety?.kind !== "read");
+};
+
 export {
 	createEmptyOutputContent,
 	toolRegistry,
+	toolRequiresConfirmation,
 	tools,
 };
 

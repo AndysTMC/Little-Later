@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import tsconfigPaths from "vite-tsconfig-paths";
@@ -22,5 +23,9 @@ export default defineConfig({
 		rollupOptions: {
 			output: {},
 		},
+	},
+	test: {
+		environment: "jsdom",
+		setupFiles: ["./tests/setup.ts"],
 	},
 });

@@ -22,7 +22,14 @@ import {
 	LTHEME,
 } from "little-shared/enums";
 import { LDateUtl } from "little-shared/utils/datetime";
+import {
+	LEMPTY_VAULT_DATA_POST_DECRYPT,
+	LINITIAL_USER_SETTINGS,
+} from "little-shared/constants";
+import { encrypt } from "little-shared/utils/crypto";
 import type { OpenAICompatibleAI as OpenAICompatibleAIClass } from "../../src/services/ai/main";
+
+const VAULT_PASSWORD = "correct-horse-battery";
 
 (globalThis as { self?: unknown }).self = globalThis;
 
@@ -114,7 +121,9 @@ const completionPayload = (
 	],
 });
 
-const getLastUserPrompt = (messages: Array<ChatMessage>): string | undefined => {
+const getLastUserPrompt = (
+	messages: Array<ChatMessage>,
+): string | undefined => {
 	for (let index = messages.length - 1; index >= 0; index--) {
 		const message = messages[index];
 		if (message?.role === "user" && typeof message.content === "string") {
@@ -150,9 +159,7 @@ const buildToolCalls = (
 		type: "function",
 		function: {
 			name: spec.name,
-			arguments:
-				spec.rawArguments ??
-				JSON.stringify(spec.args ?? {}),
+			arguments: spec.rawArguments ?? JSON.stringify(spec.args ?? {}),
 		},
 	}));
 
@@ -246,7 +253,8 @@ const createMockProviderServer = async (): Promise<MockServerState> => {
 					completionPayload({
 						role: "assistant",
 						content:
-							scenario.plainContent ?? "Scenario finished without tool calls.",
+							scenario.plainContent ??
+							"Scenario finished without tool calls.",
 					}),
 				);
 				return;
@@ -341,10 +349,10 @@ const createMockProviderServer = async (): Promise<MockServerState> => {
 };
 
 const createScenarioRecord = (
-scenarios: Array<{
-	prompt: string;
-	scenario: PromptScenario;
-}>,
+	scenarios: Array<{
+		prompt: string;
+		scenario: PromptScenario;
+	}>,
 ): Record<string, PromptScenario> => {
 	const result: Record<string, PromptScenario> = {};
 	for (const { prompt, scenario } of scenarios) {
@@ -380,6 +388,13 @@ const seedTestData = async (): Promise<void> => {
 		name: "Alex",
 		theme: LTHEME.DARK,
 		isCurrent: LINT_BOOLEAN.TRUE,
+	});
+	await db.userVaultTbl.put({
+		userId: 1,
+		data: await encrypt(VAULT_PASSWORD, {
+			tables: LEMPTY_VAULT_DATA_POST_DECRYPT.value,
+			userSettings: LINITIAL_USER_SETTINGS.value,
+		}),
 	});
 
 	await db.noteTbl.bulkPut([
@@ -526,7 +541,9 @@ const instrumentToolExecutions = () => {
 describe.sequential("ai prompt tool matrix coverage", () => {
 	let mockServer: MockServerState;
 	let anchorClickSpy: ReturnType<typeof vi.spyOn>;
-	let originalCreateObjectURL: ((obj: Blob | MediaSource) => string) | undefined;
+	let originalCreateObjectURL:
+		| ((obj: Blob | MediaSource) => string)
+		| undefined;
 	let originalRevokeObjectURL: ((url: string) => void) | undefined;
 	let dom: JSDOM;
 	const storageMap = new Map<string, string>();
@@ -535,9 +552,8 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 		mockServer = await createMockProviderServer();
 		({ db, resetLLDB } = await import("../../src/utils/db"));
 		({ OpenAICompatibleAI } = await import("../../src/services/ai/main"));
-		({ tools: registeredTools, toolRegistry } = await import(
-			"../../src/services/ai/toolRegistry"
-		));
+		({ tools: registeredTools, toolRegistry } =
+			await import("../../src/services/ai/toolRegistry"));
 		dom = new JSDOM("<!doctype html><html><body></body></html>", {
 			url: "https://littlelater.test/",
 		});
@@ -545,8 +561,6 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 		vi.stubGlobal("document", dom.window.document);
 		vi.stubGlobal("navigator", dom.window.navigator);
 		vi.stubGlobal("HTMLAnchorElement", dom.window.HTMLAnchorElement);
-		vi.stubGlobal("FileReader", dom.window.FileReader);
-		vi.stubGlobal("Blob", dom.window.Blob);
 		vi.stubGlobal("self", globalThis);
 		vi.stubGlobal("localStorage", {
 			getItem: (key: string) => storageMap.get(key) ?? null,
@@ -559,7 +573,8 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 			clear: () => {
 				storageMap.clear();
 			},
-			key: (index: number) => Array.from(storageMap.keys())[index] ?? null,
+			key: (index: number) =>
+				Array.from(storageMap.keys())[index] ?? null,
 			get length() {
 				return storageMap.size;
 			},
@@ -569,16 +584,22 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 			.mockImplementation(() => {});
 
 		originalCreateObjectURL = (
-			URL as unknown as { createObjectURL?: (obj: Blob | MediaSource) => string }
+			URL as unknown as {
+				createObjectURL?: (obj: Blob | MediaSource) => string;
+			}
 		).createObjectURL;
 		originalRevokeObjectURL = (
 			URL as unknown as { revokeObjectURL?: (url: string) => void }
 		).revokeObjectURL;
 
-		(URL as unknown as { createObjectURL: (obj: Blob | MediaSource) => string })
-			.createObjectURL = () => `blob:mock-${Date.now()}-${Math.random()}`;
-		(URL as unknown as { revokeObjectURL: (url: string) => void }).revokeObjectURL =
-			() => {};
+		(
+			URL as unknown as {
+				createObjectURL: (obj: Blob | MediaSource) => string;
+			}
+		).createObjectURL = () => `blob:mock-${Date.now()}-${Math.random()}`;
+		(
+			URL as unknown as { revokeObjectURL: (url: string) => void }
+		).revokeObjectURL = () => {};
 	});
 
 	afterAll(async () => {
@@ -593,8 +614,9 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 			).createObjectURL = originalCreateObjectURL;
 		}
 		if (originalRevokeObjectURL) {
-			(URL as unknown as { revokeObjectURL: (url: string) => void }).revokeObjectURL =
-				originalRevokeObjectURL;
+			(
+				URL as unknown as { revokeObjectURL: (url: string) => void }
+			).revokeObjectURL = originalRevokeObjectURL;
 		}
 		await mockServer.close();
 	});
@@ -676,7 +698,8 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 							name: "update_note",
 							args: {
 								id: 1,
-								content: "Project Phoenix planning notes (updated)",
+								content:
+									"Project Phoenix planning notes (updated)",
 							},
 						},
 					],
@@ -754,6 +777,64 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 									month: true,
 									day: true,
 								},
+							},
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Create a high priority rent task.",
+				expectedTool: "create_task",
+				expectedMessage: "Created task",
+				scenario: {
+					toolCalls: [
+						{
+							name: "create_task",
+							args: {
+								information: "Pay rent",
+								label: "Rent",
+								priority: LTASK_PRIORITY.HIGH,
+								deadlineDate: "2026-04-08T08:00:00+05:30",
+							},
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Update task one label.",
+				expectedTool: "update_task",
+				expectedMessage: "Updated task",
+				scenario: {
+					toolCalls: [
+						{
+							name: "update_task",
+							args: {
+								id: 1,
+								label: "Engineering updated",
+							},
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Save the current page.",
+				expectedTool: "save_active_web_page",
+				expectedMessage: "Saved the current page",
+				scenario: {
+					toolCalls: [{ name: "save_active_web_page" }],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Rename save forty seven.",
+				expectedTool: "update_save",
+				expectedMessage: "Updated save",
+				scenario: {
+					toolCalls: [
+						{
+							name: "update_save",
+							args: {
+								id: 47,
+								customName: "Streaming Home",
 							},
 						},
 					],
@@ -851,6 +932,7 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 				prompt: "Export importable data.",
 				expectedTool: "export_data",
 				expectedMessage: "Export completed.",
+				confirmPassword: VAULT_PASSWORD,
 				scenario: {
 					toolCalls: [
 						{
@@ -910,12 +992,28 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 			for (const item of promptMatrix) {
 				toolExecutionSpy.setActivePrompt(item.prompt);
 				const output = await ai.prompt(item.prompt);
+				let finalOutput = output;
+				if (output.confirmation) {
+					expect(output.message).toContain(
+						"I need your confirmation",
+					);
+					expect(
+						output.confirmation.items.some(
+							(entry) => entry.toolName === item.expectedTool,
+						),
+					).toBe(true);
+					finalOutput = await ai.confirmPendingMutations(
+						"confirmPassword" in item && item.confirmPassword
+							? { password: item.confirmPassword }
+							: undefined,
+					);
+				}
 				toolExecutionSpy.setActivePrompt(null);
 				expect(
-					output.expression,
-					`Prompt failed: "${item.prompt}" with message "${output.message}"`,
+					finalOutput.expression,
+					`Prompt failed: "${item.prompt}" with message "${finalOutput.message}"`,
 				).toBe(LFACE_EXPRESSION.SLIGHTLY_SMILING);
-				expect(output.message).toContain(item.expectedMessage);
+				expect(finalOutput.message).toContain(item.expectedMessage);
 
 				const executedForPrompt =
 					toolExecutionSpy.getToolExecutionsForPrompt(item.prompt);
@@ -942,18 +1040,62 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 		expect((await db.reminderTbl.get(1))?.message).toContain("moved");
 		expect(await db.noteTbl.get(2)).toBeUndefined();
 		expect(await db.reminderTbl.get(2)).toBeUndefined();
-		expect((await db.visualBMTbl.get(48))?.isSaved).toBe(LINT_BOOLEAN.FALSE);
+		expect((await db.visualBMTbl.get(48))?.isSaved).toBe(
+			LINT_BOOLEAN.FALSE,
+		);
 		expect(await db.taskTbl.get(2)).toBeUndefined();
 		expect((await db.userProfileTbl.get(1))?.theme).toBe(LTHEME.LIGHT);
+		expect((await db.taskTbl.get(1))?.label).toBe("Engineering updated");
+		expect((await db.visualBMTbl.get(47))?.customName).toBe(
+			"Streaming Home",
+		);
 	});
 
-	it(
-		"covers prompt-driven failure scenarios for tools and provider errors",
-		async () => {
+	it("does not mutate data when the user cancels confirmation", async () => {
+		mockServer.setScenarios(
+			createScenarioRecord([
+				{
+					prompt: "Create a cancelled note.",
+					scenario: {
+						toolCalls: [
+							{
+								name: "create_note",
+								args: { content: "Should not persist" },
+							},
+						],
+					},
+				},
+			]),
+		);
+		const ai = createAI(mockServer.baseUrl);
+		const output = await ai.prompt("Create a cancelled note.");
+		expect(output.confirmation).toBeDefined();
+		expect(ai.hasPendingConfirmation()).toBe(true);
+		expect(
+			(await db.noteTbl.toArray()).some(
+				(note) => note.content === "Should not persist",
+			),
+		).toBe(false);
+
+		const blocked = await ai.prompt("Who am I?");
+		expect(blocked.message).toContain("Confirm or cancel");
+
+		const cancelled = await ai.cancelPendingMutations();
+		expect(cancelled.message).toContain("Cancelled");
+		expect(ai.hasPendingConfirmation()).toBe(false);
+		expect(
+			(await db.noteTbl.toArray()).some(
+				(note) => note.content === "Should not persist",
+			),
+		).toBe(false);
+	});
+
+	it("covers prompt-driven failure scenarios for tools and provider errors", async () => {
 		const edgePromptMatrix = [
 			{
 				prompt: "Fail create reminder with invalid date.",
-				expectedMessage: "targetDate must be in YYYY-MM-DDTHH:mm:ssZ format.",
+				expectedMessage:
+					"targetDate must be in YYYY-MM-DDTHH:mm:ssZ format.",
 				scenario: {
 					toolCalls: [
 						{
@@ -968,7 +1110,8 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 			},
 			{
 				prompt: "Fail update reminder with invalid date.",
-				expectedMessage: "targetDate must be in YYYY-MM-DDTHH:mm:ssZ format.",
+				expectedMessage:
+					"targetDate must be in YYYY-MM-DDTHH:mm:ssZ format.",
 				scenario: {
 					toolCalls: [
 						{
@@ -1018,7 +1161,8 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 			},
 			{
 				prompt: "Provider should return 429.",
-				expectedMessage: "Rate limit hit (429). Please retry in a moment.",
+				expectedMessage:
+					"Rate limit hit (429). Please retry in a moment.",
 				scenario: {
 					httpStatus: 429,
 				} satisfies PromptScenario,
@@ -1046,13 +1190,14 @@ describe.sequential("ai prompt tool matrix coverage", () => {
 
 		for (const item of edgePromptMatrix) {
 			const output = await ai.prompt(item.prompt);
+			const finalOutput = output.confirmation
+				? await ai.confirmPendingMutations()
+				: output;
 			expect(
-				output.expression,
-				`Prompt failed: "${item.prompt}" with message "${output.message}"`,
+				finalOutput.expression,
+				`Prompt failed: "${item.prompt}" with message "${finalOutput.message}"`,
 			).toBe(LFACE_EXPRESSION.FROWNING);
-			expect(output.message).toContain(item.expectedMessage);
+			expect(finalOutput.message).toContain(item.expectedMessage);
 		}
-		},
-		15000,
-	);
+	}, 15000);
 });

@@ -10,6 +10,7 @@ import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { NoteBlankIcon } from "@phosphor-icons/react";
 import { useNavigate } from "react-router";
 import { LUINoteMini } from "../LUINoteMini/Component";
+import { LUIEmptyState } from "../LUIEmptyState/Component";
 
 const Component = ({
 	className,
@@ -98,20 +99,10 @@ const Component = ({
 					</div>
 				</div>
 			) : (
-				<div
-					className={`flex h-full w-full flex-col items-center justify-center py-8 ${
-						theme === LTHEME.DARK ? "text-white" : "text-black"
-					}`}
-				>
-					<div className="text-5xl font-extrabold text-pretty opacity-10">
-						{emptyMessage}
-					</div>
-					{showCreate ? (
-						<div className="text-5xl font-extrabold text-pretty opacity-10">
-							Tap New Note!
-						</div>
-					) : null}
-				</div>
+				<LUIEmptyState
+					title={emptyMessage}
+					hint={showCreate ? "Tap New Note." : undefined}
+				/>
 			)}
 		</motion.div>
 	);

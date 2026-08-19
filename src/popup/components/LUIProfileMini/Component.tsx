@@ -34,39 +34,39 @@ const Component = ({
 
 	const handleClick = async () => {
 		setIsAuthenticating(true);
-		await fakeWait();
-		const authenticated = await authenticateUser(userProfile.userId);
-		setIsAuthenticating(false);
-		if (authenticated) {
-			try {
-				await unlockUser(userProfile.userId);
-			} catch (error) {
-				console.error("Failed to unlock profile.", error);
-				await createToast(
-					error instanceof Error
-						? error.message
-						: "Couldn't unlock this profile.",
-					LTOAST_TYPE.ERROR,
-				);
+		try {
+			await fakeWait();
+			const authenticated = await authenticateUser(userProfile.userId);
+			if (!authenticated) {
+				changeExit(exitTransitions.zoomIn);
+				navigate("/unlock/" + userProfile.userId, {
+					state: { entryTransition: entryTransitions.zoomIn },
+				});
 				return;
 			}
+			await unlockUser(userProfile.userId);
 			const settings = await getUserSettings();
 			if (settings.guide.isFirstTimeUser) {
 				changeExit(exitTransitions.slideLeft);
 				navigate("/getting-started", {
 					state: { entryTransition: entryTransitions.slideLeft },
 				});
-			} else {
-				changeExit(exitTransitions.zoomIn);
-				navigate("/home", {
-					state: { entryTransition: entryTransitions.zoomIn },
-				});
+				return;
 			}
-		} else {
 			changeExit(exitTransitions.zoomIn);
-			navigate("/unlock/" + userProfile.userId, {
+			navigate("/home", {
 				state: { entryTransition: entryTransitions.zoomIn },
 			});
+		} catch (error) {
+			console.error("Failed to open profile.", error);
+			await createToast(
+				error instanceof Error
+					? error.message
+					: "Couldn't open this profile.",
+				LTOAST_TYPE.ERROR,
+			);
+		} finally {
+			setIsAuthenticating(false);
 		}
 	};
 	return (

@@ -38,6 +38,7 @@ import { usePagination } from "../../hooks/usePagination";
 import { LUIPagination } from "../LUIPagination/Component";
 import { LUINotes } from "../LUINotes/Component";
 import { LUINoteMini } from "../LUINoteMini/Component";
+import { LUIEmptyState } from "../LUIEmptyState/Component";
 
 const Component = () => {
 	const {
@@ -335,11 +336,7 @@ const Component = () => {
 								</div>
 							</div>
 						) : (
-							<div
-								className={`flex h-full w-full items-center justify-center text-5xl text-pretty ${theme === LTHEME.DARK ? "text-white" : "text-black"} font-extrabold opacity-10`}
-							>
-								No results found
-							</div>
+							<LUIEmptyState title="No results found" />
 						)}
 					</motion.div>
 				) : (

@@ -19,6 +19,11 @@ describe("user profile isolation", () => {
 		await db.open();
 	});
 
+	it("rejects a blank profile name", async () => {
+		await expect(createUser("   ", null)).rejects.toThrow(/name/i);
+		expect(await db.userProfileTbl.count()).toBe(0);
+	});
+
 	it("does not wipe another profile's live tables when deleting a locked profile", async () => {
 		const currentUserId = await createUser("Current", null);
 		await db.userProfileTbl.update(currentUserId, {

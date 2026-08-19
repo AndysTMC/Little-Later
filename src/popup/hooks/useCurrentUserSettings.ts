@@ -6,19 +6,24 @@ const useCurrentUserSettings = (): LUserSettings | undefined => {
 	const [result, setResult] = useState<LUserSettings | undefined>();
 
 	useEffect(() => {
-		getUserSettings().then((settings) => setResult(settings));
-	}, []);
-
-	useEffect(() => {
-		if (import.meta.env.MODE !== "production") {
-			return;
-		}
-		const listener = () => {
-			getUserSettings().then((settings) => setResult(settings));
+		const refresh = () => {
+			void getUserSettings().then((settings) => setResult(settings));
 		};
-		chrome.storage.onChanged.addListener(listener);
+		refresh();
+
+		window.addEventListener("little-storage-change", refresh);
+		const chromeListener = () => {
+			refresh();
+		};
+		if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
+			chrome.storage.onChanged.addListener(chromeListener);
+		}
+
 		return () => {
-			chrome.storage.onChanged.removeListener(listener);
+			window.removeEventListener("little-storage-change", refresh);
+			if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
+				chrome.storage.onChanged.removeListener(chromeListener);
+			}
 		};
 	}, []);
 

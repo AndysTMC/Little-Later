@@ -9,6 +9,7 @@ import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUINoteDetailForm } from "../../components/LUINoteDetailForm/Component";
+import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
 
 const Page = () => {
 	const { theme } = useTheme();
@@ -39,13 +40,7 @@ const Page = () => {
 					{note ? (
 						<LUINoteDetailForm note={note} />
 					) : (
-						<div
-							className={`flex h-full w-full items-center justify-center px-6 text-center text-2xl font-extrabold opacity-20 ${
-								theme === LTHEME.DARK ? "text-white" : "text-black"
-							}`}
-						>
-							Note not found.
-						</div>
+						<LUIEmptyState title="Note not found." />
 					)}
 				</motion.div>
 			)}

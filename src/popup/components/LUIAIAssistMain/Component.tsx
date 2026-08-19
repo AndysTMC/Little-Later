@@ -397,12 +397,22 @@ const AICellBase = ({
 	isLatest = false,
 	showRetry = false,
 	onRetry,
+	onConfirm,
+	onCancel,
+	isResolvingConfirmation = false,
+	confirmationPassword = "",
+	onConfirmationPasswordChange,
 }: {
 	className?: string;
 	aiOutput: LAIOutput;
 	isLatest?: boolean;
 	showRetry?: boolean;
 	onRetry?: () => void;
+	onConfirm?: (password?: string) => void;
+	onCancel?: () => void;
+	isResolvingConfirmation?: boolean;
+	confirmationPassword?: string;
+	onConfirmationPasswordChange?: (value: string) => void;
 }) => {
 	const { theme } = useTheme();
 	const [copied, setCopied] = useState(false);
@@ -420,13 +430,22 @@ const AICellBase = ({
 	);
 	const canShowCopy =
 		isLatest &&
+		!aiOutput.confirmation &&
 		aiOutput.expression !== LFACE_EXPRESSION.THINKING &&
 		cleanedMessage !== "";
 	const canShowRetry =
 		showRetry &&
 		isLatest &&
+		!aiOutput.confirmation &&
 		aiOutput.expression !== LFACE_EXPRESSION.THINKING &&
 		cleanedMessage !== "";
+	const confirmation = isLatest ? aiOutput.confirmation : undefined;
+	const isDestructiveConfirmation = Boolean(
+		confirmation?.items.some((item) => item.kind === "destructive"),
+	);
+	const canSubmitConfirmation =
+		!isResolvingConfirmation &&
+		(!confirmation?.requiresPassword || confirmationPassword.trim() !== "");
 
 	const handleCopy = async () => {
 		if (!cleanedMessage) return;
@@ -550,6 +569,106 @@ const AICellBase = ({
 								alt={image.alt}
 							/>
 						))}
+						{confirmation ? (
+							<div className="mt-2 flex w-full max-w-4/5 flex-col gap-y-2">
+								{confirmation.items.length > 0 ? (
+									<ul
+										className={`list-disc pl-5 text-sm ${
+											theme === LTHEME.DARK
+												? "text-neutral-200"
+												: "text-neutral-700"
+										}`}
+									>
+										{confirmation.items.map((item) => (
+											<li
+												key={`${item.toolName}-${item.summary}`}
+												className={
+													item.kind === "destructive"
+														? "text-red-600"
+														: undefined
+												}
+											>
+												{item.summary}
+											</li>
+										))}
+									</ul>
+								) : null}
+								{confirmation.requiresPassword ? (
+									<input
+										type="password"
+										placeholder="Lock password"
+										aria-label="Lock password for export"
+										autoComplete="off"
+										value={confirmationPassword}
+										onChange={(event) =>
+											onConfirmationPasswordChange?.(
+												event.target.value,
+											)
+										}
+										onKeyDown={(event) => {
+											if (
+												event.key === "Enter" &&
+												canSubmitConfirmation
+											) {
+												event.preventDefault();
+												onConfirm?.(
+													confirmationPassword,
+												);
+											}
+										}}
+										className={`h-9 w-full rounded-lg border px-3 text-sm outline-none ${
+											theme === LTHEME.DARK
+												? "border-neutral-700 bg-neutral-900 text-white"
+												: "border-neutral-300 bg-neutral-100 text-black"
+										}`}
+									/>
+								) : null}
+								<div className="flex flex-wrap gap-2">
+									<button
+										type="button"
+										aria-label={
+											isDestructiveConfirmation
+												? "Confirm delete"
+												: "Confirm change"
+										}
+										disabled={!canSubmitConfirmation}
+										className={`flex h-8 cursor-pointer items-center rounded-md px-3 text-xs font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${
+											isDestructiveConfirmation
+												? "bg-red-600 text-white hover:bg-red-700"
+												: theme === LTHEME.DARK
+													? "bg-white text-black hover:bg-neutral-100"
+													: "bg-black text-white hover:bg-neutral-900"
+										}`}
+										onClick={() =>
+											onConfirm?.(
+												confirmation.requiresPassword
+													? confirmationPassword
+													: undefined,
+											)
+										}
+									>
+										{isResolvingConfirmation
+											? "Working..."
+											: isDestructiveConfirmation
+												? "Confirm delete"
+												: "Confirm"}
+									</button>
+									<button
+										type="button"
+										aria-label="Cancel pending change"
+										disabled={isResolvingConfirmation}
+										className={`flex h-8 cursor-pointer items-center rounded-md px-3 text-xs font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${
+											theme === LTHEME.DARK
+												? "bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
+												: "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+										}`}
+										onClick={onCancel}
+									>
+										Cancel
+									</button>
+								</div>
+							</div>
+						) : null}
 						{canShowCopy || canShowRetry ? (
 							<div className="mt-2 flex w-full flex-wrap justify-start gap-2">
 								{canShowCopy ? (
@@ -604,7 +723,12 @@ const AICell = memo(AICellBase, (prev, next) => {
 		prev.className === next.className &&
 		prev.isLatest === next.isLatest &&
 		prev.showRetry === next.showRetry &&
-		prev.onRetry === next.onRetry
+		prev.onRetry === next.onRetry &&
+		prev.onConfirm === next.onConfirm &&
+		prev.onCancel === next.onCancel &&
+		prev.isResolvingConfirmation === next.isResolvingConfirmation &&
+		prev.confirmationPassword === next.confirmationPassword &&
+		prev.onConfirmationPasswordChange === next.onConfirmationPasswordChange
 	);
 });
 
@@ -634,6 +758,7 @@ const Component = ({ className }: { className?: string }) => {
 	const [isAsking, setIsAsking] = useState(false);
 	const [canUndo, setCanUndo] = useState(false);
 	const [isScrolledUp, setIsScrolledUp] = useState(false);
+	const [confirmationPassword, setConfirmationPassword] = useState("");
 
 	useEffect(() => {
 		const container = chatContainerRef.current;
@@ -674,8 +799,38 @@ const Component = ({ className }: { className?: string }) => {
 		}
 	}, []);
 
+	const resolveConfirmation = async (
+		action: "confirm" | "cancel",
+		password?: string,
+	) => {
+		if (!aiAssist || isAsking || requestLockRef.current) return;
+		requestLockRef.current = true;
+		setIsAsking(true);
+		try {
+			const output =
+				action === "confirm"
+					? await aiAssist.confirmPendingMutations({ password })
+					: await aiAssist.cancelPendingMutations();
+			setCurrentLAIOutput(output);
+			setCanUndo(aiAssist.hasUndoAction());
+			if (!output.confirmation) {
+				setConfirmationPassword("");
+			}
+		} catch {
+			setCurrentLAIOutput({
+				message: "Couldn't finish that confirmation.",
+				actions: [],
+				expression: LFACE_EXPRESSION.FROWNING,
+			});
+		} finally {
+			setIsAsking(false);
+			requestLockRef.current = false;
+		}
+	};
+
 	const askAI = async (nextInput?: string) => {
 		if (!aiAssist || isAsking || requestLockRef.current) return;
+		if (aiAssist.hasPendingConfirmation()) return;
 		const input = (nextInput ?? userInput).trim();
 		if (input === "") return;
 		requestLockRef.current = true;
@@ -737,11 +892,15 @@ const Component = ({ className }: { className?: string }) => {
 
 	const clearChat = () => {
 		if (!aiAssist || isAsking) return;
+		if (aiAssist.hasPendingConfirmation()) {
+			void aiAssist.cancelPendingMutations();
+		}
 		setCells([]);
 		setCurrentLAIOutput(null);
 		setUserInput("");
 		setLastPrompt("");
 		setCanUndo(false);
+		setConfirmationPassword("");
 		setQuickPrompts(pickQuickPrompts(3));
 		aiAssist.clear();
 	};
@@ -784,6 +943,8 @@ const Component = ({ className }: { className?: string }) => {
 		setQuickPrompts(pickQuickPrompts(3));
 	};
 
+	const confirmationPending = Boolean(currentLAIOutput?.confirmation);
+
 	const chatTimeline = useMemo(
 		() => (
 			<AnimatePresence mode="wait">
@@ -816,13 +977,27 @@ const Component = ({ className }: { className?: string }) => {
 								onRetry={() => {
 									void retryLastPrompt();
 								}}
+								onConfirm={(password) => {
+									void resolveConfirmation(
+										"confirm",
+										password,
+									);
+								}}
+								onCancel={() => {
+									void resolveConfirmation("cancel");
+								}}
+								isResolvingConfirmation={isAsking}
+								confirmationPassword={confirmationPassword}
+								onConfirmationPasswordChange={
+									setConfirmationPassword
+								}
 							/>
 						) : null}
 					</motion.div>
 				)}
 			</AnimatePresence>
 		),
-		[cells, currentLAIOutput, isAsking, lastPrompt],
+		[cells, currentLAIOutput, isAsking, lastPrompt, confirmationPassword],
 	);
 
 	return (
@@ -892,7 +1067,7 @@ const Component = ({ className }: { className?: string }) => {
 								data-testid="ai-undo-last-action"
 								className={`absolute top-2 right-28 flex h-8 w-max cursor-pointer items-center justify-center rounded-lg px-4 py-2 transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${theme === LTHEME.DARK ? "bg-neutral-800 text-white" : "bg-neutral-200 text-black"}`}
 								onClick={undoLastAction}
-								disabled={isAsking}
+								disabled={isAsking || confirmationPending}
 							>
 								<LUIThemedIcon
 									Icon={ArrowCounterClockwiseIcon}
@@ -1020,10 +1195,14 @@ const Component = ({ className }: { className?: string }) => {
 									onChange={(e) =>
 										setUserInput(e.target.value)
 									}
-									placeholder="Ask AI"
+									placeholder={
+										confirmationPending
+											? "Confirm or cancel the pending change"
+											: "Ask AI"
+									}
 									autoComplete="off"
 									autoFocus
-									disabled={isAsking}
+									disabled={isAsking || confirmationPending}
 									onInput={adjustHeight}
 									onKeyDown={async (e) => {
 										if (e.key === "Enter" && !e.shiftKey) {
@@ -1043,7 +1222,9 @@ const Component = ({ className }: { className?: string }) => {
 											void askAI();
 										}}
 										disabled={
-											isAsking || userInput.trim() === ""
+											isAsking ||
+											confirmationPending ||
+											userInput.trim() === ""
 										}
 									>
 										<LUIThemedIcon

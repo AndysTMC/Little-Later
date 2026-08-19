@@ -37,8 +37,59 @@ const deriveAesKey = async (
     );
 };
 
+const bytesFromUnknown = (value: unknown): Uint8Array | null => {
+    if (value instanceof Uint8Array) {
+        return value;
+    }
+    if (value instanceof ArrayBuffer) {
+        return new Uint8Array(value);
+    }
+    if (Array.isArray(value)) {
+        return Uint8Array.from(
+            value.filter(
+                (item): item is number =>
+                    typeof item === 'number' && Number.isFinite(item),
+            ),
+        );
+    }
+    return null;
+};
+
 export async function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
-    return new Uint8Array(await blob.arrayBuffer());
+    if (blob instanceof Uint8Array) {
+        return blob;
+    }
+    if (blob instanceof ArrayBuffer) {
+        return new Uint8Array(blob);
+    }
+    if (blob && typeof blob.arrayBuffer === 'function') {
+        return new Uint8Array(await blob.arrayBuffer());
+    }
+    if (blob && typeof (blob as { bytes?: unknown }).bytes === 'function') {
+        return await (blob as { bytes: () => Promise<Uint8Array> }).bytes();
+    }
+    if (blob && typeof blob === 'object' && 'data' in blob) {
+        const fromData = bytesFromUnknown((blob as { data?: unknown }).data);
+        if (fromData) {
+            return fromData;
+        }
+    }
+    if (typeof FileReader !== 'undefined' && blob instanceof Blob) {
+        return await new Promise<Uint8Array>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                if (reader.result instanceof ArrayBuffer) {
+                    resolve(new Uint8Array(reader.result));
+                    return;
+                }
+                reject(new Error('Could not read encrypted data.'));
+            };
+            reader.onerror = () =>
+                reject(new Error('Could not read encrypted data.'));
+            reader.readAsArrayBuffer(blob);
+        });
+    }
+    throw new Error('Could not read encrypted data.');
 }
 
 export function uint8ArrayToBlob(uint8Buffer: Uint8Array): Blob {

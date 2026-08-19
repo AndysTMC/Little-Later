@@ -12,12 +12,17 @@ export const saveActiveWebPage = async (): Promise<number> => {
 	if (!url) {
 		throw new Error("No active page URL found");
 	}
-	if (!title) {
-		throw new Error("No active page title found");
+	let pageTitle = title?.trim() ?? "";
+	if (pageTitle === "") {
+		try {
+			pageTitle = new URL(url).hostname || "Untitled";
+		} catch {
+			pageTitle = "Untitled";
+		}
 	}
 	await updateVisualBM(url, {
 		url: url,
-		title: title,
+		title: pageTitle,
 		isSaved: LINT_BOOLEAN.TRUE,
 	});
 	const visualBM = await getVisualBMByUrl(url);
@@ -80,16 +85,17 @@ export const updateVisualBM = async (
 	url: string,
 	modifications: Partial<LVisualBM>,
 ): Promise<number> => {
-	const urlObj = new URL(url);
-	const visualBM = await db.visualBMTbl.get({ url });
-	if (!urlObj) {
+	let urlObj: URL;
+	try {
+		urlObj = new URL(url);
+	} catch {
 		throw new Error("Invalid URL");
 	}
+	const visualBM = await db.visualBMTbl.get({ url });
 	if (visualBM === undefined) {
 		if (!modifications.title) {
 			throw new Error("Title is required for new VisualBM");
 		}
-		const urlObj = new URL(url);
 		const userSettings = await getUserSettings();
 		const totalVBMCount = await db.visualBMTbl
 			.where("isSaved")

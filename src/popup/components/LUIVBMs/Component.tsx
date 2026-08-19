@@ -7,6 +7,7 @@ import { LLink, LNote, LReminder, LTask, LVisualBM } from "little-shared/types";
 import { useMemo } from "react";
 import { usePagination } from "../../hooks/usePagination";
 import { LUIPagination } from "../LUIPagination/Component";
+import { LUIEmptyState } from "../LUIEmptyState/Component";
 import { LDateUtl } from "little-shared/utils/datetime";
 
 const Component = ({
@@ -73,20 +74,10 @@ const Component = ({
 					</div>
 				</div>
 			) : (
-				<div
-					className={`flex w-full grow flex-col items-center justify-center py-8 ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
-				>
-					<div
-						className={`text-5xl font-extrabold text-pretty opacity-10`}
-					>
-						No saves yet?
-					</div>
-					<div
-						className={`text-center text-5xl font-extrabold text-pretty opacity-10`}
-					>
-						Browse a page or check History!
-					</div>
-				</div>
+				<LUIEmptyState
+					title="No saves yet?"
+					hint="Browse a page or check History."
+				/>
 			)}
 		</motion.div>
 	);

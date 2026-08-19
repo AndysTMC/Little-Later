@@ -2,10 +2,15 @@ import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	LINT_BOOLEAN,
+	LLINK_TYPE,
 	LREMINDER_TYPE,
 	LTASK_PRIORITY,
 	LTASK_SCHEDULE_TYPE,
 } from "little-shared/enums";
+import {
+	LMAX_TASK_INFORMATION_LENGTH,
+	LMAX_TASK_LABEL_LENGTH,
+} from "little-shared/constants";
 import { LDateUtl } from "little-shared/utils/datetime";
 import { resetLLDB, db } from "../../src/utils/db";
 import { toolRegistry } from "../../src/services/ai/toolRegistry";
@@ -55,7 +60,9 @@ describe.sequential("ai tool execution coverage", () => {
 			}),
 			aiContext,
 		);
-		expect((await db.noteTbl.get(note.id))?.content).toContain("milk");
+		const updatedNote = await db.noteTbl.get(note.id);
+		expect(updatedNote?.content).toContain("milk");
+		expect(updatedNote?.lastModificationDate).toEqual(expect.any(String));
 
 		const deleteNote = getTool("delete_note");
 		const deleteResult = await deleteNote.execute(
@@ -176,6 +183,79 @@ describe.sequential("ai tool execution coverage", () => {
 		expect(await db.reminderTbl.get(reminder.id)).toBeDefined();
 	});
 
+	it("creates and updates tasks, and rejects invalid or missing records", async () => {
+		const createTask = getTool("create_task");
+		await createTask.execute(
+			createTask.normalizeArgs({
+				information: "Pay April rent",
+				label: "Rent",
+				priority: LTASK_PRIORITY.HIGH,
+				deadlineDate: "2026-04-08T08:00:00+05:30",
+			}),
+			aiContext,
+		);
+		const created = (await db.taskTbl.toArray()).find(
+			(task) => task.label === "Rent",
+		);
+		expect(created).toBeDefined();
+		expect(created?.priority).toBe(LTASK_PRIORITY.HIGH);
+		expect(created?.schedule.type).toBe(LTASK_SCHEDULE_TYPE.DUE);
+		const dueReminderLink = await db.linkTbl
+			.where({
+				taskId: created!.id,
+				type: LLINK_TYPE.REMINDER_TASK,
+			})
+			.first();
+		expect(dueReminderLink?.reminderId).toBeTypeOf("number");
+
+		const updateTask = getTool("update_task");
+		await updateTask.execute(
+			updateTask.normalizeArgs({
+				id: created!.id,
+				label: "Rent due",
+				priority: LTASK_PRIORITY.MEDIUM,
+			}),
+			aiContext,
+		);
+		expect((await db.taskTbl.get(created!.id))?.label).toBe("Rent due");
+		expect((await db.taskTbl.get(created!.id))?.priority).toBe(
+			LTASK_PRIORITY.MEDIUM,
+		);
+
+		await expect(
+			createTask.execute(
+				createTask.normalizeArgs({
+					information: "Bad date",
+					deadlineDate: "tomorrow",
+				}),
+				aiContext,
+			),
+		).rejects.toThrow(/deadlineDate/i);
+
+		await expect(
+			updateTask.execute(
+				updateTask.normalizeArgs({
+					id: 99999,
+					label: "Missing",
+				}),
+				aiContext,
+			),
+		).rejects.toThrow(/not found/i);
+
+		await createTask.execute(
+			createTask.normalizeArgs({
+				information: "x".repeat(400),
+				label: "This label is way too long for the field",
+			}),
+			aiContext,
+		);
+		const clamped = (await db.taskTbl.toArray()).find((task) =>
+			task.information.startsWith("xxx"),
+		);
+		expect(clamped?.information).toHaveLength(LMAX_TASK_INFORMATION_LENGTH);
+		expect(clamped?.label).toHaveLength(LMAX_TASK_LABEL_LENGTH);
+	});
+
 	it("handles task search/delete+undo", async () => {
 		const taskId = await db.taskTbl.add({
 			information: "Prepare sprint plan",
@@ -272,6 +352,37 @@ describe.sequential("ai tool execution coverage", () => {
 		).rejects.toThrow(/targetDate/i);
 	});
 
+	it("updates saves and rejects missing records", async () => {
+		const saveId = await db.visualBMTbl.add({
+			customName: "Old Name",
+			hasBrowsed: LINT_BOOLEAN.TRUE,
+			isSaved: LINT_BOOLEAN.TRUE,
+			lastBrowseDate: LDateUtl.getNow(),
+			title: "Old Name",
+			url: "https://rename-me.example.com",
+		});
+
+		const updateSave = getTool("update_save");
+		await updateSave.execute(
+			updateSave.normalizeArgs({
+				id: saveId,
+				customName: "New Name",
+			}),
+			aiContext,
+		);
+		expect((await db.visualBMTbl.get(saveId))?.customName).toBe("New Name");
+
+		await expect(
+			updateSave.execute(
+				updateSave.normalizeArgs({
+					id: 99999,
+					customName: "Ghost",
+				}),
+				aiContext,
+			),
+		).rejects.toThrow(/not found/i);
+	});
+
 	it("handles save search/delete+undo and preview image fetch", async () => {
 		const saveId = await db.visualBMTbl.add({
 			customName: "Example Save",
@@ -304,9 +415,7 @@ describe.sequential("ai tool execution coverage", () => {
 			aiContext,
 		);
 		expect(previewResult.message).toContain("![");
-		expect(previewResult.message).toMatch(
-			/\]\((blob:|data:image\/)/,
-		);
+		expect(previewResult.message).toMatch(/\]\((blob:|data:image\/)/);
 
 		const deleteSave = getTool("delete_save");
 		const deleteResult = await deleteSave.execute(
@@ -388,7 +497,12 @@ describe.sequential("ai tool execution coverage", () => {
 			saves: { total: 1 },
 			history: { total: 2 },
 			reminders: { total: 1, upcoming: 1 },
-			tasks: { total: 1, pending: 1, highPriorityPending: 1, overdueDueTasks: 1 },
+			tasks: {
+				total: 1,
+				pending: 1,
+				highPriorityPending: 1,
+				overdueDueTasks: 1,
+			},
 		});
 	});
 });

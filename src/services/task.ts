@@ -17,7 +17,10 @@ export const getTasks = async (): Promise<Array<LTask>> => {
 };
 
 export const createTask = async (taskInsert: LTaskInsert): Promise<number> => {
-	return await db.taskTbl.add(taskInsert);
+	return await db.taskTbl.add({
+		...taskInsert,
+		finishDate: taskInsert.finishDate ?? null,
+	});
 };
 
 export const putTask = async (
@@ -26,7 +29,10 @@ export const putTask = async (
 	vbmDeleteIds: Array<number>,
 	reminderType?: LREMINDER_TYPE,
 ): Promise<number> => {
-	taskInsert.id = await db.taskTbl.put(taskInsert);
+	taskInsert.id = await db.taskTbl.put({
+		...taskInsert,
+		finishDate: taskInsert.finishDate ?? null,
+	});
 	for (const vbmID of vbmInsertIds) {
 		await createLink({
 			type: LLINK_TYPE.TASK_VBM,

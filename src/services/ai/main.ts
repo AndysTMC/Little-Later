@@ -1,6 +1,15 @@
 import OpenAI from "openai";
-import { LAI_PROVIDERS, LFACE_EXPRESSION } from "little-shared/enums";
-import { LAIOutput, LAIOutputContent } from "little-shared/types";
+import {
+	LAI_PROVIDERS,
+	LEXPORT_TYPE,
+	LFACE_EXPRESSION,
+} from "little-shared/enums";
+import {
+	LAIConfirmation,
+	LAIConfirmationKind,
+	LAIOutput,
+	LAIOutputContent,
+} from "little-shared/types";
 import {
 	getResolvedBaseUrl,
 	isAISettingsConfigured,
@@ -10,6 +19,7 @@ import {
 import { LRewriteOptions, LSummarizeOptions, LWriteOptions } from "../../types";
 import { ResponseFormatJSONSchema } from "openai/resources.mjs";
 import { getUserSettings } from "../settings";
+import { authenticateUser, getCurrentUserProfile } from "../user";
 import { db } from "../../utils/db";
 import {
 	ToolDefinition,
@@ -17,6 +27,7 @@ import {
 	ToolUndoAction,
 	createEmptyOutputContent,
 	toolRegistry,
+	toolRequiresConfirmation,
 	tools,
 } from "./toolRegistry";
 
@@ -126,16 +137,14 @@ const explicitMonthDatePattern =
 
 const extractPromptDateParts = (
 	input: string,
-):
-	| {
-			year: number;
-			month: number;
-			day: number;
-			hour: number;
-			minute: number;
-			second: number;
-	  }
-	| null => {
+): {
+	year: number;
+	month: number;
+	day: number;
+	hour: number;
+	minute: number;
+	second: number;
+} | null => {
 	const match = input.match(explicitMonthDatePattern);
 	if (!match) {
 		return null;
@@ -224,6 +233,77 @@ const isOutputContentEmpty = (content: LAIOutputContent): boolean =>
 	content.tasks.length === 0 &&
 	content.notes.length === 0;
 
+type PendingMutation = {
+	call: OpenAI.Chat.Completions.ChatCompletionMessageToolCall;
+	definition: ToolDefinition;
+	args: Record<string, unknown>;
+};
+
+const describePendingAction = (
+	toolName: string,
+	args: Record<string, unknown>,
+): string => {
+	const label =
+		typeof args.label === "string"
+			? args.label
+			: typeof args.customName === "string"
+				? args.customName
+				: typeof args.message === "string"
+					? args.message
+					: typeof args.information === "string"
+						? args.information
+						: typeof args.content === "string"
+							? args.content
+							: undefined;
+	const id = typeof args.id === "number" ? args.id : undefined;
+	switch (toolName) {
+		case "create_task":
+			return `Create task${label ? ` "${label}"` : ""}`;
+		case "update_task":
+			return `Update task${id !== undefined ? ` #${id}` : ""}`;
+		case "save_active_web_page":
+			return "Save the current page";
+		case "update_save":
+			return `Rename save${label ? ` to "${label}"` : ""}`;
+		case "create_note":
+			return "Create a note";
+		case "update_note":
+			return `Update note${id !== undefined ? ` #${id}` : ""}`;
+		case "create_reminder":
+			return `Create reminder${label ? ` "${label}"` : ""}`;
+		case "update_reminder":
+			return `Update reminder${id !== undefined ? ` #${id}` : ""}`;
+		case "delete_note":
+			return `Delete note${id !== undefined ? ` #${id}` : ""}`;
+		case "delete_reminder":
+			return `Delete reminder${id !== undefined ? ` #${id}` : ""}`;
+		case "delete_task":
+			return `Delete task${id !== undefined ? ` #${id}` : ""}`;
+		case "delete_save":
+			return `Unsave bookmark${id !== undefined ? ` #${id}` : ""}`;
+		case "export_data":
+			return args.type === LEXPORT_TYPE.IMPORTABLE
+				? "Export an importable backup"
+				: "Export a readable backup";
+		case "set_user_app_theme_pref":
+			return `Change theme to ${String(args.theme ?? "selected theme")}`;
+		default:
+			return `Run ${toolName}`;
+	}
+};
+
+const confirmationKindFor = (
+	kind: ToolDefinition["safety"],
+): LAIConfirmationKind => {
+	if (kind?.kind === "destructive") {
+		return "destructive";
+	}
+	if (kind?.kind === "external") {
+		return "external";
+	}
+	return "mutate";
+};
+
 export abstract class LittleAI {
 	protected model: string;
 	protected messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
@@ -234,6 +314,7 @@ export abstract class LittleAI {
 		action: ToolUndoAction;
 		expiresAt: number;
 	} | null;
+	protected pendingMutations: Array<PendingMutation> | null;
 
 	constructor({
 		model,
@@ -251,6 +332,7 @@ export abstract class LittleAI {
 		this.apiKey = apiKey;
 		this.baseUrl = baseUrl;
 		this.lastUndoAction = null;
+		this.pendingMutations = null;
 		this.messages = [
 			{
 				role: "system",
@@ -276,8 +358,35 @@ export abstract class LittleAI {
 		jsonObjectSchema?: string,
 	): Promise<unknown>;
 
+	hasPendingConfirmation(): boolean {
+		return (
+			this.pendingMutations !== null && this.pendingMutations.length > 0
+		);
+	}
+
+	async confirmPendingMutations(options?: {
+		password?: string;
+	}): Promise<LAIOutput> {
+		void options;
+		return {
+			message: "Nothing to confirm.",
+			actions: [],
+			expression: LFACE_EXPRESSION.FROWNING,
+		};
+	}
+
+	async cancelPendingMutations(): Promise<LAIOutput> {
+		this.pendingMutations = null;
+		return {
+			message: "Cancelled.",
+			actions: [],
+			expression: LFACE_EXPRESSION.FROWNING,
+		};
+	}
+
 	clear() {
 		this.lastUndoAction = null;
+		this.pendingMutations = null;
 		this.messages = [
 			{
 				role: "system",
@@ -333,13 +442,13 @@ export abstract class LittleAI {
 			actions.length === 1
 				? actions[0]
 				: {
-					label: `Last ${actions.length} AI actions`,
-					run: async () => {
-						for (const action of actions.slice().reverse()) {
-							await action.run();
-						}
-					},
-				};
+						label: `Last ${actions.length} AI actions`,
+						run: async () => {
+							for (const action of actions.slice().reverse()) {
+								await action.run();
+							}
+						},
+					};
 		this.lastUndoAction = {
 			action: actionToStore,
 			expiresAt: Date.now() + 5 * 60 * 1000,
@@ -446,15 +555,21 @@ export abstract class LittleAI {
 
 		const explicitDateParts = extractPromptDateParts(input);
 		if (explicitDateParts) {
-			const formatDateTimeDefinition = toolRegistry.get("format_date_time");
+			const formatDateTimeDefinition =
+				toolRegistry.get("format_date_time");
 			if (formatDateTimeDefinition) {
 				try {
 					const result = await formatDateTimeDefinition.execute(
-						formatDateTimeDefinition.normalizeArgs(explicitDateParts),
+						formatDateTimeDefinition.normalizeArgs(
+							explicitDateParts,
+						),
 						{ ai: this },
 					);
 					const dateTime = asRecord(result.modelPayload).dateTime;
-					if (typeof dateTime === "string" && dateTime.trim() !== "") {
+					if (
+						typeof dateTime === "string" &&
+						dateTime.trim() !== ""
+					) {
 						contextMessages.push({
 							role: "system",
 							content: `Canonical Little Later date-time for this request: ${dateTime}. Use this exact value when calling reminder or task tools, and add date criteria fields when the user asked for partial date matching.`,
@@ -479,8 +594,7 @@ export abstract class LittleAI {
 
 	protected get shouldUseHeaderlessFetch(): boolean {
 		return (
-			this.provider !== LAI_PROVIDERS.CUSTOM ||
-			this.apiKey.trim() === ""
+			this.provider !== LAI_PROVIDERS.CUSTOM || this.apiKey.trim() === ""
 		);
 	}
 
@@ -545,7 +659,9 @@ export abstract class LittleAI {
 			}
 		}
 
-		throw lastError ?? this.toLLMRequestError(new Error("LLM request failed"));
+		throw (
+			lastError ?? this.toLLMRequestError(new Error("LLM request failed"))
+		);
 	}
 
 	private shouldRetryLLMRequest(error: LLMRequestError): boolean {
@@ -555,13 +671,15 @@ export abstract class LittleAI {
 		if (error.status === undefined) {
 			return true;
 		}
-		return error.status === 408 || error.status === 409 || error.status === 429 || error.status >= 500;
+		return (
+			error.status === 408 ||
+			error.status === 409 ||
+			error.status === 429 ||
+			error.status >= 500
+		);
 	}
 
-	private getRetryDelayMs(
-		attempt: number,
-		error: LLMRequestError,
-	): number {
+	private getRetryDelayMs(attempt: number, error: LLMRequestError): number {
 		if (error.status === 429) {
 			return 1200 * (attempt + 1);
 		}
@@ -635,7 +753,8 @@ export abstract class LittleAI {
 		}
 		if (resolvedError.isParseError) {
 			return {
-				message: "The AI provider returned an unreadable response. Please retry.",
+				message:
+					"The AI provider returned an unreadable response. Please retry.",
 				actions: [],
 				expression: LFACE_EXPRESSION.FROWNING,
 			};
@@ -643,7 +762,8 @@ export abstract class LittleAI {
 		const status = resolvedError.status;
 		if (status === 401) {
 			return {
-				message: "Authentication failed (401). Check your API key in AI Settings.",
+				message:
+					"Authentication failed (401). Check your API key in AI Settings.",
 				actions: [],
 				expression: LFACE_EXPRESSION.FROWNING,
 			};
@@ -665,7 +785,8 @@ export abstract class LittleAI {
 				};
 			}
 			return {
-				message: "Request rejected (403). Verify provider permissions and credentials.",
+				message:
+					"Request rejected (403). Verify provider permissions and credentials.",
 				actions: [],
 				expression: LFACE_EXPRESSION.FROWNING,
 			};
@@ -679,7 +800,8 @@ export abstract class LittleAI {
 		}
 		if (status !== undefined && status >= 500) {
 			return {
-				message: "AI provider is temporarily unavailable. Please try again soon.",
+				message:
+					"AI provider is temporarily unavailable. Please try again soon.",
 				actions: [],
 				expression: LFACE_EXPRESSION.FROWNING,
 			};
@@ -742,6 +864,162 @@ export class OpenAICompatibleAI extends LittleAI {
 		super({ model, provider, apiKey, baseUrl });
 	}
 
+	private buildConfirmation(
+		pending: Array<PendingMutation>,
+	): LAIConfirmation {
+		return {
+			requiresPassword: pending.some(
+				(item) =>
+					item.call.function.name === "export_data" &&
+					item.args.type === LEXPORT_TYPE.IMPORTABLE,
+			),
+			items: pending.map((item) => ({
+				toolName: item.call.function.name,
+				summary: describePendingAction(
+					item.call.function.name,
+					item.args,
+				),
+				kind: confirmationKindFor(item.definition.safety),
+			})),
+		};
+	}
+
+	private buildConfirmationOutput(
+		pending: Array<PendingMutation>,
+	): LAIOutput {
+		const confirmation = this.buildConfirmation(pending);
+		const summary = confirmation.items
+			.map((item) => item.summary)
+			.join("\n");
+		return {
+			message: `I need your confirmation before changing anything:\n\n${summary}`,
+			actions: [],
+			expression: LFACE_EXPRESSION.SLIGHTLY_SMILING,
+			confirmation,
+		};
+	}
+
+	override async confirmPendingMutations(options?: {
+		password?: string;
+	}): Promise<LAIOutput> {
+		const pending = this.pendingMutations;
+		if (!pending || pending.length === 0) {
+			return {
+				message: "Nothing to confirm.",
+				actions: [],
+				expression: LFACE_EXPRESSION.FROWNING,
+			};
+		}
+		const confirmation = this.buildConfirmation(pending);
+		if (confirmation.requiresPassword) {
+			const password = options?.password?.trim() ?? "";
+			if (password === "") {
+				return {
+					message:
+						"Enter your lock password to export an importable backup.",
+					actions: [],
+					expression: LFACE_EXPRESSION.FROWNING,
+					confirmation,
+				};
+			}
+			let matchesLock = false;
+			try {
+				const currentUserProfile = await getCurrentUserProfile();
+				matchesLock = currentUserProfile
+					? await authenticateUser(
+							currentUserProfile.userId,
+							password,
+						)
+					: false;
+			} catch {
+				matchesLock = false;
+			}
+			if (!matchesLock) {
+				return {
+					message:
+						"That password does not match this profile's lock password.",
+					actions: [],
+					expression: LFACE_EXPRESSION.FROWNING,
+					confirmation,
+				};
+			}
+		}
+
+		this.pendingMutations = null;
+		const undoActions: Array<ToolUndoAction> = [];
+		const messages: Array<string> = [];
+		let hasToolError = false;
+		let expression = LFACE_EXPRESSION.SLIGHTLY_SMILING;
+
+		for (const item of pending) {
+			const normalizedArgs = item.definition.normalizeArgs(item.args);
+			const args =
+				item.call.function.name === "export_data"
+					? { ...normalizedArgs, password: options?.password }
+					: normalizedArgs;
+			try {
+				const result = await item.definition.execute(args, {
+					ai: this,
+				});
+				if (result.message) {
+					messages.push(result.message);
+				}
+				if (result.expression === LFACE_EXPRESSION.FROWNING) {
+					hasToolError = true;
+				}
+				expression = result.expression ?? expression;
+				if (result.undoAction) {
+					undoActions.push(result.undoAction);
+				}
+				this.appendToolResult(item.call.id, result);
+			} catch (error: unknown) {
+				hasToolError = true;
+				expression = LFACE_EXPRESSION.FROWNING;
+				const message =
+					error instanceof Error
+						? error.message
+						: "Tool execution failed.";
+				messages.push(message);
+				this.appendToolResult(item.call.id, {
+					message,
+					expression: LFACE_EXPRESSION.FROWNING,
+				});
+			}
+		}
+
+		this.registerUndoActions(undoActions);
+		return {
+			message:
+				messages.at(-1) ??
+				(hasToolError ? "The confirmed action failed." : "Done."),
+			actions: [],
+			expression: hasToolError ? LFACE_EXPRESSION.FROWNING : expression,
+		};
+	}
+
+	override async cancelPendingMutations(): Promise<LAIOutput> {
+		const pending = this.pendingMutations;
+		if (!pending || pending.length === 0) {
+			return {
+				message: "Nothing to cancel.",
+				actions: [],
+				expression: LFACE_EXPRESSION.FROWNING,
+			};
+		}
+		for (const item of pending) {
+			this.appendToolResult(item.call.id, {
+				message: "User cancelled this action.",
+				expression: LFACE_EXPRESSION.FROWNING,
+			});
+		}
+		this.pendingMutations = null;
+		return {
+			message: "Cancelled. Nothing was changed.",
+			actions: [],
+			expression: LFACE_EXPRESSION.FROWNING,
+		};
+	}
+
 	private parseToolArgs(rawArgs: string): Record<string, unknown> {
 		const parsedArgs = safeJSONParse<unknown>(rawArgs, {});
 		return asRecord(parsedArgs);
@@ -765,7 +1043,9 @@ export class OpenAICompatibleAI extends LittleAI {
 			return await definition.execute(normalizedArgs, { ai: this });
 		} catch (error: unknown) {
 			const message =
-				error instanceof Error ? error.message : "Tool execution failed.";
+				error instanceof Error
+					? error.message
+					: "Tool execution failed.";
 			return {
 				message,
 				expression: LFACE_EXPRESSION.FROWNING,
@@ -804,6 +1084,18 @@ export class OpenAICompatibleAI extends LittleAI {
 				round,
 			});
 		};
+
+		if (this.hasPendingConfirmation()) {
+			return {
+				message:
+					"Confirm or cancel the pending change before sending another request.",
+				actions: [],
+				expression: LFACE_EXPRESSION.FROWNING,
+				confirmation: this.buildConfirmation(
+					this.pendingMutations ?? [],
+				),
+			};
+		}
 
 		if (this.model.trim() === "" || this.baseUrl.trim() === "") {
 			return {
@@ -844,7 +1136,9 @@ export class OpenAICompatibleAI extends LittleAI {
 			try {
 				completion = await this.createChatCompletion({
 					model: this.model,
-					messages: this.buildCompletionMessages(requestContextMessages),
+					messages: this.buildCompletionMessages(
+						requestContextMessages,
+					),
 					n: 1,
 					tools,
 					tool_choice: "auto",
@@ -863,12 +1157,16 @@ export class OpenAICompatibleAI extends LittleAI {
 				role: "assistant",
 				content: assistantMessage.content ?? "",
 				tool_calls:
-					assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0
+					assistantMessage.tool_calls &&
+					assistantMessage.tool_calls.length > 0
 						? assistantMessage.tool_calls
 						: undefined,
 			});
 
-			if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
+			if (
+				!assistantMessage.tool_calls ||
+				assistantMessage.tool_calls.length === 0
+			) {
 				emitProgress("Finalizing", "finalizing", undefined, round + 1);
 				const finalMessage = sanitizeAssistantContent(
 					assistantMessage.content ?? "",
@@ -879,11 +1177,8 @@ export class OpenAICompatibleAI extends LittleAI {
 				let resolvedMessage =
 					finalMessage && finalMessage !== ""
 						? finalMessage
-						: aggregatedToolMessages.at(-1) ?? "Done.";
-				if (
-					latestToolImageMessage &&
-					!resolvedMessage.includes("![")
-				) {
+						: (aggregatedToolMessages.at(-1) ?? "Done.");
+				if (latestToolImageMessage && !resolvedMessage.includes("![")) {
 					resolvedMessage = `${resolvedMessage}\n\n${latestToolImageMessage}`;
 				}
 				const output: LAIOutput = {
@@ -900,6 +1195,7 @@ export class OpenAICompatibleAI extends LittleAI {
 				return output;
 			}
 
+			const pendingThisRound: Array<PendingMutation> = [];
 			for (const call of assistantMessage.tool_calls) {
 				emitProgress(
 					"Running tool",
@@ -907,6 +1203,18 @@ export class OpenAICompatibleAI extends LittleAI {
 					call.function.name,
 					round + 1,
 				);
+				const definition = toolRegistry.get(call.function.name);
+				if (
+					definition &&
+					toolRequiresConfirmation(call.function.name)
+				) {
+					pendingThisRound.push({
+						call,
+						definition,
+						args: this.parseToolArgs(call.function.arguments),
+					});
+					continue;
+				}
 				const result = await this.executeToolCall(call);
 				if (result.message) {
 					aggregatedToolMessages.push(result.message);
@@ -914,7 +1222,8 @@ export class OpenAICompatibleAI extends LittleAI {
 				if (result.expression === LFACE_EXPRESSION.FROWNING) {
 					hasToolError = true;
 				}
-				aggregatedExpression = result.expression ?? aggregatedExpression;
+				aggregatedExpression =
+					result.expression ?? aggregatedExpression;
 				aggregatedContent = mergeOutputContent(
 					aggregatedContent,
 					result.content,
@@ -923,6 +1232,19 @@ export class OpenAICompatibleAI extends LittleAI {
 					undoActions.push(result.undoAction);
 				}
 				this.appendToolResult(call.id, result);
+			}
+
+			if (pendingThisRound.length > 0) {
+				this.pendingMutations = pendingThisRound;
+				emitProgress("Finalizing", "finalizing", undefined, round + 1);
+				const output = this.buildConfirmationOutput(pendingThisRound);
+				if (aggregatedToolMessages.length > 0) {
+					output.message = `${aggregatedToolMessages.join("\n")}\n\n${output.message}`;
+				}
+				if (!isOutputContentEmpty(aggregatedContent)) {
+					output.content = aggregatedContent;
+				}
+				return output;
 			}
 
 			const roundDefinitions = assistantMessage.tool_calls
@@ -1048,7 +1370,8 @@ export class OpenAICompatibleAI extends LittleAI {
 			return {};
 		}
 
-		const useJSONSchema = responseFormats.get(this.provider) === "json_schema";
+		const useJSONSchema =
+			responseFormats.get(this.provider) === "json_schema";
 		const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
 			{
 				role: "user",
@@ -1065,12 +1388,12 @@ export class OpenAICompatibleAI extends LittleAI {
 				n: 1,
 				response_format: useJSONSchema
 					? {
-						type: "json_schema",
-						json_schema: jsonSchema!,
-					}
+							type: "json_schema",
+							json_schema: jsonSchema!,
+						}
 					: {
-						type: "json_object",
-					},
+							type: "json_object",
+						},
 			});
 			const rawContent = completion.choices[0].message.content || "{}";
 			return safeJSONParse(rawContent, {});

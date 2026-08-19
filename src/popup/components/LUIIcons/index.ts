@@ -1,5 +1,4 @@
 export { LIconContext, LIconBase } from "./lib";
-export * as LSSR from "./ssr";
 
 export * from "./csr/LVBM";
 export * from "./csr/LReminder";

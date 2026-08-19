@@ -1,9 +1,8 @@
 {
 	"manifest_version": 3,
 	"name": "Little Later",
-	"version": "2.0.0",
+	"version": "2.1.0",
 	"description": "A local-first Chrome extension for visual bookmarks, tasks, reminders, notes, and AI workflows.",
-	"key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy/30gtg9EtMSuyZVZ0afkbMsQ8GrWTkmD+q87XSutb7HD3aDj6Aau4PDf7474tw71iDHDWKF9IOOYvKGJobgWzdUMBVc6aC0zNMfFed9/Fr4THrU7ZMf9WCjShMmfUN3PBRtRDhqlXHhwC4J6iult2wBUz6vcRz69nRW27krQVtZuBdFXSBQh12uLAChwzuQHK6vqjBlo8UrS4yLKor5qOwtewzIGh9WVJ3cFym4hTKVhnv3/41wLpwPtQuU5HMUS6NlhK5noQsHosgSlFg8QaZmLKIfZyvnfCf9eVozKgHVOZ5sK0kq9zZ1tcSuBHP6mqt6Dl4UgYBUYsSGsneNjwIDAQAB",
 	"permissions": [
 		"storage",
 		"tabs",

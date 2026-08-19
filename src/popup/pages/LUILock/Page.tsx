@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import { useLittleTransition } from "../../hooks/useLittleTransition";
-import { LTHEME } from "little-shared/enums";
+import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { lockUser } from "../../../services/user";
+import { createToast } from "../../../services/toasts";
 import { useNavigate } from "react-router";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
@@ -12,6 +13,7 @@ import { useEffect, useState } from "react";
 import { LUserProfile } from "little-shared/types";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
+import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
 
 const Page = () => {
 	const { theme, setTheme } = useTheme();
@@ -28,12 +30,22 @@ const Page = () => {
 		if (currentUserProfile === undefined) {
 			return;
 		}
-		setExit(exitTransitions.zoomOut);
-		await lockUser({ password });
-		setTheme(LTHEME.LIGHT);
-		navigate("/browse-profiles", {
-			state: { entryTransition: entryTransitions.zoomOut },
-		});
+		try {
+			await lockUser({ password });
+			setExit(exitTransitions.zoomOut);
+			setTheme(LTHEME.LIGHT);
+			navigate("/browse-profiles", {
+				state: { entryTransition: entryTransitions.zoomOut },
+			});
+		} catch (error) {
+			console.error("Failed to lock profile.", error);
+			await createToast(
+				error instanceof Error
+					? error.message
+					: "Couldn't lock this profile.",
+				LTOAST_TYPE.ERROR,
+			);
+		}
 	};
 
 	useEffect(() => {
@@ -69,15 +81,7 @@ const Page = () => {
 							handleFunction={handleLock}
 						/>
 					) : (
-						<div
-							className={`flex h-full w-full items-center justify-center px-6 text-center text-2xl font-extrabold opacity-20 ${
-								theme === LTHEME.DARK
-									? "text-white"
-									: "text-black"
-							}`}
-						>
-							No profile to lock.
-						</div>
+						<LUIEmptyState title="No profile to lock." />
 					)}
 				</motion.div>
 			)}

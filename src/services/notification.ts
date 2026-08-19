@@ -167,16 +167,36 @@ export const createTaskReminderNotification = async (
 	});
 };
 
-// Build a worker-safe data URL so Chrome can show VBM previews in notifications.
-const blobToDataUrl = (blob: Blob): Promise<string> => {
-	return blob.arrayBuffer().then((buffer) => {
-		let binary = "";
-		const bytes = new Uint8Array(buffer);
-		for (let index = 0; index < bytes.length; index += 1) {
-			binary += String.fromCharCode(bytes[index]);
+const blobToDataUrl = async (blob: Blob): Promise<string> => {
+	if (typeof FileReader !== "undefined") {
+		try {
+			return await new Promise<string>((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = () => {
+					if (typeof reader.result === "string") {
+						resolve(reader.result);
+						return;
+					}
+					reject(new Error("Could not read preview image."));
+				};
+				reader.onerror = () =>
+					reject(new Error("Could not read preview image."));
+				reader.readAsDataURL(blob);
+			});
+		} catch {
+			// Fall through to a chunked conversion for test/jsdom blobs.
 		}
-		return `data:${blob.type || "application/octet-stream"};base64,${btoa(binary)}`;
-	});
+	}
+	const buffer = await blob.arrayBuffer();
+	const bytes = new Uint8Array(buffer);
+	let binary = "";
+	const chunkSize = 0x8000;
+	for (let index = 0; index < bytes.length; index += chunkSize) {
+		binary += String.fromCharCode(
+			...bytes.subarray(index, index + chunkSize),
+		);
+	}
+	return `data:${blob.type || "application/octet-stream"};base64,${btoa(binary)}`;
 };
 
 export const createVBMReminderNotification = async (

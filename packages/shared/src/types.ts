@@ -23,11 +23,25 @@ export type LAdhocTaskSchedule = {
     type: LTASK_SCHEDULE_TYPE.ADHOC;
 };
 
+export type LAIConfirmationKind = "mutate" | "destructive" | "external";
+
+export type LAIConfirmationItem = {
+    toolName: string;
+    summary: string;
+    kind: LAIConfirmationKind;
+};
+
+export type LAIConfirmation = {
+    items: Array<LAIConfirmationItem>;
+    requiresPassword: boolean;
+};
+
 export type LAIOutput = {
     message: string;
     content?: LAIOutputContent;
     actions: Array<() => Promise<void> | void>;
     expression: LFACE_EXPRESSION;
+    confirmation?: LAIConfirmation;
 };
 
 export type LAIOutputContent = {
@@ -114,6 +128,7 @@ export type LVaultDataPostDecrypt = {
 export type LChromeStorageRecords = {
     userSettings: LUserSettings;
     toasts: Array<LToast>;
+    activeUserId: number | null;
 };
 
 export type LTime = `${number}:${number}:${number}+${number}:${number}`;

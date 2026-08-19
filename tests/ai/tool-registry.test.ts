@@ -1,15 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { toolRegistry, tools } from "../../src/services/ai/toolRegistry";
+import {
+	toolRegistry,
+	toolRequiresConfirmation,
+	tools,
+} from "../../src/services/ai/toolRegistry";
 
 describe("ai tool registry normalization", () => {
 	it("registers the expected core tools", () => {
 		expect(toolRegistry.has("create_note")).toBe(true);
 		expect(toolRegistry.has("update_reminder")).toBe(true);
 		expect(toolRegistry.has("search_tasks")).toBe(true);
-		expect(toolRegistry.has("create_task")).toBe(false);
-		expect(toolRegistry.has("update_task")).toBe(false);
-		expect(toolRegistry.has("save_active_web_page")).toBe(false);
-		expect(toolRegistry.has("update_save")).toBe(false);
+		expect(toolRegistry.has("create_task")).toBe(true);
+		expect(toolRegistry.has("update_task")).toBe(true);
+		expect(toolRegistry.has("save_active_web_page")).toBe(true);
+		expect(toolRegistry.has("update_save")).toBe(true);
 		expect(toolRegistry.has("create_note_on_active_webpage")).toBe(false);
 		expect(toolRegistry.has("link_note_to_active_webpage")).toBe(false);
 	});
@@ -71,13 +75,68 @@ describe("ai tool registry normalization", () => {
 		expect(toolRegistry.has("get_productivity_overview")).toBe(true);
 	});
 
-	it("does not expose removed save/task mutation tools to the model", () => {
+	it("exposes confirmed save/task mutation tools and keeps page-link tools disabled", () => {
 		const toolNames = tools.map((tool) => tool.function.name);
-		expect(toolNames).not.toContain("create_task");
-		expect(toolNames).not.toContain("update_task");
-		expect(toolNames).not.toContain("save_active_web_page");
-		expect(toolNames).not.toContain("update_save");
+		expect(toolNames).toContain("create_task");
+		expect(toolNames).toContain("update_task");
+		expect(toolNames).toContain("save_active_web_page");
+		expect(toolNames).toContain("update_save");
 		expect(toolNames).not.toContain("create_note_on_active_webpage");
 		expect(toolNames).not.toContain("link_note_to_active_webpage");
+	});
+
+	it("requires confirmation for writes and not for reads", () => {
+		expect(toolRequiresConfirmation("search_notes")).toBe(false);
+		expect(toolRequiresConfirmation("get_user_name")).toBe(false);
+		expect(toolRequiresConfirmation("create_task")).toBe(true);
+		expect(toolRequiresConfirmation("update_task")).toBe(true);
+		expect(toolRequiresConfirmation("save_active_web_page")).toBe(true);
+		expect(toolRequiresConfirmation("update_save")).toBe(true);
+		expect(toolRequiresConfirmation("delete_task")).toBe(true);
+		expect(toolRequiresConfirmation("export_data")).toBe(true);
+		expect(toolRequiresConfirmation("unknown_tool")).toBe(false);
+	});
+
+	it("normalizes create/update task and save arguments", () => {
+		const createTask = toolRegistry.get("create_task");
+		const updateTask = toolRegistry.get("update_task");
+		const updateSave = toolRegistry.get("update_save");
+		expect(createTask).toBeDefined();
+		expect(updateTask).toBeDefined();
+		expect(updateSave).toBeDefined();
+
+		expect(
+			createTask!.normalizeArgs({
+				information: "  Pay rent  ",
+				label: " Rent ",
+				deadlineDate: "2026-04-08T08:00:00+05:30",
+			}),
+		).toMatchObject({
+			information: "Pay rent",
+			label: "Rent",
+			deadlineDate: "2026-04-08T08:00:00+05:30",
+			deadlineDateInvalid: false,
+		});
+
+		expect(
+			updateTask!.normalizeArgs({
+				id: "12",
+				deadlineDate: "soon",
+			}),
+		).toMatchObject({
+			id: 12,
+			deadlineDate: undefined,
+			deadlineDateInvalid: true,
+		});
+
+		expect(
+			updateSave!.normalizeArgs({
+				id: 47,
+				name: "  Streaming Home  ",
+			}),
+		).toMatchObject({
+			id: 47,
+			customName: "Streaming Home",
+		});
 	});
 });

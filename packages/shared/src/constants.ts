@@ -1,10 +1,6 @@
 import { LAI_PROVIDERS } from './enums.js';
 import { LDB, LUserSettings, LVaultDataPostDecryptTables } from './types.js';
 
-export const LCHAR_LIST = 'abcdefghijklmnopqrstuvwxyz0123456789';
-
-export const LEMPTY_CURRENT_USER_PROFILE = null;
-
 export const LTIME_LANGUAGE = 'en';
 
 export const LDATE_LANGUAGE = 'en';
@@ -71,8 +67,6 @@ export const LEMPTY_DB = {
     },
 };
 
-export const LID_LENGTH = 16;
-
 export const LMAX_NAME_LENGTH = 20;
 
 export const LMAX_REMINDER_MESSAGE_LENGTH = 256;
@@ -82,10 +76,6 @@ export const LMAX_TASK_INFORMATION_LENGTH = 256;
 export const LMAX_TASK_LABEL_LENGTH = 20;
 
 export const LNONE = 'None';
-
-export const LNOTIFY_THRESHOLD_MINUTES = 15;
-
-export const LSAVE_NOTE_LENGTH = 256;
 
 export const LTIME_FORMAT = 'HH:mm:ssZ';
 

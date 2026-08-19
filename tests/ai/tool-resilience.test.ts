@@ -38,8 +38,11 @@ describe.sequential("ai tool resilience", () => {
 		const strictTools = [
 			"create_note",
 			"create_reminder",
+			"create_task",
 			"delete_note",
 			"update_note",
+			"update_task",
+			"update_save",
 		] as const;
 
 		for (const toolName of strictTools) {

@@ -1,17 +1,18 @@
 import { db, exportLLDB } from "../utils/db";
 import { getUserSettings } from "./settings";
 import {
-	LEMPTY_VAULT_DATA_POST_DECRYPT,
 	LEMPTY_PASSWORD,
+	LEMPTY_VAULT_DATA_POST_DECRYPT,
 	LMAX_NAME_LENGTH,
 } from "little-shared/constants";
 import {
 	LUserProfile,
+	LUserSettings,
 	LVaultDataPostDecrypt,
 	LVaultDataPostDecryptTables,
 } from "little-shared/types";
-import { encrypt } from "little-shared/utils/crypto";
-import { getCurrentUserProfile, getUserAvatar } from "./user";
+import { decrypt, encrypt } from "little-shared/utils/crypto";
+import { authenticateUser, getCurrentUserProfile, getUserAvatar } from "./user";
 import { LINT_BOOLEAN, LTHEME } from "little-shared/enums";
 
 // Dexie export helpers return slightly different blob-like values across the
@@ -97,9 +98,36 @@ const readBlobArrayBuffer = async (blobLike: unknown): Promise<ArrayBuffer> => {
 	throw new Error("Could not read exported data.");
 };
 
-export const exportDataImportable = async (): Promise<void> => {
+const requireLockPassword = (
+	password: string | undefined,
+	action: "export" | "import",
+): string => {
+	const lockPassword = password?.trim() ?? "";
+	if (lockPassword === "" || lockPassword === LEMPTY_PASSWORD) {
+		throw new Error(
+			action === "export"
+				? "A lock password is required to export an importable backup."
+				: "A password is required to import this backup.",
+		);
+	}
+	return lockPassword;
+};
+
+export const createImportableExportBlob = async (
+	password?: string,
+): Promise<Blob> => {
+	const lockPassword = requireLockPassword(password, "export");
 	const currentUserProfile = await getCurrentUserProfile();
 	if (!currentUserProfile) throw new Error("No current user profile found");
+	const matchesLock = await authenticateUser(
+		currentUserProfile.userId,
+		lockPassword,
+	);
+	if (!matchesLock) {
+		throw new Error(
+			"That password does not match this profile's lock password.",
+		);
+	}
 	const userSettings = await getUserSettings();
 	// Importable exports bundle profile metadata, avatar bytes, and the encrypted
 	// vault payload into one binary envelope so another device can restore it.
@@ -112,14 +140,17 @@ export const exportDataImportable = async (): Promise<void> => {
 			await db.table(key).toArray();
 	}
 	const userVaultDataPostEncrypt = await encrypt<LVaultDataPostDecrypt>(
-		LEMPTY_PASSWORD,
+		lockPassword,
 		userVaultPostDecrypt,
 	);
 	const avatarBlob =
 		(await getUserAvatar(currentUserProfile.userId)) ?? new Blob();
 	const avatarBuffer = await readBlobArrayBuffer(avatarBlob);
-	currentUserProfile.isCurrent = LINT_BOOLEAN.FALSE;
-	const profileJsonBlob = new Blob([JSON.stringify(currentUserProfile)], {
+	const profileForExport = {
+		...currentUserProfile,
+		isCurrent: LINT_BOOLEAN.FALSE,
+	};
+	const profileJsonBlob = new Blob([JSON.stringify(profileForExport)], {
 		type: "application/json",
 	});
 	const profileJsonBuffer = await readBlobArrayBuffer(profileJsonBlob);
@@ -147,19 +178,28 @@ export const exportDataImportable = async (): Promise<void> => {
 	combined.set(new Uint8Array(vaultLength.buffer), offset);
 	offset += 4;
 	combined.set(new Uint8Array(vaultBuffer), offset);
-	offset += vaultBuffer.byteLength;
 	const exportableBlob = new Blob([combined], {
 		type: "application/octet-stream",
 	});
+	return exportableBlob;
+};
+
+export const exportDataImportable = async (
+	password?: string,
+): Promise<void> => {
+	const exportableBlob = await createImportableExportBlob(password);
 	downloadBlob(exportableBlob, "Little-Later-Importable.lldat");
 };
 
-export const exportDataReadable = async (): Promise<void> => {
+export const createReadableExportPayload = async (): Promise<{
+	db: unknown;
+	userSettings: LUserSettings;
+}> => {
 	const dbBlob = await exportLLDB();
 	const dbJSONString = await readBlobText(dbBlob);
 	const dbJSON = JSON.parse(dbJSONString);
 	const userSettings = await getUserSettings();
-	const exportable = {
+	return {
 		db: dbJSON,
 		userSettings: {
 			...userSettings,
@@ -169,6 +209,10 @@ export const exportDataReadable = async (): Promise<void> => {
 			},
 		},
 	};
+};
+
+export const exportDataReadable = async (): Promise<void> => {
+	const exportable = await createReadableExportPayload();
 	const exportableBlob = new Blob([JSON.stringify(exportable, null, 2)], {
 		type: "application/json",
 	});
@@ -207,7 +251,15 @@ const downloadBlob = (blob: Blob, filename: string): void => {
 	URL.revokeObjectURL(url);
 };
 
-export const importData = async (blob: Blob): Promise<void> => {
+const MAX_IMPORT_PROFILE_BYTES = 64 * 1024;
+const MAX_IMPORT_AVATAR_BYTES = 8 * 1024 * 1024;
+const MAX_IMPORT_VAULT_BYTES = 64 * 1024 * 1024;
+
+export const importData = async (
+	blob: Blob,
+	password?: string,
+): Promise<void> => {
+	const lockPassword = requireLockPassword(password, "import");
 	const buffer = await readBlobArrayBuffer(blob);
 	const view = new DataView(buffer);
 	let offset = 0;
@@ -216,7 +268,11 @@ export const importData = async (blob: Blob): Promise<void> => {
 	}
 	const profileLength = view.getUint32(offset, true);
 	offset += 4;
-	if (offset + profileLength > buffer.byteLength) {
+	if (
+		profileLength === 0 ||
+		profileLength > MAX_IMPORT_PROFILE_BYTES ||
+		offset + profileLength > buffer.byteLength
+	) {
 		throw new Error("Invalid profile length");
 	}
 	const profileBytes = new Uint8Array(buffer, offset, profileLength);
@@ -226,7 +282,10 @@ export const importData = async (blob: Blob): Promise<void> => {
 	}
 	const avatarLength = view.getUint32(offset, true);
 	offset += 4;
-	if (offset + avatarLength > buffer.byteLength) {
+	if (
+		avatarLength > MAX_IMPORT_AVATAR_BYTES ||
+		offset + avatarLength > buffer.byteLength
+	) {
 		throw new Error("Invalid avatar length");
 	}
 	const avatarBytes = new Uint8Array(buffer, offset, avatarLength);
@@ -237,7 +296,11 @@ export const importData = async (blob: Blob): Promise<void> => {
 	}
 	const vaultLength = view.getUint32(offset, true);
 	offset += 4;
-	if (offset + vaultLength > buffer.byteLength) {
+	if (
+		vaultLength === 0 ||
+		vaultLength > MAX_IMPORT_VAULT_BYTES ||
+		offset + vaultLength > buffer.byteLength
+	) {
 		throw new Error("Invalid vault length");
 	}
 	const vaultBytes = new Uint8Array(buffer, offset, vaultLength);
@@ -248,6 +311,19 @@ export const importData = async (blob: Blob): Promise<void> => {
 	if (offset !== buffer.byteLength) {
 		throw new Error("Extra data in the import file");
 	}
+	try {
+		const decrypted = await decrypt<unknown>(
+			lockPassword,
+			userVaultDataPostEncrypt,
+		);
+		if (!decrypted || typeof decrypted !== "object") {
+			throw new Error("Invalid vault payload");
+		}
+	} catch {
+		throw new Error(
+			"Couldn't open this backup. The password is wrong or the file is damaged.",
+		);
+	}
 	let profileJson;
 	try {
 		profileJson = JSON.parse(new TextDecoder().decode(profileBytes));
@@ -255,17 +331,23 @@ export const importData = async (blob: Blob): Promise<void> => {
 		throw new Error("Failed to parse user profile JSON");
 	}
 	const importedProfile = normalizeImportedProfile(profileJson);
-	const userId = await db.userProfileTbl.add({
-		name: importedProfile.name,
-		theme: importedProfile.theme,
-		isCurrent: LINT_BOOLEAN.FALSE,
-	});
-	await db.userVaultTbl.put({
-		userId,
-		data: userVaultDataPostEncrypt,
-	});
-	await db.userAvatarTbl.put({
-		userId,
-		blob: avatarBlob,
-	});
+	await db.transaction(
+		"rw",
+		[db.userProfileTbl, db.userVaultTbl, db.userAvatarTbl],
+		async () => {
+			const userId = await db.userProfileTbl.add({
+				name: importedProfile.name,
+				theme: importedProfile.theme,
+				isCurrent: LINT_BOOLEAN.FALSE,
+			});
+			await db.userVaultTbl.put({
+				userId,
+				data: userVaultDataPostEncrypt,
+			});
+			await db.userAvatarTbl.put({
+				userId,
+				blob: avatarBlob,
+			});
+		},
+	);
 };

@@ -1,7 +1,7 @@
 import { useLittleTransition } from "../../hooks/useLittleTransition";
 import { useTheme } from "../../hooks/useTheme";
 import { exitTransitions } from "../../../route-transitions";
-import { LEXPORT_TYPE, LTHEME } from "little-shared/enums";
+import { LEXPORT_TYPE, LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import {
@@ -11,6 +11,8 @@ import {
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
 import { LUISelectT2 } from "../../components/LUISelectT2/Component";
+import { LUITextInputT1 } from "../../components/LUITextInput/Component";
+import { createToast } from "../../../services/toasts";
 
 const Page = () => {
 	const { theme } = useTheme();
@@ -21,11 +23,29 @@ const Page = () => {
 	const [exportType, setExportType] = useState<LEXPORT_TYPE>(
 		LEXPORT_TYPE.IMPORTABLE,
 	);
+	const [lockPassword, setLockPassword] = useState("");
+	const [isExporting, setIsExporting] = useState(false);
 	const handleExport = async () => {
-		if (exportType === LEXPORT_TYPE.IMPORTABLE) {
-			await exportDataImportable();
-		} else {
-			await exportDataReadable();
+		if (isExporting) {
+			return;
+		}
+		setIsExporting(true);
+		try {
+			if (exportType === LEXPORT_TYPE.IMPORTABLE) {
+				await exportDataImportable(lockPassword);
+			} else {
+				await exportDataReadable();
+			}
+			await createToast("Export started.", LTOAST_TYPE.SUCCESS);
+		} catch (error) {
+			await createToast(
+				error instanceof Error
+					? error.message
+					: "Couldn't export your data.",
+				LTOAST_TYPE.ERROR,
+			);
+		} finally {
+			setIsExporting(false);
 		}
 	};
 	return (
@@ -55,16 +75,63 @@ const Page = () => {
 							onOptionChange={setExportType}
 						/>
 					</div>
+					{exportType === LEXPORT_TYPE.IMPORTABLE ? (
+						<>
+							<div
+								className={`mb-1 text-sm ${
+									theme === LTHEME.DARK
+										? "text-neutral-300"
+										: "text-neutral-600"
+								}`}
+							>
+								Use this profile's lock password. Passwordless
+								profiles need a lock first.
+							</div>
+							<LUITextInputT1
+								name="Lock password"
+								inputType="password"
+								passedValue={lockPassword}
+								onChange={setLockPassword}
+								lengthLimit={128}
+								disableLengthCounter
+								validate={(value) =>
+									value.trim() === ""
+										? {
+												success: false,
+												error: "Password required",
+											}
+										: { success: true, error: "" }
+								}
+							/>
+						</>
+					) : (
+						<div
+							className={`mb-2 text-sm ${
+								theme === LTHEME.DARK
+									? "text-neutral-300"
+									: "text-neutral-600"
+							}`}
+						>
+							Readable exports are plaintext and omit your AI API
+							key.
+						</div>
+					)}
 					<div className={`h-max w-full`}>
 						<button
+							type="button"
+							disabled={
+								isExporting ||
+								(exportType === LEXPORT_TYPE.IMPORTABLE &&
+									lockPassword.trim() === "")
+							}
 							className={`h-max w-max text-base ${
 								theme === LTHEME.DARK
 									? "bg-white text-black"
 									: "bg-black text-white"
-							} cursor-pointer rounded-full px-6 py-1 active:scale-95`}
+							} cursor-pointer rounded-full px-6 py-1 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60`}
 							onClick={handleExport}
 						>
-							Export
+							{isExporting ? "Exporting..." : "Export"}
 						</button>
 					</div>
 				</div>

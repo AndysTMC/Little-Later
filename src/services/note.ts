@@ -16,7 +16,10 @@ export const deleteNote = async (id: number): Promise<void> => {
 };
 
 export const updateNote = async (id: number, modifications: Partial<LNote>) => {
-	await db.noteTbl.update(id, modifications);
+	await db.noteTbl.update(id, {
+		...modifications,
+		lastModificationDate: LDateUtl.getNow(),
+	});
 };
 
 export const getNote = async (id: number): Promise<LNote | undefined> => {

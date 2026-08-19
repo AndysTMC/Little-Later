@@ -21,7 +21,7 @@ import {
 	LVisualBMInsert,
 } from "little-shared/types";
 import Dexie, { EntityTable } from "dexie";
-import { exportDB, importInto } from "dexie-export-import";
+import { exportDB } from "dexie-export-import";
 
 const db = new Dexie("LLDB") as Dexie & {
 	linkTbl: EntityTable<LLink, "id", LLinkInsert>;
@@ -49,23 +49,28 @@ db.version(1).stores({
 });
 
 const exportLLDB = async () => {
+	const currentProfile = await db.userProfileTbl
+		.where("isCurrent")
+		.equals(LINT_BOOLEAN.TRUE)
+		.first();
+	const currentUserId = currentProfile?.userId;
 	const blob = await exportDB(db, {
 		prettyJson: true,
-		skipTables: ["userVaultTbl", "imageTbl"],
+		skipTables: ["userVaultTbl"],
 		filter: (tableName, value) => {
 			if (tableName === "userProfileTbl") {
 				return (value as LUserProfile).isCurrent === LINT_BOOLEAN.TRUE;
+			}
+			if (tableName === "userAvatarTbl") {
+				return (
+					currentUserId !== undefined &&
+					(value as LUserAvatar).userId === currentUserId
+				);
 			}
 			return true;
 		},
 	});
 	return blob;
-};
-
-const importLLDB = async (blob: Blob): Promise<void> => {
-	await importInto(db, blob, {
-		overwriteValues: true,
-	});
 };
 
 const resetLLDB = async (): Promise<void> => {
@@ -77,9 +82,8 @@ const getDBTables = async (tables: Array<keyof LDB>): Promise<LDB> => {
 	const dbTables: LDB = LEMPTY_DB.value;
 	for (const table of tables) {
 		dbTables[table as keyof LDB] = await db.table(table).toArray();
-		table.toString();
 	}
 	return dbTables;
 };
 
-export { db, exportLLDB, importLLDB, resetLLDB, getDBTables };
+export { db, exportLLDB, resetLLDB, getDBTables };

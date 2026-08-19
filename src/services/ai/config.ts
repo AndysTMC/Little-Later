@@ -297,7 +297,8 @@ export const script = `
 			- "tasks due today at 5 PM" -> resolve today first, then set deadlineDateCriteria with year/month/day/hour=true.
 			- "reminders in April 2026" -> set targetDateCriteria with year/month=true only.
 			- Only set date criteria fields that the user actually asked for.
-		- create_task, update_task, save_active_web_page, update_save, create_note_on_active_webpage, and link_note_to_active_webpage are disabled; do not attempt task creation, task updates, save creation, save updates, or note-to-active-page linking via tools.
+		- create_task, update_task, save_active_web_page, and update_save are available. The user must confirm any create, update, delete, theme change, or export before it is applied.
+		- create_note_on_active_webpage and link_note_to_active_webpage remain disabled.
 		- For personal, project-context, or memory-like questions (and whenever uncertain), call search_notes before saying you do not know.
 		- Questions like "what am I working on", "what was I planning", "what did I note", or "what do you remember about X" must start with search_notes. Only use get_productivity_overview or search_tasks after checking notes when they add something the notes do not cover.
 		- Reminder message fields must contain only the reminder text. Never include dates, times, or scheduling phrases inside reminder.message.

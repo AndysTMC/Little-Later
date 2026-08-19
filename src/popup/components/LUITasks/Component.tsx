@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { LTHEME } from "little-shared/enums";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIGroup } from "../LUIGroup/Component";
+import { LUIEmptyState } from "../LUIEmptyState/Component";
 import { LUITaskMini } from "../LUITaskMini/Component";
 import { LLink, LReminder, LTask, LVisualBM } from "little-shared/types";
 import { twMerge } from "tailwind-merge";
@@ -102,20 +103,7 @@ const Component = ({
 				</LUIGroup>
 			) : null}
 			{tasks.length === 0 ? (
-				<div
-					className={`flex min-h-52 w-full grow flex-col items-center justify-center py-8 ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
-				>
-					<div
-						className={`text-5xl font-extrabold text-pretty opacity-10`}
-					>
-						No tasks yet?
-					</div>
-					<div
-						className={`text-5xl font-extrabold text-pretty opacity-10`}
-					>
-						Tap New Task!
-					</div>
-				</div>
+				<LUIEmptyState title="No tasks yet?" hint="Tap New Task." />
 			) : null}
 		</motion.div>
 	);

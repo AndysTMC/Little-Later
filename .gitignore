@@ -16,6 +16,10 @@ dist-ssr
 *.local
 dist-release
 *.tsbuildinfo
+artifacts
+test-results
+*.crx
+*.pem
 .env
 .env.*
 !.env.example

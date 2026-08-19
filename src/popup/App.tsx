@@ -34,11 +34,47 @@ import { LUIReminder } from "./pages/LUIReminder/Page";
 import { LUINote } from "./pages/LUINote/Page";
 import { LUIToasts } from "./components/LUIToasts/Component";
 import { LUIMiscSettings } from "./pages/LUIMiscSettings/Page";
+import { reconcileActiveSession } from "../services/user";
+import { useResolvedCurrentUser } from "./hooks/useCurrentUserProfile";
+
+const requiresUnlockedProfile = (pathname: string): boolean =>
+	pathname === "/home" ||
+	pathname.startsWith("/home/") ||
+	pathname === "/ai" ||
+	pathname === "/profile" ||
+	pathname.startsWith("/settings") ||
+	pathname === "/export" ||
+	pathname === "/lock" ||
+	pathname.startsWith("/vbm/") ||
+	pathname.startsWith("/task/") ||
+	pathname.startsWith("/reminder/") ||
+	pathname.startsWith("/note/");
+
+function SessionRedirect() {
+	const location = useLocation();
+	const navigate = useNavigate();
+	const { isResolved, profile } = useResolvedCurrentUser();
+
+	useEffect(() => {
+		if (!isResolved || profile) {
+			return;
+		}
+		if (requiresUnlockedProfile(location.pathname)) {
+			navigate("/browse-profiles", { replace: true });
+		}
+	}, [isResolved, profile, location.pathname, navigate]);
+
+	return null;
+}
 
 function AnimatedRoutes() {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { theme, toggleTheme } = useTheme();
+
+	useEffect(() => {
+		void reconcileActiveSession();
+	}, []);
 
 	useEffect(() => {
 		const handleBeforeUnload = () => {
@@ -104,6 +140,7 @@ function App() {
 		<HashRouter>
 			<ThemeContextProvider>
 				<HomeContextProvider>
+					<SessionRedirect />
 					<AnimatedRoutes />
 					<LUIToasts />
 				</HomeContextProvider>

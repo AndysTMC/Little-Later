@@ -13,6 +13,7 @@ import { LUIBrowsedVBM } from "../LUIBrowsedVBM/Component";
 import { usePagination } from "../../hooks/usePagination";
 import { useMemo, useState } from "react";
 import { LUIPagination } from "../LUIPagination/Component";
+import { LUIEmptyState } from "../LUIEmptyState/Component";
 import { LDateUtl } from "little-shared/utils/datetime";
 
 const Component = () => {
@@ -92,16 +93,10 @@ const Component = () => {
 						) : null}
 					</div>
 				) : (
-					<div
-						className={`flex w-full grow flex-col items-center justify-center py-8 ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
-					>
-						<div className="text-5xl font-extrabold text-pretty opacity-10">
-							No history yet?
-						</div>
-						<div className="text-5xl font-extrabold text-pretty opacity-10">
-							Visit a page to start capturing.
-						</div>
-					</div>
+					<LUIEmptyState
+						title="No history yet?"
+						hint="Visit a page to start capturing."
+					/>
 				)}
 			</div>
 		</motion.div>

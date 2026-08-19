@@ -59,6 +59,31 @@ body,
 	outline-offset: 2px;
 }
 
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+	outline: none;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="search"],
+input[type="url"],
+textarea {
+	appearance: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
 button:focus:not(:focus-visible),
 input:focus:not(:focus-visible),
 [role="tab"]:focus:not(:focus-visible) {

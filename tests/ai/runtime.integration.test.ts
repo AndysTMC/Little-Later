@@ -1,12 +1,5 @@
 /* @vitest-environment node */
-import {
-	afterEach,
-	beforeAll,
-	beforeEach,
-	describe,
-	expect,
-	it,
-} from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { AddressInfo } from "node:net";
 import { LAI_PROVIDERS, LFACE_EXPRESSION } from "little-shared/enums";
@@ -76,13 +69,18 @@ const createMockServer = async (): Promise<MockServerState> => {
 			const lastMessage = messages.at(-1);
 			if (lastMessage?.role === "user") {
 				const userText = String(lastMessage.content ?? "");
-				requestAttempts.set(userText, (requestAttempts.get(userText) ?? 0) + 1);
+				requestAttempts.set(
+					userText,
+					(requestAttempts.get(userText) ?? 0) + 1,
+				);
 				if (userText.includes("force_401")) {
 					return sendJSON(res, 401, { error: "unauthorized" });
 				}
 				if (userText.includes("retry_transient")) {
 					if ((requestAttempts.get(userText) ?? 0) === 1) {
-						return sendJSON(res, 503, { error: "temporary_unavailable" });
+						return sendJSON(res, 503, {
+							error: "temporary_unavailable",
+						});
 					}
 					return sendJSON(
 						res,
@@ -194,12 +192,17 @@ const createMockServer = async (): Promise<MockServerState> => {
 		res.end("Not Found");
 	});
 
-	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+	await new Promise<void>((resolve) =>
+		server.listen(0, "127.0.0.1", resolve),
+	);
 	const address = server.address() as AddressInfo;
 	const baseUrl = `http://127.0.0.1:${address.port}`;
 	return {
 		baseUrl,
-		close: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
+		close: () =>
+			new Promise<void>((resolve, reject) =>
+				server.close((err) => (err ? reject(err) : resolve())),
+			),
 	};
 };
 
@@ -209,7 +212,8 @@ describe("OpenAICompatibleAI integration", () => {
 
 	beforeAll(async () => {
 		(globalThis as { self?: unknown }).self = globalThis;
-		({ fetchProviderModels } = await import("../../src/services/ai/config"));
+		({ fetchProviderModels } =
+			await import("../../src/services/ai/config"));
 		({ OpenAICompatibleAI } = await import("../../src/services/ai/main"));
 	});
 
@@ -273,14 +277,18 @@ describe("OpenAICompatibleAI integration", () => {
 
 		expect(stages[0]).toBe("preparing:Preparing");
 		expect(stages[1]).toBe("reasoning:Thinking");
-		expect(stages.filter((stage) => stage === "tool:Running tool")).toHaveLength(2);
+		expect(
+			stages.filter((stage) => stage === "tool:Running tool"),
+		).toHaveLength(2);
 		expect(stages.at(-1)).toBe("finalizing:Finalizing");
 	});
 
 	it("handles malformed tool arguments without crashing", async () => {
 		const output = await ai.prompt("bad_args");
-		expect(output.message).toBe("content is required.");
-		expect(output.expression).toBe(LFACE_EXPRESSION.FROWNING);
+		expect(output.confirmation).toBeDefined();
+		const confirmed = await ai.confirmPendingMutations();
+		expect(confirmed.message).toBe("content is required.");
+		expect(confirmed.expression).toBe(LFACE_EXPRESSION.FROWNING);
 	});
 
 	it("maps 401 provider errors to user-safe output", async () => {

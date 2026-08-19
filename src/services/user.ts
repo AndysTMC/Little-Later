@@ -2,6 +2,7 @@ import {
 	LEMPTY_PASSWORD,
 	LEMPTY_VAULT_DATA_POST_DECRYPT,
 	LINITIAL_USER_SETTINGS,
+	LMAX_NAME_LENGTH,
 } from "little-shared/constants";
 import { encrypt, decrypt } from "little-shared/utils/crypto";
 import {
@@ -12,10 +13,61 @@ import {
 import { db } from "../utils/db";
 import { LINT_BOOLEAN, LTHEME } from "little-shared/enums";
 import {
+	applyUnlockedSession,
+	getActiveUserId,
 	getUserSettings,
+	normalizeUserSettings,
 	resetUserSettings,
 	updateUserSettings,
 } from "./settings";
+
+const VAULT_TABLE_KEYS = [
+	"linkTbl",
+	"noteTbl",
+	"reminderTbl",
+	"taskTbl",
+	"vbmPreviewTbl",
+	"visualBMTbl",
+] as const satisfies ReadonlyArray<keyof LVaultDataPostDecryptTables>;
+
+const asUnknownArray = (value: unknown): Array<unknown> =>
+	Array.isArray(value) ? value : [];
+
+export const sanitizeVaultData = (
+	value: unknown,
+): LVaultDataPostDecrypt => {
+	const raw =
+		value && typeof value === "object"
+			? (value as { tables?: unknown; userSettings?: unknown })
+			: {};
+	const tables =
+		raw.tables && typeof raw.tables === "object"
+			? (raw.tables as Record<string, unknown>)
+			: {};
+	return {
+		tables: {
+			linkTbl: asUnknownArray(
+				tables.linkTbl,
+			) as LVaultDataPostDecryptTables["linkTbl"],
+			noteTbl: asUnknownArray(
+				tables.noteTbl,
+			) as LVaultDataPostDecryptTables["noteTbl"],
+			reminderTbl: asUnknownArray(
+				tables.reminderTbl,
+			) as LVaultDataPostDecryptTables["reminderTbl"],
+			taskTbl: asUnknownArray(
+				tables.taskTbl,
+			) as LVaultDataPostDecryptTables["taskTbl"],
+			vbmPreviewTbl: asUnknownArray(
+				tables.vbmPreviewTbl,
+			) as LVaultDataPostDecryptTables["vbmPreviewTbl"],
+			visualBMTbl: asUnknownArray(
+				tables.visualBMTbl,
+			) as LVaultDataPostDecryptTables["visualBMTbl"],
+		},
+		userSettings: normalizeUserSettings(raw.userSettings),
+	};
+};
 
 export const authenticateUser = async (
 	id: number,
@@ -47,27 +99,34 @@ export const createUser = async (
 	name: string,
 	avatar: Blob | null,
 ): Promise<number> => {
-	const userId = await db.userProfileTbl.add({
-		name,
-		theme: LTHEME.LIGHT,
-		isCurrent: LINT_BOOLEAN.FALSE,
-	});
-	await db.userAvatarTbl.add({
-		userId,
-		blob: avatar,
-	});
-	const vaultDataPostDecrypt: LVaultDataPostDecrypt = {
+	const trimmedName = name.trim().slice(0, LMAX_NAME_LENGTH);
+	if (trimmedName === "") {
+		throw new Error("Profile name is required.");
+	}
+	const vaultDataPostEncrypt = await encrypt(LEMPTY_PASSWORD, {
 		tables: LEMPTY_VAULT_DATA_POST_DECRYPT.value,
 		userSettings: LINITIAL_USER_SETTINGS.value,
-	};
-	const vaultDataPostEncrypt = await encrypt(
-		LEMPTY_PASSWORD,
-		vaultDataPostDecrypt,
-	);
-	await db.userVaultTbl.add({
-		userId,
-		data: vaultDataPostEncrypt,
 	});
+	const userId = await db.transaction(
+		"rw",
+		[db.userProfileTbl, db.userAvatarTbl, db.userVaultTbl],
+		async () => {
+			const createdUserId = await db.userProfileTbl.add({
+				name: trimmedName,
+				theme: LTHEME.LIGHT,
+				isCurrent: LINT_BOOLEAN.FALSE,
+			});
+			await db.userAvatarTbl.add({
+				userId: createdUserId,
+				blob: avatar,
+			});
+			await db.userVaultTbl.add({
+				userId: createdUserId,
+				data: vaultDataPostEncrypt,
+			});
+			return createdUserId;
+		},
+	);
 	const currentUserProfile = await getCurrentUserProfile();
 	if (!currentUserProfile) {
 		await updateUserSettings(LINITIAL_USER_SETTINGS.value);
@@ -80,21 +139,38 @@ export const deleteUser = async (userId: number): Promise<void> => {
 	if (!userProfile) {
 		throw new Error(`No user profile found for ID: ${userId}`);
 	}
-	const isDeletingCurrentUser =
-		userProfile.isCurrent === LINT_BOOLEAN.TRUE;
-	await db.userAvatarTbl.delete(userProfile.userId);
-	await db.userVaultTbl.delete(userProfile.userId);
-	await db.userProfileTbl.delete(userProfile.userId);
-	if (!isDeletingCurrentUser) {
-		return;
+	const isDeletingCurrentUser = userProfile.isCurrent === LINT_BOOLEAN.TRUE;
+	await db.transaction(
+		"rw",
+		[
+			db.userAvatarTbl,
+			db.userVaultTbl,
+			db.userProfileTbl,
+			db.linkTbl,
+			db.noteTbl,
+			db.reminderTbl,
+			db.taskTbl,
+			db.visualBMTbl,
+			db.vbmPreviewTbl,
+		],
+		async () => {
+			await db.userAvatarTbl.delete(userProfile.userId);
+			await db.userVaultTbl.delete(userProfile.userId);
+			await db.userProfileTbl.delete(userProfile.userId);
+			if (!isDeletingCurrentUser) {
+				return;
+			}
+			await db.linkTbl.clear();
+			await db.noteTbl.clear();
+			await db.reminderTbl.clear();
+			await db.taskTbl.clear();
+			await db.visualBMTbl.clear();
+			await db.vbmPreviewTbl.clear();
+		},
+	);
+	if (isDeletingCurrentUser) {
+		await resetUserSettings();
 	}
-	await db.linkTbl.clear();
-	await db.noteTbl.clear();
-	await db.reminderTbl.clear();
-	await db.taskTbl.clear();
-	await db.visualBMTbl.clear();
-	await db.vbmPreviewTbl.clear();
-	await resetUserSettings();
 };
 
 export const getCurrentUserProfile = async (): Promise<
@@ -116,35 +192,71 @@ export const unlockUser = async (
 	password?: string,
 ): Promise<void> => {
 	const currentUserProfile = await getCurrentUserProfile();
-	if (currentUserProfile && currentUserProfile.userId !== id) {
-		throw new Error(
-			"Lock the current profile before unlocking another.",
-		);
+	if (currentUserProfile) {
+		if (currentUserProfile.userId === id) {
+			throw new Error("This profile is already unlocked.");
+		}
+		throw new Error("Lock the current profile before unlocking another.");
 	}
 	const userVault = await db.userVaultTbl.get(id);
 	if (!userVault) {
 		throw new Error(`No user vault found for user ID: ${id}`);
 	}
-	const userVaultDataPostDecrypt = await decrypt<LVaultDataPostDecrypt>(
-		password ?? LEMPTY_PASSWORD,
-		userVault.data,
+	const userVaultDataPostDecrypt = sanitizeVaultData(
+		await decrypt<unknown>(password ?? LEMPTY_PASSWORD, userVault.data),
 	);
-	const tableKeys = Object.keys(
-		userVaultDataPostDecrypt.tables,
-	) as Array<keyof LVaultDataPostDecryptTables>;
-	await db.userProfileTbl.toCollection().modify({
-		isCurrent: LINT_BOOLEAN.FALSE,
+	const workingTables = [
+		db.linkTbl,
+		db.noteTbl,
+		db.reminderTbl,
+		db.taskTbl,
+		db.visualBMTbl,
+		db.vbmPreviewTbl,
+		db.userProfileTbl,
+	];
+	await db.transaction("rw", workingTables, async () => {
+		await db.userProfileTbl.toCollection().modify({
+			isCurrent: LINT_BOOLEAN.FALSE,
+		});
+		for (const key of VAULT_TABLE_KEYS) {
+			await db.table(key).clear();
+		}
+		for (const key of VAULT_TABLE_KEYS) {
+			await db.table(key).bulkPut(userVaultDataPostDecrypt.tables[key]);
+		}
+		await db.userProfileTbl.update(id, {
+			isCurrent: LINT_BOOLEAN.TRUE,
+		});
 	});
-	for (const key of tableKeys) {
-		await db.table(key).clear();
+	try {
+		await applyUnlockedSession(
+			id,
+			userVaultDataPostDecrypt.userSettings,
+		);
+	} catch {
+		// The vault tables already switched. Reset settings rather than
+		// leaving the previous profile's AI credentials in chrome.storage.
+		await resetUserSettings();
 	}
-	for (const key of tableKeys) {
-		await db.table(key).bulkPut(userVaultDataPostDecrypt.tables[key]);
+};
+
+export const reconcileActiveSession = async (): Promise<void> => {
+	const current = await getCurrentUserProfile();
+	const storedUserId = await getActiveUserId();
+	if (!current) {
+		if (storedUserId !== null) {
+			await resetUserSettings();
+		}
+		return;
 	}
-	await db.userProfileTbl.update(id, {
-		isCurrent: LINT_BOOLEAN.TRUE,
-	});
-	await updateUserSettings(userVaultDataPostDecrypt.userSettings);
+	if (storedUserId !== current.userId) {
+		// Dexie already belongs to this profile; chrome.storage does not.
+		// Drop the previous profile's settings instead of mixing them.
+		await applyUnlockedSession(
+			current.userId,
+			LINITIAL_USER_SETTINGS.value,
+		);
+	}
 };
 
 export const lockUser = async ({
@@ -164,27 +276,61 @@ export const lockUser = async ({
 		tables: LEMPTY_VAULT_DATA_POST_DECRYPT.value,
 		userSettings: userSettings,
 	};
-	const tableKeys = Object.keys(
-		userVaultPostDecrypt.tables,
-	) as Array<keyof LVaultDataPostDecryptTables>;
-	for (const key of tableKeys) {
-		userVaultPostDecrypt.tables[key as keyof LVaultDataPostDecryptTables] =
-			await db.table(key).toArray();
+	const tableSnapshots = await Promise.all(
+		VAULT_TABLE_KEYS.map(
+			async (key) =>
+				[key, await db.table(key).toArray()] as const,
+		),
+	);
+	for (const [key, rows] of tableSnapshots) {
+		userVaultPostDecrypt.tables[key] = rows;
 	}
 	const userVaultDataPostEncrypt = await encrypt<LVaultDataPostDecrypt>(
 		password ?? LEMPTY_PASSWORD,
 		userVaultPostDecrypt,
 	);
-	await db.userVaultTbl.update(currentUserProfile.userId, {
-		data: userVaultDataPostEncrypt,
-	});
-	for (const key of tableKeys) {
-		await db.table(key).clear();
+	await db.transaction(
+		"rw",
+		[
+			db.linkTbl,
+			db.noteTbl,
+			db.reminderTbl,
+			db.taskTbl,
+			db.visualBMTbl,
+			db.vbmPreviewTbl,
+			db.userProfileTbl,
+			db.userVaultTbl,
+		],
+		async () => {
+			const updated = await db.userVaultTbl.update(
+				currentUserProfile.userId,
+				{
+					data: userVaultDataPostEncrypt,
+				},
+			);
+			if (updated === 0) {
+				await db.userVaultTbl.put({
+					userId: currentUserProfile.userId,
+					data: userVaultDataPostEncrypt,
+				});
+			}
+			for (const key of VAULT_TABLE_KEYS) {
+				await db.table(key).clear();
+			}
+			await db.userProfileTbl.update(currentUserProfile.userId, {
+				isCurrent: LINT_BOOLEAN.FALSE,
+			});
+		},
+	);
+	try {
+		await resetUserSettings();
+	} catch {
+		try {
+			await resetUserSettings();
+		} catch {
+			// The vault is already locked. Do not report lock as failed.
+		}
 	}
-	await db.userProfileTbl.update(currentUserProfile.userId, {
-		isCurrent: LINT_BOOLEAN.FALSE,
-	});
-	await resetUserSettings();
 };
 
 export const updateUserProfile = async (

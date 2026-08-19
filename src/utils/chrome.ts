@@ -20,7 +20,11 @@ export const getChromeStorageRecords = <
 				LCHROME_STORAGE_KEYS.USER_SETTINGS,
 			);
 			if (userSettingsString) {
-				result.userSettings = JSON.parse(userSettingsString);
+				try {
+					result.userSettings = JSON.parse(userSettingsString);
+				} catch {
+					localStorage.removeItem(LCHROME_STORAGE_KEYS.USER_SETTINGS);
+				}
 			}
 		}
 		if (records.toasts) {
@@ -28,7 +32,20 @@ export const getChromeStorageRecords = <
 				LCHROME_STORAGE_KEYS.TOASTS,
 			);
 			if (toastsString) {
-				result.toasts = JSON.parse(toastsString);
+				try {
+					result.toasts = JSON.parse(toastsString);
+				} catch {
+					localStorage.removeItem(LCHROME_STORAGE_KEYS.TOASTS);
+				}
+			}
+		}
+		if (records.activeUserId !== undefined) {
+			const activeUserIdString = localStorage.getItem(
+				LCHROME_STORAGE_KEYS.ACTIVE_USER_ID,
+			);
+			if (activeUserIdString !== null) {
+				const parsed = Number.parseInt(activeUserIdString, 10);
+				result.activeUserId = Number.isFinite(parsed) ? parsed : null;
 			}
 		}
 		return Promise.resolve(result as T);
@@ -63,6 +80,16 @@ export const setChromeStorageRecords = (
 				LCHROME_STORAGE_KEYS.TOASTS,
 				JSON.stringify(records.toasts),
 			);
+		}
+		if (records.activeUserId !== undefined) {
+			if (records.activeUserId === null) {
+				localStorage.removeItem(LCHROME_STORAGE_KEYS.ACTIVE_USER_ID);
+			} else {
+				localStorage.setItem(
+					LCHROME_STORAGE_KEYS.ACTIVE_USER_ID,
+					String(records.activeUserId),
+				);
+			}
 		}
 		window.dispatchEvent(new Event("little-storage-change"));
 

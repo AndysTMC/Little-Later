@@ -11,6 +11,7 @@ import { useVisualBMs } from "../../hooks/useVisualBMs";
 import { useTasks } from "../../hooks/useTasks";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
+import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
 
 const Page = () => {
 	const { theme } = useTheme();
@@ -48,15 +49,7 @@ const Page = () => {
 							tasks={tasks!}
 						/>
 					) : (
-						<div
-							className={`flex h-full w-full items-center justify-center px-6 text-center text-2xl font-extrabold opacity-20 ${
-								theme === LTHEME.DARK
-									? "text-white"
-									: "text-black"
-							}`}
-						>
-							Task not found.
-						</div>
+						<LUIEmptyState title="Task not found." />
 					)}
 				</motion.div>
 			)}

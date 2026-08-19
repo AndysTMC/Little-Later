@@ -5,13 +5,14 @@ import { useNavigate } from "react-router";
 import { motion } from "framer-motion";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import { useLittleTransition } from "../../hooks/useLittleTransition";
-import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIAvatarInput } from "../../components/LUIAvatarInput/Component";
 import { LUICUButton } from "../../components/LUICUButton/Component";
+import { LUIIconField } from "../../components/LUIIconField/Component";
 import { createUser } from "../../../services/user";
-import { LTHEME } from "little-shared/enums";
+import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { LMAX_NAME_LENGTH } from "little-shared/constants";
+import { createToast } from "../../../services/toasts";
 
 const Page = () => {
 	const { entry, exit } = useLittleTransition({
@@ -31,10 +32,19 @@ const Page = () => {
 			return;
 		}
 		await fakeWait();
-		await createUser(trimmedName, avatar);
-		navigate("/browse-profiles", {
-			state: { entryTransition: entryTransitions.slideRight },
-		});
+		try {
+			await createUser(trimmedName, avatar);
+			navigate("/browse-profiles", {
+				state: { entryTransition: entryTransitions.slideRight },
+			});
+		} catch (error) {
+			await createToast(
+				error instanceof Error
+					? error.message
+					: "Couldn't create this profile.",
+				LTOAST_TYPE.ERROR,
+			);
+		}
 	};
 
 	return (
@@ -69,40 +79,26 @@ const Page = () => {
 						/>
 					</div>
 					<div className="flex h-12 w-full items-center justify-center">
-						<div
-							className={`flex h-12 w-72 items-center rounded-lg border border-solid border-neutral-300 bg-neutral-100`}
-						>
-							<div
-								className={`flex h-12 w-16 items-center justify-center`}
-							>
-								<LUIThemedIcon
-									Icon={IdentificationBadgeIcon}
-									weight="fill"
-									className="h-7 w-7"
-									passedTheme={LTHEME.LIGHT}
-								/>
-							</div>
-							<div className={`h-full grow`}>
-								<input
-									id="little-new-profile-name"
-									type="text"
-									placeholder="Name"
-									aria-label="Profile name"
-									maxLength={LMAX_NAME_LENGTH}
-									value={name}
-									onChange={(event) =>
-										setName(event.target.value)
-									}
-									className={`h-full w-full border-none bg-transparent text-xl font-thin text-black outline-none`}
-								/>
-							</div>
-						</div>
+						<LUIIconField
+							id="little-new-profile-name"
+							icon={IdentificationBadgeIcon}
+							placeholder="Name"
+							ariaLabel="Profile name"
+							maxLength={LMAX_NAME_LENGTH}
+							value={name}
+							onChange={setName}
+							onSubmit={() => {
+								void handleCreate();
+							}}
+							passedTheme={LTHEME.LIGHT}
+						/>
 					</div>
 					<div className="flex h-12 w-full items-center justify-center">
 						<LUICUButton
 							name="Create"
 							onClick={handleCreate}
 							passedTheme={LTHEME.LIGHT}
+							disabled={name.trim() === ""}
 						/>
 					</div>
 				</div>

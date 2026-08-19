@@ -3,9 +3,10 @@ import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import { useLittleTransition } from "../../hooks/useLittleTransition";
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
-import { UploadSimpleIcon } from "@phosphor-icons/react";
+import { PasswordIcon, UploadSimpleIcon } from "@phosphor-icons/react";
+import { LUIIconField } from "../../components/LUIIconField/Component";
 import { importData } from "../../../services/dataExchange";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIProfileMini } from "../../components/LUIProfileMini/Component";
@@ -23,6 +24,9 @@ const Page = () => {
 	const loading = useLoading([userProfiles]);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const [pendingImport, setPendingImport] = useState<Blob | null>(null);
+	const [importPassword, setImportPassword] = useState("");
+	const [isImporting, setIsImporting] = useState(false);
 
 	const handleNewProfile = () => {
 		setExit(exitTransitions.slideLeft);
@@ -39,9 +43,20 @@ const Page = () => {
 		e: React.ChangeEvent<HTMLInputElement>,
 	) => {
 		if (!e.target.files?.length) return;
-		const blob = e.target.files[0];
+		setPendingImport(e.target.files[0]);
+		setImportPassword("");
+		e.target.value = "";
+	};
+
+	const handleConfirmImport = async () => {
+		if (!pendingImport || isImporting) {
+			return;
+		}
+		setIsImporting(true);
 		try {
-			await importData(blob);
+			await importData(pendingImport, importPassword);
+			setPendingImport(null);
+			setImportPassword("");
 			await createToast(
 				"Profile imported. Unlock it to continue.",
 				LTOAST_TYPE.SUCCESS,
@@ -49,11 +64,13 @@ const Page = () => {
 		} catch (error) {
 			console.error("Failed to import profile.", error);
 			await createToast(
-				"Couldn't import that file. Choose a Little Later profile export.",
+				error instanceof Error
+					? error.message
+					: "Couldn't import that file.",
 				LTOAST_TYPE.ERROR,
 			);
 		} finally {
-			e.target.value = "";
+			setIsImporting(false);
 		}
 	};
 
@@ -153,6 +170,49 @@ const Page = () => {
 							</div>
 						</div>
 					</div>
+
+					{pendingImport ? (
+						<div className="flex w-full flex-col items-center gap-y-2 px-10 pb-4">
+							<LUIIconField
+								id="little-import-password"
+								icon={PasswordIcon}
+								placeholder="Password"
+								ariaLabel="Backup password"
+								type="password"
+								autoComplete="off"
+								value={importPassword}
+								onChange={setImportPassword}
+								onSubmit={() => {
+									void handleConfirmImport();
+								}}
+								passedTheme={LTHEME.LIGHT}
+							/>
+							<div className="flex gap-x-2">
+								<button
+									type="button"
+									disabled={
+										isImporting ||
+										importPassword.trim() === ""
+									}
+									className="flex h-10 cursor-pointer items-center justify-center rounded-lg bg-black px-4 text-white disabled:cursor-not-allowed disabled:opacity-60"
+									onClick={handleConfirmImport}
+								>
+									{isImporting ? "Importing..." : "Import"}
+								</button>
+								<button
+									type="button"
+									disabled={isImporting}
+									className="flex h-10 cursor-pointer items-center justify-center rounded-lg bg-neutral-200 px-4 text-black disabled:cursor-not-allowed disabled:opacity-60"
+									onClick={() => {
+										setPendingImport(null);
+										setImportPassword("");
+									}}
+								>
+									Cancel
+								</button>
+							</div>
+						</div>
+					) : null}
 
 					<input
 						type="file"

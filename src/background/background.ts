@@ -4,7 +4,7 @@ import {
 	createNotifications,
 } from "../services/notification";
 import { getActiveTab } from "../utils/chrome";
-import { getCurrentUserProfile } from "../services/user";
+import { getCurrentUserProfile, reconcileActiveSession } from "../services/user";
 import {
 	saveActiveWebPage,
 	updateVisualBM,
@@ -117,6 +117,7 @@ const configureLocalAIRequestHeaders = async (): Promise<void> => {
 };
 
 void configureLocalAIRequestHeaders();
+void reconcileActiveSession();
 
 if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
 	chrome.storage.onChanged.addListener((changes) => {
@@ -136,6 +137,7 @@ function keepAlive() {
 }
 
 chrome.runtime.onInstalled.addListener(async (details) => {
+	await reconcileActiveSession();
 	await configureLocalAIRequestHeaders();
 	if (details.reason === "install") {
 		chrome.storage.local.clear();
@@ -166,6 +168,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 
 chrome.runtime.onStartup.addListener(async (): Promise<void> => {
+	await reconcileActiveSession();
 	await configureLocalAIRequestHeaders();
 	keepAlive();
 });

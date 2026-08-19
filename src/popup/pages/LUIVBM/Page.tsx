@@ -13,6 +13,7 @@ import { useTasks } from "../../hooks/useTasks";
 import { useParams } from "react-router";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
+import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
 
 const Page = () => {
 	const { theme } = useTheme();
@@ -56,15 +57,7 @@ const Page = () => {
 							id={parsedId}
 						/>
 					) : (
-						<div
-							className={`flex h-full w-full items-center justify-center px-6 text-center text-2xl font-extrabold opacity-20 ${
-								theme === LTHEME.DARK
-									? "text-white"
-									: "text-black"
-							}`}
-						>
-							Save not found.
-						</div>
+						<LUIEmptyState title="Save not found." />
 					)}
 				</motion.div>
 			)}

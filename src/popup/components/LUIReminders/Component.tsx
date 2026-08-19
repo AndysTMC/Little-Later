@@ -8,6 +8,7 @@ import { LDateUtl } from "little-shared/utils/datetime";
 import { usePagination } from "../../hooks/usePagination";
 import { useMemo } from "react";
 import { LUIPagination } from "../LUIPagination/Component";
+import { LUIEmptyState } from "../LUIEmptyState/Component";
 
 const Component = ({
 	className,
@@ -68,20 +69,10 @@ const Component = ({
 					</div>
 				</div>
 			) : (
-				<div
-					className={`flex h-full w-full flex-col items-center justify-center py-8 ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
-				>
-					<div
-						className={`text-5xl font-extrabold text-pretty opacity-10`}
-					>
-						No reminders yet?
-					</div>
-					<div
-						className={`text-5xl font-extrabold text-pretty opacity-10`}
-					>
-						Tap New Reminder!
-					</div>
-				</div>
+				<LUIEmptyState
+					title="No reminders yet?"
+					hint="Tap New Reminder."
+				/>
 			)}
 		</motion.div>
 	);

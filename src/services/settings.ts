@@ -4,7 +4,13 @@ import {
 	getChromeStorageRecords,
 	setChromeStorageRecords,
 } from "../utils/chrome";
-import { LINITIAL_USER_SETTINGS } from "little-shared/constants";
+import {
+	LINITIAL_USER_SETTINGS,
+	LMAX_VBM_LIMIT,
+	LMAX_VBM_SAME_ORIGIN_LIMIT,
+	LMIN_VBM_LIMIT,
+	LMIN_VBM_SAME_ORIGIN_LIMIT,
+} from "little-shared/constants";
 import { getDefaultBaseUrl } from "./ai/config";
 
 const toString = (value: unknown): string =>
@@ -95,18 +101,62 @@ const normalizeAISettings = (value: unknown): LAISettings => {
 	};
 };
 
+const clampInt = (
+	value: unknown,
+	min: number,
+	max: number,
+	fallback: number,
+): number => {
+	const parsed =
+		typeof value === "number"
+			? value
+			: typeof value === "string"
+				? Number.parseInt(value, 10)
+				: Number.NaN;
+	if (!Number.isFinite(parsed)) {
+		return fallback;
+	}
+	return Math.min(max, Math.max(min, Math.trunc(parsed)));
+};
+
+export const normalizeUserSettings = (value: unknown): LUserSettings => {
+	const defaults = LINITIAL_USER_SETTINGS.value;
+	if (!value || typeof value !== "object") {
+		return defaults;
+	}
+	const raw = value as {
+		ai?: unknown;
+		guide?: { isFirstTimeUser?: unknown };
+		misc?: { VBMLimit?: unknown; VBMSameOriginLimit?: unknown };
+	};
+	return {
+		ai: normalizeAISettings(raw.ai),
+		guide: {
+			isFirstTimeUser: raw.guide?.isFirstTimeUser === false ? false : true,
+		},
+		misc: {
+			VBMLimit: clampInt(
+				raw.misc?.VBMLimit,
+				LMIN_VBM_LIMIT,
+				LMAX_VBM_LIMIT,
+				defaults.misc.VBMLimit,
+			),
+			VBMSameOriginLimit: clampInt(
+				raw.misc?.VBMSameOriginLimit,
+				LMIN_VBM_SAME_ORIGIN_LIMIT,
+				LMAX_VBM_SAME_ORIGIN_LIMIT,
+				defaults.misc.VBMSameOriginLimit,
+			),
+		},
+	};
+};
+
 export const getUserSettings = async (): Promise<LUserSettings> => {
 	const { userSettings } = await getChromeStorageRecords({
 		userSettings: LINITIAL_USER_SETTINGS.value,
 	});
-	const normalizedAISettings = normalizeAISettings(userSettings.ai);
-	const normalizedSettings: LUserSettings = {
-		...userSettings,
-		ai: normalizedAISettings,
-	};
-	const shouldPersistNormalizedAI =
-		JSON.stringify(userSettings.ai) !== JSON.stringify(normalizedAISettings);
-	if (shouldPersistNormalizedAI) {
+	const normalizedSettings = normalizeUserSettings(userSettings);
+	if (JSON.stringify(userSettings) !== JSON.stringify(normalizedSettings)) {
 		await setChromeStorageRecords({
 			userSettings: normalizedSettings,
 		});
@@ -143,6 +193,28 @@ export const updateUserSettings = async (
 	});
 };
 
+export const getActiveUserId = async (): Promise<number | null> => {
+	const { activeUserId } = await getChromeStorageRecords({
+		activeUserId: null,
+	});
+	return typeof activeUserId === "number" && Number.isFinite(activeUserId)
+		? activeUserId
+		: null;
+};
+
+export const applyUnlockedSession = async (
+	userId: number,
+	settings: LUserSettings,
+): Promise<void> => {
+	await setChromeStorageRecords({
+		userSettings: normalizeUserSettings(settings),
+		activeUserId: userId,
+	});
+};
+
 export const resetUserSettings = async (): Promise<void> => {
-	await updateUserSettings(LINITIAL_USER_SETTINGS.value);
+	await setChromeStorageRecords({
+		userSettings: LINITIAL_USER_SETTINGS.value,
+		activeUserId: null,
+	});
 };

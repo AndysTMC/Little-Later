@@ -20,7 +20,10 @@ describe("ai prompt policy", () => {
 			'"show reminders on April 7" -> set targetDate and targetDateCriteria with year/month/day=true.',
 		);
 		expect(script).toContain(
-			"create_task, update_task, save_active_web_page, update_save, create_note_on_active_webpage, and link_note_to_active_webpage are disabled; do not attempt task creation, task updates, save creation, save updates, or note-to-active-page linking via tools.",
+			"create_task, update_task, save_active_web_page, and update_save are available. The user must confirm any create, update, delete, theme change, or export before it is applied.",
+		);
+		expect(script).toContain(
+			"create_note_on_active_webpage and link_note_to_active_webpage remain disabled.",
 		);
 	});
 });

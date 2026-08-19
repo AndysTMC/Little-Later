@@ -109,14 +109,17 @@ export const searchTasksByText = (tasks: Array<LTask>, textToSearchWith: string)
     return filteredTasks;
 };
 
+const hasFinishDate = (task: LTask): boolean =>
+    typeof task.finishDate === 'string' && task.finishDate.trim() !== '';
+
 export const isTaskActive = (task: LTask): boolean => {
     const now = LDateUtl.getNow();
     switch (task.schedule.type) {
         case LTASK_SCHEDULE_TYPE.ADHOC:
-            return task.finishDate === null;
+            return !hasFinishDate(task);
         case LTASK_SCHEDULE_TYPE.DUE:
             return (
-                task.finishDate === null &&
+                !hasFinishDate(task) &&
                 LDateUtl.from(task.schedule.deadlineInfo.deadlineDate).gte(now)
             );
         case LTASK_SCHEDULE_TYPE.RECURRING:
@@ -137,12 +140,12 @@ export const isTaskFinished = (task: LTask): boolean => {
     switch (task.schedule.type) {
         case LTASK_SCHEDULE_TYPE.ADHOC:
         case LTASK_SCHEDULE_TYPE.DUE:
-            return task.finishDate !== null;
+            return hasFinishDate(task);
         case LTASK_SCHEDULE_TYPE.RECURRING:
             const intervalStart = getStartIntervalDateFromRecurringInfo(
                 task.schedule.recurringInfo
             );
-            return task.finishDate !== null && LDateUtl.from(task.finishDate).gte(intervalStart);
+            return hasFinishDate(task) && LDateUtl.from(task.finishDate!).gte(intervalStart);
         default:
             return false;
     }

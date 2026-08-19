@@ -93,7 +93,7 @@ const Component = ({
 					theme === LTHEME.DARK
 						? "border-neutral-700 bg-black text-white focus:border-neutral-300"
 						: "border-neutral-300 bg-white text-black focus:border-neutral-700"
-				} z-10 resize-none overflow-hidden rounded-xl px-4 pt-2 pb-4 text-base transition-all duration-300 outline-none`}
+				} z-10 resize-none overflow-hidden rounded-xl px-4 pt-2 pb-4 text-base transition-colors duration-200 outline-none focus:outline-none focus-visible:outline-none`}
 				placeholder={focused ? "" : name}
 				value={passedValue}
 				onChange={handleOnChange}
