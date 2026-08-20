@@ -39,22 +39,39 @@ jobs:
             - name: Build Chrome Extension
               run: bun run build
 
-            - name: Package Release & Generate Checksums
+            - name: Package zip, signed CRX, and checksums
+              env:
+                  SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
               run: |
+                  set -euo pipefail
                   mkdir -p dist-release
 
                   VERSION="${{ github.event.inputs.tag || github.ref_name }}"
                   VERSION="${VERSION#v}"
 
-                  if [ -f "${{ github.workspace }}/dist/manifest.json" ]; then
-                    cd "${{ github.workspace }}/dist"
-                    zip -r "${{ github.workspace }}/dist-release/Little-Later-${VERSION}.zip" .
-                    cd "${{ github.workspace }}/dist-release"
-                  else
-                    echo "Chrome extension not found!"
+                  if [ -z "${SIGNING_KEY:-}" ]; then
+                    echo "SIGNING_KEY secret is missing."
+                    echo "Add an RSA private key PEM as the SIGNING_KEY Actions secret."
                     exit 1
                   fi
 
+                  if [ ! -f dist/manifest.json ]; then
+                    echo "Chrome extension build output not found at dist/manifest.json"
+                    exit 1
+                  fi
+
+                  bun scripts/pack-crx.ts inject-manifest-key dist/manifest.json
+
+                  (
+                    cd dist
+                    zip -r "${GITHUB_WORKSPACE}/dist-release/Little-Later-${VERSION}.zip" .
+                  )
+
+                  bun scripts/pack-crx.ts pack \
+                    "dist-release/Little-Later-${VERSION}.zip" \
+                    "dist-release/Little-Later-${VERSION}.crx"
+
+                  cd dist-release
                   for file in *; do
                     if [[ -f "$file" && ! "$file" =~ \.sha256$ ]]; then
                       sha256sum "$file" > "${file}.sha256"

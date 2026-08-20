@@ -20,6 +20,7 @@ artifacts
 test-results
 *.crx
 *.pem
+PLAN.md
 .env
 .env.*
 !.env.example
