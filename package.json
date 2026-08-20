@@ -10,9 +10,10 @@
 	],
 	"scripts": {
 		"dev": "vite",
-		"build": "bun run --cwd packages/shared build && tsc -b && vite build",
+		"build:shared": "bun run --cwd packages/shared build",
+		"build": "bun run build:shared && tsc -b && vite build",
 		"preview": "vite preview",
-		"test": "vitest run --environment jsdom --mode testing --passWithNoTests tests",
+		"test": "bun run build:shared && vitest run --environment jsdom --mode testing --passWithNoTests tests",
 		"test:e2e": "playwright test",
 		"screenshots": "playwright test -c playwright.visual.config.ts",
 		"test:ai:live": "bun scripts/ai-live-smoke.ts",
