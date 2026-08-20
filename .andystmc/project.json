@@ -1,0 +1,86 @@
+{
+	"version": 1,
+	"name": "Little Later",
+	"tagline": "Local-first Chrome extension for visual bookmarks, tasks, reminders, notes, and AI assist.",
+	"description": "Little Later is a Manifest V3 Chrome extension with no backend. A 500 by 600 popup stores visual bookmarks (saves and browsing history with page previews), tasks, reminders, and notes in a Dexie IndexedDB vault. A service worker captures tabs, fires notifications, and exposes context-menu save and note actions. Profiles lock with AES-GCM. AI Assist talks to Ollama, LM Studio, or a custom OpenAI-compatible endpoint and will not write or export until the user confirms in chat.",
+	"year": "2025",
+	"tags": [
+		"local-first",
+		"productivity",
+		"chrome-extension",
+		"bookmarks",
+		"tasks",
+		"reminders",
+		"notes",
+		"privacy",
+		"AI"
+	],
+	"skills": [
+		"TypeScript",
+		"React",
+		"Vite",
+		"Tailwind CSS",
+		"Dexie",
+		"IndexedDB",
+		"Chrome Extensions",
+		"Bun",
+		"Vitest",
+		"Playwright",
+		"Framer Motion",
+		"React Router",
+		"OpenAI",
+		"Web Crypto",
+		"MessagePack",
+		"GitHub Actions",
+		"Prettier"
+	],
+	"highlights": [
+		"Shipped as a self-contained MV3 extension: React popup plus a service worker for tab capture, alarms, notifications, and context menus.",
+		"Profiles encrypt the live vault with AES-GCM and PBKDF2 (100000 iterations); only one Dexie database is unlocked at a time.",
+		"AI Assist uses the OpenAI SDK against Ollama, LM Studio, or a custom compatible URL. Read tools run immediately; create, update, delete, theme, and export tools wait for in-chat Confirm.",
+		"Importable .lldat backups require the profile lock password. Readable JSON export strips AI API keys and current-profile-only Dexie data.",
+		"Vitest covers lock/unlock, session stamp, export/import, AI tool confirmation, notes, and notifications. Playwright drives a 50-state popup visual tour at 500x600.",
+		"GitHub Actions CI typechecks, tests, and builds. Release packaging can emit a zip, a CRX3 signed from the SIGNING_KEY secret, and SHA256 checksums.",
+		"Public GitHub Releases exist for v1.0.0 (2025), v2.0.0 (extension-only rebuild), and v2.1.0 (confirmed writes and lock-password backups)."
+	],
+	"story": {
+		"why": "Keep browsing captures, tasks, reminders, and notes in the browser profile instead of a hosted account, and let a local model act on that data only after a click.",
+		"problem": "Bookmarks, todos, reminders, and notes usually live in separate cloud products. A local-only Chrome popup needs capture, encryption, notifications, and optional AI without a server.",
+		"challenges": [
+			"The MV3 service worker suspends, so chrome.alarms re-run tab capture and reminder notifications every 30 seconds (src/background/background.ts).",
+			"The whole product UI is a 500x600 HashRouter popup with a custom LUI layer, not a website (src/popup/index.css, src/popup/App.tsx).",
+			"Local Ollama and LM Studio reject the extension Origin; declarativeNetRequest rewrites Origin to http://127.0.0.1 for those ports (src/background/background.ts).",
+			"One Dexie instance holds the unlocked vault. Unlocking another profile is refused; lock encrypts tables then clears them (src/services/user.ts).",
+			"AI settings live in chrome.storage.local, not in the vault, so an activeUserId stamp must fail closed on lock or switch (src/services/settings.ts, src/utils/chrome.ts).",
+			"Importable backups are a custom length-prefixed binary (profile JSON, avatar, ciphertext), not a Dexie JSON dump (src/services/dataExchange.ts).",
+			"jsdom Blob and FileReader cannot round-trip vault ciphertext; tests replace them with Node Blob helpers (tests/setup.ts).",
+			"Unsaved visual-bookmark history is LRU-capped (default 1000 total, 1 per origin) so capture does not grow without bound (src/services/visualBM.ts)."
+		],
+		"designDecisions": [
+			"Stay extension-only and local-first; v2 dropped the companion server (docs/decisions/0001-extension-only-local-first.md).",
+			"Keep a single unlocked Dexie vault named LLDB (docs/decisions/0002-single-unlocked-vault.md, src/utils/db.ts).",
+			"AI reads run immediately; mutate, destructive, and export tools queue until Confirm; Cancel feeds the model and applies nothing (docs/decisions/0003-ai-writes-need-confirmation.md, src/services/ai/main.ts).",
+			"Importable .lldat uses the real lock password; empty and LEMPTY_PASSWORD are rejected (docs/decisions/0004-lldat-real-lock-password.md).",
+			"Settings stay in chrome.storage.local with a fail-closed activeUserId stamp rather than moving into Dexie (docs/decisions/0005-settings-active-user-stamp.md).",
+			"The CRX signing private key never enters git. Release jobs read SIGNING_KEY, inject the public key into dist/manifest.json, and pack CRX3 (docs/decisions/0006-signing-keys-outside-git.md, scripts/pack-crx.ts).",
+			"Ollama and LM Studio use built-in local URLs; only Custom needs a base URL and API key (src/services/ai/config.ts).",
+			"Non-production MODE falls back from chrome.storage.local to localStorage so Vitest and the Vite popup can run without the extension APIs (src/utils/chrome.ts)."
+		]
+	},
+	"future": {
+		"next": "Cut a GitHub Release whose assets include a CRX3 signed from SIGNING_KEY, while keeping the unpacked zip as the supported Chrome install path.",
+		"roadmap": [
+			"Keep the zip Load unpacked path as the documented install; CRX sideload is blocked on some Chrome platforms (README.md, docs/decisions/0006-signing-keys-outside-git.md).",
+			"CI currently runs typecheck, Vitest, and build only. Playwright e2e and the visual tour stay as local scripts and are not CI jobs."
+		],
+		"upcomingFeatures": [
+			"create_note_on_active_webpage",
+			"link_note_to_active_webpage"
+		],
+		"ideas": [
+			"Chrome Web Store listing with a store-assigned ID (docs/decisions/0006-signing-keys-outside-git.md revisit).",
+			"Hosted sync or accounts, only if a named product decision asks for them (docs/decisions/0001-extension-only-local-first.md).",
+			"More than one profile unlocked at once (docs/decisions/0002-single-unlocked-vault.md)."
+		]
+	}
+}
