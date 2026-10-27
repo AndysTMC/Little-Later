@@ -1,8 +1,9 @@
 import { db, exportLLDB } from "../utils/db";
-import { getUserSettings } from "./settings";
+import { getUserSettings, normalizeUserSettings } from "./settings";
 import {
 	LEMPTY_PASSWORD,
 	LEMPTY_VAULT_DATA_POST_DECRYPT,
+	LINITIAL_USER_SETTINGS,
 	LMAX_NAME_LENGTH,
 } from "little-shared/constants";
 import {
@@ -251,6 +252,11 @@ const downloadBlob = (blob: Blob, filename: string): void => {
 	URL.revokeObjectURL(url);
 };
 
+const withDefaultAISettings = (userSettings: unknown): LUserSettings => ({
+	...normalizeUserSettings(userSettings),
+	ai: { ...LINITIAL_USER_SETTINGS.value.ai },
+});
+
 const MAX_IMPORT_PROFILE_BYTES = 64 * 1024;
 const MAX_IMPORT_AVATAR_BYTES = 8 * 1024 * 1024;
 const MAX_IMPORT_VAULT_BYTES = 64 * 1024 * 1024;
@@ -304,26 +310,32 @@ export const importData = async (
 		throw new Error("Invalid vault length");
 	}
 	const vaultBytes = new Uint8Array(buffer, offset, vaultLength);
-	const userVaultDataPostEncrypt = new Blob([vaultBytes], {
-		type: "application/octet-stream",
-	});
 	offset += vaultLength;
 	if (offset !== buffer.byteLength) {
 		throw new Error("Extra data in the import file");
 	}
+	let decrypted: Record<string, unknown>;
 	try {
-		const decrypted = await decrypt<unknown>(
+		const value = await decrypt<unknown>(
 			lockPassword,
-			userVaultDataPostEncrypt,
+			new Blob([vaultBytes], { type: "application/octet-stream" }),
 		);
-		if (!decrypted || typeof decrypted !== "object") {
+		if (!value || typeof value !== "object") {
 			throw new Error("Invalid vault payload");
 		}
+		decrypted = value as Record<string, unknown>;
 	} catch {
 		throw new Error(
 			"Couldn't open this backup. The password is wrong or the file is damaged.",
 		);
 	}
+	// A backup file can come from anyone. Its AI settings would decide where
+	// prompts (with personal data) and the API key are sent, so they are not
+	// trusted: the imported profile starts with default AI settings.
+	const userVaultDataPostEncrypt = await encrypt(lockPassword, {
+		...decrypted,
+		userSettings: withDefaultAISettings(decrypted.userSettings),
+	});
 	let profileJson;
 	try {
 		profileJson = JSON.parse(new TextDecoder().decode(profileBytes));

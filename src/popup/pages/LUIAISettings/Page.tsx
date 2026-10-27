@@ -16,6 +16,7 @@ import { LUILoading } from "../../components/LUILoading/Component";
 import {
 	fetchProviderModels,
 	getDefaultBaseUrl,
+	getBaseUrlProblem,
 	getResolvedBaseUrl,
 } from "../../../services/ai/config";
 import { CheckCircleIcon, CircleIcon } from "@phosphor-icons/react";
@@ -199,10 +200,14 @@ const Page = () => {
 													: prevSettings,
 											);
 										}}
-										validate={() => ({
-											success: true,
-											error: "",
-										})}
+										validate={(value) => {
+											const problem =
+												getBaseUrlProblem(value);
+											return {
+												success: problem === null,
+												error: problem ?? "",
+											};
+										}}
 										lengthLimit={256}
 										disableLengthCounter
 									/>
