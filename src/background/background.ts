@@ -13,8 +13,11 @@ import {
 import { createNote } from "../services/note";
 import { LittleAI } from "../services/ai";
 import { getUserSettings } from "../services/settings";
+import {
+	LOCAL_AI_ORIGIN_RULE_ID,
+	buildLocalAIOriginRule,
+} from "./localAIOriginRule";
 
-const LOCAL_AI_ORIGIN_RULE_ID = 91001;
 let keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
 let lastCapturedTabSignature = "";
 let lastCaptureAt = 0;
@@ -54,9 +57,6 @@ const captureVisibleTab = async (
 	});
 };
 
-const escapeRegex = (value: string): string =>
-	value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
 const collectLocalAIPorts = async (): Promise<Array<string>> => {
 	const ports = new Set(["11434", "1234"]);
 	try {
@@ -80,31 +80,8 @@ const collectLocalAIPorts = async (): Promise<Array<string>> => {
 };
 
 const configureLocalAIRequestHeaders = async (): Promise<void> => {
-	const ports = (await collectLocalAIPorts()).map(escapeRegex).join("|");
-	const rules: Array<chrome.declarativeNetRequest.Rule> = [
-		{
-			id: LOCAL_AI_ORIGIN_RULE_ID,
-			priority: 1,
-			action: {
-				type: chrome.declarativeNetRequest.RuleActionType
-					.MODIFY_HEADERS,
-				requestHeaders: [
-					{
-						header: "Origin",
-						operation:
-							chrome.declarativeNetRequest.HeaderOperation.SET,
-						value: "http://127.0.0.1",
-					},
-				],
-			},
-			condition: {
-				resourceTypes: [
-					chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
-					chrome.declarativeNetRequest.ResourceType.WEBSOCKET,
-				],
-				regexFilter: `^https?://(localhost|127\\.0\\.0\\.1):(${ports})/`,
-			},
-		},
+	const rules = [
+		buildLocalAIOriginRule(await collectLocalAIPorts(), chrome.runtime.id),
 	];
 	try {
 		await chrome.declarativeNetRequest.updateDynamicRules({
