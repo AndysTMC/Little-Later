@@ -763,6 +763,9 @@ const seedAIState = async (page: Page, providerBaseUrl: string) => {
 				}),
 			);
 			localStorage.setItem("toasts", "[]");
+			// Settings belong to the profile stamped as active (decision
+			// 0005); without the stamp the app resets them at start.
+			localStorage.setItem("activeUserId", "1");
 		},
 		{ providerBaseUrl },
 	);
@@ -844,11 +847,15 @@ test.describe("AI Assist Playwright scenarios", () => {
 	test("creates a note with AI tool call and finds it afterward", async ({
 		page,
 	}) => {
-		await askAI(
-			page,
-			"add grocery note",
-			/Created note|Created the note\./,
-		);
+		// Writes wait for in-chat confirmation (decision 0003).
+		const input = page.getByTestId("ai-assist-input");
+		await input.fill("add grocery note");
+		await input.press("Enter");
+		await expect(page.getByText("Create a note").first()).toBeVisible();
+		await page.getByRole("button", { name: "Confirm change" }).click();
+		await expect(
+			page.getByText(/Created note|Created the note\./),
+		).toBeVisible();
 		await askAI(page, "find grocery notes", "Found");
 		await expect(page.getByText(/Found \d+ note/)).toBeVisible();
 	});
