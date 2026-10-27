@@ -933,7 +933,7 @@ export class OpenAICompatibleAI extends LittleAI {
 					confirmation,
 				};
 			}
-			let matchesLock = false;
+			let matchesLock: boolean;
 			try {
 				const currentUserProfile = await getCurrentUserProfile();
 				matchesLock = currentUserProfile

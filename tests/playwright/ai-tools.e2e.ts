@@ -139,7 +139,7 @@ const createMockProviderServer = async (): Promise<MockProviderServer> => {
 
 		if (req.url === "/v1/chat/completions" && req.method === "POST") {
 			const bodyText = await readBody(req);
-			let body: Record<string, unknown> = {};
+			let body: Record<string, unknown>;
 			try {
 				body = JSON.parse(bodyText) as Record<string, unknown>;
 			} catch {
