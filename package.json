@@ -20,6 +20,7 @@
 		"test:ai:live:validate": "bun scripts/ai-live-validation.ts",
 		"type-check": "tsc --noEmit -p tsconfig.app.json",
 		"typecheck": "bun run --cwd packages/shared type-check && bun run type-check",
+		"lint": "eslint .",
 		"format": "prettier --write .",
 		"format:check": "prettier --check ."
 	},
