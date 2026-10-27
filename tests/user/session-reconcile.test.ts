@@ -3,11 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LAI_PROVIDERS } from "little-shared/enums";
 import { LINITIAL_USER_SETTINGS } from "little-shared/constants";
 import { db } from "../../src/utils/db";
-import {
-	applyUnlockedSession,
-	getActiveUserId,
-	getUserSettings,
-} from "../../src/services/settings";
+import { getActiveUserId, getUserSettings } from "../../src/services/settings";
 import {
 	createUser,
 	reconcileActiveSession,

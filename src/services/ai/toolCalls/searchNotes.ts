@@ -9,7 +9,10 @@ import {
 	quoteForPrompt,
 } from "./_utils/semanticSearch";
 
-const toolCall = async (ai: LittleAI, query: string): Promise<Array<LNote>> => {
+const toolCall = async (
+	ai: Pick<LittleAI, "getStructuredResponse">,
+	query: string,
+): Promise<Array<LNote>> => {
 	const { noteTbl } = await getDBTables(["noteTbl"]);
 	if (noteTbl === undefined) {
 		throw new Error("Note table is not available in the database.");

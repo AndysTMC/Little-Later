@@ -144,7 +144,7 @@ export const isTaskActive = (task: LTask): boolean => {
 				!hasFinishDate(task) &&
 				LDateUtl.from(task.schedule.deadlineInfo.deadlineDate).gte(now)
 			);
-		case LTASK_SCHEDULE_TYPE.RECURRING:
+		case LTASK_SCHEDULE_TYPE.RECURRING: {
 			const target = getTargetDateFromRecurringInfo(
 				task.schedule.recurringInfo,
 			);
@@ -156,6 +156,7 @@ export const isTaskActive = (task: LTask): boolean => {
 				(task.finishDate === null ||
 					LDateUtl.from(task.finishDate).lt(intervalStart))
 			);
+		}
 		default:
 			return false;
 	}
@@ -166,7 +167,7 @@ export const isTaskFinished = (task: LTask): boolean => {
 		case LTASK_SCHEDULE_TYPE.ADHOC:
 		case LTASK_SCHEDULE_TYPE.DUE:
 			return hasFinishDate(task);
-		case LTASK_SCHEDULE_TYPE.RECURRING:
+		case LTASK_SCHEDULE_TYPE.RECURRING: {
 			const intervalStart = getStartIntervalDateFromRecurringInfo(
 				task.schedule.recurringInfo,
 			);
@@ -174,6 +175,7 @@ export const isTaskFinished = (task: LTask): boolean => {
 				hasFinishDate(task) &&
 				LDateUtl.from(task.finishDate!).gte(intervalStart)
 			);
+		}
 		default:
 			return false;
 	}

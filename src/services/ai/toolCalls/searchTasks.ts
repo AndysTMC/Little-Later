@@ -12,7 +12,7 @@ import {
 import { dateMatchesCriteria, LDateMatchCriteria } from "./_utils/dateFilters";
 
 const toolCall = async (
-	ai: LittleAI,
+	ai: Pick<LittleAI, "getStructuredResponse">,
 	{
 		deadlineDate,
 		deadlineDateCriteria,
