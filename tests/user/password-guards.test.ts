@@ -1,5 +1,6 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { LEMPTY_PASSWORD } from "little-shared/constants";
 import { db } from "../../src/utils/db";
 import {
 	checkLockPassword,
@@ -29,14 +30,50 @@ describe("password guards", () => {
 
 	it("tells the lock screen whether a typed password is current, new, or a removal", async () => {
 		const passwordless = await createUser("Bo", null);
-		expect(await checkLockPassword(passwordless, "")).toBe("current");
-		expect(await checkLockPassword(passwordless, "fresh")).toBe("new");
+		expect(await checkLockPassword(passwordless, "")).toEqual({
+			kind: "current",
+		});
+		expect(await checkLockPassword(passwordless, "fresh")).toEqual({
+			kind: "new",
+		});
 
 		const userId = await createProtectedProfile("secret");
 		await unlockUser(userId, "secret");
-		expect(await checkLockPassword(userId, "secret")).toBe("current");
-		expect(await checkLockPassword(userId, "secrte")).toBe("new");
-		expect(await checkLockPassword(userId, "")).toBe("remove");
+		expect(await checkLockPassword(userId, "secret")).toEqual({
+			kind: "current",
+		});
+		expect(await checkLockPassword(userId, "secrte")).toEqual({
+			kind: "new",
+		});
+		expect(await checkLockPassword(userId, "")).toEqual({ kind: "remove" });
+	});
+
+	it("rejects the reserved sentinel and passwords with outer spaces", async () => {
+		const userId = await createUser("Di", null);
+		expect(await checkLockPassword(userId, LEMPTY_PASSWORD)).toMatchObject({
+			kind: "invalid",
+		});
+		expect(await checkLockPassword(userId, " secret")).toMatchObject({
+			kind: "invalid",
+		});
+		await unlockUser(userId);
+		await expect(lockUser({ password: LEMPTY_PASSWORD })).rejects.toThrow(
+			/reserved/,
+		);
+		await expect(lockUser({ password: "secret " })).rejects.toThrow(
+			/space/,
+		);
+	});
+
+	it("treats a profile with no vault yet as having no password", async () => {
+		const userId = await createUser("Ed", null);
+		await db.userVaultTbl.delete(userId);
+		expect(await checkLockPassword(userId, "")).toEqual({
+			kind: "current",
+		});
+		expect(await checkLockPassword(userId, "fresh")).toEqual({
+			kind: "new",
+		});
 	});
 
 	it("refuses to delete a protected profile without its password", async () => {

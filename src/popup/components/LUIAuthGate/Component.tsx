@@ -39,6 +39,9 @@ const Component = ({
 
 	const [isOperationInProgress, setIsOperationInProgress] = useState(false);
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+	// On the lock screen the main field means "new password", so deleting
+	// asks for the current password in a field of its own.
+	const [deletePassword, setDeletePassword] = useState("");
 
 	const [password, setPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
@@ -70,9 +73,11 @@ const Component = ({
 			return;
 		}
 		const check = await checkLockPassword(userProfile.userId, password);
-		if (check === "current") {
+		if (check.kind === "invalid") {
+			setWarning(check.problem);
+		} else if (check.kind === "current") {
 			await lockWith(password === "" ? undefined : password);
-		} else if (check === "new") {
+		} else if (check.kind === "new") {
 			setLockStep("confirm-new");
 			setWarning("Type the new password again to confirm it");
 		} else {
@@ -125,7 +130,7 @@ const Component = ({
 		if (!isConfirmingDelete) {
 			setIsConfirmingDelete(true);
 			setWarning(
-				"Enter this profile's current password (if it has one), then confirm",
+				"Enter this profile's current password (if it has one) below, then confirm",
 			);
 			return;
 		}
@@ -133,7 +138,7 @@ const Component = ({
 		try {
 			await deleteUser(
 				userProfile.userId,
-				password === "" ? undefined : password,
+				deletePassword === "" ? undefined : deletePassword,
 			);
 			navigate("/browse-profiles");
 		} catch (error) {
@@ -323,7 +328,7 @@ const Component = ({
 				<AnimatePresence>
 					{!isOperationInProgress ? (
 						<motion.div
-							className={`flex h-12 w-full items-center justify-center`}
+							className={`flex h-max min-h-12 w-full flex-col items-center justify-center gap-y-2`}
 							initial={{ opacity: 0 }}
 							animate={{
 								opacity: 1,
@@ -334,6 +339,25 @@ const Component = ({
 								transition: { duration: 0.3, delay: 0.3 },
 							}}
 						>
+							{isConfirmingDelete ? (
+								<LUIIconField
+									id="little-auth-delete-password"
+									name="delete-password"
+									icon={PasswordIcon}
+									placeholder="Current password"
+									ariaLabel="Current password to delete this profile"
+									type="password"
+									autoComplete="current-password"
+									value={deletePassword}
+									onChange={(nextPassword) => {
+										setDeletePassword(nextPassword);
+										setWarning("");
+									}}
+									onSubmit={() => {
+										void handleDelete();
+									}}
+								/>
+							) : null}
 							<button
 								className={`h-12 w-72 ${
 									isConfirmingDelete
