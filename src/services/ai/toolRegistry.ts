@@ -99,6 +99,9 @@ type ToolDefinition = {
 	) => Promise<ToolExecutionResult>;
 };
 
+const escapeMarkdownText = (value: string): string =>
+	value.replace(/[\\`*_{}[\]()<>#+!|~-]/g, "\\$&").replace(/\s+/g, " ");
+
 const createEmptyOutputContent = (): LAIOutputContent => ({
 	saves: [],
 	reminders: [],
@@ -859,8 +862,11 @@ const toolDefinitions: Array<ToolDefinition> = [
 				url: asTrimmedString(args.url),
 				query: asTrimmedString(args.query),
 			});
-			const saveName =
-				preview.save.customName || preview.save.title || "save";
+			// The title comes from the website, so it must not be able to
+			// add Markdown (links, images) of its own.
+			const saveName = escapeMarkdownText(
+				preview.save.customName || preview.save.title || "save",
+			);
 			const markdown = `Preview for **${saveName}**:\n\n![${saveName}](${preview.previewUrl})`;
 			return {
 				message: markdown,

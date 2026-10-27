@@ -15,6 +15,11 @@ import {
 	NotebookIcon,
 } from "@phosphor-icons/react";
 import ReactMarkdown from "react-markdown";
+import {
+	SafeMarkdownImage,
+	SafeMarkdownLink,
+	safeUrlTransform,
+} from "../../markdownSafety";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import {
@@ -375,15 +380,10 @@ const Component = ({
 					>
 						<ReactMarkdown
 							remarkPlugins={[remarkGfm, remarkBreaks]}
+							urlTransform={safeUrlTransform}
 							components={{
-								a: ({ ...props }) => (
-									<a
-										{...props}
-										target="_blank"
-										rel="noreferrer"
-										className="underline"
-									/>
-								),
+								a: SafeMarkdownLink,
+								img: SafeMarkdownImage,
 								h1: ({ ...props }) => (
 									<h1
 										{...props}

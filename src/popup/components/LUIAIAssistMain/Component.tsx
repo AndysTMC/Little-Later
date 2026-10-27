@@ -15,7 +15,12 @@ import {
 } from "@phosphor-icons/react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { fakeWait } from "little-shared/utils/misc";
-import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import ReactMarkdown from "react-markdown";
+import {
+	isInlineImageAllowed,
+	safeMarkdownComponents,
+	safeUrlTransform,
+} from "../../markdownSafety";
 import { AnimatePresence, motion } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import { LittleAI } from "../../../services/ai";
@@ -50,20 +55,12 @@ const createCellId = (): string => {
 
 const sanitizeImageUrl = (rawUrl: string): string => {
 	const trimmed = rawUrl.trim();
-	if (trimmed.startsWith("<") && trimmed.endsWith(">")) {
-		return trimmed.slice(1, -1);
+	if (trimmed.startsWith("<")) {
+		const end = trimmed.indexOf(">");
+		return end === -1 ? trimmed : trimmed.slice(1, end);
 	}
-	return trimmed;
-};
-
-const isSupportedImageUrl = (url: string): boolean => {
-	return (
-		url.startsWith("http://") ||
-		url.startsWith("https://") ||
-		url.startsWith("blob:") ||
-		url.startsWith("data:image/") ||
-		url.startsWith("chrome-extension://")
-	);
+	// Drop an optional title: ![alt](url "title")
+	return trimmed.split(/\s+/)[0] ?? "";
 };
 
 const extractMarkdownImages = (
@@ -74,7 +71,7 @@ const extractMarkdownImages = (
 		MARKDOWN_IMAGE_REGEX,
 		(_match, alt, src) => {
 			const imageUrl = sanitizeImageUrl(String(src ?? ""));
-			if (isSupportedImageUrl(imageUrl)) {
+			if (isInlineImageAllowed(imageUrl)) {
 				images.push({
 					alt: String(alt ?? "").trim() || "AI image",
 					src: imageUrl,
@@ -543,32 +540,32 @@ const AICellBase = ({
 					<div
 						className={`h-max max-w-4/5 ${theme === LTHEME.DARK ? "text-white" : "text-black"} py-1 wrap-break-word`}
 					>
-						{parsedMessage.markdown !== "" ? (
-							<ReactMarkdown
-								urlTransform={(url) => {
-									if (
-										typeof url === "string" &&
-										(url.startsWith("data:image/") ||
-											url.startsWith("blob:") ||
-											url.startsWith(
-												"chrome-extension://",
-											))
-									) {
-										return url;
-									}
-									return defaultUrlTransform(url);
-								}}
-							>
-								{parsedMessage.markdown}
-							</ReactMarkdown>
-						) : null}
-						{parsedMessage.images.map((image, index) => (
-							<AIImageAttachment
-								key={`${image.src}-${index}`}
-								src={image.src}
-								alt={image.alt}
-							/>
-						))}
+						{aiOutput.confirmation ? (
+							// A confirmation turn asks the user to approve a
+							// write, so the model's words show as plain text:
+							// no links, images or formatting can dress it up.
+							<p className="whitespace-pre-wrap">
+								{aiOutput.message}
+							</p>
+						) : (
+							<>
+								{parsedMessage.markdown !== "" ? (
+									<ReactMarkdown
+										urlTransform={safeUrlTransform}
+										components={safeMarkdownComponents}
+									>
+										{parsedMessage.markdown}
+									</ReactMarkdown>
+								) : null}
+								{parsedMessage.images.map((image, index) => (
+									<AIImageAttachment
+										key={`${image.src}-${index}`}
+										src={image.src}
+										alt={image.alt}
+									/>
+								))}
+							</>
+						)}
 						{confirmation ? (
 							<div className="mt-2 flex w-full max-w-4/5 flex-col gap-y-2">
 								{confirmation.items.length > 0 ? (

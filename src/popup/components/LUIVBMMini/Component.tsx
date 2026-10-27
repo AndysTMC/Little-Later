@@ -4,6 +4,10 @@ import { ArrowSquareRightIcon } from "@phosphor-icons/react";
 import { useContext, useState } from "react";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import Markdown from "react-markdown";
+import {
+	safeMarkdownComponents,
+	safeUrlTransform,
+} from "../../markdownSafety";
 import { twMerge } from "tailwind-merge";
 import { getDomainFromUrl } from "little-shared/utils/misc";
 import { LUIWebPreview } from "../LUIWebPreview/Component";
@@ -222,7 +226,12 @@ const Component = ({
 											: "border-neutral-400 text-neutral-700"
 									} my-0.5 rounded-lg p-2`}
 								>
-									<Markdown>{note!.content}</Markdown>
+									<Markdown
+										urlTransform={safeUrlTransform}
+										components={safeMarkdownComponents}
+									>
+										{note!.content}
+									</Markdown>
 								</div>
 							))}
 						</LUIGroup>
