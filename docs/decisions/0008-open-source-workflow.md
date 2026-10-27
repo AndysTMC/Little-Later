@@ -41,7 +41,7 @@ Option B.
 - **Templates.** Issue forms for bugs and features, a contact link to the security policy, and a PR template whose checklist mirrors the CI gates.
 - **Conduct.** Contributor Covenant 2.1, with reports going to the maintainer.
 
-Settings only the owner can change, which this record depends on: default branch `dev`; branch protection or rulesets on `main` and `dev` (PR required, CI `check` and `e2e` required, no force push, 0 approvals so a single maintainer is not blocked); squash and merge-commit merging both allowed; private vulnerability reporting on; optionally a `release` environment holding `SIGNING_KEY`, limited to `v*` tags.
+Settings only the owner can change, which this record depends on: default branch stays `main` (feature PRs target `dev` explicitly); branch protection or rulesets on `main` and `dev` (PR required, CI `check` and `e2e` required, no force push, 0 approvals so a single maintainer is not blocked); squash and merge-commit merging both allowed; private vulnerability reporting on; optionally a `release` environment holding `SIGNING_KEY`, limited to `v*` tags.
 
 ## Trade-offs against the charter
 
