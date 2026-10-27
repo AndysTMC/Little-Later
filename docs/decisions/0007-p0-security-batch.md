@@ -2,7 +2,7 @@
 
 Status: proposed
 Date: 2026-10-27
-Deciders: AndysTMC (plan approved 2026-10-27), Claude
+Deciders: AndysTMC (plan approved 2026-10-27)
 Supersedes: —
 Superseded-by: —
 
