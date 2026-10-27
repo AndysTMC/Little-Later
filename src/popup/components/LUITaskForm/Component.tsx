@@ -489,8 +489,8 @@ const Component = ({
 									}
 									onShift={(shift) => {
 										const currentDay =
-											task.schedule.recurringInfo
-												?.day ?? 1;
+											task.schedule.recurringInfo?.day ??
+											1;
 										setTask({
 											...task,
 											schedule: {
@@ -499,7 +499,10 @@ const Component = ({
 													...task.schedule
 														.recurringInfo,
 													day:
-														((currentDay - 1 + shift + 28) %
+														((currentDay -
+															1 +
+															shift +
+															28) %
 															28) +
 														1,
 												},
@@ -600,4 +603,3 @@ const Component = ({
 };
 
 export { Component as LUITaskForm };
-

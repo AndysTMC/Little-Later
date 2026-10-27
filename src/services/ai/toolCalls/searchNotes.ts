@@ -25,13 +25,12 @@ const toolCall = async (ai: LittleAI, query: string): Promise<Array<LNote>> => {
 			queryNotes.push(note);
 		}
 	});
-	const semanticCandidates = pickSemanticCandidates(
-		queryNotes,
-		noteTbl,
-	).map((note) => ({
-		id: note.id,
-		snippet: note.content.slice(0, 200),
-	}));
+	const semanticCandidates = pickSemanticCandidates(queryNotes, noteTbl).map(
+		(note) => ({
+			id: note.id,
+			snippet: note.content.slice(0, 200),
+		}),
+	);
 	const response = await ai.getStructuredResponse(
 		`
             Here is a list of notes in JSON format:

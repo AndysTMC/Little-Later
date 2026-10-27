@@ -24,9 +24,8 @@ const capture = async (page: Page, name: string, waitFor?: Locator) => {
 
 const seedProfiles = async (page: Page) => {
 	return await page.evaluate(async () => {
-		const { createUser, unlockUser } = await import(
-			"/src/services/user.ts"
-		);
+		const { createUser, unlockUser } =
+			await import("/src/services/user.ts");
 		const averyId = await createUser("Avery", null);
 		await createUser("Blake", null);
 		await unlockUser(averyId);
@@ -44,8 +43,10 @@ const seedRecords = async (page: Page) => {
 		async ({ laterDate, earlierDate, nowDate }) => {
 			const { createNote } = await import("/src/services/note.ts");
 			const { createTask } = await import("/src/services/task.ts");
-			const { createReminder } = await import("/src/services/reminder.ts");
-			const { updateVisualBM } = await import("/src/services/visualBM.ts");
+			const { createReminder } =
+				await import("/src/services/reminder.ts");
+			const { updateVisualBM } =
+				await import("/src/services/visualBM.ts");
 
 			const noteId = await createNote({
 				content:
@@ -175,7 +176,11 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	const profiles = await seedProfiles(page);
 
 	await page.goto("/#/browse-profiles");
-	await capture(page, "06-browse-profiles-two-users", page.getByText("Avery"));
+	await capture(
+		page,
+		"06-browse-profiles-two-users",
+		page.getByText("Avery"),
+	);
 
 	await page.goto("/#/home");
 	await capture(page, "07-home-saves-empty", page.getByText("No saves yet?"));
@@ -275,7 +280,11 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await page.goto("/#/settings/misc");
 	await capture(page, "35-settings-misc", page.getByText("Misc Settings"));
 	await page.goto("/#/export");
-	await capture(page, "36-export-importable", page.getByText("lock password"));
+	await capture(
+		page,
+		"36-export-importable",
+		page.getByText("lock password"),
+	);
 	await page.getByText("Importable").click();
 	await page.getByText("Readable", { exact: true }).click();
 	await capture(page, "37-export-readable", page.getByText("plaintext"));
@@ -307,9 +316,17 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await page.goto("/#/settings");
 	await capture(page, "46-settings-dark", page.getByText("Getting Started"));
 	await page.goto("/#/export");
-	await capture(page, "47-export-dark", page.getByText("Choose Export Format"));
+	await capture(
+		page,
+		"47-export-dark",
+		page.getByText("Choose Export Format"),
+	);
 	await page.goto("/#/lock");
-	await capture(page, "48-lock-dark", page.getByRole("button", { name: "Go" }));
+	await capture(
+		page,
+		"48-lock-dark",
+		page.getByRole("button", { name: "Go" }),
+	);
 	await page.goto("/#/ai");
 	await capture(page, "49-ai-dark", page.getByText("Try one of these"));
 	await page.goto("/#/note/" + ids.noteId);

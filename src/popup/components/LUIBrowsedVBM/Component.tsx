@@ -218,4 +218,3 @@ const Component = ({
 };
 
 export { Component as LUIBrowsedVBM };
-

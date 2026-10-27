@@ -69,9 +69,13 @@ describe("readable export redaction", () => {
 		expect(serialized).not.toContain("other-secret-avatar");
 		const avatarRows = (
 			payload.db as {
-				data?: { data?: Array<{ tableName?: string; rows?: unknown[] }> };
+				data?: {
+					data?: Array<{ tableName?: string; rows?: unknown[] }>;
+				};
 			}
-		).data?.data?.find((table) => table.tableName === "userAvatarTbl")?.rows;
+		).data?.data?.find(
+			(table) => table.tableName === "userAvatarTbl",
+		)?.rows;
 		if (avatarRows) {
 			expect(
 				avatarRows.every((row) => {

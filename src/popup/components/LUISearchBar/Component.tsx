@@ -69,7 +69,7 @@ const Component = ({
 				aria-label="Search saves, tasks, reminders, and notes"
 				onChange={(e) => handleOnChange(e.target.value)}
 				onFocus={handleFocus}
-				className={`h-full grow appearance-none border-0 bg-transparent text-sm font-bold text-neutral-500 outline-none ring-0 focus:outline-none focus-visible:outline-none ${theme === LTHEME.DARK ? "focus:text-neutral-100" : "focus:text-neutral-900"} rounded-full px-1 placeholder-current`}
+				className={`h-full grow appearance-none border-0 bg-transparent text-sm font-bold text-neutral-500 ring-0 outline-none focus:outline-none focus-visible:outline-none ${theme === LTHEME.DARK ? "focus:text-neutral-100" : "focus:text-neutral-900"} rounded-full px-1 placeholder-current`}
 			/>
 			{isFocused ? (
 				<button

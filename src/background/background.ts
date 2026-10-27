@@ -4,7 +4,10 @@ import {
 	createNotifications,
 } from "../services/notification";
 import { getActiveTab } from "../utils/chrome";
-import { getCurrentUserProfile, reconcileActiveSession } from "../services/user";
+import {
+	getCurrentUserProfile,
+	reconcileActiveSession,
+} from "../services/user";
 import {
 	saveActiveWebPage,
 	updateVisualBM,
@@ -70,7 +73,8 @@ const collectLocalAIPorts = async (): Promise<Array<string>> => {
 				parsed.hostname === "[::1]"
 			) {
 				ports.add(
-					parsed.port || (parsed.protocol === "https:" ? "443" : "80"),
+					parsed.port ||
+						(parsed.protocol === "https:" ? "443" : "80"),
 				);
 			}
 		}
@@ -186,7 +190,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 				await createNote({ content: info.selectionText });
 				await notifyContextAction("Selection saved as a note.");
 			} catch (error) {
-				console.error("Failed to create note from context menu.", error);
+				console.error(
+					"Failed to create note from context menu.",
+					error,
+				);
 				await notifyContextAction("Couldn't save that note.");
 			}
 		}
@@ -194,11 +201,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 		if (tab?.id !== undefined && info.selectionText) {
 			try {
 				const aiSummarize = await LittleAI.getLAISummarizeInstance();
-				const summary = await aiSummarize.summarize(info.selectionText, {
-					type: "tldr",
-					length: "medium",
-					format: "plain-text",
-				});
+				const summary = await aiSummarize.summarize(
+					info.selectionText,
+					{
+						type: "tldr",
+						length: "medium",
+						format: "plain-text",
+					},
+				);
 				await createNote({ content: summary });
 				await notifyContextAction("Quick summary saved as a note.");
 			} catch (error) {
@@ -212,11 +222,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 		if (tab?.id !== undefined && info.selectionText) {
 			try {
 				const aiSummarize = await LittleAI.getLAISummarizeInstance();
-				const keypoints = await aiSummarize.summarize(info.selectionText, {
-					type: "key-points",
-					length: "medium",
-					format: "plain-text",
-				});
+				const keypoints = await aiSummarize.summarize(
+					info.selectionText,
+					{
+						type: "key-points",
+						length: "medium",
+						format: "plain-text",
+					},
+				);
 				await createNote({ content: keypoints });
 				await notifyContextAction("Key points saved as a note.");
 			} catch (error) {

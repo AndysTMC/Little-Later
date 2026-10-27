@@ -15,12 +15,7 @@
 		"privacy",
 		"AI"
 	],
-	"skills": [
-		"TypeScript",
-		"React",
-		"Tailwind CSS",
-		"Framer Motion"
-	],
+	"skills": ["TypeScript", "React", "Tailwind CSS", "Framer Motion"],
 	"highlights": [
 		"Shipped as a self-contained MV3 extension: React popup plus a service worker for tab capture, alarms, notifications, and context menus.",
 		"Profiles encrypt the live vault with AES-GCM and PBKDF2; only one Dexie database is unlocked at a time.",

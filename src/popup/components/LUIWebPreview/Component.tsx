@@ -18,8 +18,7 @@ const Component = ({
 }) => {
 	const { theme } = useTheme();
 	const previewUrl = useObjectUrl(previewBlob);
-	const imageSrc =
-		previewUrl ?? `/images/web-preview-holder-${theme}.png`;
+	const imageSrc = previewUrl ?? `/images/web-preview-holder-${theme}.png`;
 	const handleOpenSave = () => {
 		window.open(url, "_blank", "noopener,noreferrer");
 	};

@@ -844,7 +844,11 @@ test.describe("AI Assist Playwright scenarios", () => {
 	test("creates a note with AI tool call and finds it afterward", async ({
 		page,
 	}) => {
-		await askAI(page, "add grocery note", /Created note|Created the note\./);
+		await askAI(
+			page,
+			"add grocery note",
+			/Created note|Created the note\./,
+		);
 		await askAI(page, "find grocery notes", "Found");
 		await expect(page.getByText(/Found \d+ note/)).toBeVisible();
 	});

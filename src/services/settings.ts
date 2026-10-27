@@ -16,9 +16,7 @@ import { getDefaultBaseUrl } from "./ai/config";
 const toString = (value: unknown): string =>
 	typeof value === "string" ? value : "";
 
-const getProviderFromLegacyAI = (
-	value: unknown,
-): LAI_PROVIDERS => {
+const getProviderFromLegacyAI = (value: unknown): LAI_PROVIDERS => {
 	if (value === LAI_PROVIDERS.OLLAMA) {
 		return LAI_PROVIDERS.OLLAMA;
 	}
@@ -39,11 +37,7 @@ const getBaseUrlFromLegacyAI = (
 	legacyAI: unknown,
 	provider: LAI_PROVIDERS,
 ): string => {
-	if (
-		legacyAI &&
-		typeof legacyAI === "object" &&
-		"baseUrl" in legacyAI
-	) {
+	if (legacyAI && typeof legacyAI === "object" && "baseUrl" in legacyAI) {
 		const directBaseUrl = toString(
 			(legacyAI as { baseUrl?: unknown }).baseUrl,
 		);
@@ -132,7 +126,8 @@ export const normalizeUserSettings = (value: unknown): LUserSettings => {
 	return {
 		ai: normalizeAISettings(raw.ai),
 		guide: {
-			isFirstTimeUser: raw.guide?.isFirstTimeUser === false ? false : true,
+			isFirstTimeUser:
+				raw.guide?.isFirstTimeUser === false ? false : true,
 		},
 		misc: {
 			VBMLimit: clampInt(

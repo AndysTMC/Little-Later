@@ -66,4 +66,3 @@ const Page = () => {
 };
 
 export { Page as LUIVBM };
-

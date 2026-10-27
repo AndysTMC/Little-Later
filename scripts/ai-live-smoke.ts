@@ -133,15 +133,21 @@ const runCompletionSmoke = async (
 	apiKey: string,
 	model: string,
 ): Promise<boolean> => {
-	const response = await timeoutFetch(joinUrl(baseUrl, "chat/completions"), {
-		method: "POST",
-		headers: getHeaders(apiKey),
-		body: JSON.stringify({
-			model,
-			messages: [{ role: "user", content: "Reply with exactly: smoke-ok" }],
-			temperature: 0,
-		}),
-	}, 10000);
+	const response = await timeoutFetch(
+		joinUrl(baseUrl, "chat/completions"),
+		{
+			method: "POST",
+			headers: getHeaders(apiKey),
+			body: JSON.stringify({
+				model,
+				messages: [
+					{ role: "user", content: "Reply with exactly: smoke-ok" },
+				],
+				temperature: 0,
+			}),
+		},
+		10000,
+	);
 	if (!response.ok) {
 		throw new Error(`completion status ${response.status}`);
 	}
@@ -157,37 +163,42 @@ const runToolSmoke = async (
 	apiKey: string,
 	model: string,
 ): Promise<"supported" | "unsupported"> => {
-	const response = await timeoutFetch(joinUrl(baseUrl, "chat/completions"), {
-		method: "POST",
-		headers: getHeaders(apiKey),
-		body: JSON.stringify({
-			model,
-			messages: [
-				{
-					role: "user",
-					content:
-						"Call get_current_date_time_info and then say done in final answer.",
-				},
-			],
-			tools: [
-				{
-					type: "function",
-					function: {
-						name: "get_current_date_time_info",
-						description: "Returns current date and time information",
-						parameters: {
-							type: "object",
-							properties: {},
-							required: [],
-							additionalProperties: false,
+	const response = await timeoutFetch(
+		joinUrl(baseUrl, "chat/completions"),
+		{
+			method: "POST",
+			headers: getHeaders(apiKey),
+			body: JSON.stringify({
+				model,
+				messages: [
+					{
+						role: "user",
+						content:
+							"Call get_current_date_time_info and then say done in final answer.",
+					},
+				],
+				tools: [
+					{
+						type: "function",
+						function: {
+							name: "get_current_date_time_info",
+							description:
+								"Returns current date and time information",
+							parameters: {
+								type: "object",
+								properties: {},
+								required: [],
+								additionalProperties: false,
+							},
 						},
 					},
-				},
-			],
-			tool_choice: "auto",
-			temperature: 0,
-		}),
-	}, 10000);
+				],
+				tool_choice: "auto",
+				temperature: 0,
+			}),
+		},
+		10000,
+	);
 	if (!response.ok) {
 		return "unsupported";
 	}
@@ -213,7 +224,9 @@ const run = async () => {
 
 		const models = await fetchModels(provider.baseUrl, provider.apiKey);
 		if (models.length === 0) {
-			console.log(`${providerTag} skipped (no models available / provider offline).`);
+			console.log(
+				`${providerTag} skipped (no models available / provider offline).`,
+			);
 			continue;
 		}
 
@@ -222,7 +235,9 @@ const run = async () => {
 			preferredModel !== "" && models.includes(preferredModel)
 				? preferredModel
 				: models[0];
-		console.log(`${providerTag} models ok (${models.length}) -> using ${model}`);
+		console.log(
+			`${providerTag} models ok (${models.length}) -> using ${model}`,
+		);
 
 		try {
 			const completionOk = await runCompletionSmoke(
@@ -232,7 +247,9 @@ const run = async () => {
 			);
 			if (!completionOk) {
 				failed = true;
-				console.error(`${providerTag} completion smoke failed (unexpected content).`);
+				console.error(
+					`${providerTag} completion smoke failed (unexpected content).`,
+				);
 				continue;
 			}
 			console.log(`${providerTag} completion smoke passed.`);
@@ -245,7 +262,9 @@ const run = async () => {
 			if (toolStatus === "supported") {
 				console.log(`${providerTag} tool-call smoke passed.`);
 			} else {
-				console.log(`${providerTag} tool-call smoke skipped (provider/model did not emit tool_calls).`);
+				console.log(
+					`${providerTag} tool-call smoke skipped (provider/model did not emit tool_calls).`,
+				);
 			}
 		} catch (error: unknown) {
 			failed = true;
@@ -254,7 +273,9 @@ const run = async () => {
 	}
 
 	if (checked === 0) {
-		console.log("No live AI providers were reachable. This is optional, so exiting without failure.");
+		console.log(
+			"No live AI providers were reachable. This is optional, so exiting without failure.",
+		);
 		return;
 	}
 

@@ -2,10 +2,7 @@ import { LTHEME } from "little-shared/enums";
 import { LNote } from "little-shared/types";
 import { TrashIcon } from "@phosphor-icons/react";
 import ReactMarkdown from "react-markdown";
-import {
-	safeMarkdownComponents,
-	safeUrlTransform,
-} from "../../markdownSafety";
+import { safeMarkdownComponents, safeUrlTransform } from "../../markdownSafety";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { twMerge } from "tailwind-merge";

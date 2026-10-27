@@ -4,10 +4,7 @@ import { ArrowSquareRightIcon } from "@phosphor-icons/react";
 import { useContext, useState } from "react";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import Markdown from "react-markdown";
-import {
-	safeMarkdownComponents,
-	safeUrlTransform,
-} from "../../markdownSafety";
+import { safeMarkdownComponents, safeUrlTransform } from "../../markdownSafety";
 import { twMerge } from "tailwind-merge";
 import { getDomainFromUrl } from "little-shared/utils/misc";
 import { LUIWebPreview } from "../LUIWebPreview/Component";
@@ -301,4 +298,3 @@ const Component = ({
 };
 
 export { Component as LUIVBMMini };
-

@@ -325,7 +325,9 @@ const Component = () => {
 													className="break-inside-auto"
 													note={result.data as LNote}
 													onOpen={(note) =>
-														navigate(`/note/${note.id}`)
+														navigate(
+															`/note/${note.id}`,
+														)
 													}
 													showDelete={false}
 												/>
@@ -449,4 +451,3 @@ const Component = () => {
 };
 
 export { Component as LUIHomeMain };
-
