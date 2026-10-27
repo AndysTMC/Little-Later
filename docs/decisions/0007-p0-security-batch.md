@@ -1,6 +1,6 @@
 # 0007. Close the P0 security gaps before the core rebuild
 
-Status: proposed
+Status: accepted
 Date: 2026-10-27
 Deciders: AndysTMC (plan approved 2026-10-27)
 Supersedes: —
