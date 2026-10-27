@@ -6,6 +6,10 @@ import {
 	getVisualBMs,
 } from "../../../services/visualBM";
 import { searchSavesByText } from "../../../utils/visualBM";
+import {
+	isRenderableImageType,
+	toSafeImageBlob,
+} from "../../../utils/safeImageBlob";
 
 const toUint8Array = async (value: unknown): Promise<Uint8Array> => {
 	if (value instanceof Uint8Array) {
@@ -88,13 +92,13 @@ const blobToDataUrl = async (blob: Blob): Promise<string> => {
 			binary += String.fromCharCode(byte);
 		}
 		const base64 = btoa(binary);
-		return `data:${blob.type || "image/png"};base64,${base64}`;
+		return `data:${isRenderableImageType(blob.type) ? blob.type : "image/png"};base64,${base64}`;
 	}
 	throw new Error("Could not convert preview image.");
 };
 
 const toRenderableImageUrl = async (value: unknown): Promise<string> => {
-	const blob = await normalizeToBlob(value);
+	const blob = toSafeImageBlob(await normalizeToBlob(value));
 	if (
 		typeof URL !== "undefined" &&
 		typeof URL.createObjectURL === "function"

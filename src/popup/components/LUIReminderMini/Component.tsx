@@ -225,4 +225,3 @@ const Component = ({
 };
 
 export { Component as LUIReminderMini };
-

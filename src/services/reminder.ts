@@ -57,8 +57,7 @@ export const putReminder = async (
 			reminderInsert.id = await db.reminderTbl.put({
 				...reminderInsert,
 				lastNotificationDate:
-					existingReminder?.lastNotificationDate ??
-					LDateUtl.getNow(),
+					existingReminder?.lastNotificationDate ?? LDateUtl.getNow(),
 			});
 			for (const vbmID of vbmInsertIds) {
 				await createLink({

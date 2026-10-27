@@ -467,4 +467,3 @@ const Component = ({
 };
 
 export { Component as LUITaskMini };
-

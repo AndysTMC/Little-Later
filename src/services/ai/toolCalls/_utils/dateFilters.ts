@@ -143,8 +143,7 @@ export const dateMatchesCriteria = (
 	}
 
 	const hasScopedCriteria =
-		criteria &&
-		Object.values(criteria).some((value) => value === true);
+		criteria && Object.values(criteria).some((value) => value === true);
 	if (!hasScopedCriteria) {
 		return candidateDate === filterDate;
 	}

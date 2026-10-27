@@ -23,6 +23,8 @@ describe("note preview helpers", () => {
 
 	it("formats last modified label as compact month-day-time", () => {
 		const label = getNoteCardTimeLabel("2026-04-05T17:35:00+05:30");
-		expect(label).toMatch(/^[A-Za-z]{3}\s+\d{1,2}\s+\d{1,2}:\d{2}\s+(AM|PM)$/);
+		expect(label).toMatch(
+			/^[A-Za-z]{3}\s+\d{1,2}\s+\d{1,2}:\d{2}\s+(AM|PM)$/,
+		);
 	});
 });

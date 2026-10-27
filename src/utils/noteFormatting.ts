@@ -119,7 +119,13 @@ const applyNoteFormatting = (
 		return wrapSelection(content, selection, "_", "_", "italic text");
 	}
 	if (action === "underline") {
-		return wrapSelection(content, selection, "<u>", "</u>", "underlined text");
+		return wrapSelection(
+			content,
+			selection,
+			"<u>",
+			"</u>",
+			"underlined text",
+		);
 	}
 	if (action === "strikethrough") {
 		return wrapSelection(content, selection, "~~", "~~", "struck text");
@@ -128,7 +134,13 @@ const applyNoteFormatting = (
 		return wrapSelection(content, selection, "`", "`", "code");
 	}
 	if (action === "link") {
-		return wrapSelection(content, selection, "[", "](https://example.com)", "link");
+		return wrapSelection(
+			content,
+			selection,
+			"[",
+			"](https://example.com)",
+			"link",
+		);
 	}
 	if (action === "codeBlock") {
 		const safeSelection = normalizeSelection(content, selection);
@@ -160,7 +172,11 @@ const applyNoteFormatting = (
 		return formatSelectedLines(content, selection, () => "- ");
 	}
 	if (action === "numbered") {
-		return formatSelectedLines(content, selection, (lineIndex) => `${lineIndex + 1}. `);
+		return formatSelectedLines(
+			content,
+			selection,
+			(lineIndex) => `${lineIndex + 1}. `,
+		);
 	}
 	if (action === "checklist") {
 		return formatSelectedLines(content, selection, () => "- [ ] ");

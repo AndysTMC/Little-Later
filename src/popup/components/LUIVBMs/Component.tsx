@@ -32,7 +32,9 @@ const Component = ({
 
 	const paginationSaves = useMemo(() => {
 		return [...saves]
-			.sort((a, b) => LDateUtl.compare(b.lastBrowseDate, a.lastBrowseDate))
+			.sort((a, b) =>
+				LDateUtl.compare(b.lastBrowseDate, a.lastBrowseDate),
+			)
 			.slice(startIndex, endIndex);
 	}, [saves, startIndex, endIndex]);
 
@@ -84,4 +86,3 @@ const Component = ({
 };
 
 export { Component as LUIVBMs };
-

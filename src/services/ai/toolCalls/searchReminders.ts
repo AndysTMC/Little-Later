@@ -9,13 +9,10 @@ import {
 	pickSemanticCandidates,
 	quoteForPrompt,
 } from "./_utils/semanticSearch";
-import {
-	dateMatchesCriteria,
-	LDateMatchCriteria,
-} from "./_utils/dateFilters";
+import { dateMatchesCriteria, LDateMatchCriteria } from "./_utils/dateFilters";
 
 const toolCall = async (
-	ai: LittleAI,
+	ai: Pick<LittleAI, "getStructuredResponse">,
 	{
 		query,
 		type,

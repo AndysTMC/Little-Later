@@ -55,17 +55,21 @@ const toolCall = async (): Promise<{
 			total: notes.length,
 		},
 		saves: {
-			total: saves.filter((save) => save.isSaved === LINT_BOOLEAN.TRUE).length,
+			total: saves.filter((save) => save.isSaved === LINT_BOOLEAN.TRUE)
+				.length,
 		},
 		history: {
-			total: saves.filter((save) => save.hasBrowsed === LINT_BOOLEAN.TRUE).length,
+			total: saves.filter((save) => save.hasBrowsed === LINT_BOOLEAN.TRUE)
+				.length,
 		},
 		reminders: {
 			total: reminders.length,
-			upcoming: reminders.filter((reminder) => isFutureDate(reminder.targetDate))
-				.length,
-			overdue: reminders.filter((reminder) => isPastDate(reminder.targetDate))
-				.length,
+			upcoming: reminders.filter((reminder) =>
+				isFutureDate(reminder.targetDate),
+			).length,
+			overdue: reminders.filter((reminder) =>
+				isPastDate(reminder.targetDate),
+			).length,
 		},
 		tasks: {
 			total: tasks.length,

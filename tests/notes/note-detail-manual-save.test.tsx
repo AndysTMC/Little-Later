@@ -34,8 +34,9 @@ describe("note detail manual save flow", () => {
 	};
 
 	beforeEach(async () => {
-		(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
-			true;
+		(
+			globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+		).IS_REACT_ACT_ENVIRONMENT = true;
 		container = document.createElement("div");
 		document.body.appendChild(container);
 		root = createRoot(container);
@@ -65,16 +66,18 @@ describe("note detail manual save flow", () => {
 	});
 
 	it("keeps draft local until Update is clicked", async () => {
-		const editToggle = Array.from(container.querySelectorAll("button")).find(
-			(button) => button.textContent?.trim() === "Edit",
-		);
+		const editToggle = Array.from(
+			container.querySelectorAll("button"),
+		).find((button) => button.textContent?.trim() === "Edit");
 		expect(editToggle).toBeTruthy();
 		if (!editToggle) {
 			return;
 		}
 
 		await act(async () => {
-			editToggle.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+			editToggle.dispatchEvent(
+				new MouseEvent("click", { bubbles: true }),
+			);
 		});
 
 		const textarea = container.querySelector("textarea");
@@ -95,9 +98,9 @@ describe("note detail manual save flow", () => {
 
 		expect(mocks.updateNote).not.toHaveBeenCalled();
 
-		const updateButton = Array.from(container.querySelectorAll("button")).find(
-			(button) => button.textContent?.includes("Update"),
-		);
+		const updateButton = Array.from(
+			container.querySelectorAll("button"),
+		).find((button) => button.textContent?.includes("Update"));
 		expect(updateButton).toBeTruthy();
 		if (!updateButton) {
 			return;
@@ -105,7 +108,9 @@ describe("note detail manual save flow", () => {
 		expect(updateButton.hasAttribute("disabled")).toBe(false);
 
 		await act(async () => {
-			updateButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+			updateButton.dispatchEvent(
+				new MouseEvent("click", { bubbles: true }),
+			);
 		});
 
 		expect(mocks.updateNote).toHaveBeenCalledTimes(1);

@@ -74,7 +74,7 @@ const Component = ({
 						onSubmit();
 					}
 				}}
-				className={`h-full min-w-0 grow appearance-none border-0 bg-transparent pr-4 text-xl font-light shadow-none outline-none ring-0 focus:outline-none focus-visible:outline-none ${
+				className={`h-full min-w-0 grow appearance-none border-0 bg-transparent pr-4 text-xl font-light shadow-none ring-0 outline-none focus:outline-none focus-visible:outline-none ${
 					isDark
 						? "text-white placeholder:text-neutral-500"
 						: "text-black placeholder:text-neutral-400"

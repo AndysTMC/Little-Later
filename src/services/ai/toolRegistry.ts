@@ -15,6 +15,7 @@ import {
 	LLink,
 	LRecurringInfo,
 	LReminder,
+	LTime,
 } from "little-shared/types";
 import {
 	LMAX_REMINDER_MESSAGE_LENGTH,
@@ -98,6 +99,9 @@ type ToolDefinition = {
 		context: ToolExecutionContext,
 	) => Promise<ToolExecutionResult>;
 };
+
+const escapeMarkdownText = (value: string): string =>
+	value.replace(/[\\`*_{}[\]()<>#+!|~-]/g, "\\$&").replace(/\s+/g, " ");
 
 const createEmptyOutputContent = (): LAIOutputContent => ({
 	saves: [],
@@ -190,7 +194,7 @@ const parseRecurringInfo = (value: unknown): LRecurringInfo | undefined => {
 	if (type === LRECURRING_TYPE.DAILY) {
 		return {
 			type,
-			time: normalizedTime as any,
+			time: normalizedTime as LTime,
 			weekDay: null,
 			day: null,
 			month: null,
@@ -203,7 +207,7 @@ const parseRecurringInfo = (value: unknown): LRecurringInfo | undefined => {
 		}
 		return {
 			type,
-			time: normalizedTime as any,
+			time: normalizedTime as LTime,
 			weekDay,
 			day: null,
 			month: null,
@@ -216,7 +220,7 @@ const parseRecurringInfo = (value: unknown): LRecurringInfo | undefined => {
 		}
 		return {
 			type,
-			time: normalizedTime as any,
+			time: normalizedTime as LTime,
 			day,
 			weekDay: null,
 			month: null,
@@ -236,7 +240,7 @@ const parseRecurringInfo = (value: unknown): LRecurringInfo | undefined => {
 	}
 	return {
 		type: LRECURRING_TYPE.YEARLY,
-		time: normalizedTime as any,
+		time: normalizedTime as LTime,
 		day,
 		month,
 		weekDay: null,
@@ -426,7 +430,7 @@ const deriveNoteLabel = (content: string): string => {
 };
 
 const temporalSuffixPattern =
-	/\s+(?:for|on)\s+(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*|\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?|\d{4}-\d{2}-\d{2}|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday).*/i;
+	/\s+(?:for|on)\s+(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|\d{4}-\d{2}-\d{2}|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday).*/i;
 
 const sanitizeReminderMessage = (value: string, targetDate?: LDate): string => {
 	const normalized = value.replace(/\s+/g, " ").trim();
@@ -859,8 +863,11 @@ const toolDefinitions: Array<ToolDefinition> = [
 				url: asTrimmedString(args.url),
 				query: asTrimmedString(args.query),
 			});
-			const saveName =
-				preview.save.customName || preview.save.title || "save";
+			// The title comes from the website, so it must not be able to
+			// add Markdown (links, images) of its own.
+			const saveName = escapeMarkdownText(
+				preview.save.customName || preview.save.title || "save",
+			);
 			const markdown = `Preview for **${saveName}**:\n\n![${saveName}](${preview.previewUrl})`;
 			return {
 				message: markdown,
@@ -910,7 +917,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 		}),
 		execute: async (args, context) => {
 			const query = asString(args.query) ?? "";
-			const notes = await toolCalls.searchNotes(context.ai as any, query);
+			const notes = await toolCalls.searchNotes(context.ai, query);
 			if (notes.length === 0) {
 				return {
 					message: "No notes found.",
@@ -950,18 +957,15 @@ const toolDefinitions: Array<ToolDefinition> = [
 			targetDateCriteria: asDateCriteria(args.targetDateCriteria),
 		}),
 		execute: async (args, context) => {
-			const reminders = await toolCalls.searchReminders(
-				context.ai as any,
-				{
-					query: asString(args.query),
-					type: asEnum(args.type, [
-						LREMINDER_TYPE.NORMAL,
-						LREMINDER_TYPE.ESCALATING,
-					]),
-					targetDate: asDateString(args.targetDate),
-					targetDateCriteria: asDateCriteria(args.targetDateCriteria),
-				},
-			);
+			const reminders = await toolCalls.searchReminders(context.ai, {
+				query: asString(args.query),
+				type: asEnum(args.type, [
+					LREMINDER_TYPE.NORMAL,
+					LREMINDER_TYPE.ESCALATING,
+				]),
+				targetDate: asDateString(args.targetDate),
+				targetDateCriteria: asDateCriteria(args.targetDateCriteria),
+			});
 			if (reminders.length === 0) {
 				return {
 					message: "No reminders found.",
@@ -997,7 +1001,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 			url: asTrimmedString(args.url),
 		}),
 		execute: async (args, context) => {
-			const saves = await toolCalls.searchSaves(context.ai as any, {
+			const saves = await toolCalls.searchSaves(context.ai, {
 				query: asString(args.query),
 				domain: asString(args.domain),
 				url: asString(args.url),
@@ -1050,7 +1054,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 			finishDateCriteria: asDateCriteria(args.finishDateCriteria),
 		}),
 		execute: async (args, context) => {
-			const tasks = await toolCalls.searchTasks(context.ai as any, {
+			const tasks = await toolCalls.searchTasks(context.ai, {
 				query: asString(args.query),
 				priority: asEnum(args.priority, [
 					LTASK_PRIORITY.LOW,

@@ -84,7 +84,9 @@ const Component = ({
 			) : null}
 
 			{sortedNotes.length > 0 ? (
-				<div className={`w-full grow overflow-y-auto px-4 pb-2 ${theme}-scrollbar`}>
+				<div
+					className={`w-full grow overflow-y-auto px-4 pb-2 ${theme}-scrollbar`}
+				>
 					<div className="columns-2 gap-3 [column-fill:_balance]">
 						{sortedNotes.map((note) => (
 							<LUINoteMini
@@ -109,4 +111,3 @@ const Component = ({
 };
 
 export { Component as LUINotes };
-

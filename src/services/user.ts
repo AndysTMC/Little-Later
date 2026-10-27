@@ -33,9 +33,7 @@ const VAULT_TABLE_KEYS = [
 const asUnknownArray = (value: unknown): Array<unknown> =>
 	Array.isArray(value) ? value : [];
 
-export const sanitizeVaultData = (
-	value: unknown,
-): LVaultDataPostDecrypt => {
+export const sanitizeVaultData = (value: unknown): LVaultDataPostDecrypt => {
 	const raw =
 		value && typeof value === "object"
 			? (value as { tables?: unknown; userSettings?: unknown })
@@ -95,6 +93,52 @@ export const authenticateUser = async (
 	}
 };
 
+export type LockPasswordCheck =
+	| { kind: "current" }
+	| { kind: "new" }
+	| { kind: "remove" }
+	| { kind: "invalid"; problem: string };
+
+// The sentinel would silently make the profile passwordless, and backups trim
+// passwords, so a password with outer spaces could never export or import.
+export const getNewLockPasswordProblem = (password: string): string | null => {
+	if (password === LEMPTY_PASSWORD) {
+		return "That password is reserved. Choose another one.";
+	}
+	if (password !== password.trim()) {
+		return "A password can't start or end with a space.";
+	}
+	return null;
+};
+
+// Locking re-encrypts the vault with whatever was typed, so the lock screen
+// must know whether the typed password is the current one, a new one (to be
+// typed twice), or empty on a protected profile (removes the password).
+export const checkLockPassword = async (
+	userId: number,
+	password: string,
+): Promise<LockPasswordCheck> => {
+	const problem =
+		password === "" ? null : getNewLockPasswordProblem(password);
+	if (problem !== null) {
+		return { kind: "invalid", problem };
+	}
+	let isCurrent: boolean;
+	try {
+		isCurrent = await authenticateUser(
+			userId,
+			password === "" ? undefined : password,
+		);
+	} catch {
+		// No vault yet means no password yet: empty locks as before.
+		isCurrent = password === "";
+	}
+	if (isCurrent) {
+		return { kind: "current" };
+	}
+	return password === "" ? { kind: "remove" } : { kind: "new" };
+};
+
 export const createUser = async (
 	name: string,
 	avatar: Blob | null,
@@ -134,10 +178,16 @@ export const createUser = async (
 	return userId;
 };
 
-export const deleteUser = async (userId: number): Promise<void> => {
+export const deleteUser = async (
+	userId: number,
+	password?: string,
+): Promise<void> => {
 	const userProfile = await db.userProfileTbl.get(userId);
 	if (!userProfile) {
 		throw new Error(`No user profile found for ID: ${userId}`);
+	}
+	if (!(await authenticateUser(userId, password))) {
+		throw new Error("Enter this profile's password to delete it.");
 	}
 	const isDeletingCurrentUser = userProfile.isCurrent === LINT_BOOLEAN.TRUE;
 	await db.transaction(
@@ -229,10 +279,7 @@ export const unlockUser = async (
 		});
 	});
 	try {
-		await applyUnlockedSession(
-			id,
-			userVaultDataPostDecrypt.userSettings,
-		);
+		await applyUnlockedSession(id, userVaultDataPostDecrypt.userSettings);
 	} catch {
 		// The vault tables already switched. Reset settings rather than
 		// leaving the previous profile's AI credentials in chrome.storage.
@@ -271,6 +318,11 @@ export const lockUser = async ({
 	if (!currentUserProfile) {
 		throw new Error("No current user profile found");
 	}
+	const passwordProblem =
+		password === undefined ? null : getNewLockPasswordProblem(password);
+	if (passwordProblem !== null) {
+		throw new Error(passwordProblem);
+	}
 	const userSettings = await getUserSettings();
 	const userVaultPostDecrypt: LVaultDataPostDecrypt = {
 		tables: LEMPTY_VAULT_DATA_POST_DECRYPT.value,
@@ -278,8 +330,7 @@ export const lockUser = async ({
 	};
 	const tableSnapshots = await Promise.all(
 		VAULT_TABLE_KEYS.map(
-			async (key) =>
-				[key, await db.table(key).toArray()] as const,
+			async (key) => [key, await db.table(key).toArray()] as const,
 		),
 	);
 	for (const [key, rows] of tableSnapshots) {

@@ -16,6 +16,7 @@ import { LUILoading } from "../../components/LUILoading/Component";
 import {
 	fetchProviderModels,
 	getDefaultBaseUrl,
+	getBaseUrlProblem,
 	getResolvedBaseUrl,
 } from "../../../services/ai/config";
 import { CheckCircleIcon, CircleIcon } from "@phosphor-icons/react";
@@ -178,13 +179,15 @@ const Page = () => {
 										testId="ai-provider-select"
 										options={AIProviderList}
 										currentOption={
-											aiSettings?.provider ?? LAI_PROVIDERS.OLLAMA
+											aiSettings?.provider ??
+											LAI_PROVIDERS.OLLAMA
 										}
 										onOptionChange={handleProviderChange}
 									/>
 								</div>
 
-								{aiSettings?.provider === LAI_PROVIDERS.CUSTOM ? (
+								{aiSettings?.provider ===
+								LAI_PROVIDERS.CUSTOM ? (
 									<LUITextInputT1
 										name="Base URL"
 										inputType="url"
@@ -193,16 +196,20 @@ const Page = () => {
 											setAISettings((prevSettings) =>
 												prevSettings
 													? {
-														...prevSettings,
-														baseUrl: value,
-													}
+															...prevSettings,
+															baseUrl: value,
+														}
 													: prevSettings,
 											);
 										}}
-										validate={() => ({
-											success: true,
-											error: "",
-										})}
+										validate={(value) => {
+											const problem =
+												getBaseUrlProblem(value);
+											return {
+												success: problem === null,
+												error: problem ?? "",
+											};
+										}}
 										lengthLimit={256}
 										disableLengthCounter
 									/>
@@ -214,9 +221,10 @@ const Page = () => {
 												: "border-neutral-300 text-neutral-700"
 										}`}
 									>
-										Using built-in URL: {" "}
+										Using built-in URL:{" "}
 										{getDefaultBaseUrl(
-											aiSettings?.provider ?? LAI_PROVIDERS.OLLAMA,
+											aiSettings?.provider ??
+												LAI_PROVIDERS.OLLAMA,
 										)}
 									</div>
 								)}
@@ -239,7 +247,10 @@ const Page = () => {
 										success: true,
 										error: "",
 									})}
-									disabled={aiSettings?.provider !== LAI_PROVIDERS.CUSTOM}
+									disabled={
+										aiSettings?.provider !==
+										LAI_PROVIDERS.CUSTOM
+									}
 									lengthLimit={256}
 									disableLengthCounter
 								/>
@@ -285,36 +296,45 @@ const Page = () => {
 										) : (
 											models.map((modelName) => {
 												const isSelected =
-													(aiSettings?.model ?? "") === modelName;
+													(aiSettings?.model ??
+														"") === modelName;
 												return (
 													<button
 														type="button"
 														key={modelName}
 														data-testid="ai-model-option"
-														data-model-name={modelName}
+														data-model-name={
+															modelName
+														}
 														className={`mb-1 flex h-9 w-full cursor-pointer items-center justify-between rounded-lg px-3 text-sm transition-colors last:mb-0 ${
 															isSelected
-																? theme === LTHEME.DARK
+																? theme ===
+																	LTHEME.DARK
 																	? "bg-neutral-800"
 																	: "bg-neutral-200"
-																: theme === LTHEME.DARK
+																: theme ===
+																	  LTHEME.DARK
 																	? "hover:bg-neutral-900"
 																	: "hover:bg-neutral-100"
 														}`}
 														onClick={() => {
-															setAISettings((prevSettings) =>
-																prevSettings
-																	? {
-																		...prevSettings,
-																		model: modelName,
-																	}
-																	: prevSettings,
+															setAISettings(
+																(
+																	prevSettings,
+																) =>
+																	prevSettings
+																		? {
+																				...prevSettings,
+																				model: modelName,
+																			}
+																		: prevSettings,
 															);
 														}}
 													>
 														<span
 															className={`${
-																theme === LTHEME.DARK
+																theme ===
+																LTHEME.DARK
 																	? "text-white"
 																	: "text-black"
 															} max-w-[85%] truncate`}

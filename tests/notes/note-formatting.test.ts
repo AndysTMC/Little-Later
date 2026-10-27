@@ -25,15 +25,21 @@ describe("note formatting helpers", () => {
 
 	it("applies block transforms line-by-line", () => {
 		expect(runAction("alpha\nbeta", "h1").content).toBe("# alpha\n# beta");
-		expect(runAction("alpha\nbeta", "h2").content).toBe("## alpha\n## beta");
-		expect(runAction("alpha\nbeta", "bullet").content).toBe("- alpha\n- beta");
+		expect(runAction("alpha\nbeta", "h2").content).toBe(
+			"## alpha\n## beta",
+		);
+		expect(runAction("alpha\nbeta", "bullet").content).toBe(
+			"- alpha\n- beta",
+		);
 		expect(runAction("alpha\nbeta", "numbered").content).toBe(
 			"1. alpha\n2. beta",
 		);
 		expect(runAction("alpha\nbeta", "checklist").content).toBe(
 			"- [ ] alpha\n- [ ] beta",
 		);
-		expect(runAction("alpha\nbeta", "quote").content).toBe("> alpha\n> beta");
+		expect(runAction("alpha\nbeta", "quote").content).toBe(
+			"> alpha\n> beta",
+		);
 	});
 
 	it("wraps selected text in fenced code blocks", () => {

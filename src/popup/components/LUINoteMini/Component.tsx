@@ -2,6 +2,7 @@ import { LTHEME } from "little-shared/enums";
 import { LNote } from "little-shared/types";
 import { TrashIcon } from "@phosphor-icons/react";
 import ReactMarkdown from "react-markdown";
+import { safeMarkdownComponents, safeUrlTransform } from "../../markdownSafety";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { twMerge } from "tailwind-merge";
@@ -69,7 +70,9 @@ const Component = ({
 			>
 				<ReactMarkdown
 					remarkPlugins={[remarkGfm, remarkBreaks]}
+					urlTransform={safeUrlTransform}
 					components={{
+						...safeMarkdownComponents,
 						p: ({ ...props }) => <p {...props} className="mb-1" />,
 						ul: ({ ...props }) => (
 							<ul {...props} className="list-disc pl-4" />

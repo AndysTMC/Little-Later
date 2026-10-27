@@ -8,10 +8,14 @@ import {
 } from "@phosphor-icons/react";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LUIIconField } from "../LUIIconField/Component";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import { AnimatePresence, motion } from "framer-motion";
-import { authenticateUser, deleteUser } from "../../../services/user";
+import {
+	authenticateUser,
+	checkLockPassword,
+	deleteUser,
+} from "../../../services/user";
 import { fakeWait } from "little-shared/utils/misc";
 import { useNavigate } from "react-router";
 import { createToast } from "../../../services/toasts";
@@ -35,35 +39,83 @@ const Component = ({
 
 	const [isOperationInProgress, setIsOperationInProgress] = useState(false);
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+	// On the lock screen the main field means "new password", so deleting
+	// asks for the current password in a field of its own.
+	const [deletePassword, setDeletePassword] = useState("");
 
 	const [password, setPassword] = useState("");
+	const [confirmPassword, setConfirmPassword] = useState("");
+	// Lock re-encrypts the vault with the typed password, so a new password is
+	// typed twice and removing the password takes an explicit second press.
+	const [lockStep, setLockStep] = useState<
+		"enter" | "confirm-new" | "confirm-remove"
+	>("enter");
+	const [warning, setWarning] = useState("");
 
 	const userAvatar = useUserAvatar(userProfile.userId);
 	const avatarUrl = useObjectUrl(userAvatar?.blob);
+
+	const lockWith = async (nextPassword?: string) => {
+		await handleFunction(nextPassword);
+	};
+
+	const handleLock = async () => {
+		if (lockStep === "confirm-new") {
+			if (confirmPassword !== password) {
+				setWarning("The passwords don't match");
+				return;
+			}
+			await lockWith(password);
+			return;
+		}
+		if (lockStep === "confirm-remove") {
+			await lockWith(undefined);
+			return;
+		}
+		const check = await checkLockPassword(userProfile.userId, password);
+		if (check.kind === "invalid") {
+			setWarning(check.problem);
+		} else if (check.kind === "current") {
+			await lockWith(password === "" ? undefined : password);
+		} else if (check.kind === "new") {
+			setLockStep("confirm-new");
+			setWarning("Type the new password again to confirm it");
+		} else {
+			setLockStep("confirm-remove");
+			setWarning(
+				"This removes the password: anyone using this browser can open the profile. Press the button again to confirm.",
+			);
+		}
+	};
+
+	const handleUnlock = async () => {
+		const isAuthenticated = await authenticateUser(
+			userProfile.userId,
+			password === "" ? undefined : password,
+		);
+		if (!isAuthenticated) {
+			setWarning("Incorrect password");
+			return;
+		}
+		await handleFunction(password === "" ? undefined : password);
+	};
 
 	const handleGo = async () => {
 		setIsOperationInProgress(true);
 		try {
 			await fakeWait();
-			try {
-				const isAuthenticated = await authenticateUser(
-					userProfile.userId,
-					password === "" ? undefined : password,
-				);
-				if (!isAuthenticated && type === "Unlock") {
-					setUnlockWarning("Incorrect password");
-					return;
-				}
-			} catch (error) {
-				await createToast(
-					error instanceof Error
-						? error.message
-						: "Couldn't verify this profile.",
-					LTOAST_TYPE.ERROR,
-				);
-				return;
+			if (type === "Lock") {
+				await handleLock();
+			} else {
+				await handleUnlock();
 			}
-			await handleFunction(password === "" ? undefined : password);
+		} catch (error) {
+			await createToast(
+				error instanceof Error
+					? error.message
+					: "Couldn't verify this profile.",
+				LTOAST_TYPE.ERROR,
+			);
 		} finally {
 			setIsOperationInProgress(false);
 		}
@@ -77,62 +129,35 @@ const Component = ({
 	const handleDelete = async () => {
 		if (!isConfirmingDelete) {
 			setIsConfirmingDelete(true);
+			setWarning(
+				"Enter this profile's current password (if it has one) below, then confirm",
+			);
 			return;
 		}
 		setIsOperationInProgress(true);
 		try {
-			await deleteUser(userProfile.userId);
+			await deleteUser(
+				userProfile.userId,
+				deletePassword === "" ? undefined : deletePassword,
+			);
 			navigate("/browse-profiles");
 		} catch (error) {
-			await createToast(
+			setWarning(
 				error instanceof Error
 					? error.message
 					: "Couldn't delete this profile.",
-				LTOAST_TYPE.ERROR,
 			);
 		} finally {
 			setIsOperationInProgress(false);
 		}
 	};
 
-	const [lockInfo, setLockInfo] = useState("Continue with passwordless");
-
-	const [unlockWarning, setUnlockWarning] = useState("");
-
-	useEffect(() => {
-		if (type !== "Lock") {
-			return;
-		}
-		if (password === "") {
-			setLockInfo("Continue with passwordless");
-			return;
-		}
-		setLockInfo("Continue with new password");
-		let cancelled = false;
-		const timeoutId = window.setTimeout(async () => {
-			try {
-				const isOldPassword = await authenticateUser(
-					userProfile.userId,
-					password,
-				);
-				if (!cancelled) {
-					setLockInfo(
-						isOldPassword
-							? "Continue with old password"
-							: "Continue with new password",
-					);
-				}
-			} catch {
-				if (!cancelled) {
-					setLockInfo("Continue with new password");
-				}
-			}
-		}, 350);
-		return () => {
-			cancelled = true;
-			window.clearTimeout(timeoutId);
-		};
-	}, [password, type, userProfile.userId]);
+	const lockInfo =
+		lockStep === "confirm-new"
+			? "Locking with a new password"
+			: lockStep === "confirm-remove"
+				? "Locking without a password"
+				: "Enter the current password, a new one, or leave empty for none";
 
 	return (
 		<div
@@ -197,12 +222,34 @@ const Component = ({
 								value={password}
 								onChange={(nextPassword) => {
 									setPassword(nextPassword);
+									setConfirmPassword("");
+									setLockStep("enter");
+									setWarning("");
 									setIsConfirmingDelete(false);
 								}}
 								onSubmit={() => {
 									void handleGo();
 								}}
 							/>
+							{type === "Lock" && lockStep === "confirm-new" ? (
+								<LUIIconField
+									id="little-auth-password-confirm"
+									name="confirm-password"
+									icon={PasswordIcon}
+									placeholder="Confirm new password"
+									ariaLabel="Confirm new password"
+									type="password"
+									autoComplete="new-password"
+									value={confirmPassword}
+									onChange={(nextConfirmation) => {
+										setConfirmPassword(nextConfirmation);
+										setWarning("");
+									}}
+									onSubmit={() => {
+										void handleGo();
+									}}
+								/>
+							) : null}
 							{type === "Lock" && !isOperationInProgress ? (
 								<div
 									className={`flex h-max w-72 gap-x-1 opacity-75`}
@@ -224,9 +271,7 @@ const Component = ({
 									</div>
 								</div>
 							) : null}
-							{type === "Unlock" &&
-							!isOperationInProgress &&
-							unlockWarning !== "" ? (
+							{!isOperationInProgress && warning !== "" ? (
 								<div
 									className={`flex h-max w-72 gap-x-1 opacity-75`}
 								>
@@ -243,7 +288,7 @@ const Component = ({
 									<div
 										className={`text-sm italic ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
 									>
-										{unlockWarning}
+										{warning}
 									</div>
 								</div>
 							) : null}
@@ -273,7 +318,9 @@ const Component = ({
 								onClick={handleGo}
 								type="button"
 							>
-								Go
+								{lockStep === "confirm-remove"
+									? "Remove password and lock"
+									: "Go"}
 							</button>
 						</motion.div>
 					) : null}
@@ -281,7 +328,7 @@ const Component = ({
 				<AnimatePresence>
 					{!isOperationInProgress ? (
 						<motion.div
-							className={`flex h-12 w-full items-center justify-center`}
+							className={`flex h-max min-h-12 w-full flex-col items-center justify-center gap-y-2`}
 							initial={{ opacity: 0 }}
 							animate={{
 								opacity: 1,
@@ -292,6 +339,25 @@ const Component = ({
 								transition: { duration: 0.3, delay: 0.3 },
 							}}
 						>
+							{isConfirmingDelete ? (
+								<LUIIconField
+									id="little-auth-delete-password"
+									name="delete-password"
+									icon={PasswordIcon}
+									placeholder="Current password"
+									ariaLabel="Current password to delete this profile"
+									type="password"
+									autoComplete="current-password"
+									value={deletePassword}
+									onChange={(nextPassword) => {
+										setDeletePassword(nextPassword);
+										setWarning("");
+									}}
+									onSubmit={() => {
+										void handleDelete();
+									}}
+								/>
+							) : null}
 							<button
 								className={`h-12 w-72 ${
 									isConfirmingDelete

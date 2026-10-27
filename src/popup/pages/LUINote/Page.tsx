@@ -32,7 +32,7 @@ const Page = () => {
 				<LUILoading />
 			) : (
 				<motion.div
-					className="flex h-full w-full min-h-0 flex-col overflow-y-hidden"
+					className="flex h-full min-h-0 w-full flex-col overflow-y-hidden"
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
 				>

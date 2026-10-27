@@ -4,7 +4,10 @@ import {
 	createNotifications,
 } from "../services/notification";
 import { getActiveTab } from "../utils/chrome";
-import { getCurrentUserProfile, reconcileActiveSession } from "../services/user";
+import {
+	getCurrentUserProfile,
+	reconcileActiveSession,
+} from "../services/user";
 import {
 	saveActiveWebPage,
 	updateVisualBM,
@@ -13,8 +16,11 @@ import {
 import { createNote } from "../services/note";
 import { LittleAI } from "../services/ai";
 import { getUserSettings } from "../services/settings";
+import {
+	LOCAL_AI_ORIGIN_RULE_ID,
+	buildLocalAIOriginRule,
+} from "./localAIOriginRule";
 
-const LOCAL_AI_ORIGIN_RULE_ID = 91001;
 let keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
 let lastCapturedTabSignature = "";
 let lastCaptureAt = 0;
@@ -54,9 +60,6 @@ const captureVisibleTab = async (
 	});
 };
 
-const escapeRegex = (value: string): string =>
-	value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
 const collectLocalAIPorts = async (): Promise<Array<string>> => {
 	const ports = new Set(["11434", "1234"]);
 	try {
@@ -66,10 +69,12 @@ const collectLocalAIPorts = async (): Promise<Array<string>> => {
 			const parsed = new URL(customBaseUrl);
 			if (
 				parsed.hostname === "localhost" ||
-				parsed.hostname === "127.0.0.1"
+				parsed.hostname === "127.0.0.1" ||
+				parsed.hostname === "[::1]"
 			) {
 				ports.add(
-					parsed.port || (parsed.protocol === "https:" ? "443" : "80"),
+					parsed.port ||
+						(parsed.protocol === "https:" ? "443" : "80"),
 				);
 			}
 		}
@@ -80,31 +85,8 @@ const collectLocalAIPorts = async (): Promise<Array<string>> => {
 };
 
 const configureLocalAIRequestHeaders = async (): Promise<void> => {
-	const ports = (await collectLocalAIPorts()).map(escapeRegex).join("|");
-	const rules: Array<chrome.declarativeNetRequest.Rule> = [
-		{
-			id: LOCAL_AI_ORIGIN_RULE_ID,
-			priority: 1,
-			action: {
-				type: chrome.declarativeNetRequest.RuleActionType
-					.MODIFY_HEADERS,
-				requestHeaders: [
-					{
-						header: "Origin",
-						operation:
-							chrome.declarativeNetRequest.HeaderOperation.SET,
-						value: "http://127.0.0.1",
-					},
-				],
-			},
-			condition: {
-				resourceTypes: [
-					chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
-					chrome.declarativeNetRequest.ResourceType.WEBSOCKET,
-				],
-				regexFilter: `^https?://(localhost|127\\.0\\.0\\.1):(${ports})/`,
-			},
-		},
+	const rules = [
+		buildLocalAIOriginRule(await collectLocalAIPorts(), chrome.runtime.id),
 	];
 	try {
 		await chrome.declarativeNetRequest.updateDynamicRules({
@@ -208,7 +190,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 				await createNote({ content: info.selectionText });
 				await notifyContextAction("Selection saved as a note.");
 			} catch (error) {
-				console.error("Failed to create note from context menu.", error);
+				console.error(
+					"Failed to create note from context menu.",
+					error,
+				);
 				await notifyContextAction("Couldn't save that note.");
 			}
 		}
@@ -216,11 +201,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 		if (tab?.id !== undefined && info.selectionText) {
 			try {
 				const aiSummarize = await LittleAI.getLAISummarizeInstance();
-				const summary = await aiSummarize.summarize(info.selectionText, {
-					type: "tldr",
-					length: "medium",
-					format: "plain-text",
-				});
+				const summary = await aiSummarize.summarize(
+					info.selectionText,
+					{
+						type: "tldr",
+						length: "medium",
+						format: "plain-text",
+					},
+				);
 				await createNote({ content: summary });
 				await notifyContextAction("Quick summary saved as a note.");
 			} catch (error) {
@@ -234,11 +222,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 		if (tab?.id !== undefined && info.selectionText) {
 			try {
 				const aiSummarize = await LittleAI.getLAISummarizeInstance();
-				const keypoints = await aiSummarize.summarize(info.selectionText, {
-					type: "key-points",
-					length: "medium",
-					format: "plain-text",
-				});
+				const keypoints = await aiSummarize.summarize(
+					info.selectionText,
+					{
+						type: "key-points",
+						length: "medium",
+						format: "plain-text",
+					},
+				);
 				await createNote({ content: keypoints });
 				await notifyContextAction("Key points saved as a note.");
 			} catch (error) {

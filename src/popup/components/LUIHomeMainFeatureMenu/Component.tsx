@@ -97,4 +97,3 @@ const Component = ({
 };
 
 export { Component as LUIHomeMainFeatureMenu };
-

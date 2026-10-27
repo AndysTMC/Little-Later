@@ -10,7 +10,7 @@ import {
 } from "./_utils/semanticSearch";
 
 const toolCall = async (
-	ai: LittleAI,
+	ai: Pick<LittleAI, "getStructuredResponse">,
 	{
 		query,
 		domain,

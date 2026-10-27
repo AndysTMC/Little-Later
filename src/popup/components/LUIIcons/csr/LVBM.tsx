@@ -9,4 +9,3 @@ const Icon: LIcon = forwardRef((props, ref) => (
 
 Icon.displayName = "LVBMIcon";
 export { Icon as LVBMIcon };
-

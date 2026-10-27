@@ -17,11 +17,39 @@ export const responseFormats = new Map<string, string>([
 export const getDefaultBaseUrl = (provider: LAI_PROVIDERS): string =>
 	baseUrls.get(provider) ?? "";
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+// Prompts carry personal data and the request carries the API key, so a
+// custom endpoint must use https unless it runs on this machine.
+export const getBaseUrlProblem = (baseUrl: string): string | null => {
+	const trimmed = baseUrl.trim();
+	if (trimmed === "") {
+		return null;
+	}
+	let parsed: URL;
+	try {
+		parsed = new URL(trimmed);
+	} catch {
+		return "Enter a full URL, like https://api.example.com/v1";
+	}
+	if (parsed.protocol === "https:") {
+		return null;
+	}
+	if (parsed.protocol === "http:" && LOOPBACK_HOSTS.has(parsed.hostname)) {
+		return null;
+	}
+	if (parsed.protocol === "http:") {
+		return "Use https for a server that is not on this computer";
+	}
+	return "Only http and https URLs are supported";
+};
+
 export const getResolvedBaseUrl = (
 	aiSettings: Pick<LAISettings, "provider" | "baseUrl">,
 ): string => {
 	if (aiSettings.provider === LAI_PROVIDERS.CUSTOM) {
-		return aiSettings.baseUrl.trim();
+		const baseUrl = aiSettings.baseUrl.trim();
+		return getBaseUrlProblem(baseUrl) === null ? baseUrl : "";
 	}
 	return getDefaultBaseUrl(aiSettings.provider);
 };

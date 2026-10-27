@@ -9,13 +9,13 @@ describe("ai prompt policy", () => {
 	});
 
 	it("keeps date construction rule enforced", () => {
-		expect(script).toContain("Always call format_date_time to build date strings.");
+		expect(script).toContain(
+			"Always call format_date_time to build date strings.",
+		);
 		expect(script).toContain(
 			"If the user uses relative time terms (today, tomorrow, next week, etc.), call get_current_date_time_info first.",
 		);
-		expect(script).toContain(
-			'Date search examples:',
-		);
+		expect(script).toContain("Date search examples:");
 		expect(script).toContain(
 			'"show reminders on April 7" -> set targetDate and targetDateCriteria with year/month/day=true.',
 		);

@@ -10,7 +10,10 @@ const toolCall = async (limit = 10): Promise<Array<LVisualBM>> => {
 		.sort((a, b) => {
 			const aTs = Date.parse(a.lastBrowseDate);
 			const bTs = Date.parse(b.lastBrowseDate);
-			return (Number.isFinite(bTs) ? bTs : 0) - (Number.isFinite(aTs) ? aTs : 0);
+			return (
+				(Number.isFinite(bTs) ? bTs : 0) -
+				(Number.isFinite(aTs) ? aTs : 0)
+			);
 		})
 		.slice(0, safeLimit);
 };

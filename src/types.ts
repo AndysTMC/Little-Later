@@ -26,8 +26,7 @@ export type LIcon = React.ForwardRefExoticComponent<LIconProps>;
 export type LIconComponentType = React.ComponentType<LIconProps>;
 
 export interface LIconProps
-	extends ComponentPropsWithoutRef<"svg">,
-		RefAttributes<SVGSVGElement> {
+	extends ComponentPropsWithoutRef<"svg">, RefAttributes<SVGSVGElement> {
 	alt?: string;
 	color?: string;
 	size?: string | number;
