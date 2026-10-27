@@ -8,3 +8,4 @@
 | 0004 | Importable `.lldat` uses the real lock password; passwordless profiles cannot export importable bundles | accepted | 2026-08-19 | —          |
 | 0005 | Settings stay in `chrome.storage.local` with a fail-closed `activeUserId` stamp                         | accepted | 2026-08-19 | —          |
 | 0006 | Extension signing keys live only outside git                                                            | accepted | 2026-08-19 | —          |
+| 0007 | Close the P0 security gaps before the core rebuild                                                      | proposed | 2026-10-27 | —          |
