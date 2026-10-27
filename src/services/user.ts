@@ -95,6 +95,21 @@ export const authenticateUser = async (
 	}
 };
 
+export type LockPasswordCheck = "current" | "new" | "remove";
+
+// Locking re-encrypts the vault with whatever was typed, so the lock screen
+// must know whether the typed password is the current one, a new one (to be
+// typed twice), or empty on a protected profile (removes the password).
+export const checkLockPassword = async (
+	userId: number,
+	password: string,
+): Promise<LockPasswordCheck> => {
+	if (await authenticateUser(userId, password === "" ? undefined : password)) {
+		return "current";
+	}
+	return password === "" ? "remove" : "new";
+};
+
 export const createUser = async (
 	name: string,
 	avatar: Blob | null,
@@ -134,10 +149,16 @@ export const createUser = async (
 	return userId;
 };
 
-export const deleteUser = async (userId: number): Promise<void> => {
+export const deleteUser = async (
+	userId: number,
+	password?: string,
+): Promise<void> => {
 	const userProfile = await db.userProfileTbl.get(userId);
 	if (!userProfile) {
 		throw new Error(`No user profile found for ID: ${userId}`);
+	}
+	if (!(await authenticateUser(userId, password))) {
+		throw new Error("Enter this profile's password to delete it.");
 	}
 	const isDeletingCurrentUser = userProfile.isCurrent === LINT_BOOLEAN.TRUE;
 	await db.transaction(
