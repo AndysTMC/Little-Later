@@ -22,6 +22,7 @@ describe("local AI Origin rule", () => {
 		const filter = new RegExp(rule.condition.regexFilter ?? "");
 		expect(filter.test("http://localhost:11434/api/chat")).toBe(true);
 		expect(filter.test("http://127.0.0.1:8080/v1/models")).toBe(true);
+		expect(filter.test("http://[::1]:11434/api/tags")).toBe(true);
 		expect(filter.test("http://127.0.0.1:1234/v1/models")).toBe(false);
 		expect(filter.test("http://evil.example:11434/")).toBe(false);
 		expect(filter.test("http://localhost.evil.example:11434/")).toBe(false);

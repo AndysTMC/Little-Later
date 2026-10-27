@@ -30,7 +30,7 @@ export const buildLocalAIOriginRule = (
 			"xmlhttprequest" as chrome.declarativeNetRequest.ResourceType,
 			"websocket" as chrome.declarativeNetRequest.ResourceType,
 		],
-		regexFilter: `^https?://(localhost|127\\.0\\.0\\.1):(${ports
+		regexFilter: `^https?://(localhost|127\\.0\\.0\\.1|\\[::1\\]):(${ports
 			.map(escapeRegex)
 			.join("|")})/`,
 	},

@@ -66,7 +66,8 @@ const collectLocalAIPorts = async (): Promise<Array<string>> => {
 			const parsed = new URL(customBaseUrl);
 			if (
 				parsed.hostname === "localhost" ||
-				parsed.hostname === "127.0.0.1"
+				parsed.hostname === "127.0.0.1" ||
+				parsed.hostname === "[::1]"
 			) {
 				ports.add(
 					parsed.port || (parsed.protocol === "https:" ? "443" : "80"),
