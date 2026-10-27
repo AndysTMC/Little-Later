@@ -1,0 +1,49 @@
+# Changelog
+
+All notable changes to Little Later are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). A change to a stored format or the removal of a feature counts as breaking.
+
+## [Unreleased]
+
+### Security
+
+- Only the extension's own requests to local AI servers get the trusted `Origin` header; websites no longer do.
+- The AI chat, notes and save cards no longer load remote images, links show their host, and notes reach the model as quoted data instead of instructions.
+- Locking with a new password asks for it twice, removing a password needs an explicit choice, and deleting a locked profile needs its password.
+- An imported backup no longer brings its AI endpoint and key with it, and a custom AI URL must use `https` unless it is on this machine.
+- Preview and avatar images can only render as images.
+
+### Changed
+
+- Signed CRX releases, with zip and checksums, are built from version tags.
+- CI checks formatting, lint, types, unit tests, the build and the end-to-end suite.
+- Release workflow: least-privilege tokens, actions pinned to commit SHAs, tags must be on `main`, and build provenance is attested.
+
+### Added
+
+- Contributing guide, security policy, issue and pull request templates, Dependabot, and this changelog.
+
+## [2.1.0] - 2026-08-19
+
+### Added
+
+- AI changes to your data need confirmation in the chat.
+- Backups use the profile's real lock password.
+
+### Changed
+
+- Visual consistency pass across the popup.
+
+## [2.0.0] - 2026-04-05
+
+### Changed
+
+- Cleanup release.
+
+## [1.0.0] - 2025-10-30
+
+- First release.
+
+[Unreleased]: https://github.com/AndysTMC/Little-Later/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/AndysTMC/Little-Later/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/AndysTMC/Little-Later/compare/v1.0.0...v2.0.0
+[1.0.0]: https://github.com/AndysTMC/Little-Later/releases/tag/v1.0.0

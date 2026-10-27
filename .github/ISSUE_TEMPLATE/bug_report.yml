@@ -1,0 +1,51 @@
+name: Bug report
+description: Something does not work as it should.
+labels: ["bug"]
+body:
+    - type: markdown
+      attributes:
+          value: Please leave out anything private from your saves or notes. Security problems go through the security policy instead.
+    - type: textarea
+      id: what-happened
+      attributes:
+          label: What happened
+          description: What you did, what you expected, and what happened instead.
+      validations:
+          required: true
+    - type: textarea
+      id: steps
+      attributes:
+          label: Steps to reproduce
+          placeholder: |
+              1. Open the popup
+              2. …
+      validations:
+          required: true
+    - type: input
+      id: version
+      attributes:
+          label: Little Later version
+          description: Shown on chrome://extensions.
+      validations:
+          required: true
+    - type: input
+      id: browser
+      attributes:
+          label: Browser and version
+          placeholder: Chrome 141 on macOS 15
+      validations:
+          required: true
+    - type: dropdown
+      id: ai
+      attributes:
+          label: AI provider in use
+          options:
+              - None
+              - Ollama
+              - LM Studio
+              - Other OpenAI-compatible
+    - type: textarea
+      id: logs
+      attributes:
+          label: Errors or screenshots
+          description: Errors from the popup's or service worker's DevTools console help most.

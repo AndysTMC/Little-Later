@@ -1,0 +1,26 @@
+version: 2
+updates:
+    - package-ecosystem: github-actions
+      directory: /
+      target-branch: dev
+      schedule:
+          interval: weekly
+      groups:
+          actions:
+              update-types: [minor, patch]
+      commit-message:
+          prefix: ci
+
+    - package-ecosystem: bun
+      directory: /
+      target-branch: dev
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 5
+      cooldown:
+          default-days: 7
+      groups:
+          minor-and-patch:
+              update-types: [minor, patch]
+      commit-message:
+          prefix: build
