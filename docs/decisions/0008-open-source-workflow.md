@@ -2,7 +2,7 @@
 
 Status: proposed
 Date: 2026-10-27
-Deciders: AndysTMC (asked for open-source best practices and a `dev` branch, 2026-10-27)
+Deciders: AndysTMC
 Supersedes: —
 Superseded-by: —
 
@@ -32,7 +32,7 @@ Option B.
 
 - **Branches.** `dev` is the integration branch; `main` only moves at a release. Work happens on short branches named after the work (`fix/…`, `feat/…`, `docs/…`, `chore/…`), opened as PRs into `dev`. Urgent fixes branch off `main` and are merged back into `dev`.
 - **Commits.** PRs are squash-merged, and the PR title becomes the commit subject in Conventional Commits form (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`, `ci:`, `build:`, `perf:`, with `!` for breaking). Earlier history keeps its plain subjects.
-- **Releases.** A release is a PR from `dev` into `main` that bumps the version in `manifest.json`, `package.json` and `packages/shared/package.json` and moves the changelog's Unreleased section under the new version; then a `vX.Y.Z` tag on `main` runs `release.yml`. Versions follow SemVer, with a change to a stored format or a removed feature counted as breaking.
+- **Releases.** A release is a PR from `dev` into `main` that bumps the version in `manifest.json`, `package.json` and `packages/shared/package.json` and moves the changelog's Unreleased section under the new version; then a `vX.Y.Z` tag on `main` runs `release.yml`. The release PR proposes the version with a one-line reason drawn from the changelog (a breaking change, new features, or only fixes); the maintainer approves it or picks another, and the release work itself (bump, changelog, merge, tag) is not left to them. Versions follow SemVer, with a change to a stored format or a removed feature counted as breaking.
 - **Security.** `SECURITY.md` sends reports to GitHub private vulnerability reporting, states the supported version (latest release) and a response target.
 - **Merging.** Feature PRs into `dev` are squash-merged. The release PR from `dev` into `main` uses a merge commit, so the two branches keep a shared history and later release PRs show only new work. A hotfix is released from `main` with its changelog entry under the released version, and `main` is merged back into `dev` straight away.
 - **CI** runs on pushes to `main` and `dev` and on every PR, with a read-only token and no persisted checkout credentials.
@@ -41,7 +41,7 @@ Option B.
 - **Templates.** Issue forms for bugs and features, a contact link to the security policy, and a PR template whose checklist mirrors the CI gates.
 - **Conduct.** Contributor Covenant 2.1, with reports going to the maintainer.
 
-Settings only the owner can change, which this record depends on: default branch `dev`; branch protection or rulesets on `main` and `dev` (PR required, CI `check` and `e2e` required, no force push, 0 approvals so a single maintainer is not blocked); a ruleset so only the maintainer can create `v*` tags; squash and merge-commit merging both allowed; private vulnerability reporting on; optionally a `release` environment holding `SIGNING_KEY`, limited to `v*` tags.
+Settings only the owner can change, which this record depends on: default branch `dev`; branch protection or rulesets on `main` and `dev` (PR required, CI `check` and `e2e` required, no force push, 0 approvals so a single maintainer is not blocked); squash and merge-commit merging both allowed; private vulnerability reporting on; optionally a `release` environment holding `SIGNING_KEY`, limited to `v*` tags.
 
 ## Trade-offs against the charter
 
@@ -70,7 +70,7 @@ Each file is independent; deleting it or reverting the PR restores the previous 
 
 ## Review
 
-An independent agent critiqued the first draft. Adopted: CI on `dev`; least-privilege tokens and no persisted credentials; split release build and publish; refuse tags not on `main` and drop the free-form tag input; never cancel a release; merge commits for release PRs and an explicit hotfix merge-back; Dependabot grouping and cooldown; build provenance attestations; tag protection and 0-approval branch rules in the settings list; corrected "floating" to "mutable" tags; dropped `CODEOWNERS`, which adds nothing with one maintainer. Deferred: OpenSSF Scorecard and CodeQL (a follow-up PR), and `actionlint` in CI.
+An independent agent critiqued the first draft. Adopted: CI on `dev`; least-privilege tokens and no persisted credentials; split release build and publish; refuse tags not on `main` and drop the free-form tag input; never cancel a release; merge commits for release PRs and an explicit hotfix merge-back; Dependabot grouping and cooldown; build provenance attestations; 0-approval branch rules in the settings list; corrected "floating" to "mutable" tags; dropped `CODEOWNERS`, which adds nothing with one maintainer. Deferred: OpenSSF Scorecard and CodeQL (a follow-up PR), `actionlint` in CI, and a tag ruleset (the release job already refuses tags that are not on `main`).
 
 ## Revisit if
 
