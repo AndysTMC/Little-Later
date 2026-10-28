@@ -48,7 +48,9 @@ Option B.
 
 - Pages call `send(command, input)`, a typed wrapper over `chrome.runtime.sendMessage`. It returns the handler's result or a typed error.
 - Messages carry JSON only.
-- Binary input never crosses the message: avatars, images and backup files. The page writes the bytes to a staging file in the origin private file system (OPFS) and sends the file's name. The worker reads the file, deletes it, and sweeps leftovers at start-up.
+- Binary input never crosses the message: images, avatars and backup files. The page writes the bytes to a staging file in the origin private file system (OPFS) and sends the file's name. The worker reads the file, deletes it, and sweeps leftovers at start-up and at unlock.
+- OPFS is persistent disk, so content never enters it in plain form. The page encrypts the bytes before writing, as an envelope (0010) under the profile's asset subkey, with additional data `staging | file name | profileId`. The staging key therefore lives exactly as long as the unlock: a file left behind by a closed page, a crash or a lock is ciphertext that only the same profile's next unlock can read, and the sweep deletes it then.
+- Two inputs are staged as they are: a `.lldat` backup, which is already encrypted under its backup password, and a profile avatar, which 0010 keeps plain for the lock screen.
 - The worker accepts a message only when `sender.id` equals `chrome.runtime.id` and `sender.url` is on the extension's own origin.
 - Commands that can be retried are idempotent: deleting a row that is already gone succeeds. A worker that is shut down mid-reply can make a page retry.
 
@@ -56,7 +58,8 @@ Option B.
 
 - Re-keying and bulk delete run as jobs with a cursor saved in the database. Each chunk is its own transaction and finishes well within Chrome's per-event limits. An unfinished job resumes the next time its profile is unlocked, because it needs the profile's keys.
 - Import and export are tied to an open page, a backup password and a file. They are not resumed: if the worker stops or the profile locks, a half-done import is deleted, the staging files are swept, and the user retries.
-- The page that started the job holds a port open for progress, which also keeps the worker awake.
+- Since Chrome 114, an open port alone does not keep the worker alive; only messages do. So a job's page sends a heartbeat on its port every 20 seconds, the worker posts progress after every chunk, and a chunk is sized to finish within 10 seconds. If the port disconnects, the worker finishes the current chunk and then treats the job as interrupted.
+- An import writes a job record (`kind: import`, `profileId`, `state: running`) before its first chunk and marks it done after the last. At every worker start, an import job still `running` means the worker died mid-import: its half-built profile and its staging files are deleted, so cleanup never depends on the page that started it.
 
 **Development and tests**
 
@@ -99,6 +102,8 @@ Option B.
 - **A race test:** capturing and saving the same URL at the same time produces one save, and two quick updates to one record keep both changes.
 - **A CI test** showing that a write made by the worker reaches a page's `liveQuery`.
 - **A messaging test:** a 10 MB image goes through OPFS staging, and messages with the wrong sender are rejected.
+- **Staging tests:** locking, or killing the worker, between staging and command delivery leaves only ciphertext in OPFS, which the next unlock sweeps.
+- **Job tests:** an import killed mid-way is rolled back at the next worker start; a job whose page stops sending heartbeats is marked interrupted.
 - **A lint rule** fails the build when code outside `src/background/` writes to a table.
 - **The e2e suite** passes on the new path.
 
@@ -127,6 +132,8 @@ An independent agent critiqued the first draft. Adopted:
 - The corrected claim about which contexts hold keys.
 - Stronger sender checks.
 - The `liveQuery` check moved into CI.
+
+A third review (AndysTMC, 2026-10-28) found two gaps. Adopted: staging files are encrypted before they reach OPFS, and jobs keep the worker alive with heartbeat and progress messages instead of an idle port, with a durable job record so a crashed import is cleaned up.
 
 A second review (AndysTMC, 2026-10-28) found more. Adopted:
 
