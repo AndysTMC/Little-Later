@@ -226,6 +226,7 @@ const Component = ({
 									setLockStep("enter");
 									setWarning("");
 									setIsConfirmingDelete(false);
+									setDeletePassword("");
 								}}
 								onSubmit={() => {
 									void handleGo();

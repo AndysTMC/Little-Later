@@ -73,6 +73,21 @@ export const SafeMarkdownImage = ({
 	);
 };
 
+// The host is shown unless the link text already is that host, or a URL on
+// it. Checking only that the text contains the host would let text such as
+// "bank.example/?from=evil.example" hide where the link really goes.
+const textNamesHost = (text: string, host: string): boolean => {
+	const value = text.trim();
+	try {
+		const url = new URL(
+			/^https?:\/\//i.test(value) ? value : `https://${value}`,
+		);
+		return url.username === "" && url.password === "" && url.host === host;
+	} catch {
+		return false;
+	}
+};
+
 export const SafeMarkdownLink = ({
 	href,
 	children,
@@ -87,7 +102,7 @@ export const SafeMarkdownLink = ({
 			className="underline"
 		>
 			{children}
-			{host && !text.includes(host) ? (
+			{host && !textNamesHost(text, host) ? (
 				<span className="opacity-70"> ({host})</span>
 			) : null}
 		</a>
