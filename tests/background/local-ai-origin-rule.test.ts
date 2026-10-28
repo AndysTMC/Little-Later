@@ -27,4 +27,20 @@ describe("local AI Origin rule", () => {
 		expect(filter.test("http://evil.example:11434/")).toBe(false);
 		expect(filter.test("http://localhost.evil.example:11434/")).toBe(false);
 	});
+
+	it("matches a loopback URL on its scheme's default port", () => {
+		const rule = buildLocalAIOriginRule(["11434", ""], "ext");
+		const filter = new RegExp(rule.condition.regexFilter ?? "");
+		expect(filter.test("http://localhost/v1/models")).toBe(true);
+		expect(filter.test("https://127.0.0.1/v1/models")).toBe(true);
+		expect(filter.test("http://localhost:11434/api/chat")).toBe(true);
+		expect(filter.test("http://localhost:8080/v1/models")).toBe(false);
+		expect(filter.test("http://evil.example/v1/models")).toBe(false);
+	});
+
+	it("does not match default-port URLs unless asked to", () => {
+		const rule = buildLocalAIOriginRule(["11434", "1234"], "ext");
+		const filter = new RegExp(rule.condition.regexFilter ?? "");
+		expect(filter.test("http://localhost/v1/models")).toBe(false);
+	});
 });

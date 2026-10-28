@@ -72,10 +72,8 @@ const collectLocalAIPorts = async (): Promise<Array<string>> => {
 				parsed.hostname === "127.0.0.1" ||
 				parsed.hostname === "[::1]"
 			) {
-				ports.add(
-					parsed.port ||
-						(parsed.protocol === "https:" ? "443" : "80"),
-				);
+				// "" when the URL uses the scheme's default port.
+				ports.add(parsed.port);
 			}
 		}
 	} catch {

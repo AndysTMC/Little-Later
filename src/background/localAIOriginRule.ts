@@ -7,6 +7,14 @@ export const escapeRegex = (value: string): string =>
 // so the extension's own requests to them are sent as coming from 127.0.0.1.
 // initiatorDomains keeps the rewrite to this extension: without it, any
 // website's requests to these ports would get the trusted origin too.
+// An empty port stands for the scheme's default port, which Chrome leaves
+// out of the URL it matches against.
+const portPattern = (ports: Array<string>): string => {
+	const explicit = ports.filter((port) => port !== "").map(escapeRegex);
+	const allowDefault = ports.includes("");
+	return `(?::(${explicit.join("|")}))${allowDefault ? "?" : ""}`;
+};
+
 export const buildLocalAIOriginRule = (
 	ports: Array<string>,
 	extensionId: string,
@@ -30,8 +38,6 @@ export const buildLocalAIOriginRule = (
 			"xmlhttprequest" as chrome.declarativeNetRequest.ResourceType,
 			"websocket" as chrome.declarativeNetRequest.ResourceType,
 		],
-		regexFilter: `^https?://(localhost|127\\.0\\.0\\.1|\\[::1\\]):(${ports
-			.map(escapeRegex)
-			.join("|")})/`,
+		regexFilter: `^https?://(localhost|127\\.0\\.0\\.1|\\[::1\\])${portPattern(ports)}/`,
 	},
 });
