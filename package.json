@@ -3,6 +3,16 @@
 	"private": true,
 	"description": "Little Later Chrome extension workspace",
 	"version": "2.1.0",
+	"license": "MIT",
+	"author": "Thatikonda Mukesh",
+	"homepage": "https://github.com/AndysTMC/Little-Later#readme",
+	"bugs": {
+		"url": "https://github.com/AndysTMC/Little-Later/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/AndysTMC/Little-Later.git"
+	},
 	"type": "module",
 	"packageManager": "bun@1.3.11",
 	"workspaces": [

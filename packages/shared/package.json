@@ -1,6 +1,15 @@
 {
 	"name": "little-shared",
 	"version": "2.1.0",
+	"homepage": "https://github.com/AndysTMC/Little-Later#readme",
+	"bugs": {
+		"url": "https://github.com/AndysTMC/Little-Later/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/AndysTMC/Little-Later.git",
+		"directory": "packages/shared"
+	},
 	"description": "Shared Little Later types, enums, constants, and utilities",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
