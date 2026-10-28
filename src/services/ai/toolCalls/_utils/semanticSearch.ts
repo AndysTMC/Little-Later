@@ -3,12 +3,12 @@ export const SEMANTIC_CANDIDATE_LIMIT = 20;
 export const quoteForPrompt = (value: string): string =>
 	value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
-export const pickSemanticCandidates = <T extends { id: number }>(
+export const pickSemanticCandidates = <T extends { id: string }>(
 	lexicalHits: Array<T>,
 	allItems: Array<T>,
 	limit = SEMANTIC_CANDIDATE_LIMIT,
 ): Array<T> => {
-	const seen = new Set<number>();
+	const seen = new Set<string>();
 	const candidates: Array<T> = [];
 	for (const item of [...lexicalHits, ...allItems]) {
 		if (seen.has(item.id)) {

@@ -1,4 +1,4 @@
-import { LAIOutput } from "little-shared/types";
+import type { AIOutput } from "../../../services/ai/main";
 import { LFACEEXPRESSION_TO_ICON } from "../../../constants";
 import { LTHEME, LFACE_EXPRESSION } from "little-shared/enums";
 import {
@@ -36,7 +36,7 @@ type ChatCell =
 	| {
 			id: string;
 			role: "ai";
-			aiOutput: LAIOutput;
+			aiOutput: AIOutput;
 	  };
 
 type ParsedImage = {
@@ -401,7 +401,7 @@ const AICellBase = ({
 	onConfirmationPasswordChange,
 }: {
 	className?: string;
-	aiOutput: LAIOutput;
+	aiOutput: AIOutput;
 	isLatest?: boolean;
 	showRetry?: boolean;
 	onRetry?: () => void;
@@ -593,8 +593,8 @@ const AICellBase = ({
 								{confirmation.requiresPassword ? (
 									<input
 										type="password"
-										placeholder="Lock password"
-										aria-label="Lock password for export"
+										placeholder="Backup password"
+										aria-label="Password for the backup"
 										autoComplete="off"
 										value={confirmationPassword}
 										onChange={(event) =>
@@ -749,7 +749,7 @@ const Component = ({ className }: { className?: string }) => {
 	);
 	const [cells, setCells] = useState<Array<ChatCell>>([]);
 	const [aiAssist, setAIAsist] = useState<LittleAI | undefined>();
-	const [currentLAIOutput, setCurrentLAIOutput] = useState<LAIOutput | null>(
+	const [currentLAIOutput, setCurrentLAIOutput] = useState<AIOutput | null>(
 		null,
 	);
 	const [isAsking, setIsAsking] = useState(false);

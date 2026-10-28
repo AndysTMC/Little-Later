@@ -1,8 +1,8 @@
-import { LNote } from "little-shared/types";
+import type { Note } from "../../../storage/repositories";
 import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
-import { getDBTables } from "../../../utils/db";
-import { searchNotesByText } from "../../../utils/note";
+import { searchNotes } from "../../../popup/records";
+import { readNotes, unlockedKeys } from "../records";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
 	pickSemanticCandidates,
@@ -12,28 +12,19 @@ import {
 const toolCall = async (
 	ai: Pick<LittleAI, "getStructuredResponse">,
 	query: string,
-): Promise<Array<LNote>> => {
-	const { noteTbl } = await getDBTables(["noteTbl"]);
-	if (noteTbl === undefined) {
-		throw new Error("Note table is not available in the database.");
-	}
+): Promise<Array<Note>> => {
+	const notes = await readNotes(await unlockedKeys());
 	if (query.trim() === "") {
-		return noteTbl;
+		return notes;
 	}
-	let resultNotes: LNote[] = noteTbl.slice();
-	const filteredNotes = searchNotesByText(noteTbl, query);
-	const queryNotes: LNote[] = [];
-	filteredNotes.forEach((note) => {
-		if (!queryNotes.includes(note)) {
-			queryNotes.push(note);
-		}
-	});
-	const semanticCandidates = pickSemanticCandidates(queryNotes, noteTbl).map(
-		(note) => ({
-			id: note.id,
-			snippet: note.content.slice(0, 200),
-		}),
-	);
+	const queryNotes = new Set<Note>(searchNotes(notes, query));
+	const semanticCandidates = pickSemanticCandidates(
+		[...queryNotes],
+		notes,
+	).map((note) => ({
+		id: note.id,
+		snippet: note.content.slice(0, 200),
+	}));
 	const response = await ai.getStructuredResponse(
 		`
             Here is a list of notes in JSON format:
@@ -47,16 +38,10 @@ const toolCall = async (
 		IDJSONObjectInstruction,
 	);
 	const semanticNoteIds = extractSemanticIds(response);
-	const semanticNotes = noteTbl.filter((note) =>
-		semanticNoteIds.includes(note.id),
-	);
-	semanticNotes.forEach((note) => {
-		if (!queryNotes.includes(note)) {
-			queryNotes.push(note);
-		}
-	});
-	resultNotes = resultNotes.filter((note) => queryNotes.includes(note));
-	return resultNotes;
+	notes
+		.filter((note) => semanticNoteIds.includes(note.id))
+		.forEach((note) => queryNotes.add(note));
+	return notes.filter((note) => queryNotes.has(note));
 };
 
 export { toolCall as searchNotesToolCall };

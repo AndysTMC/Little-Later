@@ -8,7 +8,6 @@ import {
 	LAIConfirmation,
 	LAIConfirmationKind,
 	LAIOutput,
-	LAIOutputContent,
 } from "little-shared/types";
 import {
 	getResolvedBaseUrl,
@@ -19,10 +18,10 @@ import {
 } from "./config";
 import { LRewriteOptions, LSummarizeOptions, LWriteOptions } from "../../types";
 import { ResponseFormatJSONSchema } from "openai/resources.mjs";
-import { getUserSettings } from "../settings";
-import { authenticateUser, getCurrentUserProfile } from "../user";
-import { db } from "../../utils/db";
+import { readNotes, readSettings, unlockedKeys } from "./records";
+import { toModelDate } from "./toolCalls/_utils/dateFilters";
 import {
+	AIOutputContent,
 	ToolDefinition,
 	ToolExecutionResult,
 	ToolUndoAction,
@@ -31,6 +30,12 @@ import {
 	toolRequiresConfirmation,
 	tools,
 } from "./toolRegistry";
+
+// What the chat shows for a prompt: the shared output shape, with the
+// records tools found.
+export type AIOutput = Omit<LAIOutput, "content"> & {
+	content?: AIOutputContent;
+};
 
 type LLMRequestError = Error & {
 	status?: number;
@@ -71,7 +76,7 @@ const deriveNoteTitle = (content: string): string => {
 };
 
 const summarizeNoteForContext = (note: {
-	id: number;
+	id: string;
 	content: string;
 	lastModificationDate?: string;
 }): string => {
@@ -199,11 +204,11 @@ const toSerializable = (value: unknown): unknown => {
 	}
 };
 
-const mergeById = <T extends { id: number }>(
+const mergeById = <T extends { id: string }>(
 	base: Array<T>,
 	incoming: Array<T>,
 ): Array<T> => {
-	const merged = new Map<number, T>();
+	const merged = new Map<string, T>();
 	for (const item of base) {
 		merged.set(item.id, item);
 	}
@@ -214,9 +219,9 @@ const mergeById = <T extends { id: number }>(
 };
 
 const mergeOutputContent = (
-	base: LAIOutputContent,
-	incoming?: LAIOutputContent,
-): LAIOutputContent => {
+	base: AIOutputContent,
+	incoming?: AIOutputContent,
+): AIOutputContent => {
 	if (!incoming) {
 		return base;
 	}
@@ -228,7 +233,7 @@ const mergeOutputContent = (
 	};
 };
 
-const isOutputContentEmpty = (content: LAIOutputContent): boolean =>
+const isOutputContentEmpty = (content: AIOutputContent): boolean =>
 	content.saves.length === 0 &&
 	content.reminders.length === 0 &&
 	content.tasks.length === 0 &&
@@ -342,7 +347,7 @@ export abstract class LittleAI {
 		];
 	}
 
-	abstract prompt(input: string, options?: PromptOptions): Promise<LAIOutput>;
+	abstract prompt(input: string, options?: PromptOptions): Promise<AIOutput>;
 
 	abstract rewrite(input: string, options?: LRewriteOptions): Promise<string>;
 
@@ -367,7 +372,7 @@ export abstract class LittleAI {
 
 	async confirmPendingMutations(options?: {
 		password?: string;
-	}): Promise<LAIOutput> {
+	}): Promise<AIOutput> {
 		void options;
 		return {
 			message: "Nothing to confirm.",
@@ -376,7 +381,7 @@ export abstract class LittleAI {
 		};
 	}
 
-	async cancelPendingMutations(): Promise<LAIOutput> {
+	async cancelPendingMutations(): Promise<AIOutput> {
 		this.pendingMutations = null;
 		return {
 			message: "Cancelled.",
@@ -407,7 +412,7 @@ export abstract class LittleAI {
 		return true;
 	}
 
-	async undoLastAction(): Promise<LAIOutput> {
+	async undoLastAction(): Promise<AIOutput> {
 		if (!this.hasUndoAction() || !this.lastUndoAction) {
 			return {
 				message: "No undo action is available.",
@@ -495,7 +500,7 @@ export abstract class LittleAI {
 
 		const searchNotesDefinition = toolRegistry.get("search_notes");
 		let contextualNotes: Array<{
-			id: number;
+			id: string;
 			content: string;
 			lastModificationDate?: string;
 		}> = [];
@@ -506,7 +511,11 @@ export abstract class LittleAI {
 					searchNotesDefinition.normalizeArgs({ query: input }),
 					{ ai: this },
 				);
-				contextualNotes = result.content?.notes ?? [];
+				contextualNotes = (result.content?.notes ?? []).map((note) => ({
+					id: note.id,
+					content: note.content,
+					lastModificationDate: toModelDate(note.updatedAt),
+				}));
 			} catch {
 				contextualNotes = [];
 			}
@@ -514,13 +523,14 @@ export abstract class LittleAI {
 
 		if (contextualNotes.length === 0) {
 			try {
-				contextualNotes = (await db.noteTbl.toArray())
-					.sort((left, right) =>
-						(right.lastModificationDate ?? "").localeCompare(
-							left.lastModificationDate ?? "",
-						),
-					)
-					.slice(0, 5);
+				// Most recently changed first.
+				contextualNotes = (await readNotes(await unlockedKeys()))
+					.slice(0, 5)
+					.map((note) => ({
+						id: note.id,
+						content: note.content,
+						lastModificationDate: toModelDate(note.updatedAt),
+					}));
 			} catch {
 				contextualNotes = [];
 			}
@@ -754,7 +764,7 @@ export abstract class LittleAI {
 		}
 	}
 
-	protected buildLLMErrorOutput(error: unknown): LAIOutput {
+	protected buildLLMErrorOutput(error: unknown): AIOutput {
 		const resolvedError = this.toLLMRequestError(error);
 		if (resolvedError.isTimeout) {
 			return {
@@ -825,8 +835,7 @@ export abstract class LittleAI {
 	}
 
 	static getLAIAssistInstance = async (): Promise<LittleAI> => {
-		const userSettings = await getUserSettings();
-		const { ai: aiSettings } = userSettings;
+		const { ai: aiSettings } = await readSettings(await unlockedKeys());
 		const { provider, model, apiKey } = aiSettings;
 		const normalizedBaseUrl = getResolvedBaseUrl(aiSettings);
 		const normalizedApiKey =
@@ -895,9 +904,7 @@ export class OpenAICompatibleAI extends LittleAI {
 		};
 	}
 
-	private buildConfirmationOutput(
-		pending: Array<PendingMutation>,
-	): LAIOutput {
+	private buildConfirmationOutput(pending: Array<PendingMutation>): AIOutput {
 		const confirmation = this.buildConfirmation(pending);
 		const summary = confirmation.items
 			.map((item) => item.summary)
@@ -912,7 +919,7 @@ export class OpenAICompatibleAI extends LittleAI {
 
 	override async confirmPendingMutations(options?: {
 		password?: string;
-	}): Promise<LAIOutput> {
+	}): Promise<AIOutput> {
 		const pending = this.pendingMutations;
 		if (!pending || pending.length === 0) {
 			return {
@@ -924,31 +931,11 @@ export class OpenAICompatibleAI extends LittleAI {
 		const confirmation = this.buildConfirmation(pending);
 		if (confirmation.requiresPassword) {
 			const password = options?.password?.trim() ?? "";
+			// The backup's own password, chosen at export (0010, Backups).
 			if (password === "") {
 				return {
 					message:
-						"Enter your lock password to export an importable backup.",
-					actions: [],
-					expression: LFACE_EXPRESSION.FROWNING,
-					confirmation,
-				};
-			}
-			let matchesLock: boolean;
-			try {
-				const currentUserProfile = await getCurrentUserProfile();
-				matchesLock = currentUserProfile
-					? await authenticateUser(
-							currentUserProfile.userId,
-							password,
-						)
-					: false;
-			} catch {
-				matchesLock = false;
-			}
-			if (!matchesLock) {
-				return {
-					message:
-						"That password does not match this profile's lock password.",
+						"Choose a password to protect the importable backup.",
 					actions: [],
 					expression: LFACE_EXPRESSION.FROWNING,
 					confirmation,
@@ -1008,7 +995,7 @@ export class OpenAICompatibleAI extends LittleAI {
 		};
 	}
 
-	override async cancelPendingMutations(): Promise<LAIOutput> {
+	override async cancelPendingMutations(): Promise<AIOutput> {
 		const pending = this.pendingMutations;
 		if (!pending || pending.length === 0) {
 			return {
@@ -1081,7 +1068,7 @@ export class OpenAICompatibleAI extends LittleAI {
 		});
 	}
 
-	async prompt(input: string, options?: PromptOptions): Promise<LAIOutput> {
+	async prompt(input: string, options?: PromptOptions): Promise<AIOutput> {
 		const emitProgress = (
 			message: string,
 			stage: PromptProgress["stage"],
@@ -1192,7 +1179,7 @@ export class OpenAICompatibleAI extends LittleAI {
 				if (latestToolImageMessage && !resolvedMessage.includes("![")) {
 					resolvedMessage = `${resolvedMessage}\n\n${latestToolImageMessage}`;
 				}
-				const output: LAIOutput = {
+				const output: AIOutput = {
 					message: resolvedMessage,
 					actions: [],
 					expression: hasToolError
@@ -1274,7 +1261,7 @@ export class OpenAICompatibleAI extends LittleAI {
 			if (roundHasMutatingTools && !roundHasReadTools) {
 				emitProgress("Finalizing", "finalizing", undefined, round + 1);
 				this.registerUndoActions(undoActions);
-				const output: LAIOutput = {
+				const output: AIOutput = {
 					message:
 						aggregatedToolMessages.at(-1) ??
 						"Completed the requested action.",

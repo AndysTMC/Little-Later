@@ -1,12 +1,12 @@
-import { deleteReminder } from "../../../services/reminder";
+import { send } from "../../../utils/send";
 
 const toolCall = async ({
 	id,
 }: {
-	id: number;
+	id: string;
 }): Promise<() => Promise<void>> => {
 	return async () => {
-		await deleteReminder(id);
+		await send("reminder.delete", { id });
 	};
 };
 

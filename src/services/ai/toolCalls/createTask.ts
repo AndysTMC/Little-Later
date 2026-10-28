@@ -1,11 +1,9 @@
-import {
-	LREMINDER_TYPE,
-	LTASK_PRIORITY,
-	LTASK_SCHEDULE_TYPE,
-} from "little-shared/enums";
+import { LTASK_PRIORITY } from "little-shared/enums";
 import { LDate } from "little-shared/types";
-import { createTask, putTask } from "../../../services/task";
+import { send } from "../../../utils/send";
+import { fromModelDate } from "./_utils/dateFilters";
 
+// A task with a deadline gets a normal reminder at it, as before format v1.
 const toolCall = async ({
 	information,
 	label,
@@ -18,33 +16,19 @@ const toolCall = async ({
 	deadlineDate?: LDate;
 }): Promise<() => Promise<void>> => {
 	return async () => {
-		if (deadlineDate) {
-			await putTask(
-				{
-					information,
-					label,
-					priority,
-					schedule: {
-						type: LTASK_SCHEDULE_TYPE.DUE,
-						deadlineInfo: { deadlineDate },
-						recurringInfo: null,
-					},
-				},
-				[],
-				[],
-				LREMINDER_TYPE.NORMAL,
-			);
-			return;
-		}
-		await createTask({
+		await send("task.create", {
 			information,
 			label,
 			priority,
-			schedule: {
-				type: LTASK_SCHEDULE_TYPE.ADHOC,
-				deadlineInfo: null,
-				recurringInfo: null,
-			},
+			...(deadlineDate
+				? {
+						schedule: {
+							kind: "due",
+							at: fromModelDate(deadlineDate),
+						},
+						reminder: "normal",
+					}
+				: { schedule: { kind: "anytime" }, reminder: null }),
 		});
 	};
 };

@@ -1,19 +1,28 @@
+// @vitest-environment node
 import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it } from "vitest";
-import {
-	LINT_BOOLEAN,
-	LLINK_TYPE,
-	LREMINDER_TYPE,
-	LTASK_PRIORITY,
-	LTASK_SCHEDULE_TYPE,
-} from "little-shared/enums";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LREMINDER_TYPE, LTASK_PRIORITY } from "little-shared/enums";
 import {
 	LMAX_TASK_INFORMATION_LENGTH,
 	LMAX_TASK_LABEL_LENGTH,
 } from "little-shared/constants";
-import { LDateUtl } from "little-shared/utils/datetime";
-import { resetLLDB, db } from "../../src/utils/db";
 import { toolRegistry } from "../../src/services/ai/toolRegistry";
+import {
+	readLinks,
+	readNotes,
+	readReminders,
+	readSaves,
+	readTasks,
+	unlockedKeys,
+} from "../../src/services/ai/records";
+import { littleDB } from "../../src/storage/pageDB";
+import { putPreview } from "../../src/storage/repositories";
+import { send } from "../../src/utils/send";
+import { freshProfile, localDate } from "./profile";
+
+// The export tool still writes the pre-v1 backup, whose packer needs a
+// browser global; it is replaced with the v1 backup in its own change.
+vi.mock("../../src/services/dataExchange", () => ({}));
 
 const aiContext = {
 	ai: {
@@ -27,9 +36,24 @@ const getTool = (name: string) => {
 	return definition!;
 };
 
+const keys = () => unlockedKeys();
+const notes = async () => readNotes(await keys());
+const reminders = async () => readReminders(await keys());
+const saves = async () => readSaves(await keys());
+const tasks = async () => readTasks(await keys());
+
+const DAY = 24 * 60 * 60 * 1000;
+
 describe("ai tool execution coverage", { concurrent: false }, () => {
 	beforeEach(async () => {
-		await resetLLDB();
+		// The April dates below stay in the future.
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date("2026-03-01T12:00:00Z"));
+		await freshProfile();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	it("handles note create/search/update/delete+undo", async () => {
@@ -39,7 +63,7 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 			aiContext,
 		);
 
-		const note = (await db.noteTbl.toArray())[0];
+		const [note] = await notes();
 		expect(note.content).toContain("Buy groceries");
 
 		const searchNotes = getTool("search_notes");
@@ -50,6 +74,9 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 		expect(searchResult.message).toContain("Found");
 		expect(searchResult.modelPayload).toMatchObject({
 			total: 1,
+			results: [
+				{ id: note.id, lastModificationDate: expect.any(String) },
+			],
 		});
 
 		const updateNote = getTool("update_note");
@@ -60,19 +87,40 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 			}),
 			aiContext,
 		);
-		const updatedNote = await db.noteTbl.get(note.id);
-		expect(updatedNote?.content).toContain("milk");
-		expect(updatedNote?.lastModificationDate).toEqual(expect.any(String));
+		expect((await notes())[0].content).toContain("milk");
 
 		const deleteNote = getTool("delete_note");
 		const deleteResult = await deleteNote.execute(
 			deleteNote.normalizeArgs({ id: note.id }),
 			aiContext,
 		);
-		expect(await db.noteTbl.get(note.id)).toBeUndefined();
+		expect(await notes()).toEqual([]);
 		expect(deleteResult.undoAction).toBeDefined();
 		await deleteResult.undoAction!.run();
-		expect(await db.noteTbl.get(note.id)).toBeDefined();
+		expect(await notes()).toMatchObject([
+			{ content: "Buy groceries and milk" },
+		]);
+	});
+
+	it("brings a deleted note back attached to its save", async () => {
+		const { id: saveId } = await send("save.capture", {
+			url: "https://example.com/",
+			title: "Example",
+			saved: true,
+		});
+		await send("note.create", { content: "About example", saveId });
+		const [note] = await notes();
+
+		const deleteNote = getTool("delete_note");
+		const deleteResult = await deleteNote.execute(
+			deleteNote.normalizeArgs({ id: note.id }),
+			aiContext,
+		);
+		await deleteResult.undoAction!.run();
+		const [restored] = await notes();
+		expect(await readLinks(await keys())).toMatchObject([
+			{ fromId: restored.id, toId: saveId },
+		]);
 	});
 
 	it("handles reminder create/search/update/delete+undo with formatted datetime", async () => {
@@ -91,7 +139,8 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 		const targetDate = (
 			formatted.modelPayload as { dateTime: string } | undefined
 		)?.dateTime;
-		expect(targetDate).toMatch(/^2026-04-07T09:30:00[+-]\d{2}:\d{2}$/);
+		expect(targetDate).toMatch(/^2026-04-07T09:30:00([+-]\d{2}:\d{2}|Z)$/);
+		expect(targetDate).toBe(localDate("2026-04-07T09:30:00"));
 
 		const createReminder = getTool("create_reminder");
 		await createReminder.execute(
@@ -105,7 +154,7 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 		await createReminder.execute(
 			createReminder.normalizeArgs({
 				message: "Submit invoices",
-				targetDate: "2026-04-07T18:45:00+05:30",
+				targetDate: localDate("2026-04-07T18:45:00"),
 				type: LREMINDER_TYPE.NORMAL,
 			}),
 			aiContext,
@@ -113,18 +162,20 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 		await createReminder.execute(
 			createReminder.normalizeArgs({
 				message: "Doctor appointment for April 7 2026 at 10:30 AM",
-				targetDate: "2026-04-07T10:30:00+05:30",
-				type: LREMINDER_TYPE.NORMAL,
+				targetDate: localDate("2026-04-07T10:30:00"),
+				type: LREMINDER_TYPE.ESCALATING,
 			}),
 			aiContext,
 		);
-		const reminder = (await db.reminderTbl.toArray())[0];
-		expect(reminder.message).toBe("Submit report");
+		const reminder = (await reminders()).find(
+			(item) => item.message === "Submit report",
+		)!;
+		expect(reminder).toBeDefined();
 		expect(
-			(await db.reminderTbl.toArray()).some(
+			(await reminders()).find(
 				(item) => item.message === "Doctor appointment",
-			),
-		).toBe(true);
+			)?.escalation,
+		).not.toBeNull();
 
 		const searchReminders = getTool("search_reminders");
 		const searchResult = await searchReminders.execute(
@@ -133,11 +184,12 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 		);
 		expect(searchResult.modelPayload).toMatchObject({
 			total: 1,
+			results: [{ id: reminder.id, targetDate, type: "normal" }],
 		});
 
 		const searchByDatePartsResult = await searchReminders.execute(
 			searchReminders.normalizeArgs({
-				targetDate: "2026-04-07T09:30:00+05:30",
+				targetDate: localDate("2026-04-07T23:00:00"),
 				targetDateCriteria: {
 					year: true,
 					month: true,
@@ -149,6 +201,11 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 		expect(searchByDatePartsResult.modelPayload).toMatchObject({
 			total: 3,
 		});
+		const searchByInstant = await searchReminders.execute(
+			searchReminders.normalizeArgs({ targetDate }),
+			aiContext,
+		);
+		expect(searchByInstant.modelPayload).toMatchObject({ total: 1 });
 
 		const updateReminder = getTool("update_reminder");
 		await updateReminder.execute(
@@ -158,55 +215,65 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 			}),
 			aiContext,
 		);
-		expect((await db.reminderTbl.get(reminder.id))?.message).toContain(
-			"weekly",
-		);
+		expect(
+			(await reminders()).find((item) => item.id === reminder.id)
+				?.message,
+		).toContain("weekly");
 		await updateReminder.execute(
 			updateReminder.normalizeArgs({
 				id: reminder.id,
 				message: "Submit weekly report on April 7 2026 at 9:30 AM",
-				targetDate: "2026-04-07T09:30:00+05:30",
+				targetDate: localDate("2026-04-08T09:30:00"),
 			}),
 			aiContext,
 		);
-		expect((await db.reminderTbl.get(reminder.id))?.message).toBe(
-			"Submit weekly report",
-		);
+		expect(
+			(await reminders()).find((item) => item.id === reminder.id),
+		).toMatchObject({
+			message: "Submit weekly report",
+			target: Date.parse(localDate("2026-04-08T09:30:00")),
+		});
 
 		const deleteReminder = getTool("delete_reminder");
 		const deleteResult = await deleteReminder.execute(
 			deleteReminder.normalizeArgs({ id: reminder.id }),
 			aiContext,
 		);
-		expect(await db.reminderTbl.get(reminder.id)).toBeUndefined();
+		expect(
+			(await reminders()).some((item) => item.id === reminder.id),
+		).toBe(false);
 		await deleteResult.undoAction!.run();
-		expect(await db.reminderTbl.get(reminder.id)).toBeDefined();
+		expect(
+			(await reminders()).some(
+				(item) => item.message === "Submit weekly report",
+			),
+		).toBe(true);
 	});
 
 	it("creates and updates tasks, and rejects invalid or missing records", async () => {
 		const createTask = getTool("create_task");
+		const deadline = localDate("2026-04-08T08:00:00");
 		await createTask.execute(
 			createTask.normalizeArgs({
 				information: "Pay April rent",
 				label: "Rent",
 				priority: LTASK_PRIORITY.HIGH,
-				deadlineDate: "2026-04-08T08:00:00+05:30",
+				deadlineDate: deadline,
 			}),
 			aiContext,
 		);
-		const created = (await db.taskTbl.toArray()).find(
-			(task) => task.label === "Rent",
-		);
-		expect(created).toBeDefined();
-		expect(created?.priority).toBe(LTASK_PRIORITY.HIGH);
-		expect(created?.schedule.type).toBe(LTASK_SCHEDULE_TYPE.DUE);
-		const dueReminderLink = await db.linkTbl
-			.where({
-				taskId: created!.id,
-				type: LLINK_TYPE.REMINDER_TASK,
-			})
-			.first();
-		expect(dueReminderLink?.reminderId).toBeTypeOf("number");
+		const created = (await tasks()).find((task) => task.label === "Rent");
+		expect(created).toMatchObject({
+			priority: "high",
+			schedule: { kind: "due", at: Date.parse(deadline) },
+		});
+		// A deadline brings a reminder at it, linked to the task.
+		expect(await reminders()).toMatchObject([
+			{ message: "Pay April rent", target: Date.parse(deadline) },
+		]);
+		expect(await readLinks(await keys())).toMatchObject([
+			{ toId: created!.id },
+		]);
 
 		const updateTask = getTool("update_task");
 		await updateTask.execute(
@@ -217,10 +284,9 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 			}),
 			aiContext,
 		);
-		expect((await db.taskTbl.get(created!.id))?.label).toBe("Rent due");
-		expect((await db.taskTbl.get(created!.id))?.priority).toBe(
-			LTASK_PRIORITY.MEDIUM,
-		);
+		expect(
+			(await tasks()).find((task) => task.id === created!.id),
+		).toMatchObject({ label: "Rent due", priority: "medium" });
 
 		await expect(
 			createTask.execute(
@@ -235,7 +301,7 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 		await expect(
 			updateTask.execute(
 				updateTask.normalizeArgs({
-					id: 99999,
+					id: "missing",
 					label: "Missing",
 				}),
 				aiContext,
@@ -249,40 +315,32 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 			}),
 			aiContext,
 		);
-		const clamped = (await db.taskTbl.toArray()).find((task) =>
+		const clamped = (await tasks()).find((task) =>
 			task.information.startsWith("xxx"),
 		);
 		expect(clamped?.information).toHaveLength(LMAX_TASK_INFORMATION_LENGTH);
 		expect(clamped?.label).toHaveLength(LMAX_TASK_LABEL_LENGTH);
+		expect(clamped?.schedule).toEqual({ kind: "anytime" });
 	});
 
 	it("handles task search/delete+undo", async () => {
-		const taskId = await db.taskTbl.add({
+		const { id: taskId } = await send("task.create", {
 			information: "Prepare sprint plan",
 			label: "Sprint planning",
-			priority: LTASK_PRIORITY.MEDIUM,
-			schedule: {
-				type: LTASK_SCHEDULE_TYPE.ADHOC,
-				deadlineInfo: null,
-				recurringInfo: null,
-			},
-			finishDate: null,
+			priority: "medium",
+			schedule: { kind: "anytime" },
+			reminder: null,
 		});
-		await db.taskTbl.add({
+		await send("task.create", {
 			information: "Review team retrospective",
 			label: "Retro review",
-			priority: LTASK_PRIORITY.MEDIUM,
+			priority: "medium",
 			schedule: {
-				type: LTASK_SCHEDULE_TYPE.DUE,
-				deadlineInfo: {
-					deadlineDate: "2026-05-01T20:15:00+05:30",
-				},
-				recurringInfo: null,
+				kind: "due",
+				at: Date.parse(localDate("2026-05-01T20:15:00")),
 			},
-			finishDate: null,
+			reminder: "escalating",
 		});
-		const task = (await db.taskTbl.get(taskId))!;
-		expect(task.label).toBe("Sprint planning");
 
 		const searchTasks = getTool("search_tasks");
 		const searchResult = await searchTasks.execute(
@@ -291,11 +349,19 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 		);
 		expect(searchResult.modelPayload).toMatchObject({
 			total: 1,
+			results: [
+				{
+					id: taskId,
+					schedule: { type: "anytime" },
+					deadlineDate: null,
+					finished: false,
+				},
+			],
 		});
 
 		const searchByDeadlineDate = await searchTasks.execute(
 			searchTasks.normalizeArgs({
-				deadlineDate: "2026-05-01T08:10:00+05:30",
+				deadlineDate: localDate("2026-05-01T08:10:00"),
 				deadlineDateCriteria: {
 					year: true,
 					month: true,
@@ -308,14 +374,34 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 			total: 1,
 		});
 
-		const deleteTask = getTool("delete_task");
-		const deleteResult = await deleteTask.execute(
-			deleteTask.normalizeArgs({ id: task.id }),
+		// "ad-hoc" is the old name for tasks without a deadline.
+		const searchAdHoc = await searchTasks.execute(
+			searchTasks.normalizeArgs({ scheduleType: "ad-hoc" }),
 			aiContext,
 		);
-		expect(await db.taskTbl.get(task.id)).toBeUndefined();
+		expect(searchAdHoc.modelPayload).toMatchObject({ total: 1 });
+
+		const retro = (await tasks()).find(
+			(task) => task.label === "Retro review",
+		)!;
+		const deleteTask = getTool("delete_task");
+		const deleteResult = await deleteTask.execute(
+			deleteTask.normalizeArgs({ id: retro.id }),
+			aiContext,
+		);
+		expect((await tasks()).some((task) => task.id === retro.id)).toBe(
+			false,
+		);
+		expect(await reminders()).toEqual([]);
 		await deleteResult.undoAction!.run();
-		expect(await db.taskTbl.get(task.id)).toBeDefined();
+		expect(
+			(await tasks()).find((task) => task.label === "Retro review"),
+		).toMatchObject({ schedule: retro.schedule });
+		// Its reminder comes back with it.
+		expect(await reminders()).toMatchObject([
+			{ message: "Review team retrospective", target: retro.dueAt },
+		]);
+		expect((await reminders())[0].escalation).not.toBeNull();
 	});
 
 	it("rejects malformed payload formats for reminders", async () => {
@@ -333,12 +419,12 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 		await createReminder.execute(
 			createReminder.normalizeArgs({
 				message: "Valid reminder",
-				targetDate: "2026-06-01T10:00:00+05:30",
+				targetDate: localDate("2026-06-01T10:00:00"),
 				type: LREMINDER_TYPE.NORMAL,
 			}),
 			aiContext,
 		);
-		const reminder = (await db.reminderTbl.toArray())[0];
+		const [reminder] = await reminders();
 
 		const updateReminder = getTool("update_reminder");
 		await expect(
@@ -353,13 +439,10 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 	});
 
 	it("updates saves and rejects missing records", async () => {
-		const saveId = await db.visualBMTbl.add({
-			customName: "Old Name",
-			hasBrowsed: LINT_BOOLEAN.TRUE,
-			isSaved: LINT_BOOLEAN.TRUE,
-			lastBrowseDate: LDateUtl.getNow(),
+		const { id: saveId } = await send("save.capture", {
+			url: "https://rename-me.example.com/",
 			title: "Old Name",
-			url: "https://rename-me.example.com",
+			saved: true,
 		});
 
 		const updateSave = getTool("update_save");
@@ -370,12 +453,12 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 			}),
 			aiContext,
 		);
-		expect((await db.visualBMTbl.get(saveId))?.customName).toBe("New Name");
+		expect((await saves())[0].customName).toBe("New Name");
 
 		await expect(
 			updateSave.execute(
 				updateSave.normalizeArgs({
-					id: 99999,
+					id: "missing",
 					customName: "Ghost",
 				}),
 				aiContext,
@@ -384,21 +467,24 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 	});
 
 	it("handles save search/delete+undo and preview image fetch", async () => {
-		const saveId = await db.visualBMTbl.add({
-			customName: "Example Save",
-			hasBrowsed: LINT_BOOLEAN.TRUE,
-			isSaved: LINT_BOOLEAN.TRUE,
-			lastBrowseDate: LDateUtl.getNow(),
-			title: "Example",
-			url: "https://example.com",
+		const { id: saveId } = await send("save.capture", {
+			url: "https://example.com/",
+			title: "Example Save",
+			saved: true,
 		});
-		await db.vbmPreviewTbl.put({
-			vbmId: saveId,
-			blob: {
-				type: "image/png",
-				data: Array.from(new TextEncoder().encode("preview")),
-			} as unknown as Blob,
+		await send("task.create", {
+			information: "Read example",
+			schedule: { kind: "anytime" },
+			reminder: null,
+			saveId,
 		});
+		await putPreview(
+			littleDB,
+			await keys(),
+			saveId,
+			new Uint8Array([0xff, 0xd8, 0xff, 0xe0]),
+			Date.now(),
+		);
 
 		const searchSaves = getTool("search_saves");
 		const searchResult = await searchSaves.execute(
@@ -407,6 +493,7 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 		);
 		expect(searchResult.modelPayload).toMatchObject({
 			total: 1,
+			results: [{ id: saveId, isSaved: true }],
 		});
 
 		const previewTool = getTool("get_save_preview_image");
@@ -422,60 +509,38 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 			deleteSave.normalizeArgs({ id: saveId }),
 			aiContext,
 		);
-		expect((await db.visualBMTbl.get(saveId))?.isSaved).toBe(
-			LINT_BOOLEAN.FALSE,
-		);
+		expect((await saves())[0].saved).toBe(false);
+		expect(await readLinks(await keys())).toEqual([]);
 		await deleteResult.undoAction!.run();
-		expect((await db.visualBMTbl.get(saveId))?.isSaved).toBe(
-			LINT_BOOLEAN.TRUE,
-		);
+		expect((await saves())[0].saved).toBe(true);
+		// Its task is attached again.
+		expect(await readLinks(await keys())).toMatchObject([{ toId: saveId }]);
 	});
 
 	it("handles recent history and productivity overview helpers", async () => {
-		const nowDate = LDateUtl.getNow();
-		const yesterdayDate = LDateUtl.shiftDay(nowDate, -1);
-		const tomorrowDate = LDateUtl.shiftDay(nowDate, 1);
-
-		await db.visualBMTbl.bulkAdd([
-			{
-				customName: "Recent One",
-				hasBrowsed: LINT_BOOLEAN.TRUE,
-				isSaved: LINT_BOOLEAN.TRUE,
-				lastBrowseDate: nowDate,
-				title: "Recent One",
-				url: "https://recent-one.test",
-			},
-			{
-				customName: "Old One",
-				hasBrowsed: LINT_BOOLEAN.TRUE,
-				isSaved: LINT_BOOLEAN.FALSE,
-				lastBrowseDate: yesterdayDate,
-				title: "Old One",
-				url: "https://old-one.test",
-			},
-		]);
-		await db.noteTbl.add({
-			content: "Test note",
+		await send("save.capture", {
+			url: "https://old-one.test/",
+			title: "Old One",
 		});
-		await db.reminderTbl.add({
+		vi.setSystemTime(Date.now() + 1000);
+		await send("save.capture", {
+			url: "https://recent-one.test/",
+			title: "Recent One",
+			saved: true,
+		});
+		await send("note.create", { content: "Test note" });
+		await send("reminder.create", {
 			message: "Future reminder",
-			targetDate: tomorrowDate,
-			type: LREMINDER_TYPE.NORMAL,
-			lastNotificationDate: null,
+			target: Date.now() + DAY,
 		});
-		await db.taskTbl.add({
+		await send("task.create", {
 			label: "Critical",
 			information: "Ship fix",
-			priority: LTASK_PRIORITY.HIGH,
-			schedule: {
-				type: LTASK_SCHEDULE_TYPE.DUE,
-				deadlineInfo: {
-					deadlineDate: yesterdayDate,
-				},
-				recurringInfo: null,
-			},
-			finishDate: null,
+			priority: "high",
+			schedule: { kind: "due", at: Date.now() + DAY },
+			reminder: null,
 		});
+		vi.setSystemTime(Date.now() + 2 * DAY);
 
 		const recentHistory = getTool("get_recent_history");
 		const historyResult = await recentHistory.execute(
@@ -496,7 +561,7 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 			notes: { total: 1 },
 			saves: { total: 1 },
 			history: { total: 2 },
-			reminders: { total: 1, upcoming: 1 },
+			reminders: { total: 1, upcoming: 0, overdue: 1 },
 			tasks: {
 				total: 1,
 				pending: 1,

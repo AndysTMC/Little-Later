@@ -1,18 +1,21 @@
-import { getVisualBM, updateVisualBM } from "../../../services/visualBM";
+import { send } from "../../../utils/send";
+import { readSaves, unlockedKeys } from "../records";
 
 const toolCall = async ({
 	id,
 	customName,
 }: {
-	id: number;
+	id: string;
 	customName: string;
 }): Promise<() => Promise<void>> => {
-	const save = await getVisualBM(id);
+	const save = (await readSaves(await unlockedKeys())).find(
+		(item) => item.id === id,
+	);
 	if (save === undefined) {
 		throw new Error("Save not found.");
 	}
 	return async () => {
-		await updateVisualBM(save.url, { customName });
+		await send("save.update", { id, customName });
 	};
 };
 

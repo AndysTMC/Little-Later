@@ -1,9 +1,11 @@
-import { LTASK_PRIORITY, LTASK_SCHEDULE_TYPE } from "little-shared/enums";
-import { LDate, LRecurringInfo, LTask } from "little-shared/types";
+import { LTASK_PRIORITY } from "little-shared/enums";
+import { LDate } from "little-shared/types";
+import type { Task } from "../../../storage/repositories";
+import type { TaskSchedule } from "../../../storage/schema";
 import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
-import { getDBTables } from "../../../utils/db";
-import { searchTasksByText } from "little-shared/utils/task";
+import { searchTasks } from "../../../popup/records";
+import { readTasks, unlockedKeys } from "../records";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
 	pickSemanticCandidates,
@@ -20,7 +22,6 @@ const toolCall = async (
 		finishDateCriteria,
 		priority,
 		query,
-		recurringInfo,
 		scheduleType,
 	}: {
 		deadlineDate?: LDate;
@@ -29,24 +30,14 @@ const toolCall = async (
 		finishDateCriteria?: LDateMatchCriteria;
 		priority?: LTASK_PRIORITY;
 		query?: string;
-		recurringInfo?: LRecurringInfo;
-		scheduleType?: LTASK_SCHEDULE_TYPE;
+		scheduleType?: TaskSchedule["kind"];
 	},
-): Promise<LTask[]> => {
-	const { taskTbl } = await getDBTables(["taskTbl"]);
-	if (taskTbl === undefined) {
-		throw new Error("Something went wrong while fetching tasks.");
-	}
-	let resultTasks = taskTbl.slice();
+): Promise<Array<Task>> => {
+	const tasks = await readTasks(await unlockedKeys());
+	let resultTasks = tasks.slice();
 	if (query) {
-		const queryTasks: Array<LTask> = [];
-		const filteredTasks = searchTasksByText(taskTbl, query);
-		filteredTasks.forEach((task) => {
-			if (!queryTasks.includes(task)) {
-				queryTasks.push(task);
-			}
-		});
-		const tasksToSend = pickSemanticCandidates(queryTasks, taskTbl).map(
+		const queryTasks = new Set<Task>(searchTasks(tasks, query));
+		const tasksToSend = pickSemanticCandidates([...queryTasks], tasks).map(
 			(task) => ({
 				id: task.id,
 				label: task.label,
@@ -67,70 +58,42 @@ const toolCall = async (
 			IDJSONObjectInstruction,
 		);
 		const semanticTaskIds = extractSemanticIds(response);
-		const semanticTasks = taskTbl.filter((task) =>
-			semanticTaskIds.includes(task.id),
-		);
-		semanticTasks.forEach((task) => {
-			if (!queryTasks.includes(task)) {
-				queryTasks.push(task);
-			}
-		});
-		resultTasks = resultTasks.filter((task) => queryTasks.includes(task));
+		tasks
+			.filter((task) => semanticTaskIds.includes(task.id))
+			.forEach((task) => queryTasks.add(task));
+		resultTasks = resultTasks.filter((task) => queryTasks.has(task));
 	}
 	if (priority) {
-		const priorityFilteredTasks = resultTasks.filter(
-			(task) => task.priority === priority,
-		);
-		resultTasks = resultTasks.filter((task) =>
-			priorityFilteredTasks.includes(task),
+		resultTasks = resultTasks.filter(
+			(task) => task.priority === (priority as string),
 		);
 	}
 	if (scheduleType) {
-		const typeFilteredTasks = resultTasks.filter(
-			(task) => task.schedule.type === scheduleType,
-		);
-		resultTasks = resultTasks.filter((task) =>
-			typeFilteredTasks.includes(task),
+		resultTasks = resultTasks.filter(
+			(task) => task.schedule.kind === scheduleType,
 		);
 	}
-	if (recurringInfo) {
-		const recurringInfoJSON = JSON.stringify(recurringInfo);
-		const recurringInfoFilteredTasks = resultTasks.filter(
-			(task) =>
-				task.schedule.type === LTASK_SCHEDULE_TYPE.RECURRING &&
-				JSON.stringify(task.schedule.recurringInfo) ===
-					recurringInfoJSON,
-		);
-		resultTasks = resultTasks.filter((task) =>
-			recurringInfoFilteredTasks.includes(task),
-		);
-	}
+	// A recurring task's deadline is its next occurrence.
 	if (deadlineDate) {
-		const deadlineTSFilteredTasks = resultTasks.filter(
+		resultTasks = resultTasks.filter(
 			(task) =>
-				task.schedule.type === LTASK_SCHEDULE_TYPE.DUE &&
+				task.dueAt !== 0 &&
 				dateMatchesCriteria(
-					task.schedule.deadlineInfo.deadlineDate,
+					task.dueAt,
 					deadlineDate,
 					deadlineDateCriteria,
 				),
 		);
-		resultTasks = resultTasks.filter((task) =>
-			deadlineTSFilteredTasks.includes(task),
-		);
 	}
 	if (finishDate !== undefined) {
-		const isFinishedFilteredTasks = resultTasks.filter(
+		resultTasks = resultTasks.filter(
 			(task) =>
-				task.finishDate !== null &&
+				task.finishedAt !== 0 &&
 				dateMatchesCriteria(
-					task.finishDate,
+					task.finishedAt,
 					finishDate,
 					finishDateCriteria,
 				),
-		);
-		resultTasks = resultTasks.filter((task) =>
-			isFinishedFilteredTasks.includes(task),
 		);
 	}
 	return resultTasks;

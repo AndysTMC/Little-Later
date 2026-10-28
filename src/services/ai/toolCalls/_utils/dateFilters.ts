@@ -1,4 +1,5 @@
 import { LDate, LTime } from "little-shared/types";
+import { deviceZone } from "../../../../utils/dates";
 
 export type LDateMatchCriteria = {
 	year?: boolean;
@@ -131,12 +132,24 @@ export const normalizeDateMatchCriteria = (
 	return hasAny ? criteria : undefined;
 };
 
+// Instants (epoch milliseconds, 0011) as the model reads and writes them:
+// "YYYY-MM-DDTHH:mm:ss+hh:mm" in the device's zone.
+export const toModelDate = (ms: number): LDate =>
+	Temporal.Instant.fromEpochMilliseconds(ms)
+		.toZonedDateTimeISO(deviceZone())
+		.toString({ smallestUnit: "second", timeZoneName: "never" }) as LDate;
+
+export const fromModelDate = (value: LDate): number =>
+	Temporal.Instant.from(value).epochMilliseconds;
+
+// Compares the candidate's date parts, in the device's zone, with the
+// filter's as written. Without criteria the two must be the same instant.
 export const dateMatchesCriteria = (
-	candidateDate: LDate,
+	candidate: number,
 	filterDate: LDate,
 	criteria?: LDateMatchCriteria,
 ): boolean => {
-	const candidateParts = parseDateParts(candidateDate);
+	const candidateParts = parseDateParts(toModelDate(candidate));
 	const filterParts = parseDateParts(filterDate);
 	if (!candidateParts || !filterParts) {
 		return false;
@@ -145,7 +158,9 @@ export const dateMatchesCriteria = (
 	const hasScopedCriteria =
 		criteria && Object.values(criteria).some((value) => value === true);
 	if (!hasScopedCriteria) {
-		return candidateDate === filterDate;
+		return (
+			Math.floor(candidate / 1000) * 1000 === fromModelDate(filterDate)
+		);
 	}
 
 	if (criteria.year && candidateParts.year !== filterParts.year) {

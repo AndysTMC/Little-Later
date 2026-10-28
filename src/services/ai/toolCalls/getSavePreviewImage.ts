@@ -1,68 +1,10 @@
-import { LVisualBM } from "little-shared/types";
-import {
-	getVisualBM,
-	getVisualBMByUrl,
-	getVisualBMPreview,
-	getVisualBMs,
-} from "../../../services/visualBM";
-import { searchSavesByText } from "../../../utils/visualBM";
+import type { Save } from "../../../storage/repositories";
+import { searchSaves } from "../../../popup/records";
+import { readPreview, readSaves, unlockedKeys } from "../records";
 import {
 	isRenderableImageType,
 	toSafeImageBlob,
 } from "../../../utils/safeImageBlob";
-
-const toUint8Array = async (value: unknown): Promise<Uint8Array> => {
-	if (value instanceof Uint8Array) {
-		return value;
-	}
-	if (value instanceof ArrayBuffer) {
-		return new Uint8Array(value);
-	}
-	if (value && typeof value === "object") {
-		const record = value as {
-			data?: unknown;
-			buffer?: unknown;
-			arrayBuffer?: () => Promise<ArrayBuffer>;
-		};
-		if (typeof record.arrayBuffer === "function") {
-			return new Uint8Array(await record.arrayBuffer());
-		}
-		if (record.data instanceof Uint8Array) {
-			return record.data;
-		}
-		if (record.data instanceof ArrayBuffer) {
-			return new Uint8Array(record.data);
-		}
-		if (Array.isArray(record.data)) {
-			return Uint8Array.from(
-				record.data.filter(
-					(item): item is number =>
-						typeof item === "number" && Number.isFinite(item),
-				),
-			);
-		}
-		if (record.buffer instanceof ArrayBuffer) {
-			return new Uint8Array(record.buffer);
-		}
-	}
-	throw new Error("Could not read preview image bytes.");
-};
-
-const normalizeToBlob = async (value: unknown): Promise<Blob> => {
-	if (value instanceof Blob) {
-		return value;
-	}
-	const type =
-		value &&
-		typeof value === "object" &&
-		"type" in value &&
-		typeof value.type === "string" &&
-		value.type !== ""
-			? value.type
-			: "image/png";
-	const bytes = await toUint8Array(value);
-	return new Blob([bytes.buffer as ArrayBuffer], { type });
-};
 
 const blobToDataUrl = async (blob: Blob): Promise<string> => {
 	if (typeof FileReader !== "undefined") {
@@ -97,8 +39,8 @@ const blobToDataUrl = async (blob: Blob): Promise<string> => {
 	throw new Error("Could not convert preview image.");
 };
 
-const toRenderableImageUrl = async (value: unknown): Promise<string> => {
-	const blob = toSafeImageBlob(await normalizeToBlob(value));
+const toRenderableImageUrl = async (preview: Blob): Promise<string> => {
+	const blob = toSafeImageBlob(preview);
 	if (
 		typeof URL !== "undefined" &&
 		typeof URL.createObjectURL === "function"
@@ -112,17 +54,20 @@ const toRenderableImageUrl = async (value: unknown): Promise<string> => {
 	return blobToDataUrl(blob);
 };
 
-const resolveSave = async ({
-	id,
-	query,
-	url,
-}: {
-	id?: number;
-	url?: string;
-	query?: string;
-}): Promise<LVisualBM> => {
+const resolveSave = async (
+	saves: Array<Save>,
+	{
+		id,
+		query,
+		url,
+	}: {
+		id?: string;
+		url?: string;
+		query?: string;
+	},
+): Promise<Save> => {
 	if (id !== undefined) {
-		const saveById = await getVisualBM(id);
+		const saveById = saves.find((save) => save.id === id);
 		if (!saveById) {
 			throw new Error(`Save ${id} was not found.`);
 		}
@@ -130,7 +75,7 @@ const resolveSave = async ({
 	}
 
 	if (url) {
-		const saveByUrl = await getVisualBMByUrl(url);
+		const saveByUrl = saves.find((save) => save.url === url);
 		if (!saveByUrl) {
 			throw new Error("No save matched the provided URL.");
 		}
@@ -138,10 +83,7 @@ const resolveSave = async ({
 	}
 
 	if (query) {
-		const allSaves = await getVisualBMs();
-		const matches = searchSavesByText(allSaves, query).filter(
-			(save) => save.isSaved === 1,
-		);
+		const matches = searchSaves(saves, query);
 		if (matches.length === 0) {
 			throw new Error("No save matched the query.");
 		}
@@ -156,15 +98,16 @@ const toolCall = async ({
 	query,
 	url,
 }: {
-	id?: number;
+	id?: string;
 	url?: string;
 	query?: string;
 }): Promise<{
-	save: LVisualBM;
+	save: Save;
 	previewUrl: string;
 }> => {
-	const save = await resolveSave({ id, query, url });
-	const previewBlob = await getVisualBMPreview(save.id);
+	const keys = await unlockedKeys();
+	const save = await resolveSave(await readSaves(keys), { id, query, url });
+	const previewBlob = await readPreview(keys, save.id);
 	if (!previewBlob) {
 		throw new Error("No preview image is available for that save.");
 	}
