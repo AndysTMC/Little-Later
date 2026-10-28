@@ -99,14 +99,27 @@ export type Dispatch = (
 	input: unknown,
 ) => Promise<CommandResult<unknown>>;
 
-// Runs commands strictly one after another, so a command's reads, crypto
-// and transaction never interleave with another command's (0012).
+// Runs tasks strictly one after another. Everything in the worker that
+// writes shares one queue, so a write's reads, crypto and transaction never
+// interleave with another's (0012).
+export type SerialQueue = <T>(task: () => Promise<T>) => Promise<T>;
+
+export const createSerialQueue = (): SerialQueue => {
+	let tail: Promise<unknown> = Promise.resolve();
+	return (task) => {
+		const result = tail.then(task);
+		// A failed task must not stop the ones after it.
+		tail = result.catch(() => undefined);
+		return result;
+	};
+};
+
 export const createDispatcher = (
 	commands: ReadonlyArray<AnyCommand>,
 	ctx: CommandContext,
+	queue: SerialQueue = createSerialQueue(),
 ): Dispatch => {
 	const byName = new Map(commands.map((command) => [command.name, command]));
-	let queue: Promise<unknown> = Promise.resolve();
 	return (name, input) => {
 		const run = async (): Promise<CommandResult<unknown>> => {
 			const command = byName.get(name);
@@ -127,9 +140,7 @@ export const createDispatcher = (
 				return toFailure(error);
 			}
 		};
-		const result = queue.then(run);
-		queue = result;
-		return result;
+		return queue(run);
 	};
 };
 
