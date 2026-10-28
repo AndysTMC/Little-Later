@@ -38,6 +38,18 @@
 			"require": "./dist/utils/crypto.js",
 			"default": "./dist/utils/crypto.js"
 		},
+		"./utils/envelope": {
+			"types": "./dist/utils/envelope.d.ts",
+			"import": "./dist/utils/envelope.js",
+			"require": "./dist/utils/envelope.js",
+			"default": "./dist/utils/envelope.js"
+		},
+		"./utils/envelope.js": {
+			"types": "./dist/utils/envelope.d.ts",
+			"import": "./dist/utils/envelope.js",
+			"require": "./dist/utils/envelope.js",
+			"default": "./dist/utils/envelope.js"
+		},
 		"./utils/datetime": {
 			"types": "./dist/utils/datetime.d.ts",
 			"import": "./dist/utils/datetime.js",
