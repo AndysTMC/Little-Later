@@ -134,10 +134,16 @@ jobs:
 
             # Ship the signed attestation with the release, so it can be
             # verified offline: gh attestation verify --bundle <file>.
+            # The .intoto.jsonl is the bundle's signed in-toto envelope on
+            # one line, the file name SLSA tools and Scorecard look for.
             - name: Add the provenance bundle to the release files
               env:
                   BUNDLE: ${{ steps.attest.outputs.bundle-path }}
-              run: cp "$BUNDLE" "dist-release/Little-Later-${GITHUB_REF_NAME#v}.sigstore.json"
+              run: |
+                  set -euo pipefail
+                  NAME="dist-release/Little-Later-${GITHUB_REF_NAME#v}"
+                  cp "$BUNDLE" "${NAME}.sigstore.json"
+                  jq -c '.dsseEnvelope' "$BUNDLE" > "${NAME}.intoto.jsonl"
 
             - name: Keep release files for the publish job
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

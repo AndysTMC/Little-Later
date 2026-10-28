@@ -4,6 +4,10 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Changed
+
+- Releases also attach their signed build provenance as `Little-Later-<version>.intoto.jsonl`.
+
 ## [2.1.1] - 2026-10-28
 
 ### Security
