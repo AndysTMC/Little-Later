@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from "dexie";
 import type { WrappedKey } from "little-shared/utils/envelope";
+import type { Escalation, RecurrenceRule } from "little-shared/utils/schedule";
 
 // Storage format v1 (decision 0010). Each table lists which fields are
 // plain and why; everything else lives in the encrypted `body`.
@@ -55,15 +56,30 @@ export type SaveRow = RecordBase & {
 
 export type NoteRow = RecordBase & { privacy: Privacy };
 
+// When a task is due (decision 0011). Plain, like a reminder's schedule:
+// it shows when, not what.
+export type TaskSchedule =
+	| { kind: "anytime" }
+	| { kind: "due"; at: number }
+	| { kind: "recurring"; rule: RecurrenceRule };
+
 export type TaskRow = RecordBase & {
-	// Plain so due lists are range queries. 0 means no deadline.
+	schedule: TaskSchedule;
+	// Plain so due lists are range queries. For a recurring task, the
+	// occurrence currently open. 0 means no deadline.
 	dueAt: number;
+	// A recurring task is never done; finishing it moves dueAt on.
 	done: 0 | 1;
+	finishedAt: number;
 	privacy: Privacy;
 };
 
 export type ReminderRow = RecordBase & {
 	// Plain so reminders fire while locked (0011).
+	target: number;
+	escalation: Escalation | null;
+	lastFiredAt: number;
+	// 0 once the reminder has fired for the last time.
 	nextFireAt: number;
 	privacy: Privacy;
 };

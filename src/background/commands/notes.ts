@@ -1,7 +1,7 @@
 import { sealBody, type ProfileKeys } from "../../storage/keys";
 import type { NoteContent } from "../../storage/repositories";
 import type { LittleDB, NoteRow } from "../../storage/schema";
-import { removeRecords } from "./cascade";
+import { cascadeTables, removeRecords } from "./cascade";
 import {
 	CommandError,
 	asRecord,
@@ -114,10 +114,8 @@ export const noteDelete = defineCommand({
 		if (!row || row.profileId !== keys.profileId) {
 			return null;
 		}
-		await ctx.db.transaction(
-			"rw",
-			[ctx.db.saves, ctx.db.notes, ctx.db.links, ctx.db.assets],
-			() => removeRecords(ctx.db, keys.profileId, [row.id]),
+		await ctx.db.transaction("rw", cascadeTables(ctx.db), () =>
+			removeRecords(ctx.db, keys.profileId, [row.id]),
 		);
 		return null;
 	},

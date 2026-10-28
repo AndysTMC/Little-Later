@@ -7,7 +7,7 @@ import {
 	type SaveContent,
 } from "../../storage/repositories";
 import type { LittleDB, SaveRow } from "../../storage/schema";
-import { removeRecords } from "./cascade";
+import { cascadeTables, removeRecords } from "./cascade";
 import {
 	CommandError,
 	asRecord,
@@ -53,8 +53,6 @@ const getOwnSave = async (
 	}
 	return row;
 };
-
-const writeTables = (db: LittleDB) => [db.saves, db.notes, db.links, db.assets];
 
 // Unsaved pages to drop so that adding one more stays within the history
 // limit and the per-site limit; oldest visit first.
@@ -142,7 +140,7 @@ export const saveCapture = defineCommand({
 			title: input.title,
 			customName: input.title,
 		});
-		await ctx.db.transaction("rw", writeTables(ctx.db), async () => {
+		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {
 			await removeRecords(ctx.db, keys.profileId, evict);
 			await ctx.db.saves.add({
 				id,
@@ -188,7 +186,7 @@ export const saveUpdate = defineCommand({
 		const browsed = input.browsed ?? row.browsed === 1;
 
 		if (!saved && !browsed) {
-			await ctx.db.transaction("rw", writeTables(ctx.db), () =>
+			await ctx.db.transaction("rw", cascadeTables(ctx.db), () =>
 				removeRecords(ctx.db, keys.profileId, [row.id]),
 			);
 			return { deleted: true };
@@ -201,7 +199,7 @@ export const saveUpdate = defineCommand({
 			customName: input.customName ?? content.customName,
 		});
 		const now = ctx.now();
-		await ctx.db.transaction("rw", writeTables(ctx.db), async () => {
+		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {
 			// Unsaving detaches the page's notes, reminders and tasks, as
 			// before format v1; the notes themselves stay.
 			if (row.saved === 1 && !saved) {
@@ -233,7 +231,7 @@ export const saveDelete = defineCommand({
 		if (!row || row.profileId !== keys.profileId) {
 			return null;
 		}
-		await ctx.db.transaction("rw", writeTables(ctx.db), async () => {
+		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {
 			const noteIds = (
 				await ctx.db.links
 					.where("[profileId+toId]")
