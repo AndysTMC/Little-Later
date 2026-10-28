@@ -23,3 +23,5 @@ Each release's zip and CRX carry a build provenance attestation. With the GitHub
 ```sh
 gh attestation verify Little-Later-<version>.zip --repo AndysTMC/Little-Later
 ```
+
+To verify offline, pass the release's `Little-Later-<version>.sigstore.json` as `--bundle`. Each release also lists its bundled packages in `Little-Later-<version>.cdx.json` (CycloneDX).

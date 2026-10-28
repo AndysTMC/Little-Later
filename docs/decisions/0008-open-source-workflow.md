@@ -1,3 +1,7 @@
+---
+type: decision
+---
+
 # 0008. Run the repository like an open-source project
 
 Status: proposed

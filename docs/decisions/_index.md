@@ -10,3 +10,4 @@
 | 0006 | Extension signing keys live only outside git                                                            | accepted | 2026-08-19 | —          |
 | 0007 | Close the P0 security gaps before the core rebuild                                                      | accepted | 2026-10-27 | —          |
 | 0008 | Run the repository like an open-source project                                                          | proposed | 2026-10-27 | —          |
+| 0009 | Measure supply-chain health and ship license notices with every build                                   | proposed | 2026-10-28 | —          |

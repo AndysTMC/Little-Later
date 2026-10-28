@@ -7,6 +7,8 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 import { ManifestV3Export, crx } from "@crxjs/vite-plugin";
 import manifestJson from "./manifest.json";
+import packageJson from "./package.json";
+import { thirdPartyNotices } from "./scripts/third-party-notices";
 
 const manifest = manifestJson as ManifestV3Export;
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -20,7 +22,23 @@ export default defineConfig({
 	// 		port: 443,
 	// 	},
 	// },
-	plugins: [react(), tsconfigPaths(), tailwindcss(), crx({ manifest })],
+	plugins: [
+		react(),
+		tsconfigPaths(),
+		tailwindcss(),
+		crx({ manifest }),
+		thirdPartyNotices(
+			{
+				name: manifestJson.name,
+				version: manifestJson.version,
+				license: packageJson.license,
+			},
+			{
+				publicDir: path.join(projectRoot, "public"),
+				publicLicenseFiles: ["fonts/OFL.txt"],
+			},
+		),
+	],
 	resolve: {
 		alias: [
 			{

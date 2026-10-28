@@ -1,3 +1,7 @@
+---
+type: decision
+---
+
 # 0007. Close the P0 security gaps before the core rebuild
 
 Status: accepted

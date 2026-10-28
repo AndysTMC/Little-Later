@@ -1,3 +1,7 @@
+---
+type: log
+---
+
 # History
 
 Events that git commits will not explain.
