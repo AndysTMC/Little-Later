@@ -9,6 +9,7 @@ import {
 	updateProfile,
 	type ProfileTheme,
 } from "../../storage/profiles";
+import { LMAX_NAME_LENGTH } from "little-shared/constants";
 import {
 	CommandError,
 	asNullableString,
@@ -18,16 +19,15 @@ import {
 	fail,
 } from "./registry";
 
-const MAX_NAME_LENGTH = 64;
 const MAX_AUTO_LOCK_MINUTES = 24 * 60;
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
 const asProfileName = (value: unknown): string => {
 	const name = asString(value, "name").trim();
-	return name.length > 0 && name.length <= MAX_NAME_LENGTH
+	return name.length > 0 && name.length <= LMAX_NAME_LENGTH
 		? name
-		: fail(`name must be 1 to ${MAX_NAME_LENGTH} characters.`);
+		: fail(`name must be 1 to ${LMAX_NAME_LENGTH} characters.`);
 };
 
 export const profileCreate = defineCommand({
@@ -159,7 +159,7 @@ export const profileSetAvatar = defineCommand({
 	parse: (input) => {
 		const record = asRecord(input);
 		if (record.file === null) {
-			return null;
+			return { file: null };
 		}
 		const type = asString(record.type, "type");
 		return {
@@ -171,7 +171,7 @@ export const profileSetAvatar = defineCommand({
 	},
 	run: async (ctx, input) => {
 		const { profileId } = await ctx.keys();
-		if (input === null) {
+		if (input.file === null) {
 			await setAvatar(ctx.db, profileId, null);
 			return null;
 		}

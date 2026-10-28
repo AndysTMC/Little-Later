@@ -6,9 +6,9 @@ import {
 	LTask,
 	LLink,
 	LNote,
-	LUserProfile,
 	LUserSettings,
 } from "little-shared/types";
+import type { UserProfile } from "../../hooks/useUserProfiles";
 import {
 	LHOME_MAIN_CONTENT,
 	LHOME_SEARCH_RESULT_TYPE,
@@ -52,7 +52,7 @@ const Component = () => {
 		visualBMs,
 	}: {
 		className?: string;
-		currentUserProfile: LUserProfile;
+		currentUserProfile: UserProfile;
 		userSettings: LUserSettings;
 		links: Array<LLink>;
 		notes: Array<LNote>;

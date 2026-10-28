@@ -1,18 +1,17 @@
 import { motion } from "framer-motion";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import { useLittleTransition } from "../../hooks/useLittleTransition";
-import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
+import { LTHEME } from "little-shared/enums";
 import { useNavigate, useParams } from "react-router";
-import { unlockUser } from "../../../services/user";
+import { send } from "../../../utils/send";
+import { getUserSettings } from "../../../services/settings";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIAuthGate } from "../../components/LUIAuthGate/Component";
-import { LUserProfile } from "little-shared/types";
-import { useUserProfiles } from "../../hooks/useUserProfiles";
+import { useUserProfiles, type UserProfile } from "../../hooks/useUserProfiles";
 import { useEffect, useState } from "react";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
-import { createToast } from "../../../services/toasts";
 import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
 
 const Page = () => {
@@ -27,36 +26,28 @@ const Page = () => {
 
 	const userProfiles = useUserProfiles();
 
-	const [savedUP, setSavedUP] = useState<LUserProfile | undefined>();
+	const [savedUP, setSavedUP] = useState<UserProfile | undefined>();
 
 	const loading = useLoading([userProfiles]);
 
+	// Errors reach the gate, which shows them by the password field.
 	const handleUnlock = async (password?: string) => {
 		if (savedUP === undefined) {
 			return;
 		}
-		try {
-			await unlockUser(savedUP.userId, password);
-			setExit(exitTransitions.zoomIn);
-			navigate("/home", {
-				state: { entryTransition: entryTransitions.zoomIn },
-			});
-		} catch (error) {
-			console.error("Failed to unlock profile.", error);
-			await createToast(
-				error instanceof Error
-					? error.message
-					: "Couldn't unlock this profile.",
-				LTOAST_TYPE.ERROR,
-			);
-		}
+		await send("profile.unlock", {
+			profileId: savedUP.id,
+			password: password ?? null,
+		});
+		const { guide } = await getUserSettings();
+		setExit(exitTransitions.zoomIn);
+		navigate(guide.isFirstTimeUser ? "/getting-started" : "/home", {
+			state: { entryTransition: entryTransitions.zoomIn },
+		});
 	};
 	useEffect(() => {
 		if (userProfiles) {
-			const parsedId = Number.parseInt(id ?? "", 10);
-			const up = userProfiles?.find(
-				(x) => Number.isFinite(parsedId) && x.userId === parsedId,
-			);
+			const up = userProfiles.find((profile) => profile.id === id);
 			if (up) {
 				setSavedUP(up);
 			}
