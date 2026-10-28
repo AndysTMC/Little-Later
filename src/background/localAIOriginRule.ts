@@ -6,17 +6,12 @@ export const escapeRegex = (value: string): string =>
 // Local AI servers (Ollama, LM Studio) reject the chrome-extension:// origin,
 // so the extension's own requests to them are sent as coming from 127.0.0.1.
 // initiatorDomains keeps the rewrite to this extension: without it, any
-// website's requests to these ports would get the trusted origin too.
-// An empty port stands for the scheme's default port, which Chrome leaves
-// out of the URL it matches against.
-const portPattern = (ports: Array<string>): string => {
-	const explicit = ports.filter((port) => port !== "").map(escapeRegex);
-	const allowDefault = ports.includes("");
-	return `(?::(${explicit.join("|")}))${allowDefault ? "?" : ""}`;
-};
-
+// website's requests to these servers would get the trusted origin too.
+// Chrome matches a rule against the request's canonical URL, which leaves
+// out a default port, so the filter is built from each endpoint's
+// URL.origin, which is canonical in the same way.
 export const buildLocalAIOriginRule = (
-	ports: Array<string>,
+	endpoints: Array<URL>,
 	extensionId: string,
 ): chrome.declarativeNetRequest.Rule => ({
 	id: LOCAL_AI_ORIGIN_RULE_ID,
@@ -38,6 +33,8 @@ export const buildLocalAIOriginRule = (
 			"xmlhttprequest" as chrome.declarativeNetRequest.ResourceType,
 			"websocket" as chrome.declarativeNetRequest.ResourceType,
 		],
-		regexFilter: `^https?://(localhost|127\\.0\\.0\\.1|\\[::1\\])${portPattern(ports)}/`,
+		regexFilter: `^(${[...new Set(endpoints.map((url) => url.origin))]
+			.map(escapeRegex)
+			.join("|")})/`,
 	},
 });

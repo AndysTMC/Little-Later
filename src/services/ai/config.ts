@@ -19,6 +19,9 @@ export const getDefaultBaseUrl = (provider: LAI_PROVIDERS): string =>
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
+export const isLoopbackUrl = (url: URL): boolean =>
+	LOOPBACK_HOSTS.has(url.hostname);
+
 // Prompts carry personal data and the request carries the API key, so a
 // custom endpoint must use https unless it runs on this machine.
 export const getBaseUrlProblem = (baseUrl: string): string | null => {
@@ -35,7 +38,7 @@ export const getBaseUrlProblem = (baseUrl: string): string | null => {
 	if (parsed.protocol === "https:") {
 		return null;
 	}
-	if (parsed.protocol === "http:" && LOOPBACK_HOSTS.has(parsed.hostname)) {
+	if (parsed.protocol === "http:" && isLoopbackUrl(parsed)) {
 		return null;
 	}
 	if (parsed.protocol === "http:") {
