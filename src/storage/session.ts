@@ -60,8 +60,7 @@ export const createChromeSessionStore = (): SessionStore => ({
 			if (SESSION_KEY in changes) {
 				listener(
 					(changes[SESSION_KEY].newValue as
-						| UnlockedSession
-						| undefined) ?? null,
+						UnlockedSession | undefined) ?? null,
 				);
 			}
 		};

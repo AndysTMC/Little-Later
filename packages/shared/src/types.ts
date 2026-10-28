@@ -91,10 +91,7 @@ export type LVBMPreview = {
 export type LBoolean = 0 | 1;
 
 export type LLink =
-	| LNoteVBMLink
-	| LReminderVBMLink
-	| LReminderTaskLink
-	| LTaskVBMLink;
+	LNoteVBMLink | LReminderVBMLink | LReminderTaskLink | LTaskVBMLink;
 
 export type LLinkInsert = (
 	| LNoteVBMLinkInsert
@@ -262,9 +259,7 @@ export type LUserSettings = {
 };
 
 export type LTaskSchedule =
-	| LAdhocTaskSchedule
-	| LRecurringTaskSchedule
-	| LDueTaskSchedule;
+	LAdhocTaskSchedule | LRecurringTaskSchedule | LDueTaskSchedule;
 
 export type LTask = {
 	id: number;
