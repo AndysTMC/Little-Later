@@ -17,10 +17,14 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 - Signed CRX releases, with zip and checksums, are built from version tags.
 - CI checks formatting, lint, types, unit tests, the build and the end-to-end suite.
 - Release workflow: least-privilege tokens, actions pinned to commit SHAs, tags must be on `main`, and build provenance is attested.
+- A release refuses a tag that does not match the version in the manifest and package files, or that has no changelog section, and builds without a dependency cache.
 
 ### Added
 
 - Contributing guide, security policy, issue and pull request templates, Dependabot, and this changelog.
+- Every build includes `THIRD_PARTY_NOTICES.txt` with the license of each bundled package and the Rubik font, plus a CycloneDX SBOM.
+- Releases ship the SBOM and a signed build provenance bundle that can be verified offline; release notes come from this changelog.
+- CodeQL, OpenSSF Scorecard, workflow auditing and dependency review run in CI; support and governance docs.
 
 ## [2.1.0] - 2026-08-19
 

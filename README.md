@@ -1,16 +1,21 @@
 # Little Later
 
-<img src="./assets/logos-and-animations/little-light-icon-b.png" width="150" />
+[![CI](https://github.com/AndysTMC/Little-Later/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/AndysTMC/Little-Later/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/AndysTMC/Little-Later/badge)](https://scorecard.dev/viewer/?uri=github.com/AndysTMC/Little-Later)
+[![Latest release](https://img.shields.io/github/v/release/AndysTMC/Little-Later)](https://github.com/AndysTMC/Little-Later/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE.md)
+
+<img src="./assets/logos-and-animations/little-light-icon-b.png" width="150" alt="Little Later logo" />
 
 Little Later is a local-first Chrome extension for visual bookmarks, tasks, reminders, notes, and AI-assisted workflows.
 
 There is no backend or hosted sync layer. User data stays in the browser profile and can be protected with the built-in encrypted profile vault.
 
-<img width="400" height="480" alt="1761487550378" src="https://github.com/user-attachments/assets/6b833d48-c4b0-4548-b2b4-46a8e1b4b08c" />
-<img width="400" height="480" alt="1761487613165" src="https://github.com/user-attachments/assets/86e86c83-ce91-43fb-b48f-fa9e54b8f06a" />
-<img width="400" height="480" alt="1761487575388" src="https://github.com/user-attachments/assets/cf5858e4-a7f6-4c20-b703-3b98b17c5c43" />
-<img width="400" height="480" alt="1761487588790" src="https://github.com/user-attachments/assets/b6e3e9b0-b4c8-4698-bc10-b87b195a6734" />
-<img width="480" height="270" alt="1761487627545" src="https://github.com/user-attachments/assets/70275a57-3d3b-47a6-9f64-9550e40dec87" />
+<img width="400" height="480" alt="Little Later popup screenshot" src="https://github.com/user-attachments/assets/6b833d48-c4b0-4548-b2b4-46a8e1b4b08c" />
+<img width="400" height="480" alt="Little Later popup screenshot" src="https://github.com/user-attachments/assets/86e86c83-ce91-43fb-b48f-fa9e54b8f06a" />
+<img width="400" height="480" alt="Little Later popup screenshot" src="https://github.com/user-attachments/assets/cf5858e4-a7f6-4c20-b703-3b98b17c5c43" />
+<img width="400" height="480" alt="Little Later popup screenshot" src="https://github.com/user-attachments/assets/b6e3e9b0-b4c8-4698-bc10-b87b195a6734" />
+<img width="480" height="270" alt="Little Later screenshot" src="https://github.com/user-attachments/assets/70275a57-3d3b-47a6-9f64-9550e40dec87" />
 
 ## Features
 
@@ -45,7 +50,7 @@ bun run test
 bun run build
 ```
 
-Optional: `bun run test:e2e`. Live AI checks use `.env` (copy [`.env.example`](./.env.example)): `bun run test:ai:live` and `bun run test:ai:live:validate`.
+`bun run test:e2e` runs the Playwright suite; [CONTRIBUTING.md](./CONTRIBUTING.md#checks) lists every check CI runs. Live AI checks use `.env` (copy [`.env.example`](./.env.example)): `bun run test:ai:live` and `bun run test:ai:live:validate`.
 
 Ollama and LM Studio use built-in local URLs. Only custom providers need a base URL and API key.
 
@@ -55,25 +60,43 @@ Ollama and LM Studio use built-in local URLs. Only custom providers need a base 
 - Local data lives in IndexedDB and Chrome extension storage
 - Locked profiles use AES-GCM + PBKDF2 helpers from `packages/shared`
 - Export/import stays local (readable JSON or an importable encrypted bundle)
+- Nothing is sent to a server unless you set up an AI provider. Then your chat messages and the records the AI reads go to that provider, which can be a local server such as Ollama or LM Studio
+
+### Permissions
+
+| Permission                        | Why                                                                                |
+| --------------------------------- | ---------------------------------------------------------------------------------- |
+| `tabs`, `activeTab`, `<all_urls>` | Capture previews of the pages you visit and save                                   |
+| `storage`, `unlimitedStorage`     | Keep settings and the local vault                                                  |
+| `alarms`, `notifications`         | Fire reminders and re-run capture after the service worker sleeps                  |
+| `contextMenus`                    | "Save" and "Note" actions on the right-click menu                                  |
+| `declarativeNetRequest`           | Send a trusted `Origin` header on the extension's own requests to local AI servers |
 
 ## Installation from releases
 
 1. Open the latest [GitHub Release](https://github.com/AndysTMC/Little-Later/releases/latest).
 2. Download `Little-Later-<version>.zip` (supported path) or `Little-Later-<version>.crx` (signed package).
 3. For the zip: extract it, open `chrome://extensions/`, enable Developer Mode, **Load unpacked**.
-4. The CRX is signed with the repo release key. Chrome on some platforms blocks sideload of non-store CRX files; use the zip there. Each release also includes SHA256 checksums.
+4. The CRX is signed with the repo release key. Chrome on some platforms blocks sideload of non-store CRX files; use the zip there.
 
-## Release flow
+Every release is built by GitHub Actions from a tag on `main` and ships SHA256 checksums, a CycloneDX SBOM (`.cdx.json`) and a signed build provenance bundle (`.sigstore.json`). To check that a download came from this repository's workflow:
 
-1. Update versions in `manifest.json`, `package.json`, and `packages/shared/package.json`.
-2. Commit on `main` and push a tag like `v2.1.0`.
-3. GitHub Actions builds the zip, signs `Little-Later-<version>.crx` with the `SIGNING_KEY` Actions secret, and uploads checksums.
+```sh
+gh attestation verify Little-Later-<version>.zip --repo AndysTMC/Little-Later
+```
 
-The signing private key must never be committed. Treat any historical key that appeared in git as burned.
+How releases are cut is in [CONTRIBUTING.md](./CONTRIBUTING.md#releases).
+
+## Contributing and support
+
+- [Contributing guide](./CONTRIBUTING.md) and [Code of Conduct](./CODE_OF_CONDUCT.md)
+- [Getting help](./SUPPORT.md) and [how the project is run](./GOVERNANCE.md)
+- [Security policy](./SECURITY.md): report vulnerabilities privately, not in issues
+- [Changelog](./CHANGELOG.md) and [design decisions](./docs/decisions/_index.md)
 
 ## License
 
-MIT — see [LICENSE.md](./LICENSE.md).
+MIT, see [LICENSE.md](./LICENSE.md). Every build includes `THIRD_PARTY_NOTICES.txt` with the license of each bundled package; the Rubik font is under the SIL Open Font License ([public/fonts/OFL.txt](./public/fonts/OFL.txt)).
 
 ## Acknowledgements
 
@@ -87,5 +110,3 @@ MIT — see [LICENSE.md](./LICENSE.md).
 | [Node.js](https://nodejs.org/)
 | [Bun](https://bun.sh/)
 | [Prettier](https://prettier.io/)
-
-Fell
