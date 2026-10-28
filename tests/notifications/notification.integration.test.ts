@@ -28,7 +28,7 @@ describe("notification service", () => {
 					create: vi.fn(
 						(
 							_: string,
-							__: chrome.notifications.NotificationOptions<true>,
+							__: chrome.notifications.NotificationCreateOptions,
 							callback?: (notificationId: string) => void,
 						) => {
 							callback?.("created-id");
@@ -55,7 +55,7 @@ describe("notification service", () => {
 			.mockImplementationOnce(
 				(
 					_: string,
-					__: chrome.notifications.NotificationOptions<true>,
+					__: chrome.notifications.NotificationCreateOptions,
 					callback?: (notificationId: string) => void,
 				) => {
 					(
@@ -76,7 +76,7 @@ describe("notification service", () => {
 			.mockImplementationOnce(
 				(
 					_: string,
-					__: chrome.notifications.NotificationOptions<true>,
+					__: chrome.notifications.NotificationCreateOptions,
 					callback?: (notificationId: string) => void,
 				) => {
 					callback?.("created-id");
