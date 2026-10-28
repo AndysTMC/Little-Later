@@ -2,7 +2,13 @@ import Dexie from "dexie";
 import { LINITIAL_USER_SETTINGS } from "little-shared/constants";
 import type { LUserSettings } from "little-shared/types";
 import { openBody, type ProfileKeys } from "./keys";
-import type { LittleDB, NoteRow, SaveRow } from "./schema";
+import type {
+	LittleDB,
+	NoteRow,
+	ReminderRow,
+	SaveRow,
+	TaskRow,
+} from "./schema";
 
 // Decrypting reads (decision 0012, Reads). Any context holding the profile's
 // keys can use these; writes go through worker commands.
@@ -122,4 +128,79 @@ export const getSettings = async (
 	return row
 		? openBody<LUserSettings>(keys, "settings", row.id, row.body)
 		: LINITIAL_USER_SETTINGS.value;
+};
+
+export type TaskPriority = "low" | "medium" | "high";
+export type TaskContent = {
+	information: string;
+	label: string;
+	priority: TaskPriority;
+};
+export type ReminderContent = { message: string };
+
+export type Task = TaskContent &
+	Pick<TaskRow, "id" | "schedule" | "dueAt" | "finishedAt"> & {
+		done: boolean;
+	};
+
+export type Reminder = ReminderContent &
+	Pick<
+		ReminderRow,
+		"id" | "target" | "escalation" | "lastFiredAt" | "nextFireAt"
+	>;
+
+export const openTask = async (
+	keys: ProfileKeys,
+	row: TaskRow,
+): Promise<Task> => ({
+	...(await openBody<TaskContent>(keys, "tasks", row.id, row.body)),
+	id: row.id,
+	schedule: row.schedule,
+	dueAt: row.dueAt,
+	finishedAt: row.finishedAt,
+	done: row.done === 1,
+});
+
+export const openReminder = async (
+	keys: ProfileKeys,
+	row: ReminderRow,
+): Promise<Reminder> => ({
+	...(await openBody<ReminderContent>(keys, "reminders", row.id, row.body)),
+	id: row.id,
+	target: row.target,
+	escalation: row.escalation,
+	lastFiredAt: row.lastFiredAt,
+	nextFireAt: row.nextFireAt,
+});
+
+// Open or finished tasks, soonest deadline first; tasks without one last.
+export const listTasks = async (
+	db: LittleDB,
+	keys: ProfileKeys,
+	done = false,
+): Promise<Array<Task>> => {
+	const rows = await db.tasks
+		.where("[profileId+done+dueAt]")
+		.between(
+			[keys.profileId, done ? 1 : 0, Dexie.minKey],
+			[keys.profileId, done ? 1 : 0, Dexie.maxKey],
+		)
+		.toArray();
+	const ordered = [
+		...rows.filter((row) => row.dueAt !== 0),
+		...rows.filter((row) => row.dueAt === 0),
+	];
+	return Promise.all(ordered.map((row) => openTask(keys, row)));
+};
+
+// Reminders that will still fire, soonest first.
+export const listReminders = async (
+	db: LittleDB,
+	keys: ProfileKeys,
+): Promise<Array<Reminder>> => {
+	const rows = await db.reminders
+		.where("[profileId+nextFireAt]")
+		.between([keys.profileId, 1], [keys.profileId, Dexie.maxKey])
+		.toArray();
+	return Promise.all(rows.map((row) => openReminder(keys, row)));
 };
