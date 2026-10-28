@@ -4,9 +4,9 @@ type: decision
 
 # 0011. We will store instants as epoch milliseconds and recurrence as anchored rules, computed with Temporal
 
-Status: proposed
+Status: accepted
 Date: 2026-10-28
-Deciders: AndysTMC
+Deciders: AndysTMC (accepted 2026-10-28: "Got it, I accept it. Go ahead.")
 Supersedes: —
 Superseded-by: —
 
@@ -45,12 +45,17 @@ Option D.
     - `daily` and `weekly` add `n * interval` days or weeks to the anchor's date, then apply `byWeekday`.
     - `monthly` and `yearly` first advance the anchor's `PlainYearMonth` by `n * interval` months or years, then apply the rule's day: `byMonthDay: -1` becomes that month's `daysInMonth`, and 1 to 31 is clamped with `overflow: "constrain"`. The anchor's own day is never carried over, so a "last day" or "31st" rule created on Feb 28 gives Mar 31, not Mar 28.
     - A monthly rule on the 31st gives Jan 31, Feb 28, Mar 31, with no drift. A yearly rule on Feb 29 gives Feb 28 in non-leap years.
-- Converting a civil time to an instant uses `disambiguation: "compatible"`, the RFC 5545 behaviour:
+- **Policy: every occurrence fires.** RFC 5545 §3.3.10 drops recurrence instances that fall on an invalid date or a nonexistent local time, so a calendar would skip February for a "31st" rule and skip the day a DST jump removes 02:30. Little Later deliberately does not: a reminder that silently skips a month is worse than one that fires a day early. Hence the clamping above, and:
+- Converting a civil time to an instant uses `disambiguation: "compatible"`, which matches how RFC 5545 §3.3.5 reads a single DATE-TIME in a gap (with the offset from before the gap):
     - A time skipped by a DST jump moves forward by the length of the gap, so 02:30 becomes 03:30.
     - A time that occurs twice resolves to its first occurrence.
 - A floating rule recomputes its next fire at every alarm, at browser start, when `chrome.idle` reports the device active again, and when a page opens. A laptop that wakes after flying east therefore fires 09:00 at 09:00 local, not hours late.
 - **Catch-up.** Fires missed while the browser was closed collapse into one notification at start ("3 reminders while you were away"). Each rule then schedules its next future occurrence.
-- The shape maps directly onto an iCal `RRULE` with `DTSTART;TZID=` (or a floating `DTSTART`), which keeps a later iCal export cheap.
+- **iCal export** translates the policy so other calendars produce the same dates:
+    - `byMonthDay: -1` and a clamped 31st export as `BYMONTHDAY=-1`.
+    - A clamped 29th or 30th exports as `BYMONTHDAY=28,…,d;BYSETPOS=-1`, which picks day d or the month's last day if shorter. A yearly Feb 29 exports as `BYMONTH=2;BYMONTHDAY=28,29;BYSETPOS=-1`.
+    - A DST-gap occurrence has no RRULE form; export adds an `RDATE` for each shifted occurrence in the next five years, and the export notes say so.
+    - Everything else maps one to one onto `RRULE` with `DTSTART;TZID=` or a floating `DTSTART`.
 
 ## Trade-offs against the charter
 
@@ -78,7 +83,8 @@ Option D.
     - biweekly rules across a DST change;
     - a floating rule after the device's zone changes, without a browser restart;
     - escalation midpoints, the 15-minute stop and the final fire at the target;
-    - catch-up after a closed browser.
+    - catch-up after a closed browser;
+    - iCal export of clamped and DST-gap rules, checked by expanding the exported RRULE and RDATEs and comparing against our occurrences.
 - A property test: every next occurrence is strictly after the reference instant, and its local time equals the rule's time, except in a skipped hour.
 - Format-v1 task and reminder fixtures that round-trip through backup.
 
@@ -97,6 +103,8 @@ Option D.
 - The scheduler keeps one Chrome alarm for the earliest next fire, and re-arms it after each fire.
 
 ## Review
+
+A third review (AndysTMC, 2026-10-28) pointed out that RFC 5545 drops invalid and nonexistent recurrence instances, so the draft's "RFC 5545 behaviour" claim was wrong for recurrences. Adopted: the fire-every-occurrence policy is now stated as our own choice, and iCal export translates it with `BYSETPOS` and `RDATE`.
 
 An independent agent critiqued the first draft. Adopted:
 
