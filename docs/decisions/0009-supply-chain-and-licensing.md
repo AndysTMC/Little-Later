@@ -63,7 +63,7 @@ Each workflow file is independent; delete it to stop it. Remove the plugin from 
 
 - [A1] GitHub's dependency graph reads `bun.lock`; if it does not, dependency review still checks `package.json` changes but not transitive ones.
 - [A2] Scorecard's Signed-Releases check counts a `.sigstore.json` release asset as a signature.
-- [A3] Pinned SHAs match `ossf/scorecard-action v2.5.0`, `github/codeql-action v4.39.1`, `zizmorcore/zizmor-action v0.8.0` and `actions/dependency-review-action v4.9.0` (checked with `git ls-remote` on 2026-10-28).
+- [A3] Pinned SHAs match `ossf/scorecard-action v2.5.0`, `github/codeql-action v4.39.1`, `zizmorcore/zizmor-action v0.8.0` and `actions/dependency-review-action v5.0.0` (checked with `git ls-remote` on 2026-10-28).
 
 ## Revisit if
 
