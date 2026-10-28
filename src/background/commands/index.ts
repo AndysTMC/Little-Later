@@ -5,6 +5,8 @@ import {
 	profileLock,
 	profileUnlock,
 } from "./profiles";
+import { noteCreate, noteDelete, noteUpdate } from "./notes";
+import { saveCapture, saveDelete, saveUpdate } from "./saves";
 
 // Every command the worker accepts. Pages name them through `Commands`.
 export const commands = [
@@ -13,6 +15,12 @@ export const commands = [
 	profileLock,
 	profileChangePassword,
 	profileDelete,
+	saveCapture,
+	saveUpdate,
+	saveDelete,
+	noteCreate,
+	noteUpdate,
+	noteDelete,
 ] as const;
 
 type CommandList = typeof commands;
