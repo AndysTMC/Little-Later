@@ -40,6 +40,19 @@ const indexKeyLocation = (profileId: string) => ({
 // Passing kdf lets tests use a cheap iteration count.
 type KeyOptions = { kdf?: () => KdfParams };
 
+// Decision 0007 (A1): null means no password; an empty password, or one
+// with outer whitespace, is refused rather than silently stored.
+const assertNewPassword = (password: string | null) => {
+	if (
+		password !== null &&
+		(password === "" || password !== password.trim())
+	) {
+		throw new ProfileError(
+			"A password cannot be empty or start or end with a space.",
+		);
+	}
+};
+
 const protect = async (
 	root: Uint8Array,
 	password: string | null,
@@ -64,6 +77,11 @@ const readRootKeys = async (
 	profile: ProfileRow,
 	password: string | null,
 ): Promise<Map<number, Uint8Array>> => {
+	// A profile whose keys were shredded by an interrupted delete has nothing
+	// to unlock and nothing a password could verify.
+	if (profile.keys.length === 0) {
+		throw new ProfileError("This profile has no keys.");
+	}
 	if (profile.protection === "password" && password === null) {
 		throw new ProfileError("This profile needs its password.");
 	}
@@ -123,6 +141,7 @@ export const createProfile = async (
 	input: { name: string; password: string | null; now: number },
 	options: KeyOptions = {},
 ): Promise<string> => {
+	assertNewPassword(input.password);
 	const id = crypto.randomUUID();
 	const root = randomKeyBytes();
 	const keys = await deriveContentKeys(root, FIRST_KEY_ID);
@@ -169,6 +188,7 @@ export const changePassword = async (
 	newPassword: string | null,
 	options: KeyOptions = {},
 ): Promise<void> => {
+	assertNewPassword(newPassword);
 	const profile = await getProfile(db, profileId);
 	const roots = await readRootKeys(profile, oldPassword);
 	const keys: Array<ProfileKeyEntry> = [];
@@ -181,13 +201,20 @@ export const changePassword = async (
 	});
 };
 
-// Crypto-shreds first: once the keys are gone the rows are unreadable, even
-// if removing them is interrupted.
+// Needs the password of a protected profile (decision 0007, A14). Then
+// crypto-shreds first: once the keys are gone the rows are unreadable, even
+// if removing them is interrupted. A profile already without keys is such
+// an interrupted delete, and finishing it needs no password.
 export const deleteProfile = async (
 	db: LittleDB,
 	session: SessionStore,
 	profileId: string,
+	password: string | null,
 ): Promise<void> => {
+	const profile = await db.profiles.get(profileId);
+	if (profile && profile.keys.length > 0) {
+		await readRootKeys(profile, password);
+	}
 	if ((await session.get())?.profileId === profileId) {
 		await session.clear();
 	}

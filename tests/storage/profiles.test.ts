@@ -225,7 +225,7 @@ describe("deleting a profile", () => {
 			createdAt: now,
 		});
 
-		await deleteProfile(db, session, gone);
+		await deleteProfile(db, session, gone, null);
 
 		expect(await session.get()).toBeNull();
 		expect(await db.profiles.get(gone)).toBeUndefined();
@@ -255,5 +255,91 @@ describe("schema", () => {
 		await expect(db.saves.add({ id: "2", ...base })).rejects.toThrow();
 		await db.saves.add({ id: "3", ...base, profileId: "q" });
 		expect(await db.saves.count()).toBe(2);
+	});
+});
+
+describe("deleting a protected profile", () => {
+	const setup = async () => {
+		const id = await createProfile(
+			db,
+			session,
+			{ name: "Ada", password: "pw", now },
+			fast,
+		);
+		const noteId = await addNote(id, "keep me");
+		return { id, noteId };
+	};
+
+	it("refuses a wrong or missing password and keeps everything", async () => {
+		const { id, noteId } = await setup();
+		await expect(deleteProfile(db, session, id, "nope")).rejects.toThrow(
+			EnvelopeError,
+		);
+		await expect(deleteProfile(db, session, id, null)).rejects.toThrow(
+			ProfileError,
+		);
+		expect((await session.get())?.profileId).toBe(id);
+		expect((await db.profiles.get(id))?.keys).toHaveLength(1);
+		expect(await readNote(noteId)).toEqual({ text: "keep me" });
+	});
+
+	it("deletes with the right password", async () => {
+		const { id } = await setup();
+		await deleteProfile(db, session, id, "pw");
+		expect(await db.profiles.get(id)).toBeUndefined();
+		expect(await db.notes.count()).toBe(0);
+	});
+
+	it("finishes an interrupted delete without the password", async () => {
+		const { id } = await setup();
+		// The keys are already shredded, as after a delete that stopped
+		// before removing rows.
+		await db.profiles.update(id, { keys: [] });
+		await deleteProfile(db, session, id, null);
+		expect(await db.profiles.get(id)).toBeUndefined();
+		expect(await db.notes.count()).toBe(0);
+	});
+});
+
+describe("password rules", () => {
+	it.each([[""], [" pw"], ["pw "], ["\tpw"]])(
+		"refuses %j as a new password",
+		async (password) => {
+			await expect(
+				createProfile(db, session, { name: "A", password, now }, fast),
+			).rejects.toThrow(ProfileError);
+			expect(await db.profiles.count()).toBe(0);
+
+			const id = await createProfile(
+				db,
+				session,
+				{ name: "B", password: "pw", now },
+				fast,
+			);
+			await expect(
+				changePassword(db, id, "pw", password, fast),
+			).rejects.toThrow(ProfileError);
+			await lockProfile(session);
+			await unlockProfile(db, session, id, "pw");
+		},
+	);
+});
+
+describe("a profile without keys", () => {
+	it("cannot be unlocked or have its password changed", async () => {
+		const id = await createProfile(
+			db,
+			session,
+			{ name: "Ada", password: "pw", now },
+			fast,
+		);
+		await db.profiles.update(id, { keys: [] });
+		await expect(unlockProfile(db, session, id, "pw")).rejects.toThrow(
+			/no keys/,
+		);
+		await expect(changePassword(db, id, "pw", "new", fast)).rejects.toThrow(
+			/no keys/,
+		);
+		expect((await db.profiles.get(id))?.protection).toBe("password");
 	});
 });

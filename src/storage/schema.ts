@@ -79,9 +79,10 @@ export type LinkRow = {
 
 export type AssetRow = RecordBase & { ownerId: string; kind: string };
 
-// One per profile: AI provider, base URL, API key, model and other
-// sensitive settings.
-export type SettingsRow = Omit<RecordBase, "id" | "createdAt">;
+// One per profile, with id equal to profileId so every sealed table shares
+// one shape: AI provider, base URL, API key, model and other sensitive
+// settings.
+export type SettingsRow = RecordBase;
 
 export type LittleDB = Dexie & {
 	profiles: EntityTable<ProfileRow, "id">;
@@ -92,7 +93,7 @@ export type LittleDB = Dexie & {
 	reminders: EntityTable<ReminderRow, "id">;
 	links: EntityTable<LinkRow, "id">;
 	assets: EntityTable<AssetRow, "id">;
-	settings: EntityTable<SettingsRow, "profileId">;
+	settings: EntityTable<SettingsRow, "id">;
 };
 
 // Tables whose rows carry a sealed body under a profile key.
@@ -117,7 +118,7 @@ export const openLittleDB = (name: string = LITTLE_DB_NAME): LittleDB => {
 		reminders: "id, [profileId+nextFireAt], [profileId+keyId]",
 		links: "id, [profileId+fromId], [profileId+toId]",
 		assets: "id, [profileId+ownerId], [profileId+keyId]",
-		settings: "profileId, [profileId+keyId]",
+		settings: "id, [profileId+keyId]",
 	});
 	return db;
 };
