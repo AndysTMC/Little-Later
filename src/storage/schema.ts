@@ -112,7 +112,7 @@ export const openLittleDB = (name: string = LITTLE_DB_NAME): LittleDB => {
 	db.version(1).stores({
 		profiles: "id",
 		avatars: "profileId",
-		saves: "id, &[profileId+urlKey], [profileId+originKey], [profileId+saved+updatedAt], [profileId+browsed+browsedAt], [profileId+keyId]",
+		saves: "id, &[profileId+urlKey], [profileId+originKey], [profileId+saved+browsedAt], [profileId+browsed+browsedAt], [profileId+keyId]",
 		notes: "id, [profileId+updatedAt], [profileId+keyId]",
 		tasks: "id, [profileId+done+dueAt], [profileId+keyId]",
 		reminders: "id, [profileId+nextFireAt], [profileId+keyId]",
