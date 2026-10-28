@@ -12,6 +12,7 @@ import {
 } from "little-shared/types";
 import {
 	getResolvedBaseUrl,
+	isLocalOllamaUrl,
 	isAISettingsConfigured,
 	responseFormats,
 	script,
@@ -782,8 +783,7 @@ export abstract class LittleAI {
 		if (status === 403) {
 			if (
 				this.provider === LAI_PROVIDERS.OLLAMA ||
-				this.baseUrl.includes("127.0.0.1:11434") ||
-				this.baseUrl.includes("localhost:11434")
+				isLocalOllamaUrl(this.baseUrl)
 			) {
 				const extensionOrigin =
 					typeof chrome !== "undefined" && chrome?.runtime?.id
