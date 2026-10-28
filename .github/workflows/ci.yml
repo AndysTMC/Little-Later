@@ -79,3 +79,37 @@ jobs:
                   name: playwright-results
                   path: test-results
                   retention-days: 7
+
+    workflows:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+              with:
+                  persist-credentials: false
+
+            - name: Audit GitHub Actions workflows
+              uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+              with:
+                  version: "1.31.1"
+                  advanced-security: false
+
+    dependency-review:
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+              with:
+                  persist-credentials: false
+
+            # Fails a PR that adds a known-vulnerable package or one whose
+            # license is not on this list of MIT-compatible licenses.
+            - name: Review new dependencies
+              uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+              with:
+                  fail-on-severity: moderate
+                  allow-licenses: >-
+                      MIT, MIT-0, ISC, 0BSD, BSD-2-Clause, BSD-3-Clause,
+                      Apache-2.0, BlueOak-1.0.0, CC0-1.0, CC-BY-4.0,
+                      Unlicense, Python-2.0, MPL-2.0
