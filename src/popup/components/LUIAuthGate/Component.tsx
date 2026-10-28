@@ -38,10 +38,12 @@ const Component = ({
 	const navigate = useNavigate();
 
 	const [isOperationInProgress, setIsOperationInProgress] = useState(false);
-	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 	// On the lock screen the main field means "new password", so deleting
-	// asks for the current password in a field of its own.
-	const [deletePassword, setDeletePassword] = useState("");
+	// asks for the current password in a field of its own. null means no
+	// delete is being confirmed, so the field cannot be hidden yet still
+	// hold a password.
+	const [deletePassword, setDeletePassword] = useState<string | null>(null);
+	const isConfirmingDelete = deletePassword !== null;
 
 	const [password, setPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
@@ -127,8 +129,8 @@ const Component = ({
 	};
 
 	const handleDelete = async () => {
-		if (!isConfirmingDelete) {
-			setIsConfirmingDelete(true);
+		if (deletePassword === null) {
+			setDeletePassword("");
 			setWarning(
 				"Enter this profile's current password (if it has one) below, then confirm",
 			);
@@ -225,8 +227,7 @@ const Component = ({
 									setConfirmPassword("");
 									setLockStep("enter");
 									setWarning("");
-									setIsConfirmingDelete(false);
-									setDeletePassword("");
+									setDeletePassword(null);
 								}}
 								onSubmit={() => {
 									void handleGo();
@@ -340,7 +341,7 @@ const Component = ({
 								transition: { duration: 0.3, delay: 0.3 },
 							}}
 						>
-							{isConfirmingDelete ? (
+							{deletePassword !== null ? (
 								<LUIIconField
 									id="little-auth-delete-password"
 									name="delete-password"

@@ -171,5 +171,7 @@ describe("lock screen", () => {
 
 		await click(button(container, "Delete"));
 		expect(deleteField()!.value).toBe("");
+		await click(button(container, "Confirm delete"));
+		expect(mocks.deleteUser).toHaveBeenLastCalledWith(7, undefined);
 	});
 });
