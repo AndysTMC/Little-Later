@@ -1,3 +1,7 @@
+---
+type: decision
+---
+
 # 0005. Settings stay in `chrome.storage.local` with a fail-closed `activeUserId` stamp
 
 Status: accepted

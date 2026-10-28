@@ -1,3 +1,7 @@
+---
+type: decision
+---
+
 # 0001. We will stay extension-only and local-first, with no backend
 
 Status: accepted
