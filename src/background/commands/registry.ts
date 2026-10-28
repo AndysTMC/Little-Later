@@ -9,11 +9,7 @@ import type { SessionStore } from "../../storage/session";
 // commands; the worker parses, runs them one at a time, and replies.
 
 export type CommandErrorCode =
-	| "invalid-input"
-	| "unknown-command"
-	| "locked"
-	| "rejected"
-	| "internal";
+	"invalid-input" | "unknown-command" | "locked" | "rejected" | "internal";
 
 export class CommandError extends Error {
 	constructor(

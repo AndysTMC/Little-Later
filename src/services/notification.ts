@@ -244,7 +244,7 @@ export const createChromeNativeNotification = async ({
 	// Chrome rejects some image notifications depending on platform/state. We
 	// retry once as a plain basic notification so reminders are still delivered.
 	const createWithOptions = async (
-		options: chrome.notifications.NotificationOptions<true>,
+		options: chrome.notifications.NotificationCreateOptions,
 	): Promise<void> => {
 		await new Promise<void>((resolve, reject) => {
 			chrome.notifications.create(id, options, (notificationId) => {
@@ -263,7 +263,7 @@ export const createChromeNativeNotification = async ({
 		});
 	};
 
-	const options: chrome.notifications.NotificationOptions<true> = {
+	const options: chrome.notifications.NotificationCreateOptions = {
 		type: imageUrl ? "image" : "basic",
 		iconUrl: chrome.runtime.getURL("images/ll-icon-128.png"),
 		imageUrl,

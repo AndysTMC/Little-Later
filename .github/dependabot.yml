@@ -7,9 +7,10 @@ updates:
           interval: weekly
       cooldown:
           default-days: 7
+      # One weekly pull request for every action update, majors included.
       groups:
           actions:
-              update-types: [minor, patch]
+              patterns: ["*"]
       commit-message:
           prefix: ci
 
@@ -21,8 +22,12 @@ updates:
       open-pull-requests-limit: 5
       cooldown:
           default-days: 7
+      # At most two weekly pull requests: one for minor and patch updates,
+      # one for major updates, which are more likely to need code changes.
       groups:
           minor-and-patch:
               update-types: [minor, patch]
+          major:
+              update-types: [major]
       commit-message:
           prefix: build
