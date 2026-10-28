@@ -157,4 +157,21 @@ describe("lock screen", () => {
 		await click(button(container, "Confirm delete"));
 		expect(mocks.deleteUser).toHaveBeenLastCalledWith(7, "current-secret");
 	});
+
+	it("forgets the delete password when the delete is called off", async () => {
+		const deleteField = () =>
+			container.querySelector<HTMLInputElement>(
+				"#little-auth-delete-password",
+			);
+		await click(button(container, "Delete"));
+		await typeInto(deleteField()!, "half-typed");
+
+		await typeInto(passwordInput(), "s");
+		expect(deleteField()).toBeNull();
+
+		await click(button(container, "Delete"));
+		expect(deleteField()!.value).toBe("");
+		await click(button(container, "Confirm delete"));
+		expect(mocks.deleteUser).toHaveBeenLastCalledWith(7, undefined);
+	});
 });

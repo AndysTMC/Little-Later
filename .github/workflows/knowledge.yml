@@ -1,0 +1,56 @@
+name: Knowledge
+
+on:
+    # Push runs catch drift that no single pull request shows, such as two
+    # merged pull requests that each add the same row to an index.
+    push:
+        branches:
+            - main
+            - dev
+    pull_request:
+        types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+    contents: read
+
+jobs:
+    knowledge:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+
+            - name: Setup Python
+              uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+              with:
+                  python-version: "3.12"
+
+            - name: Knowledge lint
+              run: python3 scripts/lint_knowledge.py --strict
+
+            # Accepting, editing or removing a protected decision needs a
+            # human label. The base branch's copy of the checker runs, so a
+            # pull request cannot weaken its own gate.
+            - name: Decision gate
+              if: github.event_name == 'pull_request'
+              env:
+                  BASE: ${{ github.event.pull_request.base.sha }}
+                  ALLOW_PROMO: ${{ contains(github.event.pull_request.labels.*.name, 'human-accepted') }}
+                  ALLOW_EDIT: ${{ contains(github.event.pull_request.labels.*.name, 'human-edited') }}
+                  ALLOW_DEL: ${{ contains(github.event.pull_request.labels.*.name, 'human-removed') }}
+              run: |
+                  checker=scripts/lint_knowledge.py
+                  if git show "$BASE:scripts/lint_knowledge.py" > "$RUNNER_TEMP/gate.py" 2>/dev/null; then
+                    checker="$RUNNER_TEMP/gate.py"
+                  fi
+                  flags=()
+                  if [ "$ALLOW_PROMO" = "true" ]; then flags+=(--allow-promotion); fi
+                  if [ "$ALLOW_DEL" = "true" ]; then flags+=(--allow-deletion); fi
+                  checker_help=$(python3 "$checker" --help)
+                  if [ "$ALLOW_EDIT" = "true" ] && [[ "$checker_help" == *"--allow-edit"* ]]; then
+                    flags+=(--allow-edit)
+                  fi
+                  python3 "$checker" --root "$GITHUB_WORKSPACE" --promotion-base "$BASE" "${flags[@]}"

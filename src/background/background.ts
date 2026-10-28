@@ -1,4 +1,4 @@
-import { LINT_BOOLEAN } from "little-shared/enums";
+import { LAI_PROVIDERS, LINT_BOOLEAN } from "little-shared/enums";
 import {
 	createChromeNativeNotification,
 	createNotifications,
@@ -16,6 +16,11 @@ import {
 import { createNote } from "../services/note";
 import { LittleAI } from "../services/ai";
 import { getUserSettings } from "../services/settings";
+import {
+	getDefaultBaseUrl,
+	getResolvedBaseUrl,
+	isLoopbackUrl,
+} from "../services/ai/config";
 import {
 	LOCAL_AI_ORIGIN_RULE_ID,
 	buildLocalAIOriginRule,
@@ -60,33 +65,34 @@ const captureVisibleTab = async (
 	});
 };
 
-const collectLocalAIPorts = async (): Promise<Array<string>> => {
-	const ports = new Set(["11434", "1234"]);
+// The built-in providers' endpoints, plus the configured endpoint when it is
+// on this machine. A remote endpoint never gets the loopback Origin.
+const collectLocalAIEndpoints = async (): Promise<Array<URL>> => {
+	const endpoints = [
+		getDefaultBaseUrl(LAI_PROVIDERS.OLLAMA),
+		getDefaultBaseUrl(LAI_PROVIDERS.LM_STUDIO),
+	];
 	try {
 		const settings = await getUserSettings();
-		const customBaseUrl = settings.ai?.baseUrl?.trim();
-		if (customBaseUrl) {
-			const parsed = new URL(customBaseUrl);
-			if (
-				parsed.hostname === "localhost" ||
-				parsed.hostname === "127.0.0.1" ||
-				parsed.hostname === "[::1]"
-			) {
-				ports.add(
-					parsed.port ||
-						(parsed.protocol === "https:" ? "443" : "80"),
-				);
-			}
+		if (settings.ai) {
+			endpoints.push(getResolvedBaseUrl(settings.ai));
 		}
 	} catch {
 		// Settings may be unavailable while the worker is booting.
 	}
-	return [...ports];
+	// getResolvedBaseUrl returns "" for a missing or invalid custom URL.
+	return endpoints
+		.filter((endpoint) => endpoint !== "")
+		.map((endpoint) => new URL(endpoint))
+		.filter(isLoopbackUrl);
 };
 
 const configureLocalAIRequestHeaders = async (): Promise<void> => {
 	const rules = [
-		buildLocalAIOriginRule(await collectLocalAIPorts(), chrome.runtime.id),
+		buildLocalAIOriginRule(
+			await collectLocalAIEndpoints(),
+			chrome.runtime.id,
+		),
 	];
 	try {
 		await chrome.declarativeNetRequest.updateDynamicRules({

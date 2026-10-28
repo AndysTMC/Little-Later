@@ -1,3 +1,7 @@
+---
+type: decision
+---
+
 # 0004. Importable `.lldat` uses the real lock password; passwordless profiles cannot export importable bundles
 
 Status: accepted

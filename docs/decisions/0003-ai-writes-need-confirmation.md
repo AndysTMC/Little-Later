@@ -1,3 +1,7 @@
+---
+type: decision
+---
+
 # 0003. AI may read freely; mutate, destructive, and export tools require in-chat confirmation
 
 Status: accepted

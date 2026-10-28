@@ -7,7 +7,7 @@ export const useLazyVBMImage = (
 	id: number | undefined,
 ): {
 	preview: LVBMPreview | undefined;
-	elementRef: React.RefObject<HTMLDivElement>;
+	elementRef: React.RefObject<HTMLDivElement | null>;
 } => {
 	const [isIntersecting, setIsIntersecting] = useState(false);
 	const elementRef = useRef<HTMLDivElement>(null);
