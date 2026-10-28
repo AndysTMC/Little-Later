@@ -3,8 +3,8 @@ import { LTHEME } from "little-shared/enums";
 import { LUIReminderMini } from "../LUIReminderMini/Component";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../hooks/useTheme";
-import { LLink, LReminder, LVisualBM } from "little-shared/types";
-import { LDateUtl } from "little-shared/utils/datetime";
+import type { Reminder, Save, Task } from "../../../storage/repositories";
+import type { LinkRow } from "../../../storage/schema";
 import { usePagination } from "../../hooks/usePagination";
 import { useMemo } from "react";
 import { LUIPagination } from "../LUIPagination/Component";
@@ -15,11 +15,13 @@ const Component = ({
 	links,
 	reminders,
 	saves,
+	tasks,
 }: {
 	className?: string;
-	links: Array<LLink>;
-	reminders: Array<LReminder>;
-	saves: Array<LVisualBM>;
+	links: Array<LinkRow>;
+	reminders: Array<Reminder>;
+	saves: Array<Save>;
+	tasks: Array<Task>;
 }) => {
 	const { theme } = useTheme();
 
@@ -29,7 +31,7 @@ const Component = ({
 	const paginationReminders = useMemo(
 		() =>
 			[...reminders]
-				.sort((a, b) => LDateUtl.compare(a.targetDate, b.targetDate))
+				.sort((a, b) => a.target - b.target)
 				.slice(startIndex, endIndex),
 		[reminders, startIndex, endIndex],
 	);
@@ -62,6 +64,7 @@ const Component = ({
 							<LUIReminderMini
 								links={links}
 								saves={saves}
+								tasks={tasks}
 								key={reminder.id}
 								reminder={reminder}
 							/>

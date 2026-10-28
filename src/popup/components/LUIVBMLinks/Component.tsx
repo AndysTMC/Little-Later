@@ -10,7 +10,8 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../hooks/useTheme";
-import { LVisualBM } from "little-shared/types";
+import { getDomainFromUrl } from "little-shared/utils/misc";
+import type { Save } from "../../../storage/repositories";
 
 const Component = ({
 	className,
@@ -19,15 +20,15 @@ const Component = ({
 	handleSaveLinking,
 }: {
 	className?: string;
-	saves: Array<LVisualBM>;
-	linkedSaveIds: number[];
-	handleSaveLinking: (saveId: number, flag: boolean) => void;
+	saves: Array<Save>;
+	linkedSaveIds: Array<string>;
+	handleSaveLinking: (saveId: string, flag: boolean) => void;
 }) => {
 	const { theme } = useTheme();
 	const [showSaves, setShowSaves] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
 	const linkedSaves = saves.filter((save) => linkedSaveIds.includes(save.id));
-	const handleOnChange = (saveId: number, flag: boolean) => {
+	const handleOnChange = (saveId: string, flag: boolean) => {
 		handleSaveLinking(saveId, flag);
 		setShowSaves(false);
 	};
@@ -99,21 +100,20 @@ const Component = ({
 											.includes(
 												searchQuery.toLowerCase(),
 											) ||
-										save.id
-											.toString()
+										save.url
 											.toLowerCase()
 											.includes(
 												searchQuery.toLowerCase(),
 											),
 								)
-								.map((save, index) => (
+								.map((save) => (
 									<div
 										className={`flex h-max w-full items-center gap-x-1 ${
 											theme === LTHEME.DARK
 												? "bg-neutral-900 hover:bg-neutral-800"
 												: "bg-neutral-100 hover:bg-neutral-200"
 										} cursor-pointer`}
-										key={index}
+										key={save.id}
 										onClick={() =>
 											handleOnChange(save.id, true)
 										}
@@ -139,7 +139,7 @@ const Component = ({
 										<div
 											className={`flex h-full w-max items-center text-xs text-neutral-500`}
 										>
-											#{save.id}
+											{getDomainFromUrl(save.url)}
 										</div>
 									</div>
 								))}
@@ -148,10 +148,10 @@ const Component = ({
 				) : null}
 			</AnimatePresence>
 			<div className={`flex max-h-56 w-full flex-col`}>
-				{linkedSaves.map((save, index) => (
+				{linkedSaves.map((save) => (
 					<div
 						className={`flex h-max w-full items-center gap-x-1`}
-						key={index}
+						key={save.id}
 					>
 						<div
 							className={`flex h-full w-max items-center justify-center border border-neutral-500 ${
@@ -179,7 +179,7 @@ const Component = ({
 						<div
 							className={`flex h-full w-max shrink-0 items-center text-xs text-neutral-500`}
 						>
-							#{save.id}
+							{getDomainFromUrl(save.url)}
 						</div>
 					</div>
 				))}

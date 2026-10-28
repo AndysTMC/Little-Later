@@ -6,21 +6,10 @@ import { useLittleTransition } from "../../hooks/useLittleTransition";
 import { useLocation, useNavigate, useOutletContext } from "react-router";
 import { LUIBasicNav } from "../LUINavs/LUIBasicNav/Component";
 import { LUITaskForm } from "../LUITaskForm/Component";
-import { LLink, LTask, LVisualBM } from "little-shared/types";
-import { twMerge } from "tailwind-merge";
+import type { HomeData } from "../../records";
 
 const Component = () => {
-	const {
-		className,
-		links,
-		tasks,
-		visualBMs,
-	}: {
-		className?: string;
-		links: Array<LLink>;
-		tasks: Array<LTask>;
-		visualBMs: Array<LVisualBM>;
-	} = useOutletContext();
+	const { links, reminders, pages } = useOutletContext<HomeData>();
 	const { theme } = useTheme();
 	const { entry, exit } = useLittleTransition({
 		transitionName: "subEntryTransition",
@@ -28,9 +17,9 @@ const Component = () => {
 	});
 	const navigate = useNavigate();
 	const location = useLocation();
-	const prelinkedVbmId =
-		typeof location.state?.passedVbmId === "number"
-			? location.state.passedVbmId
+	const prelinkedSaveId =
+		typeof location.state?.passedSaveId === "string"
+			? location.state.passedSaveId
 			: undefined;
 
 	const additionalSubmitCallback = () => {
@@ -38,22 +27,19 @@ const Component = () => {
 			state: { subEntryTransition: entryTransitions.slideUp },
 		});
 	};
-	const saves = visualBMs.filter((visualBM) => visualBM.isSaved);
+	const saves = pages.filter((page) => page.saved);
 	return (
 		<motion.div
-			className={twMerge(
-				`flex h-full w-full flex-col overflow-y-hidden select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"}`,
-				className,
-			)}
+			className={`flex h-full w-full flex-col overflow-y-hidden select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"}`}
 			{...entry}
 			{...exit}
 		>
 			<LUIBasicNav goBackDisabled />
 			<LUITaskForm
 				links={links}
+				reminders={reminders}
 				saves={saves}
-				tasks={tasks}
-				prelinkedVbmId={prelinkedVbmId}
+				prelinkedSaveId={prelinkedSaveId}
 				additionalSubmitCallback={additionalSubmitCallback}
 			/>
 		</motion.div>

@@ -1,5 +1,5 @@
 import { LTHEME } from "little-shared/enums";
-import { LNote } from "little-shared/types";
+import type { Note } from "../../../storage/repositories";
 import { TrashIcon } from "@phosphor-icons/react";
 import ReactMarkdown from "react-markdown";
 import { safeMarkdownComponents, safeUrlTransform } from "../../markdownSafety";
@@ -37,9 +37,9 @@ const Component = ({
 	showDelete = true,
 }: {
 	className?: string;
-	note: LNote;
-	onOpen: (note: LNote) => void;
-	onDelete?: (noteId: number) => Promise<void> | void;
+	note: Note;
+	onOpen: (note: Note) => void;
+	onDelete?: (noteId: string) => Promise<unknown> | void;
 	showDelete?: boolean;
 }) => {
 	const { theme } = useTheme();
@@ -93,7 +93,7 @@ const Component = ({
 							: "text-neutral-600"
 					}`}
 				>
-					{getNoteCardTimeLabel(note.lastModificationDate)}
+					{getNoteCardTimeLabel(note.updatedAt)}
 				</div>
 				{showDelete ? (
 					<button

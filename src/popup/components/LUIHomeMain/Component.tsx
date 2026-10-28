@@ -1,20 +1,17 @@
 import { useContext, useMemo, useState } from "react";
 import {
-	LHomeSearchResult,
-	LVisualBM,
-	LReminder,
-	LTask,
-	LLink,
-	LNote,
-	LUserSettings,
-} from "little-shared/types";
-import type { UserProfile } from "../../hooks/useUserProfiles";
-import {
 	LHOME_MAIN_CONTENT,
 	LHOME_SEARCH_RESULT_TYPE,
-	LLINK_TYPE,
 	LTHEME,
 } from "little-shared/enums";
+import type { Note, Reminder, Save, Task } from "../../../storage/repositories";
+import {
+	searchNotes,
+	searchReminders,
+	searchSaves,
+	searchTasks,
+	type HomeData,
+} from "../../records";
 import { useTheme } from "../../hooks/useTheme";
 import { AnimatePresence, motion } from "framer-motion";
 import { HomeContext } from "../../contexts/Home";
@@ -29,10 +26,6 @@ import { LUIVBMs } from "../LUIVBMs/Component";
 import { LUITasks } from "../LUITasks/Component";
 import { LUIReminders } from "../LUIReminders/Component";
 import { twMerge } from "tailwind-merge";
-import { searchRemindersByText } from "little-shared/utils/reminder";
-import { searchTasksByText } from "little-shared/utils/task";
-import { searchSavesByText } from "../../../utils/visualBM";
-import { searchNotesByText } from "../../../utils/note";
 import { entryTransitions } from "../../../route-transitions";
 import { usePagination } from "../../hooks/usePagination";
 import { LUIPagination } from "../LUIPagination/Component";
@@ -40,40 +33,33 @@ import { LUINotes } from "../LUINotes/Component";
 import { LUINoteMini } from "../LUINoteMini/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
 
-const Component = () => {
+type SearchResult = {
+	noOfMatches: number;
+	totalLengthMatched: number;
+} & (
+	| { type: LHOME_SEARCH_RESULT_TYPE.SAVE; data: Save }
+	| { type: LHOME_SEARCH_RESULT_TYPE.TASK; data: Task }
+	| { type: LHOME_SEARCH_RESULT_TYPE.REMINDER; data: Reminder }
+	| { type: LHOME_SEARCH_RESULT_TYPE.NOTE; data: Note }
+);
+
+const Component = ({ className }: { className?: string }) => {
 	const {
-		className,
 		currentUserProfile,
 		userSettings,
 		links,
 		notes,
 		reminders,
 		tasks,
-		visualBMs,
-	}: {
-		className?: string;
-		currentUserProfile: UserProfile;
-		userSettings: LUserSettings;
-		links: Array<LLink>;
-		notes: Array<LNote>;
-		reminders: Array<LReminder>;
-		tasks: Array<LTask>;
-		visualBMs: Array<LVisualBM>;
-	} = useOutletContext();
+		pages,
+	} = useOutletContext<HomeData>();
 
-	const saves = visualBMs.filter((visualBM) => visualBM.isSaved);
-	const unlinkedNotes = useMemo(
-		() =>
-			notes.filter(
-				(note) =>
-					links.find(
-						(link) =>
-							link.noteId === note.id &&
-							link.type === LLINK_TYPE.NOTE_VBM,
-					) === undefined,
-			),
-		[links, notes],
-	);
+	const saves = useMemo(() => pages.filter((page) => page.saved), [pages]);
+	// Notes attached to a save show with that save.
+	const unlinkedNotes = useMemo(() => {
+		const attached = new Set(links.map((link) => link.fromId));
+		return notes.filter((note) => !attached.has(note.id));
+	}, [links, notes]);
 	const location = useLocation();
 	const navigate = useNavigate();
 
@@ -87,9 +73,7 @@ const Component = () => {
 		LHOME_MAIN_CONTENT.SAVES,
 	);
 
-	const [searchResults, setSearchResults] = useState<
-		Array<LHomeSearchResult>
-	>([]);
+	const [searchResults, setSearchResults] = useState<Array<SearchResult>>([]);
 
 	const [searchQuery, setSearchQuery] = useState("");
 
@@ -113,84 +97,61 @@ const Component = () => {
 		}
 
 		const words = query.split(/\s+/);
-		const results: LHomeSearchResult[] = [];
+		const results: Array<SearchResult> = [];
+		const count = (
+			type: LHOME_SEARCH_RESULT_TYPE,
+			id: string,
+			word: string,
+		) => {
+			const existing = results.find(
+				(result) => result.type === type && result.data.id === id,
+			);
+			if (existing) {
+				existing.noOfMatches += 1;
+				existing.totalLengthMatched += word.length;
+			}
+			return existing !== undefined;
+		};
 		for (const word of words) {
-			const searchSaves = searchSavesByText(saves, word);
-			for (const save of searchSaves) {
-				const existingResult = results.find(
-					(result) =>
-						result.type === LHOME_SEARCH_RESULT_TYPE.SAVE &&
-						result.data.id === save.id,
-				);
-				if (existingResult) {
-					existingResult.noOfMatches += 1;
-					existingResult.totalLengthMatched += word.length;
-				} else {
+			for (const save of searchSaves(saves, word)) {
+				if (!count(LHOME_SEARCH_RESULT_TYPE.SAVE, save.id, word)) {
 					results.push({
+						type: LHOME_SEARCH_RESULT_TYPE.SAVE,
 						data: save,
 						noOfMatches: 1,
 						totalLengthMatched: word.length,
-						type: LHOME_SEARCH_RESULT_TYPE.SAVE,
 					});
 				}
 			}
-
-			const searchTasks = searchTasksByText(tasks, word);
-			for (const task of searchTasks) {
-				const existingResult = results.find(
-					(result) =>
-						result.type === LHOME_SEARCH_RESULT_TYPE.TASK &&
-						result.data.id === task.id,
-				);
-				if (existingResult) {
-					existingResult.noOfMatches += 1;
-					existingResult.totalLengthMatched += word.length;
-				} else {
+			for (const task of searchTasks(tasks, word)) {
+				if (!count(LHOME_SEARCH_RESULT_TYPE.TASK, task.id, word)) {
 					results.push({
+						type: LHOME_SEARCH_RESULT_TYPE.TASK,
 						data: task,
 						noOfMatches: 1,
 						totalLengthMatched: word.length,
-						type: LHOME_SEARCH_RESULT_TYPE.TASK,
 					});
 				}
 			}
-
-			const searchReminders = searchRemindersByText(reminders, word);
-			for (const reminder of searchReminders) {
-				const existingResult = results.find(
-					(result) =>
-						result.type === LHOME_SEARCH_RESULT_TYPE.REMINDER &&
-						result.data.id === reminder.id,
-				);
-				if (existingResult) {
-					existingResult.noOfMatches += 1;
-					existingResult.totalLengthMatched += word.length;
-				} else {
+			for (const reminder of searchReminders(reminders, word)) {
+				if (
+					!count(LHOME_SEARCH_RESULT_TYPE.REMINDER, reminder.id, word)
+				) {
 					results.push({
+						type: LHOME_SEARCH_RESULT_TYPE.REMINDER,
 						data: reminder,
 						noOfMatches: 1,
 						totalLengthMatched: word.length,
-						type: LHOME_SEARCH_RESULT_TYPE.REMINDER,
 					});
 				}
 			}
-
-			const matchedNotes = searchNotesByText(notes, word);
-			for (const note of matchedNotes) {
-				const existingResult = results.find(
-					(result) =>
-						result.type === LHOME_SEARCH_RESULT_TYPE.NOTE &&
-						result.data.id === note.id,
-				);
-				if (existingResult) {
-					existingResult.noOfMatches += 1;
-					existingResult.totalLengthMatched += word.length;
-				} else {
+			for (const note of searchNotes(notes, word)) {
+				if (!count(LHOME_SEARCH_RESULT_TYPE.NOTE, note.id, word)) {
 					results.push({
+						type: LHOME_SEARCH_RESULT_TYPE.NOTE,
 						data: note,
 						noOfMatches: 1,
 						totalLengthMatched: word.length,
-						type: LHOME_SEARCH_RESULT_TYPE.NOTE,
 					});
 				}
 			}
@@ -280,9 +241,7 @@ const Component = () => {
 													reminders={reminders}
 													tasks={tasks}
 													key={`${result.type}-${result.data.id}`}
-													save={
-														result.data as LVisualBM
-													}
+													save={result.data}
 												/>
 											);
 										}
@@ -296,7 +255,7 @@ const Component = () => {
 													reminders={reminders}
 													saves={saves}
 													key={`${result.type}-${result.data.id}`}
-													task={result.data as LTask}
+													task={result.data}
 												/>
 											);
 										}
@@ -308,10 +267,9 @@ const Component = () => {
 												<LUIReminderMini
 													links={links}
 													saves={saves}
+													tasks={tasks}
 													key={`${result.type}-${result.data.id}`}
-													reminder={
-														result.data as LReminder
-													}
+													reminder={result.data}
 												/>
 											);
 										}
@@ -323,7 +281,7 @@ const Component = () => {
 												<LUINoteMini
 													key={`${result.type}-${result.data.id}`}
 													className="break-inside-auto"
-													note={result.data as LNote}
+													note={result.data}
 													onOpen={(note) =>
 														navigate(
 															`/note/${note.id}`,
@@ -420,6 +378,7 @@ const Component = () => {
 												links={links}
 												reminders={reminders}
 												saves={saves}
+												tasks={tasks}
 											/>
 										</motion.div>
 									)}

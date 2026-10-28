@@ -4,7 +4,7 @@ import { useLittleTransition } from "../../hooks/useLittleTransition";
 import { exitTransitions } from "../../../route-transitions";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
-import { useNotes } from "../../hooks/useNotes";
+import { useNotes } from "../../hooks/useRecords";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
@@ -18,9 +18,11 @@ const Page = () => {
 	});
 	const notes = useNotes();
 	const { id } = useParams();
-	const parsedId = Number.parseInt(id ?? "", 10);
 	const loading = useLoading([id, notes]);
-	const note = notes?.find((item) => item.id === parsedId);
+	const note =
+		id === "new"
+			? { id: null, content: "" }
+			: notes?.find((item) => item.id === id);
 
 	return (
 		<motion.div
