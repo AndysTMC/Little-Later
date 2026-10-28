@@ -25,6 +25,20 @@ import {
 	LOCAL_AI_ORIGIN_RULE_ID,
 	buildLocalAIOriginRule,
 } from "./localAIOriginRule";
+import { commands } from "./commands";
+import { listenForCommands } from "./commands/listener";
+import { createCommandContext, createDispatcher } from "./commands/registry";
+import { openLittleDB } from "../storage/schema";
+import { sessionStore } from "../storage/session";
+
+// Registered synchronously at start-up, so a message that wakes the worker
+// finds its listener (0012).
+listenForCommands(
+	createDispatcher(
+		commands,
+		createCommandContext(openLittleDB(), sessionStore),
+	),
+);
 
 let keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
 let lastCapturedTabSignature = "";
