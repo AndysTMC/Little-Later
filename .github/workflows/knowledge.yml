@@ -34,8 +34,17 @@ jobs:
             # Accepting, editing or removing a protected decision needs a
             # human label. The base branch's copy of the checker runs, so a
             # pull request cannot weaken its own gate.
+            #
+            # A release pull request from this repository's dev into main is
+            # skipped: dev only changes through pull requests that passed
+            # this gate, so asking for the same labels again on release
+            # would gate each decision change twice.
             - name: Decision gate
-              if: github.event_name == 'pull_request'
+              if: >-
+                  github.event_name == 'pull_request' &&
+                  !(github.event.pull_request.base.ref == 'main' &&
+                  github.event.pull_request.head.ref == 'dev' &&
+                  github.event.pull_request.head.repo.full_name == github.repository)
               env:
                   BASE: ${{ github.event.pull_request.base.sha }}
                   ALLOW_PROMO: ${{ contains(github.event.pull_request.labels.*.name, 'human-accepted') }}
