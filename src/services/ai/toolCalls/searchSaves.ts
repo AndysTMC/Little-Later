@@ -1,8 +1,8 @@
-import { LVisualBM } from "little-shared/types";
+import type { Save } from "../../../storage/repositories";
 import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
-import { getDBTables } from "../../../utils/db";
-import { searchSavesByText } from "../../../utils/visualBM";
+import { searchSaves } from "../../../popup/records";
+import { readSaves, unlockedKeys } from "../records";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
 	pickSemanticCandidates,
@@ -20,22 +20,14 @@ const toolCall = async (
 		domain?: string;
 		url?: string;
 	},
-): Promise<LVisualBM[]> => {
-	const { visualBMTbl } = await getDBTables(["visualBMTbl"]);
-	if (visualBMTbl === undefined) {
-		throw new Error("Something went wrong while fetching saves.");
-	}
-	const saves = visualBMTbl.filter((x) => x.isSaved);
-	let resultSaves: LVisualBM[] = saves.slice();
+): Promise<Array<Save>> => {
+	const saves = (await readSaves(await unlockedKeys())).filter(
+		(save) => save.saved,
+	);
+	let resultSaves = saves.slice();
 	if (query) {
-		const querySaves: LVisualBM[] = [];
-		const filteredSaves = searchSavesByText(saves, query);
-		filteredSaves.forEach((save) => {
-			if (!querySaves.includes(save)) {
-				querySaves.push(save);
-			}
-		});
-		const savesToSend = pickSemanticCandidates(querySaves, saves).map(
+		const querySaves = new Set<Save>(searchSaves(saves, query));
+		const savesToSend = pickSemanticCandidates([...querySaves], saves).map(
 			(save) => ({
 				id: save.id,
 				name: save.customName,
@@ -56,23 +48,15 @@ const toolCall = async (
 			IDJSONObjectInstruction,
 		);
 		const semanticSaveIds = extractSemanticIds(response);
-		const semanticSaves = saves.filter((save) =>
-			semanticSaveIds.includes(save.id),
-		);
-		semanticSaves.forEach((save) => {
-			if (!querySaves.includes(save)) {
-				querySaves.push(save);
-			}
-		});
-		resultSaves = resultSaves.filter((save) => querySaves.includes(save));
+		saves
+			.filter((save) => semanticSaveIds.includes(save.id))
+			.forEach((save) => querySaves.add(save));
+		resultSaves = resultSaves.filter((save) => querySaves.has(save));
 	}
 	if (domain) {
 		const normalizedDomain = domain.toLowerCase();
-		const domainFilteredSaves = resultSaves.filter((save) =>
-			save.url.toLowerCase().includes(normalizedDomain),
-		);
 		resultSaves = resultSaves.filter((save) =>
-			domainFilteredSaves.includes(save),
+			save.url.toLowerCase().includes(normalizedDomain),
 		);
 	}
 	if (url) {

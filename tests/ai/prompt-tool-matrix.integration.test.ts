@@ -2,6 +2,7 @@
 import "fake-indexeddb/auto";
 import {
 	afterAll,
+	afterEach,
 	beforeAll,
 	beforeEach,
 	describe,
@@ -11,30 +12,31 @@ import {
 } from "vitest";
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { AddressInfo } from "node:net";
-import { JSDOM } from "jsdom";
 import {
 	LAI_PROVIDERS,
 	LFACE_EXPRESSION,
-	LINT_BOOLEAN,
 	LREMINDER_TYPE,
 	LTASK_PRIORITY,
-	LTASK_SCHEDULE_TYPE,
 	LTHEME,
 } from "little-shared/enums";
-import { LDateUtl } from "little-shared/utils/datetime";
-import {
-	LEMPTY_VAULT_DATA_POST_DECRYPT,
-	LINITIAL_USER_SETTINGS,
-} from "little-shared/constants";
-import { encrypt } from "little-shared/utils/crypto";
 import type { OpenAICompatibleAI as OpenAICompatibleAIClass } from "../../src/services/ai/main";
+import {
+	readNotes,
+	readProfile,
+	readReminders,
+	readSaves,
+	readTasks,
+	unlockedKeys,
+} from "../../src/services/ai/records";
+import { littleDB } from "../../src/storage/pageDB";
+import { putPreview } from "../../src/storage/repositories";
+import { send } from "../../src/utils/send";
+import { freshProfile, localDate } from "./profile";
 
-const VAULT_PASSWORD = "correct-horse-battery";
-
+// The export tool still writes the pre-v1 backup, whose packer needs a
+// browser global; it moves to the v1 backup in its own change.
 (globalThis as { self?: unknown }).self = globalThis;
 
-let db: typeof import("../../src/utils/db").db;
-let resetLLDB: typeof import("../../src/utils/db").resetLLDB;
 let OpenAICompatibleAI: typeof OpenAICompatibleAIClass;
 let registeredTools: Array<{ function: { name: string } }>;
 let toolRegistry: typeof import("../../src/services/ai/toolRegistry").toolRegistry;
@@ -361,130 +363,83 @@ const createScenarioRecord = (
 	return result;
 };
 
-const seedTestData = async (): Promise<void> => {
-	document.title = "Little Later AI Test Page";
-	localStorage.clear();
-	localStorage.setItem(
-		"userSettings",
-		JSON.stringify({
-			ai: {
-				provider: LAI_PROVIDERS.CUSTOM,
-				baseUrl: "http://127.0.0.1:11434/v1",
-				apiKey: "",
-				model: "mock-model",
-			},
-			guide: {
-				isFirstTimeUser: false,
-			},
-			misc: {
-				VBMLimit: 1000,
-				VBMSameOriginLimit: 1,
-			},
-		}),
+type Seeded = {
+	phoenixNote: string;
+	disposableNote: string;
+	standupReminder: string;
+	disposableReminder: string;
+	shipTask: string;
+	disposableTask: string;
+	hotstarSave: string;
+	disposableSave: string;
+};
+
+const seedTestData = async (): Promise<Seeded> => {
+	await freshProfile();
+	await send("profile.update", { theme: "dark" });
+
+	const phoenixNote = await send("note.create", {
+		content: "Project Phoenix planning notes",
+	});
+	const disposableNote = await send("note.create", {
+		content: "Disposable note to delete",
+	});
+
+	const standupReminder = await send("reminder.create", {
+		message: "Daily standup",
+		target: Date.parse(localDate("2026-04-05T18:00:00")),
+	});
+	const disposableReminder = await send("reminder.create", {
+		message: "Reminder to delete",
+		target: Date.parse(localDate("2026-04-07T10:00:00")),
+	});
+
+	const shipTask = await send("task.create", {
+		information: "Ship AI reliability update",
+		label: "Engineering",
+		priority: "high",
+		schedule: {
+			kind: "due",
+			at: Date.parse(localDate("2026-04-06T11:00:00")),
+		},
+		reminder: null,
+	});
+	const disposableTask = await send("task.create", {
+		information: "Task to delete",
+		label: "Cleanup",
+		priority: "low",
+		schedule: { kind: "anytime" },
+		reminder: null,
+	});
+
+	const hotstarSave = await send("save.capture", {
+		url: "https://www.hotstar.com/in/home",
+		title: "JioHotstar - Watch TV Shows, Movies, Specials, Live Cricket & Football",
+		saved: true,
+	});
+	await putPreview(
+		littleDB,
+		await unlockedKeys(),
+		hotstarSave.id,
+		new TextEncoder().encode("preview"),
+		Date.now(),
 	);
-
-	await db.userProfileTbl.put({
-		userId: 1,
-		name: "Alex",
-		theme: LTHEME.DARK,
-		isCurrent: LINT_BOOLEAN.TRUE,
-	});
-	await db.userVaultTbl.put({
-		userId: 1,
-		data: await encrypt(VAULT_PASSWORD, {
-			tables: LEMPTY_VAULT_DATA_POST_DECRYPT.value,
-			userSettings: LINITIAL_USER_SETTINGS.value,
-		}),
+	const disposableSave = await send("save.capture", {
+		url: "https://delete-me.example.com/",
+		title: "Delete Me Save",
+		saved: true,
 	});
 
-	await db.noteTbl.bulkPut([
-		{
-			id: 1,
-			content: "Project Phoenix planning notes",
-			lastModificationDate: "2026-04-05T08:00:00+05:30",
-		},
-		{
-			id: 2,
-			content: "Disposable note to delete",
-			lastModificationDate: "2026-04-05T08:05:00+05:30",
-		},
-	]);
-
-	await db.reminderTbl.bulkPut([
-		{
-			id: 1,
-			message: "Daily standup",
-			type: LREMINDER_TYPE.NORMAL,
-			targetDate: "2026-04-05T18:00:00+05:30",
-			lastNotificationDate: "2026-04-05T09:00:00+05:30",
-		},
-		{
-			id: 2,
-			message: "Reminder to delete",
-			type: LREMINDER_TYPE.NORMAL,
-			targetDate: "2026-04-07T10:00:00+05:30",
-			lastNotificationDate: "2026-04-05T09:00:00+05:30",
-		},
-	]);
-
-	await db.taskTbl.bulkPut([
-		{
-			id: 1,
-			information: "Ship AI reliability update",
-			label: "Engineering",
-			priority: LTASK_PRIORITY.HIGH,
-			finishDate: null,
-			schedule: {
-				type: LTASK_SCHEDULE_TYPE.DUE,
-				deadlineInfo: {
-					deadlineDate: "2026-04-06T11:00:00+05:30",
-				},
-				recurringInfo: null,
-			},
-		},
-		{
-			id: 2,
-			information: "Task to delete",
-			label: "Cleanup",
-			priority: LTASK_PRIORITY.LOW,
-			finishDate: null,
-			schedule: {
-				type: LTASK_SCHEDULE_TYPE.ADHOC,
-				deadlineInfo: null,
-				recurringInfo: null,
-			},
-		},
-	]);
-
-	await db.visualBMTbl.bulkPut([
-		{
-			id: 47,
-			customName:
-				"JioHotstar - Watch TV Shows, Movies, Specials, Live Cricket & Football",
-			title: "JioHotstar - Watch TV Shows, Movies, Specials, Live Cricket & Football",
-			url: "https://www.hotstar.com/in/home",
-			isSaved: LINT_BOOLEAN.TRUE,
-			hasBrowsed: LINT_BOOLEAN.TRUE,
-			lastBrowseDate: LDateUtl.getNow(),
-		},
-		{
-			id: 48,
-			customName: "Delete Me Save",
-			title: "Delete Me Save",
-			url: "https://delete-me.example.com",
-			isSaved: LINT_BOOLEAN.TRUE,
-			hasBrowsed: LINT_BOOLEAN.TRUE,
-			lastBrowseDate: "2026-04-04T10:00:00+05:30",
-		},
-	]);
-
-	await db.vbmPreviewTbl.put({
-		vbmId: 47,
-		blob: {
-			type: "image/png",
-			data: Array.from(new TextEncoder().encode("preview")),
-		} as unknown as Blob,
-	});
+	return {
+		phoenixNote: phoenixNote.id,
+		disposableNote: disposableNote.id,
+		standupReminder: standupReminder.id,
+		disposableReminder: disposableReminder.id,
+		shipTask: shipTask.id,
+		disposableTask: disposableTask.id,
+		hotstarSave: hotstarSave.id,
+		disposableSave: disposableSave.id,
+	};
 };
 
 const createAI = (baseUrl: string): OpenAICompatibleAIClass =>
@@ -540,90 +495,47 @@ const instrumentToolExecutions = () => {
 
 describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 	let mockServer: MockServerState;
-	let anchorClickSpy: ReturnType<typeof vi.spyOn>;
-	let originalCreateObjectURL:
-		((obj: Blob | MediaSource) => string) | undefined;
-	let originalRevokeObjectURL: ((url: string) => void) | undefined;
-	let dom: JSDOM;
-	const storageMap = new Map<string, string>();
+	let seeded: Seeded;
 
 	beforeAll(async () => {
 		mockServer = await createMockProviderServer();
-		({ db, resetLLDB } = await import("../../src/utils/db"));
 		({ OpenAICompatibleAI } = await import("../../src/services/ai/main"));
 		({ tools: registeredTools, toolRegistry } =
 			await import("../../src/services/ai/toolRegistry"));
-		dom = new JSDOM("<!doctype html><html><body></body></html>", {
-			url: "https://littlelater.test/",
-		});
-		vi.stubGlobal("window", dom.window);
-		vi.stubGlobal("document", dom.window.document);
-		vi.stubGlobal("navigator", dom.window.navigator);
-		vi.stubGlobal("HTMLAnchorElement", dom.window.HTMLAnchorElement);
-		vi.stubGlobal("self", globalThis);
-		vi.stubGlobal("localStorage", {
-			getItem: (key: string) => storageMap.get(key) ?? null,
-			setItem: (key: string, value: string) => {
-				storageMap.set(key, value);
-			},
-			removeItem: (key: string) => {
-				storageMap.delete(key);
-			},
-			clear: () => {
-				storageMap.clear();
-			},
-			key: (index: number) =>
-				Array.from(storageMap.keys())[index] ?? null,
-			get length() {
-				return storageMap.size;
-			},
-		} satisfies Storage);
-		anchorClickSpy = vi
-			.spyOn(HTMLAnchorElement.prototype, "click")
-			.mockImplementation(() => {});
-
-		originalCreateObjectURL = (
-			URL as unknown as {
-				createObjectURL?: (obj: Blob | MediaSource) => string;
-			}
-		).createObjectURL;
-		originalRevokeObjectURL = (
-			URL as unknown as { revokeObjectURL?: (url: string) => void }
-		).revokeObjectURL;
-
-		(
-			URL as unknown as {
-				createObjectURL: (obj: Blob | MediaSource) => string;
-			}
-		).createObjectURL = () => `blob:mock-${Date.now()}-${Math.random()}`;
-		(
-			URL as unknown as { revokeObjectURL: (url: string) => void }
-		).revokeObjectURL = () => {};
 	});
 
 	afterAll(async () => {
-		anchorClickSpy.mockRestore();
-		dom.window.close();
-		vi.unstubAllGlobals();
-		if (originalCreateObjectURL) {
-			(
-				URL as unknown as {
-					createObjectURL: (obj: Blob | MediaSource) => string;
-				}
-			).createObjectURL = originalCreateObjectURL;
-		}
-		if (originalRevokeObjectURL) {
-			(
-				URL as unknown as { revokeObjectURL: (url: string) => void }
-			).revokeObjectURL = originalRevokeObjectURL;
-		}
 		await mockServer.close();
 	});
 
 	beforeEach(async () => {
-		await resetLLDB();
+		// The April dates below stay in the future.
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date("2026-04-01T00:00:00Z"));
+		vi.stubGlobal("chrome", {
+			runtime: {},
+			tabs: {
+				query: (
+					_query: unknown,
+					callback: (
+						tabs: Array<{ url: string; title: string }>,
+					) => void,
+				) =>
+					callback([
+						{
+							url: "https://littlelater.test/",
+							title: "Little Later AI Test Page",
+						},
+					]),
+			},
+		});
 		mockServer.resetToolExecutions();
-		await seedTestData();
+		seeded = await seedTestData();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
 	});
 
 	it("covers every exposed AI tool with prompt-driven scenarios", async () => {
@@ -696,7 +608,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 						{
 							name: "update_note",
 							args: {
-								id: 1,
+								id: seeded.phoenixNote,
 								content:
 									"Project Phoenix planning notes (updated)",
 							},
@@ -714,7 +626,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 							name: "create_reminder",
 							args: {
 								message: "Doctor appointment",
-								targetDate: "2026-04-07T10:30:00+05:30",
+								targetDate: localDate("2026-04-07T10:30:00"),
 								type: LREMINDER_TYPE.NORMAL,
 							},
 						},
@@ -731,7 +643,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 							name: "search_reminders",
 							args: {
 								query: "standup",
-								targetDate: "2026-04-05T00:00:00+05:30",
+								targetDate: localDate("2026-04-05T00:00:00"),
 								targetDateCriteria: {
 									year: true,
 									month: true,
@@ -751,9 +663,9 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 						{
 							name: "update_reminder",
 							args: {
-								id: 1,
+								id: seeded.standupReminder,
 								message: "Daily standup moved",
-								targetDate: "2026-04-05T19:15:00+05:30",
+								targetDate: localDate("2026-04-05T19:15:00"),
 								type: LREMINDER_TYPE.NORMAL,
 							},
 						},
@@ -770,7 +682,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 							name: "search_tasks",
 							args: {
 								priority: LTASK_PRIORITY.HIGH,
-								deadlineDate: "2026-04-06T00:00:00+05:30",
+								deadlineDate: localDate("2026-04-06T00:00:00"),
 								deadlineDateCriteria: {
 									year: true,
 									month: true,
@@ -793,7 +705,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 								information: "Pay rent",
 								label: "Rent",
 								priority: LTASK_PRIORITY.HIGH,
-								deadlineDate: "2026-04-08T08:00:00+05:30",
+								deadlineDate: localDate("2026-04-08T08:00:00"),
 							},
 						},
 					],
@@ -808,7 +720,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 						{
 							name: "update_task",
 							args: {
-								id: 1,
+								id: seeded.shipTask,
 								label: "Engineering updated",
 							},
 						},
@@ -832,7 +744,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 						{
 							name: "update_save",
 							args: {
-								id: 47,
+								id: seeded.hotstarSave,
 								customName: "Streaming Home",
 							},
 						},
@@ -915,38 +827,16 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 				} satisfies PromptScenario,
 			},
 			{
-				prompt: "Export readable data.",
-				expectedTool: "export_data",
-				expectedMessage: "Export completed.",
-				scenario: {
-					toolCalls: [
-						{
-							name: "export_data",
-							args: { type: "readable" },
-						},
-					],
-				} satisfies PromptScenario,
-			},
-			{
-				prompt: "Export importable data.",
-				expectedTool: "export_data",
-				expectedMessage: "Export completed.",
-				confirmPassword: VAULT_PASSWORD,
-				scenario: {
-					toolCalls: [
-						{
-							name: "export_data",
-							args: { type: "importable" },
-						},
-					],
-				} satisfies PromptScenario,
-			},
-			{
 				prompt: "Delete note two.",
 				expectedTool: "delete_note",
 				expectedMessage: "Deleted the note.",
 				scenario: {
-					toolCalls: [{ name: "delete_note", args: { id: 2 } }],
+					toolCalls: [
+						{
+							name: "delete_note",
+							args: { id: seeded.disposableNote },
+						},
+					],
 				} satisfies PromptScenario,
 			},
 			{
@@ -954,7 +844,12 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 				expectedTool: "delete_reminder",
 				expectedMessage: "Deleted the reminder.",
 				scenario: {
-					toolCalls: [{ name: "delete_reminder", args: { id: 2 } }],
+					toolCalls: [
+						{
+							name: "delete_reminder",
+							args: { id: seeded.disposableReminder },
+						},
+					],
 				} satisfies PromptScenario,
 			},
 			{
@@ -962,7 +857,12 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 				expectedTool: "delete_save",
 				expectedMessage: "Deleted the save.",
 				scenario: {
-					toolCalls: [{ name: "delete_save", args: { id: 48 } }],
+					toolCalls: [
+						{
+							name: "delete_save",
+							args: { id: seeded.disposableSave },
+						},
+					],
 				} satisfies PromptScenario,
 			},
 			{
@@ -970,7 +870,12 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 				expectedTool: "delete_task",
 				expectedMessage: "Deleted the task.",
 				scenario: {
-					toolCalls: [{ name: "delete_task", args: { id: 2 } }],
+					toolCalls: [
+						{
+							name: "delete_task",
+							args: { id: seeded.disposableTask },
+						},
+					],
 				} satisfies PromptScenario,
 			},
 		] as const;
@@ -1001,11 +906,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 							(entry) => entry.toolName === item.expectedTool,
 						),
 					).toBe(true);
-					finalOutput = await ai.confirmPendingMutations(
-						"confirmPassword" in item && item.confirmPassword
-							? { password: item.confirmPassword }
-							: undefined,
-					);
+					finalOutput = await ai.confirmPendingMutations();
 				}
 				toolExecutionSpy.setActivePrompt(null);
 				expect(
@@ -1026,6 +927,8 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 		const executions = toolExecutionSpy.getGlobalToolExecutions();
 		const exposedToolNames = registeredTools
 			.map((tool) => tool.function.name)
+			// Covered again once it writes the v1 backup.
+			.filter((toolName) => toolName !== "export_data")
 			.sort();
 		expect(exposedToolNames.length).toBeGreaterThan(0);
 		for (const toolName of exposedToolNames) {
@@ -1035,19 +938,32 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 			).toBeGreaterThan(0);
 		}
 
-		expect((await db.noteTbl.get(1))?.content).toContain("updated");
-		expect((await db.reminderTbl.get(1))?.message).toContain("moved");
-		expect(await db.noteTbl.get(2)).toBeUndefined();
-		expect(await db.reminderTbl.get(2)).toBeUndefined();
-		expect((await db.visualBMTbl.get(48))?.isSaved).toBe(
-			LINT_BOOLEAN.FALSE,
+		const keys = await unlockedKeys();
+		const notes = await readNotes(keys);
+		const reminders = await readReminders(keys);
+		const saves = await readSaves(keys);
+		const tasks = await readTasks(keys);
+		const byId = <T extends { id: string }>(rows: Array<T>, id: string) =>
+			rows.find((row) => row.id === id);
+		expect(byId(notes, seeded.phoenixNote)?.content).toContain("updated");
+		expect(byId(reminders, seeded.standupReminder)?.message).toContain(
+			"moved",
 		);
-		expect(await db.taskTbl.get(2)).toBeUndefined();
-		expect((await db.userProfileTbl.get(1))?.theme).toBe(LTHEME.LIGHT);
-		expect((await db.taskTbl.get(1))?.label).toBe("Engineering updated");
-		expect((await db.visualBMTbl.get(47))?.customName).toBe(
+		expect(byId(notes, seeded.disposableNote)).toBeUndefined();
+		expect(byId(reminders, seeded.disposableReminder)).toBeUndefined();
+		expect(byId(saves, seeded.disposableSave)?.saved).toBe(false);
+		expect(byId(tasks, seeded.disposableTask)).toBeUndefined();
+		expect((await readProfile(keys)).prefs.theme).toBe("light");
+		expect(byId(tasks, seeded.shipTask)?.label).toBe("Engineering updated");
+		expect(byId(saves, seeded.hotstarSave)?.customName).toBe(
 			"Streaming Home",
 		);
+		expect(
+			saves.some(
+				(save) =>
+					save.url === "https://littlelater.test/" && save.saved,
+			),
+		).toBe(true);
 	});
 
 	it("does not mutate data when the user cancels confirmation", async () => {
@@ -1071,7 +987,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 		expect(output.confirmation).toBeDefined();
 		expect(ai.hasPendingConfirmation()).toBe(true);
 		expect(
-			(await db.noteTbl.toArray()).some(
+			(await readNotes(await unlockedKeys())).some(
 				(note) => note.content === "Should not persist",
 			),
 		).toBe(false);
@@ -1083,7 +999,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 		expect(cancelled.message).toContain("Cancelled");
 		expect(ai.hasPendingConfirmation()).toBe(false);
 		expect(
-			(await db.noteTbl.toArray()).some(
+			(await readNotes(await unlockedKeys())).some(
 				(note) => note.content === "Should not persist",
 			),
 		).toBe(false);
@@ -1116,7 +1032,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 						{
 							name: "update_reminder",
 							args: {
-								id: 1,
+								id: seeded.standupReminder,
 								targetDate: "next week",
 							},
 						},

@@ -2,34 +2,36 @@ import OpenAI from "openai";
 import {
 	LEXPORT_TYPE,
 	LFACE_EXPRESSION,
-	LLINK_TYPE,
-	LRECURRING_TYPE,
 	LREMINDER_TYPE,
 	LTASK_PRIORITY,
-	LTASK_SCHEDULE_TYPE,
 	LTHEME,
 } from "little-shared/enums";
-import {
-	LAIOutputContent,
-	LDate,
-	LLink,
-	LRecurringInfo,
-	LReminder,
-	LTime,
-} from "little-shared/types";
+import { LDate } from "little-shared/types";
 import {
 	LMAX_REMINDER_MESSAGE_LENGTH,
 	LMAX_TASK_INFORMATION_LENGTH,
 	LMAX_TASK_LABEL_LENGTH,
 } from "little-shared/constants";
-import { db } from "../../utils/db";
+import type { Note, Reminder, Save, Task } from "../../storage/repositories";
+import type { LinkRow, TaskSchedule } from "../../storage/schema";
+import { linkedTo, reminderKind } from "../../popup/records";
+import { prettyRule } from "../../utils/dates";
+import { send } from "../../utils/send";
+import {
+	readLinks,
+	readNotes,
+	readReminders,
+	readSaves,
+	readTasks,
+	unlockedKeys,
+} from "./records";
 import { ResponseFormatJSONSchema } from "openai/resources.mjs";
 import toolCalls from "./toolCalls";
 import {
 	isValidLDateString,
-	isValidLTimeString,
 	LDateMatchCriteria,
 	normalizeDateMatchCriteria,
+	toModelDate,
 } from "./toolCalls/_utils/dateFilters";
 import tools, {
 	createNoteTool,
@@ -67,6 +69,14 @@ type StructuredResponseProvider = {
 	): Promise<unknown>;
 };
 
+// Records a tool found, for the chat to use as context.
+type AIOutputContent = {
+	saves: Array<Save>;
+	reminders: Array<Reminder>;
+	tasks: Array<Task>;
+	notes: Array<Note>;
+};
+
 type ToolExecutionContext = {
 	ai: StructuredResponseProvider;
 };
@@ -81,7 +91,7 @@ type ToolExecutionResult = {
 	modelMessage?: string;
 	modelPayload?: unknown;
 	expression?: LFACE_EXPRESSION;
-	content?: LAIOutputContent;
+	content?: AIOutputContent;
 	undoAction?: ToolUndoAction;
 };
 
@@ -103,17 +113,12 @@ type ToolDefinition = {
 const escapeMarkdownText = (value: string): string =>
 	value.replace(/[\\`*_{}[\]()<>#+!|~-]/g, "\\$&").replace(/\s+/g, " ");
 
-const createEmptyOutputContent = (): LAIOutputContent => ({
+const createEmptyOutputContent = (): AIOutputContent => ({
 	saves: [],
 	reminders: [],
 	tasks: [],
 	notes: [],
 });
-
-const asRecord = (value: unknown): Record<string, unknown> =>
-	value && typeof value === "object" && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: {};
 
 const asString = (value: unknown): string | undefined =>
 	typeof value === "string" ? value : undefined;
@@ -171,219 +176,137 @@ const asEnum = <T extends string>(
 	return allowed.includes(value as T) ? (value as T) : undefined;
 };
 
-const parseRecurringInfo = (value: unknown): LRecurringInfo | undefined => {
-	const info = asRecord(value);
-	const type = asEnum(info.type, [
-		LRECURRING_TYPE.DAILY,
-		LRECURRING_TYPE.WEEKLY,
-		LRECURRING_TYPE.MONTHLY,
-		LRECURRING_TYPE.YEARLY,
+const SCHEDULE_KINDS: ReadonlyArray<TaskSchedule["kind"]> = [
+	"anytime",
+	"due",
+	"recurring",
+];
+
+// "ad-hoc" is what tasks without a deadline were called before format v1.
+const asScheduleKind = (value: unknown): TaskSchedule["kind"] | undefined =>
+	value === "ad-hoc" ? "anytime" : asEnum(value, SCHEDULE_KINDS);
+
+// Undoing a delete recreates the record through commands, so it comes back
+// with a new id, and with its links.
+
+const relink = async (
+	fromId: string,
+	targetIds: ReadonlyArray<string>,
+): Promise<void> => {
+	for (const toId of targetIds) {
+		await send("link.create", { fromId, toId });
+	}
+};
+
+const snapshot = async () => {
+	const keys = await unlockedKeys();
+	const [links, notes, reminders, saves, tasks] = await Promise.all([
+		readLinks(keys),
+		readNotes(keys),
+		readReminders(keys),
+		readSaves(keys),
+		readTasks(keys),
 	]);
-	const time = asTrimmedString(info.time);
-	if (!type || !time) {
-		return undefined;
-	}
-	const normalizedTime = isValidLTimeString(time)
-		? time
-		: isValidLDateString(time)
-			? time.slice(11)
-			: undefined;
-	if (!normalizedTime || !isValidLTimeString(normalizedTime)) {
-		return undefined;
-	}
-	if (type === LRECURRING_TYPE.DAILY) {
-		return {
-			type,
-			time: normalizedTime as LTime,
-			weekDay: null,
-			day: null,
-			month: null,
-		};
-	}
-	if (type === LRECURRING_TYPE.WEEKLY) {
-		const weekDay = asInteger(info.weekDay);
-		if (weekDay === undefined || weekDay < 0 || weekDay > 6) {
-			return undefined;
-		}
-		return {
-			type,
-			time: normalizedTime as LTime,
-			weekDay,
-			day: null,
-			month: null,
-		};
-	}
-	if (type === LRECURRING_TYPE.MONTHLY) {
-		const day = asInteger(info.day);
-		if (day === undefined || day < 1 || day > 28) {
-			return undefined;
-		}
-		return {
-			type,
-			time: normalizedTime as LTime,
-			day,
-			weekDay: null,
-			month: null,
-		};
-	}
-	const day = asInteger(info.day);
-	const month = asInteger(info.month);
-	if (
-		day === undefined ||
-		day < 1 ||
-		day > 28 ||
-		month === undefined ||
-		month < 0 ||
-		month > 11
-	) {
-		return undefined;
-	}
-	return {
-		type: LRECURRING_TYPE.YEARLY,
-		time: normalizedTime as LTime,
-		day,
-		month,
-		weekDay: null,
-	};
+	return { links, notes, reminders, saves, tasks };
 };
 
-const cloneDeep = <T>(value: T): T => JSON.parse(JSON.stringify(value));
-
-const restoreLinks = async (links: Array<LLink>): Promise<void> => {
-	for (const link of links) {
-		await db.linkTbl.put(link);
-	}
-};
+const targetsOf = (links: ReadonlyArray<LinkRow>, id: string) =>
+	links.filter((link) => link.fromId === id).map((link) => link.toId);
 
 const captureDeleteNoteUndo = async (
-	id: number,
+	id: string,
 ): Promise<ToolUndoAction | undefined> => {
-	const note = await db.noteTbl.get(id);
+	const { links, notes } = await snapshot();
+	const note = notes.find((item) => item.id === id);
 	if (!note) {
 		return undefined;
 	}
-	const links = await db.linkTbl.where("noteId").equals(id).toArray();
-	const noteSnapshot = cloneDeep(note);
-	const linkSnapshot = cloneDeep(links);
+	const [saveId, ...otherSaveIds] = targetsOf(links, id);
 	return {
 		label: "Delete note",
 		run: async () => {
-			await db.noteTbl.put(noteSnapshot);
-			await restoreLinks(linkSnapshot);
+			const created = await send("note.create", {
+				content: note.content,
+				saveId,
+			});
+			await relink(created.id, otherSaveIds);
 		},
 	};
 };
 
 const captureDeleteReminderUndo = async (
-	id: number,
+	id: string,
 ): Promise<ToolUndoAction | undefined> => {
-	const reminder = await db.reminderTbl.get(id);
+	const { links, reminders } = await snapshot();
+	const reminder = reminders.find((item) => item.id === id);
 	if (!reminder) {
 		return undefined;
 	}
-	const reminderLinks = await db.linkTbl
-		.where("reminderId")
-		.equals(id)
-		.toArray();
-	const reminderSnapshot = cloneDeep(reminder);
-	const linkSnapshot = cloneDeep(reminderLinks);
+	const targetIds = targetsOf(links, id);
 	return {
 		label: "Delete reminder",
 		run: async () => {
-			await db.reminderTbl.put(reminderSnapshot);
-			await restoreLinks(linkSnapshot);
+			const created = await send("reminder.create", {
+				message: reminder.message,
+				target: reminder.target,
+				escalate: reminder.escalation !== null,
+			});
+			await relink(created.id, targetIds);
 		},
 	};
 };
 
+// Deleting a save unsaves it, which detaches its notes, tasks and
+// reminders; undo saves it again and reattaches them.
 const captureDeleteSaveUndo = async (
-	id: number,
+	id: string,
 ): Promise<ToolUndoAction | undefined> => {
-	const save = await db.visualBMTbl.get(id);
-	if (!save) {
+	const { links, saves } = await snapshot();
+	if (!saves.some((save) => save.id === id && save.saved)) {
 		return undefined;
 	}
-	const saveLinks = await db.linkTbl.where("vbmId").equals(id).toArray();
-	const noteIds = saveLinks
-		.filter(
-			(link) => link.type === LLINK_TYPE.NOTE_VBM && link.noteId !== null,
-		)
-		.map((link) => link.noteId!) as Array<number>;
-
-	const notes = (
-		await Promise.all(noteIds.map((noteId) => db.noteTbl.get(noteId)))
-	).filter((note): note is NonNullable<typeof note> => note !== undefined);
-
-	const noteLinks = (
-		await Promise.all(
-			noteIds.map((noteId) =>
-				db.linkTbl.where("noteId").equals(noteId).toArray(),
-			),
-		)
-	).flat();
-
-	const saveSnapshot = cloneDeep(save);
-	const saveLinkSnapshot = cloneDeep(saveLinks);
-	const noteSnapshot = cloneDeep(notes);
-	const noteLinkSnapshot = cloneDeep(noteLinks);
-
+	const sourceIds = links
+		.filter((link) => link.toId === id)
+		.map((link) => link.fromId);
 	return {
 		label: "Delete save",
 		run: async () => {
-			await db.visualBMTbl.put(saveSnapshot);
-			for (const note of noteSnapshot) {
-				await db.noteTbl.put(note);
+			await send("save.update", { id, saved: true });
+			for (const fromId of sourceIds) {
+				await send("link.create", { fromId, toId: id });
 			}
-			await restoreLinks(noteLinkSnapshot);
-			await restoreLinks(saveLinkSnapshot);
 		},
 	};
 };
 
+// A task's own reminder is deleted with it and comes back with it.
 const captureDeleteTaskUndo = async (
-	id: number,
+	id: string,
 ): Promise<ToolUndoAction | undefined> => {
-	const task = await db.taskTbl.get(id);
+	const { links, reminders, tasks } = await snapshot();
+	const task = tasks.find((item) => item.id === id);
 	if (!task) {
 		return undefined;
 	}
-	const taskLinks = await db.linkTbl.where("taskId").equals(id).toArray();
-	const reminderIds = taskLinks
-		.filter(
-			(link) =>
-				link.type === LLINK_TYPE.REMINDER_TASK &&
-				link.reminderId !== null,
-		)
-		.map((link) => link.reminderId!) as Array<number>;
-
-	const reminders = (
-		await Promise.all(
-			reminderIds.map((reminderId) => db.reminderTbl.get(reminderId)),
-		)
-	).filter((reminder): reminder is LReminder => reminder !== undefined);
-
-	const reminderLinks = (
-		await Promise.all(
-			reminderIds.map((reminderId) =>
-				db.linkTbl.where("reminderId").equals(reminderId).toArray(),
-			),
-		)
-	).flat();
-
-	const taskSnapshot = cloneDeep(task);
-	const taskLinkSnapshot = cloneDeep(taskLinks);
-	const reminderSnapshot = cloneDeep(reminders);
-	const reminderLinkSnapshot = cloneDeep(reminderLinks);
-
+	const [reminder] = linkedTo(links, id, reminders);
+	const saveIds = targetsOf(links, id);
 	return {
 		label: "Delete task",
 		run: async () => {
-			await db.taskTbl.put(taskSnapshot);
-			for (const reminder of reminderSnapshot) {
-				await db.reminderTbl.put(reminder);
+			const created = await send("task.create", {
+				information: task.information,
+				label: task.label,
+				priority: task.priority,
+				schedule: task.schedule,
+				reminder:
+					reminder && task.schedule.kind !== "anytime"
+						? reminderKind(reminder)
+						: null,
+			});
+			await relink(created.id, saveIds);
+			if (task.done) {
+				await send("task.complete", { id: created.id });
 			}
-			await restoreLinks(reminderLinkSnapshot);
-			await restoreLinks(taskLinkSnapshot);
 		},
 	};
 };
@@ -404,12 +327,23 @@ const requireValidDateString = (value: unknown, fieldName: string): LDate => {
 	return dateValue;
 };
 
-const requireId = (value: unknown, fieldName = "id"): number => {
-	const id = asInteger(value);
+const asId = (value: unknown): string | undefined =>
+	typeof value === "number" ? String(value) : asTrimmedString(value);
+
+const requireId = (value: unknown): string => {
+	const id = asId(value);
 	if (id === undefined) {
-		throw new Error(`${fieldName} is required.`);
+		throw new Error("id is required.");
 	}
 	return id;
+};
+
+const requireInteger = (value: unknown, fieldName: string): number => {
+	const output = asInteger(value);
+	if (output === undefined) {
+		throw new Error(`${fieldName} is required.`);
+	}
+	return output;
 };
 
 const summarizeInlineText = (value: string, maxLength = 80): string => {
@@ -444,58 +378,50 @@ const sanitizeReminderMessage = (value: string, targetDate?: LDate): string => {
 	return stripped.length >= 3 ? stripped : normalized;
 };
 
-const toModelNote = (note: {
-	id: number;
-	content: string;
-	lastModificationDate: string;
-}) => ({
+const toModelNote = (note: Note) => ({
 	id: note.id,
 	content: note.content,
-	lastModificationDate: note.lastModificationDate,
+	lastModificationDate: toModelDate(note.updatedAt),
 });
 
-const toModelSave = (save: {
-	id: number;
-	customName: string;
-	title: string;
-	url: string;
-	lastBrowseDate: string;
-	isSaved: number;
-}) => ({
+const toModelSave = (save: Save) => ({
 	id: save.id,
 	name: save.customName,
 	title: save.title,
 	url: save.url,
-	lastBrowseDate: save.lastBrowseDate,
-	isSaved: save.isSaved === 1,
+	lastBrowseDate: toModelDate(save.browsedAt),
+	isSaved: save.saved,
 });
 
-const toModelReminder = (reminder: {
-	id: number;
-	message: string;
-	targetDate: string;
-	type: string;
-}) => ({
+const toModelReminder = (reminder: Reminder) => ({
 	id: reminder.id,
 	message: reminder.message,
-	targetDate: reminder.targetDate,
-	type: reminder.type,
+	targetDate: toModelDate(reminder.target),
+	type: reminderKind(reminder),
+	lastNotificationDate:
+		reminder.lastFiredAt === 0 ? null : toModelDate(reminder.lastFiredAt),
 });
 
-const toModelTask = (task: {
-	id: number;
-	label: string;
-	information: string;
-	priority: string;
-	schedule: unknown;
-	finishDate: string | null;
-}) => ({
+const toModelSchedule = (schedule: TaskSchedule) => {
+	switch (schedule.kind) {
+		case "anytime":
+			return { type: "anytime" };
+		case "due":
+			return { type: "due", deadlineDate: toModelDate(schedule.at) };
+		case "recurring":
+			return { type: "recurring", rule: prettyRule(schedule.rule) };
+	}
+};
+
+const toModelTask = (task: Task) => ({
 	id: task.id,
 	label: task.label,
 	information: task.information,
 	priority: task.priority,
-	schedule: task.schedule,
-	finishDate: task.finishDate,
+	schedule: toModelSchedule(task.schedule),
+	deadlineDate: task.dueAt === 0 ? null : toModelDate(task.dueAt),
+	finished: task.done,
+	finishDate: task.finishedAt === 0 ? null : toModelDate(task.finishedAt),
 });
 
 const SAFETY = {
@@ -660,7 +586,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 		tool: deleteNoteTool,
 		safety: SAFETY.destructive,
 		normalizeArgs: (args) => ({
-			id: asInteger(args.id),
+			id: asId(args.id),
 		}),
 		execute: async (args) => {
 			const id = requireId(args.id);
@@ -678,7 +604,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 		tool: deleteReminderTool,
 		safety: SAFETY.destructive,
 		normalizeArgs: (args) => ({
-			id: asInteger(args.id),
+			id: asId(args.id),
 		}),
 		execute: async (args) => {
 			const id = requireId(args.id);
@@ -696,7 +622,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 		tool: deleteSaveTool,
 		safety: SAFETY.destructive,
 		normalizeArgs: (args) => ({
-			id: asInteger(args.id),
+			id: asId(args.id),
 		}),
 		execute: async (args) => {
 			const id = requireId(args.id);
@@ -714,7 +640,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 		tool: deleteTaskTool,
 		safety: SAFETY.destructive,
 		normalizeArgs: (args) => ({
-			id: asInteger(args.id),
+			id: asId(args.id),
 		}),
 		execute: async (args) => {
 			const id = requireId(args.id);
@@ -765,11 +691,11 @@ const toolDefinitions: Array<ToolDefinition> = [
 			second: asInteger(args.second),
 		}),
 		execute: async (args) => {
-			const year = requireId(args.year, "year");
-			const month = requireId(args.month, "month");
-			const day = requireId(args.day, "day");
-			const hour = requireId(args.hour, "hour");
-			const minute = requireId(args.minute, "minute");
+			const year = requireInteger(args.year, "year");
+			const month = requireInteger(args.month, "month");
+			const day = requireInteger(args.day, "day");
+			const hour = requireInteger(args.hour, "hour");
+			const minute = requireInteger(args.minute, "minute");
 			const second = asInteger(args.second) ?? 0;
 			const dateTime = toolCalls.formatDateTime({
 				year,
@@ -853,13 +779,13 @@ const toolDefinitions: Array<ToolDefinition> = [
 		tool: getSavePreviewImageTool,
 		safety: SAFETY.read,
 		normalizeArgs: (args) => ({
-			id: asInteger(args.id),
+			id: asId(args.id),
 			url: asTrimmedString(args.url),
 			query: asTrimmedString(args.query),
 		}),
 		execute: async (args) => {
 			const preview = await toolCalls.getSavePreviewImage({
-				id: asInteger(args.id),
+				id: asId(args.id),
 				url: asTrimmedString(args.url),
 				query: asTrimmedString(args.query),
 			});
@@ -1042,12 +968,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 				LTASK_PRIORITY.MEDIUM,
 				LTASK_PRIORITY.HIGH,
 			]),
-			scheduleType: asEnum(args.scheduleType, [
-				LTASK_SCHEDULE_TYPE.ADHOC,
-				LTASK_SCHEDULE_TYPE.DUE,
-				LTASK_SCHEDULE_TYPE.RECURRING,
-			]),
-			recurringInfo: parseRecurringInfo(args.recurringInfo),
+			scheduleType: asScheduleKind(args.scheduleType),
 			deadlineDate: asDateString(args.deadlineDate),
 			deadlineDateCriteria: asDateCriteria(args.deadlineDateCriteria),
 			finishDate: asDateString(args.finishDate),
@@ -1061,12 +982,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 					LTASK_PRIORITY.MEDIUM,
 					LTASK_PRIORITY.HIGH,
 				]),
-				scheduleType: asEnum(args.scheduleType, [
-					LTASK_SCHEDULE_TYPE.ADHOC,
-					LTASK_SCHEDULE_TYPE.DUE,
-					LTASK_SCHEDULE_TYPE.RECURRING,
-				]),
-				recurringInfo: parseRecurringInfo(args.recurringInfo),
+				scheduleType: asScheduleKind(args.scheduleType),
 				deadlineDate: asDateString(args.deadlineDate),
 				deadlineDateCriteria: asDateCriteria(args.deadlineDateCriteria),
 				finishDate: asDateString(args.finishDate),
@@ -1118,7 +1034,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 		tool: updateNoteTool,
 		safety: SAFETY.mutate,
 		normalizeArgs: (args) => ({
-			id: asInteger(args.id),
+			id: asId(args.id),
 			content:
 				asTrimmedString(args.content) ??
 				asTrimmedString(args.message) ??
@@ -1145,7 +1061,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 				asTrimmedString(args.targetTS);
 			const targetDate = asDateString(targetDateInput);
 			return {
-				id: asInteger(args.id),
+				id: asId(args.id),
 				message: (() => {
 					const rawMessage = clampText(
 						asTrimmedString(args.message) ??
@@ -1168,7 +1084,9 @@ const toolDefinitions: Array<ToolDefinition> = [
 		},
 		execute: async (args) => {
 			const id = requireId(args.id);
-			const existingReminder = await db.reminderTbl.get(id);
+			const existingReminder = (
+				await readReminders(await unlockedKeys())
+			).find((reminder) => reminder.id === id);
 			if (!existingReminder) {
 				throw new Error("Reminder not found.");
 			}
@@ -1178,7 +1096,8 @@ const toolDefinitions: Array<ToolDefinition> = [
 				);
 			}
 			const nextTargetDate =
-				asDateString(args.targetDate) ?? existingReminder.targetDate;
+				asDateString(args.targetDate) ??
+				toModelDate(existingReminder.target);
 			const nextMessage = sanitizeReminderMessage(
 				asString(args.message) ?? existingReminder.message,
 				nextTargetDate,
@@ -1205,7 +1124,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 			const deadlineDateInput = asTrimmedString(args.deadlineDate);
 			const deadlineDate = asDateString(deadlineDateInput);
 			return {
-				id: asInteger(args.id),
+				id: asId(args.id),
 				information: clampText(
 					asTrimmedString(args.information),
 					LMAX_TASK_INFORMATION_LENGTH,
@@ -1267,7 +1186,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 		tool: updateSaveTool,
 		safety: SAFETY.mutate,
 		normalizeArgs: (args) => ({
-			id: asInteger(args.id),
+			id: asId(args.id),
 			customName: clampText(
 				asTrimmedString(args.customName) ??
 					asTrimmedString(args.name) ??
@@ -1311,6 +1230,7 @@ export {
 };
 
 export type {
+	AIOutputContent,
 	ToolDefinition,
 	ToolExecutionContext,
 	ToolExecutionResult,

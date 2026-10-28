@@ -57,7 +57,8 @@ type AnyCommand = Command<string, any, any>;
 export const createCommandContext = (
 	db: LittleDB,
 	session: SessionStore,
-	now: () => number = Date.now,
+	// Read at call time, so a page's clock follows its global `Date`.
+	now: () => number = () => Date.now(),
 	zone: () => string = () => Intl.DateTimeFormat().resolvedOptions().timeZone,
 	stagingStore: Staging = staging,
 ): CommandContext => ({

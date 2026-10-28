@@ -1,4 +1,4 @@
-import { createNote } from "../../../services/note";
+import { send } from "../../../utils/send";
 
 const toolCall = async ({
 	content,
@@ -6,7 +6,7 @@ const toolCall = async ({
 	content: string;
 }): Promise<() => Promise<void>> => {
 	return async () => {
-		await createNote({ content });
+		await send("note.create", { content });
 	};
 };
 

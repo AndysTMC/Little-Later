@@ -1,4 +1,5 @@
-const extractSemanticIds = (response: unknown): Array<number> => {
+// The ids a structured response picked; record ids are strings (0010).
+const extractSemanticIds = (response: unknown): Array<string> => {
 	if (!response || typeof response !== "object") {
 		return [];
 	}
@@ -6,18 +7,7 @@ const extractSemanticIds = (response: unknown): Array<number> => {
 	if (!Array.isArray(ids)) {
 		return [];
 	}
-	return ids
-		.map((id) => {
-			if (typeof id === "number") {
-				return Number.isFinite(id) ? id : null;
-			}
-			if (typeof id === "string") {
-				const parsedId = Number.parseInt(id, 10);
-				return Number.isFinite(parsedId) ? parsedId : null;
-			}
-			return null;
-		})
-		.filter((id): id is number => id !== null);
+	return ids.filter((id): id is string => typeof id === "string");
 };
 
 export { extractSemanticIds };

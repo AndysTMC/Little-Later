@@ -11,7 +11,7 @@ const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
 			type: "object",
 			properties: {
 				id: {
-					type: "number",
+					type: "string",
 					description: "The id of the reminder to be updated",
 				},
 				message: {

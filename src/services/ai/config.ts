@@ -216,7 +216,7 @@ export const IDJSONSchema: ResponseFormatJSONSchema.JSONSchema = {
 
 export const IDJSONObjectInstruction = `
     Respond using the following JSON format:
-    {"ids":[1,2]}
+    {"ids":["<id>","<id>"]}
 `;
 
 export const script = `
@@ -278,31 +278,14 @@ export const script = `
 				- ID: A unique identifier for the task.
 				- Information: The details of the task.
 				- Priority: The priority of the task.
-				- Type: The type of the task.
-					- It can hold one of the following values:
+				- Schedule: When the task is due.
+					- Its type holds one of the following values:
+						- Anytime: A task that does not have a specific deadline and is not recurring.
 						- Due: A task that needs to be completed by a specific date and time.
-						- Recurring: A task that repeats at a specific interval.
-						- Ad-hoc: A task that does not have a specific deadline and is not recurring.
-				- Recurring Info: Information about the recurring nature of the task.
-					- It contains the following information:
-						- Type: The type of the recurring task.
-							- It can hold one of the following values:
-								- Daily: A task that repeats every day.
-								- Weekly: A task that repeats every week.
-								- Monthly: A task that repeats every month.
-								- Yearly: A task that repeats every year.
-						- Time: The time at which the task repeats.
-						- Week Day: The day of the week on which the task repeats.
-						- Day: The day of the month on which the task repeats.
-						- Month: The month of the year on which the task repeats.
-					- When
-						- type is daily, except time and type all other fields are null.
-						- type is weekly, except time, week day and type, all other fields are null.
-						- type is monthly, except time, day and type,  all other fields are null.
-						- type is yearly, except time, day, month and type, all other fields are null.
-				- Deadline Info: Information about the deadline of the task.
-					- It contains the following information:
-						- DeadlineDate: The date of the deadline.
+						- Recurring: A task that repeats; its rule says when, such as "Weekly on Monday at 9:00 AM".
+				- DeadlineDate: When the task is due next; for a recurring task, its next occurrence. Null for an anytime task.
+				- Finished: Whether the task is done. A recurring task stays open and moves on to its next occurrence when completed.
+				- FinishDate: When the task was last completed, or null.
 		LReminder:
 			- A reminder is a notification that is triggered at a specific time.
 			- It contains the following information:

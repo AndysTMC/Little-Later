@@ -1,11 +1,11 @@
-import {
-	LREMINDER_TYPE,
-	LTASK_PRIORITY,
-	LTASK_SCHEDULE_TYPE,
-} from "little-shared/enums";
+import { LTASK_PRIORITY } from "little-shared/enums";
 import { LDate } from "little-shared/types";
-import { getTask, putTask, updateTask } from "../../../services/task";
+import { send } from "../../../utils/send";
+import { readTasks, unlockedKeys } from "../records";
+import { fromModelDate } from "./_utils/dateFilters";
 
+// A new deadline makes the task due then, with a normal reminder at it, as
+// before format v1.
 const toolCall = async ({
 	id,
 	information,
@@ -13,40 +13,33 @@ const toolCall = async ({
 	priority,
 	deadlineDate,
 }: {
-	id: number;
+	id: string;
 	information?: string;
 	label?: string;
 	priority?: LTASK_PRIORITY;
 	deadlineDate?: LDate;
 }): Promise<() => Promise<void>> => {
-	const task = await getTask(id);
+	const task = (await readTasks(await unlockedKeys())).find(
+		(item) => item.id === id,
+	);
 	if (task === undefined) {
 		throw new Error("Task not found.");
 	}
 	return async () => {
-		if (deadlineDate) {
-			await putTask(
-				{
-					...task,
-					information: information ?? task.information,
-					label: label ?? task.label,
-					priority: priority ?? task.priority,
-					schedule: {
-						type: LTASK_SCHEDULE_TYPE.DUE,
-						deadlineInfo: { deadlineDate },
-						recurringInfo: null,
-					},
-				},
-				[],
-				[],
-				LREMINDER_TYPE.NORMAL,
-			);
-			return;
-		}
-		await updateTask(id, {
-			information: information ?? task.information,
-			label: label ?? task.label,
-			priority: priority ?? task.priority,
+		await send("task.update", {
+			id,
+			information,
+			label,
+			priority,
+			...(deadlineDate
+				? {
+						schedule: {
+							kind: "due",
+							at: fromModelDate(deadlineDate),
+						},
+						reminder: "normal",
+					}
+				: {}),
 		});
 	};
 };

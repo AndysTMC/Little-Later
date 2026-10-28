@@ -1,9 +1,12 @@
 import { LREMINDER_TYPE } from "little-shared/enums";
-import { getReminder, updateReminder } from "../../../services/reminder";
 import { LDate } from "little-shared/types";
+import { send } from "../../../utils/send";
+import { readReminders, unlockedKeys } from "../records";
+import { fromModelDate } from "./_utils/dateFilters";
 
+// Only what changes goes out: a new time or type restarts the schedule.
 const toolCall = async (
-	id: number,
+	id: string,
 	{
 		message,
 		type,
@@ -14,18 +17,26 @@ const toolCall = async (
 		targetDate?: LDate;
 	},
 ): Promise<() => Promise<void>> => {
-	const reminder = await getReminder(id);
+	const reminder = (await readReminders(await unlockedKeys())).find(
+		(item) => item.id === id,
+	);
 	if (reminder === undefined) {
 		throw new Error("Reminder not found.");
 	}
-	const modifiedReminder = {
-		...reminder,
-		message: message ?? reminder.message,
-		type: type ?? reminder.type,
-		targetDate: targetDate ?? reminder.targetDate,
-	};
+	const target =
+		targetDate === undefined ? undefined : fromModelDate(targetDate);
+	const escalate =
+		type === undefined ? undefined : type === LREMINDER_TYPE.ESCALATING;
 	return async () => {
-		await updateReminder(reminder.id, modifiedReminder);
+		await send("reminder.update", {
+			id,
+			message,
+			target: target !== reminder.target ? target : undefined,
+			escalate:
+				escalate !== (reminder.escalation !== null)
+					? escalate
+					: undefined,
+		});
 	};
 };
 
