@@ -1,13 +1,10 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useRef, useState } from "react";
 import { openAsset } from "../../storage/keys";
+import { PREVIEW_KIND, PREVIEW_TYPE } from "../../storage/repositories";
 import { littleDB } from "../../storage/pageDB";
 import type { AssetRow } from "../../storage/schema";
 import { useProfileKeys } from "./useSession";
-
-// A save's page preview: a sealed asset the worker captures (0010, 0012).
-export const PREVIEW_KIND = "preview";
-const PREVIEW_TYPE = "image/jpeg";
 
 const usePreview = (saveId: string | undefined, enabled: boolean) => {
 	const keys = useProfileKeys();
