@@ -1,3 +1,7 @@
+---
+type: decision
+---
+
 # 0006. Extension signing keys live only outside git
 
 Status: accepted
