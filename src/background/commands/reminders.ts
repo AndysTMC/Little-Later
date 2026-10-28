@@ -24,7 +24,7 @@ import {
 
 // Escalation as before format v1 (decision 0011): stop 15 minutes early,
 // then fire at the target.
-const ESCALATION: Escalation = { escalate: true, stopBefore: 15 };
+export const ESCALATION: Escalation = { escalate: true, stopBefore: 15 };
 
 const optionalBoolean = (value: unknown, field: string) =>
 	value === undefined || typeof value === "boolean"
