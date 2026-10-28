@@ -27,18 +27,62 @@ import {
 } from "./localAIOriginRule";
 import { commands } from "./commands";
 import { listenForCommands } from "./commands/listener";
-import { createCommandContext, createDispatcher } from "./commands/registry";
+import {
+	createCommandContext,
+	createDispatcher,
+	createSerialQueue,
+} from "./commands/registry";
+import {
+	REMINDER_ALARM,
+	createReminderScheduler,
+	isLittleNotice,
+	reschedulesReminders,
+} from "./scheduler";
 import { openLittleDB } from "../storage/schema";
 import { sessionStore } from "../storage/session";
 
+const littleDB = openLittleDB();
+const writeQueue = createSerialQueue();
+const reminderScheduler = createReminderScheduler({
+	db: littleDB,
+	session: sessionStore,
+	now: Date.now,
+	queue: writeQueue,
+	setAlarm: async (when) => {
+		if (when === null) {
+			await chrome.alarms.clear(REMINDER_ALARM);
+		} else {
+			await chrome.alarms.create(REMINDER_ALARM, { when });
+		}
+	},
+	notify: (id, message) =>
+		createChromeNativeNotification({ id, message, priority: 1 }),
+});
+
+const runReminderScheduler = () => {
+	reminderScheduler.run().catch((error: unknown) => {
+		console.error("Reminder scheduler failed.", error);
+	});
+};
+
 // Registered synchronously at start-up, so a message that wakes the worker
 // finds its listener (0012).
-listenForCommands(
-	createDispatcher(
-		commands,
-		createCommandContext(openLittleDB(), sessionStore),
-	),
+const dispatchCommand = createDispatcher(
+	commands,
+	createCommandContext(littleDB, sessionStore),
+	writeQueue,
 );
+listenForCommands(async (name, input) => {
+	const result = await dispatchCommand(name, input);
+	if (result.ok && reschedulesReminders(name)) {
+		runReminderScheduler();
+	}
+	return result;
+});
+
+// Every worker start: browser start, extension update, and waking after
+// suspension. Fires what was missed and re-arms the alarm.
+runReminderScheduler();
 
 let keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
 let lastCapturedTabSignature = "";
@@ -337,6 +381,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 	if (alarm.name === "captureActiveTab") {
 		await captureActiveTab();
 	}
+	if (alarm.name === REMINDER_ALARM) {
+		runReminderScheduler();
+	}
 });
 
 const getNotificationPayload = (notificationId: string): string => {
@@ -366,7 +413,22 @@ chrome.notifications.onButtonClicked.addListener(
 	},
 );
 
+const openReminderNotice = async (notificationId: string): Promise<void> => {
+	const url = await reminderScheduler.noticeTarget(notificationId);
+	if (url) {
+		await chrome.tabs.create({ url });
+	} else if (chrome.action?.openPopup) {
+		await chrome.action.openPopup();
+	}
+};
+
 chrome.notifications.onClicked.addListener((notificationId) => {
-	openNotificationTarget(notificationId);
+	if (isLittleNotice(notificationId)) {
+		openReminderNotice(notificationId).catch((error: unknown) => {
+			console.error("Could not open the reminder.", error);
+		});
+	} else {
+		openNotificationTarget(notificationId);
+	}
 	chrome.notifications.clear(notificationId);
 });
