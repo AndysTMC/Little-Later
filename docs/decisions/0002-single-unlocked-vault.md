@@ -1,3 +1,7 @@
+---
+type: decision
+---
+
 # 0002. We will keep a single unlocked Dexie vault
 
 Status: accepted
