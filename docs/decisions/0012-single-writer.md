@@ -4,9 +4,9 @@ type: decision
 
 # 0012. We will make the service worker the only writer, through typed commands
 
-Status: proposed
+Status: accepted
 Date: 2026-10-28
-Deciders: AndysTMC
+Deciders: AndysTMC (accepted 2026-10-28: "Got it, I accept it. Go ahead.")
 Supersedes: —
 Superseded-by: —
 

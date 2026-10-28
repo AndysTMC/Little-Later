@@ -4,9 +4,9 @@ type: decision
 
 # 0010. We will encrypt each record under a wrapped profile key, in one versioned database
 
-Status: proposed
+Status: accepted
 Date: 2026-10-28
-Deciders: AndysTMC
+Deciders: AndysTMC (accepted 2026-10-28: "Got it, I accept it. Go ahead.")
 Supersedes: —
 Superseded-by: —
 

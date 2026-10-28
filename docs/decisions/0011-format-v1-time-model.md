@@ -4,9 +4,9 @@ type: decision
 
 # 0011. We will store instants as epoch milliseconds and recurrence as anchored rules, computed with Temporal
 
-Status: proposed
+Status: accepted
 Date: 2026-10-28
-Deciders: AndysTMC
+Deciders: AndysTMC (accepted 2026-10-28: "Got it, I accept it. Go ahead.")
 Supersedes: —
 Superseded-by: —
 
