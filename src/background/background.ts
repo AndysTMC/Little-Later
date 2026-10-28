@@ -1,19 +1,9 @@
-import { LAI_PROVIDERS, LINT_BOOLEAN } from "little-shared/enums";
+import { LAI_PROVIDERS } from "little-shared/enums";
 import {
 	createChromeNativeNotification,
 	createNotifications,
 } from "../services/notification";
 import { getActiveTab } from "../utils/chrome";
-import {
-	getCurrentUserProfile,
-	reconcileActiveSession,
-} from "../services/user";
-import {
-	saveActiveWebPage,
-	updateVisualBM,
-	updateVisualBMPreview,
-} from "../services/visualBM";
-import { createNote } from "../services/note";
 import { LittleAI } from "../services/ai";
 import { importProfileKeys } from "../storage/keys";
 import { getSettings } from "../storage/repositories";
@@ -40,6 +30,7 @@ import {
 	reschedulesReminders,
 } from "./scheduler";
 import { createAutoLock } from "./autoLock";
+import { createPageCapture } from "./capture";
 import { openLittleDB } from "../storage/schema";
 import { sessionStore } from "../storage/session";
 
@@ -101,18 +92,6 @@ listenForCommands(async (name, input) => {
 runReminderScheduler();
 
 let keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
-let lastCapturedTabSignature = "";
-let lastCaptureAt = 0;
-
-const CAPTURE_THROTTLE_MS = 15000;
-
-// Only normal web pages can be screenshot reliably from the MV3 service worker.
-const isCapturableTabUrl = (url?: string): url is string => {
-	if (!url) {
-		return false;
-	}
-	return /^https?:\/\//i.test(url);
-};
 
 // Wrap the callback API so the worker can safely skip unsupported windows/tabs.
 const captureVisibleTab = async (
@@ -138,6 +117,20 @@ const captureVisibleTab = async (
 		);
 	});
 };
+
+const pageCapture = createPageCapture({
+	db: littleDB,
+	session: sessionStore,
+	queue: writeQueue,
+	dispatch: dispatchCommand,
+	now: Date.now,
+	screenshot: async (windowId) => {
+		const dataUrl = await captureVisibleTab(windowId);
+		return dataUrl
+			? new Uint8Array(await (await fetch(dataUrl)).arrayBuffer())
+			: undefined;
+	},
+});
 
 // The built-in providers' endpoints, plus the configured endpoint when it is
 // on this machine. A remote endpoint never gets the loopback Origin.
@@ -181,7 +174,6 @@ const configureLocalAIRequestHeaders = async (): Promise<void> => {
 };
 
 void configureLocalAIRequestHeaders();
-void reconcileActiveSession();
 
 sessionStore.subscribe(() => {
 	void configureLocalAIRequestHeaders();
@@ -197,7 +189,6 @@ function keepAlive() {
 }
 
 chrome.runtime.onInstalled.addListener(async (details) => {
-	await reconcileActiveSession();
 	await configureLocalAIRequestHeaders();
 	if (details.reason === "install") {
 		chrome.storage.local.clear();
@@ -228,7 +219,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 
 chrome.runtime.onStartup.addListener(async (): Promise<void> => {
-	await reconcileActiveSession();
 	await configureLocalAIRequestHeaders();
 	keepAlive();
 });
@@ -246,26 +236,40 @@ const notifyContextAction = async (message: string): Promise<void> => {
 	}
 };
 
+const createNote = async (content: string): Promise<void> => {
+	const result = await dispatchCommand("note.create", { content });
+	if (!result.ok) {
+		throw new Error(result.error.message);
+	}
+};
+
+const SAVE_PAGE_NOTICES = {
+	saved: "Page saved to Little Later.",
+	locked: "Unlock a profile first.",
+	unsupported: "Only web pages can be saved.",
+	failed: "Couldn't save this page.",
+};
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-	const currentUserProfile = await getCurrentUserProfile();
-	if (!currentUserProfile) {
+	if (!(await sessionStore.get())) {
 		await notifyContextAction("Unlock a profile first.");
 		return;
 	}
 	if (info.menuItemId === "convertPageToSave") {
 		if (tab?.id !== undefined) {
 			try {
-				await saveActiveWebPage();
-				await notifyContextAction("Page saved to Little Later.");
+				await notifyContextAction(
+					SAVE_PAGE_NOTICES[await pageCapture.save(tab)],
+				);
 			} catch (error) {
 				console.error("Failed to save page from context menu.", error);
-				await notifyContextAction("Couldn't save this page.");
+				await notifyContextAction(SAVE_PAGE_NOTICES.failed);
 			}
 		}
 	} else if (info.menuItemId === "noteThis") {
 		if (tab?.id !== undefined && info.selectionText) {
 			try {
-				await createNote({ content: info.selectionText });
+				await createNote(info.selectionText);
 				await notifyContextAction("Selection saved as a note.");
 			} catch (error) {
 				console.error(
@@ -287,7 +291,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 						format: "plain-text",
 					},
 				);
-				await createNote({ content: summary });
+				await createNote(summary);
 				await notifyContextAction("Quick summary saved as a note.");
 			} catch (error) {
 				console.error("Failed to summarize selection.", error);
@@ -308,7 +312,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 						format: "plain-text",
 					},
 				);
-				await createNote({ content: keypoints });
+				await createNote(keypoints);
 				await notifyContextAction("Key points saved as a note.");
 			} catch (error) {
 				console.error("Failed to extract key points.", error);
@@ -320,45 +324,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 	}
 });
 
-const captureActiveTab = async () => {
-	const currentUserProfile = await getCurrentUserProfile();
-	if (!currentUserProfile) return;
+const captureActiveTab = async (): Promise<void> => {
 	const activeTab = await getActiveTab();
 	if (!activeTab) return;
-	if (
-		!isCapturableTabUrl(activeTab.url) ||
-		activeTab.windowId === undefined
-	) {
-		return;
-	}
-
-	const activeTabUrl = activeTab.url;
-	const activeTabTitle = activeTab.title?.trim() || "Untitled";
-	const signature = `${activeTab.windowId}:${activeTabUrl}:${activeTabTitle}`;
-	const now = Date.now();
-	if (
-		signature === lastCapturedTabSignature &&
-		now - lastCaptureAt < CAPTURE_THROTTLE_MS
-	) {
-		return;
-	}
-
 	try {
-		const dataUrl = await captureVisibleTab(activeTab.windowId);
-		if (!dataUrl) {
-			return;
-		}
-		const response = await fetch(dataUrl);
-		const imageBlob = await response.blob();
-		await updateVisualBM(activeTabUrl, {
-			title: activeTabTitle,
-			hasBrowsed: LINT_BOOLEAN.TRUE,
-		});
-		await updateVisualBMPreview(activeTabUrl, imageBlob);
-		lastCapturedTabSignature = signature;
-		lastCaptureAt = now;
+		await pageCapture.visit(activeTab);
 	} catch (error) {
-		console.warn("Unable to persist captured tab preview.", error);
+		console.warn("Unable to capture the active tab.", error);
 	}
 };
 

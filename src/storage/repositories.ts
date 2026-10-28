@@ -1,7 +1,7 @@
 import Dexie from "dexie";
 import { LINITIAL_USER_SETTINGS } from "little-shared/constants";
 import type { LUserSettings } from "little-shared/types";
-import { openBody, type ProfileKeys } from "./keys";
+import { openBody, sealAsset, type ProfileKeys } from "./keys";
 import type {
 	LittleDB,
 	NoteRow,
@@ -84,6 +84,44 @@ export const listSaves = async (
 		.reverse()
 		.toArray();
 	return Promise.all(rows.map((row) => openSave(keys, row)));
+};
+
+// A save's page preview: a sealed JPEG asset the worker captures (0010).
+export const PREVIEW_KIND = "preview";
+export const PREVIEW_TYPE = "image/jpeg";
+
+// Replaces a save's preview. False when the save is gone or not the
+// profile's, as when it was deleted after the capture began.
+export const putPreview = async (
+	db: LittleDB,
+	keys: ProfileKeys,
+	saveId: string,
+	bytes: Uint8Array,
+	now: number,
+): Promise<boolean> => {
+	const id = crypto.randomUUID();
+	const sealed = await sealAsset(keys, id, bytes);
+	return db.transaction("rw", [db.saves, db.assets], async () => {
+		const save = await db.saves.get(saveId);
+		if (!save || save.profileId !== keys.profileId) {
+			return false;
+		}
+		await db.assets
+			.where("[profileId+ownerId]")
+			.equals([keys.profileId, saveId])
+			.filter((asset) => asset.kind === PREVIEW_KIND)
+			.delete();
+		await db.assets.add({
+			id,
+			profileId: keys.profileId,
+			...sealed,
+			createdAt: now,
+			updatedAt: now,
+			ownerId: saveId,
+			kind: PREVIEW_KIND,
+		});
+		return true;
+	});
 };
 
 export const getSave = async (
