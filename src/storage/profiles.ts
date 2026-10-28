@@ -257,3 +257,40 @@ export const deleteProfile = async (
 		},
 	);
 };
+
+export const PROFILE_THEMES = ["system", "light", "dark"] as const;
+export type ProfileTheme = (typeof PROFILE_THEMES)[number];
+
+// Plain profile fields the lock screen and the locked worker read (0010).
+export const updateProfile = async (
+	db: LittleDB,
+	profileId: string,
+	changes: { name?: string; theme?: ProfileTheme; autoLockMinutes?: number },
+): Promise<void> => {
+	await db.transaction("rw", db.profiles, async () => {
+		const profile = await getProfile(db, profileId);
+		await db.profiles.put({
+			...profile,
+			name: changes.name ?? profile.name,
+			prefs: {
+				theme: changes.theme ?? profile.prefs.theme,
+				autoLockMinutes:
+					changes.autoLockMinutes ?? profile.prefs.autoLockMinutes,
+			},
+		});
+	});
+};
+
+// The avatar stays plain: the lock screen shows it (0010). Null removes it.
+export const setAvatar = async (
+	db: LittleDB,
+	profileId: string,
+	image: Blob | null,
+): Promise<void> => {
+	await getProfile(db, profileId);
+	if (image === null) {
+		await db.avatars.delete(profileId);
+	} else {
+		await db.avatars.put({ profileId, image });
+	}
+};

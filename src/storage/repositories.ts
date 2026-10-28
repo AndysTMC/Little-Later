@@ -120,14 +120,23 @@ export const listNotesFor = async (
 	);
 };
 
+// A profile's sealed settings: the AI provider with its key, and the
+// history limits. The first-run guide is not per profile and stays out.
+export type Settings = Pick<LUserSettings, "ai" | "misc">;
+
+export const defaultSettings = (): Settings => {
+	const { ai, misc } = LINITIAL_USER_SETTINGS.value;
+	return { ai, misc };
+};
+
 export const getSettings = async (
 	db: LittleDB,
 	keys: ProfileKeys,
-): Promise<LUserSettings> => {
+): Promise<Settings> => {
 	const row = await db.settings.get(keys.profileId);
 	return row
-		? openBody<LUserSettings>(keys, "settings", row.id, row.body)
-		: LINITIAL_USER_SETTINGS.value;
+		? openBody<Settings>(keys, "settings", row.id, row.body)
+		: defaultSettings();
 };
 
 export type TaskPriority = "low" | "medium" | "high";

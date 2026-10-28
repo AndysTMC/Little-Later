@@ -3,6 +3,7 @@ import { importProfileKeys, type ProfileKeys } from "../../storage/keys";
 import { ProfileError } from "../../storage/profiles";
 import type { LittleDB } from "../../storage/schema";
 import type { SessionStore } from "../../storage/session";
+import { StagingError, staging, type Staging } from "../../storage/staging";
 
 // The service worker is the only writer (decision 0012). Each write is a
 // command: a name, an input parser and a handler. Pages and AI tools send
@@ -27,6 +28,8 @@ export type CommandContext = {
 	now: () => number;
 	// The device's current IANA time zone, for floating schedules (0011).
 	zone: () => string;
+	// Where pages leave binary input for a command (0012, Messaging).
+	staging: Staging;
 	// The unlocked profile's keys; fails with "locked" when none is unlocked.
 	keys: () => Promise<ProfileKeys>;
 };
@@ -56,11 +59,13 @@ export const createCommandContext = (
 	session: SessionStore,
 	now: () => number = Date.now,
 	zone: () => string = () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+	stagingStore: Staging = staging,
 ): CommandContext => ({
 	db,
 	session,
 	now,
 	zone,
+	staging: stagingStore,
 	keys: async () => {
 		const unlocked = await session.get();
 		if (!unlocked) {
@@ -81,7 +86,11 @@ const toFailure = (
 	}
 	// Expected refusals from the storage layer: a wrong password, a bad
 	// profile state. Anything else is a bug and is reported as internal.
-	if (error instanceof ProfileError || error instanceof EnvelopeError) {
+	if (
+		error instanceof ProfileError ||
+		error instanceof EnvelopeError ||
+		error instanceof StagingError
+	) {
 		return {
 			ok: false,
 			error: { code: "rejected", message: error.message },

@@ -3,11 +3,15 @@ import {
 	profileCreate,
 	profileDelete,
 	profileLock,
+	profileSetAvatar,
 	profileUnlock,
+	profileUpdate,
 } from "./profiles";
+import { linkCreate, linkDelete } from "./links";
 import { noteCreate, noteDelete, noteUpdate } from "./notes";
 import { reminderCreate, reminderDelete, reminderUpdate } from "./reminders";
 import { saveCapture, saveDelete, saveUpdate } from "./saves";
+import { settingsUpdate } from "./settings";
 import {
 	taskComplete,
 	taskCreate,
@@ -23,6 +27,8 @@ export const commands = [
 	profileLock,
 	profileChangePassword,
 	profileDelete,
+	profileUpdate,
+	profileSetAvatar,
 	saveCapture,
 	saveUpdate,
 	saveDelete,
@@ -37,6 +43,9 @@ export const commands = [
 	reminderCreate,
 	reminderUpdate,
 	reminderDelete,
+	linkCreate,
+	linkDelete,
+	settingsUpdate,
 ] as const;
 
 type CommandList = typeof commands;
