@@ -13,6 +13,9 @@ const KEY_LENGTH = 32;
 
 export const KDF_PBKDF2_SHA256 = "PBKDF2-SHA-256";
 export const KDF_ITERATIONS = 600_000;
+// Stored KDF parameters are read before anything authenticates them, so they
+// are bounded to keep a tampered profile or backup from stalling the worker.
+export const KDF_MAX_ITERATIONS = 10_000_000;
 const SALT_LENGTH = 16;
 
 export type EnvelopeLocation = {
@@ -177,7 +180,9 @@ export const readEnvelopeHeader = (envelope: Uint8Array): EnvelopeHeader => {
 	if (format !== ENVELOPE_FORMAT) {
 		throw new EnvelopeError(`Unsupported envelope format ${format}.`);
 	}
-	return { format, keyId: envelope[ENVELOPE_MAGIC.length + 1] };
+	const keyId = envelope[ENVELOPE_MAGIC.length + 1];
+	assertKeyId(keyId);
+	return { format, keyId };
 };
 
 export const sealBytes = async (
@@ -256,6 +261,14 @@ const deriveWrappingKey = async (
 	if (kdf.name !== KDF_PBKDF2_SHA256) {
 		throw new EnvelopeError(`Unsupported key derivation ${kdf.name}.`);
 	}
+	if (
+		!Number.isInteger(kdf.iterations) ||
+		kdf.iterations < 1 ||
+		kdf.iterations > KDF_MAX_ITERATIONS ||
+		kdf.salt.length !== SALT_LENGTH
+	) {
+		throw new EnvelopeError("Unsupported key derivation parameters.");
+	}
 	const material = await crypto.subtle.importKey(
 		"raw",
 		textEncoder.encode(password),
@@ -330,6 +343,9 @@ export const unwrapKey = async (
 	profileId: string,
 ): Promise<Uint8Array> => {
 	assertKeyId(wrapped.keyId);
+	if (wrapped.iv.length !== IV_LENGTH) {
+		throw new EnvelopeError("Wrapped key IV must be 12 bytes.");
+	}
 	const wrappingKey = await deriveWrappingKey(password, wrapped.kdf);
 	try {
 		const key = await crypto.subtle.decrypt(
@@ -369,8 +385,15 @@ const hmacHex = async (key: CryptoKey, parts: Array<string>) => {
 	).join("");
 };
 
-export const urlKeyFor = (indexKey: CryptoKey, url: string) =>
+export const urlKeyFor = async (indexKey: CryptoKey, url: string) =>
 	hmacHex(indexKey, ["url", normalizeUrl(url)]);
 
-export const originKeyFor = (indexKey: CryptoKey, url: string) =>
-	hmacHex(indexKey, ["origin", new URL(url).origin]);
+// Opaque origins (file:, data:, about:) all serialize as "null", so keying
+// them would group unrelated pages together.
+export const originKeyFor = async (indexKey: CryptoKey, url: string) => {
+	const { origin, protocol } = new URL(url);
+	if (origin === "null") {
+		throw new EnvelopeError(`A ${protocol} URL has no origin.`);
+	}
+	return hmacHex(indexKey, ["origin", origin]);
+};

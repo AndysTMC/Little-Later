@@ -125,6 +125,13 @@ describe("envelope", () => {
 		);
 	});
 
+	it("rejects key id 0 in a header", async () => {
+		const keys = await deriveContentKeys(randomKeyBytes(), 1);
+		const envelope = await sealValue(keys, location, "x");
+		envelope[4] = 0;
+		expect(() => readEnvelopeHeader(envelope)).toThrow(/Key id/);
+	});
+
 	it("refuses to open with keys of another key id", async () => {
 		const root = randomKeyBytes();
 		const envelope = await sealValue(
@@ -247,6 +254,49 @@ describe("key wrapping", () => {
 		).rejects.toThrow(EnvelopeError);
 	});
 
+	it.each([
+		["zero iterations", { iterations: 0 }],
+		["fractional iterations", { iterations: 1.5 }],
+		["oversized iterations", { iterations: 2_147_483_647 }],
+		["a short salt", { salt: new Uint8Array(0) }],
+	])(
+		"rejects %s before deriving a key",
+		async (_, change) => {
+			const wrapped = await wrapKey(
+				randomKeyBytes(),
+				"pw",
+				"profile-1",
+				1,
+				fastKdf(),
+			);
+			const tampered = { ...wrapped, kdf: { ...wrapped.kdf, ...change } };
+			await expect(
+				unwrapKey(tampered, "pw", "profile-1"),
+			).rejects.toThrow(/Unsupported key derivation parameters/);
+			await expect(
+				wrapKey(randomKeyBytes(), "pw", "profile-1", 1, tampered.kdf),
+			).rejects.toThrow(/Unsupported key derivation parameters/);
+		},
+		1_000,
+	);
+
+	it("rejects a wrapped key with a non-standard IV length", async () => {
+		const wrapped = await wrapKey(
+			randomKeyBytes(),
+			"pw",
+			"profile-1",
+			1,
+			fastKdf(),
+		);
+		await expect(
+			unwrapKey(
+				{ ...wrapped, iv: new Uint8Array(16) },
+				"pw",
+				"profile-1",
+			),
+		).rejects.toThrow(/IV/);
+	});
+
 	it("rejects an unknown key derivation", async () => {
 		const wrapped = await wrapKey(
 			randomKeyBytes(),
@@ -288,6 +338,24 @@ describe("index keys", () => {
 		const a = await urlKeyFor(await importIndexKey(randomKeyBytes()), url);
 		const b = await urlKeyFor(await importIndexKey(randomKeyBytes()), url);
 		expect(a).not.toBe(b);
+	});
+
+	it("rejects invalid URLs as a rejected promise", async () => {
+		const key = await importIndexKey(randomKeyBytes());
+		const url = urlKeyFor(key, "not a url");
+		const origin = originKeyFor(key, "not a url");
+		await expect(url).rejects.toThrow(TypeError);
+		await expect(origin).rejects.toThrow(TypeError);
+	});
+
+	it("refuses origin keys for URLs without a real origin", async () => {
+		const key = await importIndexKey(randomKeyBytes());
+		await expect(originKeyFor(key, "file:///tmp/a.html")).rejects.toThrow(
+			/no origin/,
+		);
+		await expect(originKeyFor(key, "data:text/plain,hi")).rejects.toThrow(
+			/no origin/,
+		);
 	});
 
 	it("keys origins apart from URLs", async () => {
