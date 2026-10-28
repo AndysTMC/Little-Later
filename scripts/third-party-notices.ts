@@ -4,7 +4,7 @@
  * sbom.cdx.json (CycloneDX 1.6) next to the build. Output is sorted and
  * carries no timestamps, so the same lockfile gives the same files.
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "vite";
 
@@ -64,8 +64,13 @@ export const readBundledPackage = (dir: string): BundledPackage => {
 	const pkg = JSON.parse(
 		readFileSync(join(dir, "package.json"), "utf8"),
 	) as Record<string, unknown>;
+	// statSync follows symlinks, so a linked license file still counts but a
+	// LICENSE.d/ directory does not.
 	const licenseFiles = readdirSync(dir)
-		.filter((file) => LICENSE_FILE.test(file))
+		.filter(
+			(file) =>
+				LICENSE_FILE.test(file) && statSync(join(dir, file)).isFile(),
+		)
 		.sort();
 	const licenseText = licenseFiles
 		.map((file) => readFileSync(join(dir, file), "utf8").trim())

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -63,6 +63,20 @@ describe("readBundledPackage", () => {
 			homepage: "https://example.test/pkg",
 			licenseText: "MIT text\n\nNotice text",
 		});
+	});
+
+	it("skips license directories and follows linked license files", () => {
+		const dir = mkdtempSync(join(tmpdir(), "notices-"));
+		writeFileSync(
+			join(dir, "package.json"),
+			JSON.stringify({ name: "pkg", version: "1.0.0", license: "MIT" }),
+		);
+		mkdirSync(join(dir, "LICENSE.d"));
+		writeFileSync(join(dir, "LICENSE.d", "MIT.txt"), "nested");
+		writeFileSync(join(dir, "real-license.txt"), "Linked MIT text\n");
+		symlinkSync(join(dir, "real-license.txt"), join(dir, "LICENSE"));
+
+		expect(readBundledPackage(dir).licenseText).toBe("Linked MIT text");
 	});
 });
 
