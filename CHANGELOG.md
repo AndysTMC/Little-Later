@@ -4,6 +4,8 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-10-28
+
 ### Security
 
 - Only the extension's own requests to local AI servers get the trusted `Origin` header; websites no longer do.
@@ -47,7 +49,8 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 - First release.
 
-[Unreleased]: https://github.com/AndysTMC/Little-Later/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/AndysTMC/Little-Later/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/AndysTMC/Little-Later/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/AndysTMC/Little-Later/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/AndysTMC/Little-Later/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/AndysTMC/Little-Later/releases/tag/v1.0.0
