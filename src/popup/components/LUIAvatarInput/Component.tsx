@@ -14,7 +14,7 @@ const Component = ({
 	className?: string;
 	avatar: Blob | null;
 	setAvatar: (avatarUrl: Blob | null) => void;
-	avatarInputRef: React.RefObject<HTMLInputElement>;
+	avatarInputRef: React.RefObject<HTMLInputElement | null>;
 	theme: LTHEME;
 }) => {
 	const avatarUrl = useObjectUrl(avatar);
