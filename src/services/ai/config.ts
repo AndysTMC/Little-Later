@@ -22,6 +22,19 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 export const isLoopbackUrl = (url: URL): boolean =>
 	LOOPBACK_HOSTS.has(url.hostname);
 
+// An Ollama server on this machine at Ollama's default port, however the
+// URL spells the host or path.
+export const isLocalOllamaUrl = (baseUrl: string): boolean => {
+	if (!URL.canParse(baseUrl)) {
+		return false;
+	}
+	const url = new URL(baseUrl);
+	return (
+		isLoopbackUrl(url) &&
+		url.port === new URL(getDefaultBaseUrl(LAI_PROVIDERS.OLLAMA)).port
+	);
+};
+
 // Prompts carry personal data and the request carries the API key, so a
 // custom endpoint must use https unless it runs on this machine.
 export const getBaseUrlProblem = (baseUrl: string): string | null => {
