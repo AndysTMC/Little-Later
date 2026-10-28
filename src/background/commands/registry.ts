@@ -25,6 +25,8 @@ export type CommandContext = {
 	db: LittleDB;
 	session: SessionStore;
 	now: () => number;
+	// The device's current IANA time zone, for floating schedules (0011).
+	zone: () => string;
 	// The unlocked profile's keys; fails with "locked" when none is unlocked.
 	keys: () => Promise<ProfileKeys>;
 };
@@ -53,10 +55,12 @@ export const createCommandContext = (
 	db: LittleDB,
 	session: SessionStore,
 	now: () => number = Date.now,
+	zone: () => string = () => Intl.DateTimeFormat().resolvedOptions().timeZone,
 ): CommandContext => ({
 	db,
 	session,
 	now,
+	zone,
 	keys: async () => {
 		const unlocked = await session.get();
 		if (!unlocked) {
