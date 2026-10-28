@@ -9,7 +9,7 @@ const aiContext = {
 	},
 };
 
-describe.sequential("ai tool resilience", () => {
+describe("ai tool resilience", { concurrent: false }, () => {
 	beforeEach(async () => {
 		await resetLLDB();
 	});

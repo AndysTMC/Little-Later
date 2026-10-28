@@ -156,7 +156,7 @@
 		"typescript": "^5.6.2"
 	},
 	"dependencies": {
-		"@formkit/tempo": "^0.1.2",
+		"@formkit/tempo": "^1.1.0",
 		"@msgpack/msgpack": "^3.1.2"
 	},
 	"files": [

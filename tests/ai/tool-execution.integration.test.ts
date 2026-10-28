@@ -27,7 +27,7 @@ const getTool = (name: string) => {
 	return definition!;
 };
 
-describe.sequential("ai tool execution coverage", () => {
+describe("ai tool execution coverage", { concurrent: false }, () => {
 	beforeEach(async () => {
 		await resetLLDB();
 	});

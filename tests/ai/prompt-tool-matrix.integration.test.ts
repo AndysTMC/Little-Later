@@ -538,12 +538,11 @@ const instrumentToolExecutions = () => {
 	};
 };
 
-describe.sequential("ai prompt tool matrix coverage", () => {
+describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 	let mockServer: MockServerState;
 	let anchorClickSpy: ReturnType<typeof vi.spyOn>;
 	let originalCreateObjectURL:
-		| ((obj: Blob | MediaSource) => string)
-		| undefined;
+		((obj: Blob | MediaSource) => string) | undefined;
 	let originalRevokeObjectURL: ((url: string) => void) | undefined;
 	let dom: JSDOM;
 	const storageMap = new Map<string, string>();

@@ -10,7 +10,7 @@ Thanks for helping. Little Later is a local-first Chrome extension: no backend, 
 
 ## Set up
 
-You need [Bun](https://bun.sh) 1.3 or later.
+You need [Bun](https://bun.sh) 1.3 or later, and Node.js 22 or later for the test runner.
 
 ```sh
 bun install

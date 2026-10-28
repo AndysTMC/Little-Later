@@ -52,28 +52,28 @@
 		"vite-tsconfig-paths": "^5.1.4"
 	},
 	"devDependencies": {
-		"@crxjs/vite-plugin": "^2.0.0-beta.30",
+		"@crxjs/vite-plugin": "^3.0.0",
 		"@eslint/js": "^10",
 		"@js-temporal/polyfill": "^0.5.1",
 		"@playwright/test": "^1.59.1",
 		"@tailwindcss/vite": "^4.0.15",
-		"@types/chrome": "^0.0.310",
+		"@types/chrome": "^0.3.6",
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
-		"@vitejs/plugin-react-swc": "^3.5.0",
+		"@vitejs/plugin-react-swc": "^4.3.3",
 		"eslint": "^10",
 		"eslint-plugin-react-hooks": "^7",
 		"eslint-plugin-react-refresh": "^0.5",
 		"fake-indexeddb": "^6.2.3",
 		"globals": "^15.14.0",
 		"jsdom": "^26.0.0",
-		"prettier": "^3.6.2",
-		"prettier-plugin-tailwindcss": "^0.6.14",
+		"prettier": "^3.9.10",
+		"prettier-plugin-tailwindcss": "^0.8.1",
 		"tailwindcss": "^4.0.0",
 		"typescript": "^5.6.2",
 		"typescript-eslint": "^8.18.2",
 		"vite": "^6.2.5",
-		"vitest": "^4.1.12"
+		"vitest": "^5.0.5"
 	},
 	"prettier": {
 		"plugins": [
