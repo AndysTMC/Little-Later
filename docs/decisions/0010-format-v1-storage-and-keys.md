@@ -43,21 +43,22 @@ Option B.
 
 ### What stays plain, and therefore leaks to anyone who copies the browser profile
 
-- Per profile: the profile's name and avatar (the lock screen shows them), the KDF parameters and the wrapped key.
+- Per profile: the profile's name and avatar (the lock screen shows them), the KDF parameters, the wrapped keys, and non-sensitive preferences the locked worker and lock screen need (theme, auto-lock minutes).
 - Per record:
     - `id` and kind;
     - `createdAt`, `updatedAt`, due and next-fire instants;
     - status flags (done, saved, browsed);
     - the privacy label (`private` or `public`, default `private`);
     - the recurrence rule and escalation settings, so reminders keep firing while locked (0011);
-    - `urlKey`, an HMAC-SHA-256 of the normalized URL under a profile subkey.
+    - `urlKey` and `originKey`, HMAC-SHA-256 values of the normalized URL and of its origin under the profile's index key. `originKey` keeps the per-site history limit (`VBMSameOriginLimit`, `src/services/visualBM.ts`) an index count instead of a scan that decrypts every unsaved row.
 - Size: ciphertext length shows how large a page text, note or preview is.
 
-Together these give a timeline of saves and browsing, how often each kind of record is created, and repeat visits to the same URL (equal `urlKey`), but not the titles, URLs, text or images themselves.
+Together these give a timeline of saves and browsing, how often each kind of record is created, repeat visits to the same URL (equal `urlKey`), and which records share a site (equal `originKey`), but not the titles, URLs, text or images themselves.
 
 ### What is encrypted
 
-- Every content field of a row (titles, URLs, page text, note bodies, reminder messages, task text, AI settings and keys) goes into one `body` value.
+- Every content field of a row (titles, URLs, page text, note bodies, reminder messages, task text) goes into one `body` value.
+- Sensitive settings (AI provider, base URL, API key, model) live in an encrypted per-profile settings row, not in `chrome.storage.local`.
 - Every binary asset (previews, saved images) goes into an `assets` table.
 
 ### Envelope
@@ -68,7 +69,8 @@ Together these give a timeline of saves and browsing, how often each kind of rec
 
 ### Keys
 
-- Each profile has a random 32-byte root key with a key id (starting at 1). HKDF-SHA-256 derives separate subkeys for content, assets and the URL HMAC.
+- Each profile has a random 32-byte root key with a key id (starting at 1). HKDF-SHA-256 derives separate content and asset subkeys from it.
+- Each profile also has a random 32-byte index key for `urlKey` and `originKey`. It is stored wrapped under the current root key and does not change when the root key does, so re-keying never rewrites index values or breaks the unique index.
 - **Password-protected profile.**
     - The profile row holds only the root key wrapped with AES-GCM under a key derived by PBKDF2-SHA-256: 600,000 iterations and a 16-byte salt.
     - The wrap's additional data binds `profileId`, key id, KDF name, iterations and salt, so stored parameters cannot be swapped.
@@ -80,8 +82,9 @@ Together these give a timeline of saves and browsing, how often each kind of rec
     - Each context reads the bytes once, imports non-extractable subkeys, and keeps no raw copy.
     - The extension's own pages decrypt reads (0012), so they hold the subkeys too.
 - **Re-keying.**
-    - Bumps the key id, encrypts new writes with the new key, and re-encrypts old rows in resumable chunks (0012).
-    - Rows still under the old key id stay readable until the job finishes.
+    - Creates root key k+1, wraps it (and re-wraps the index key) next to key k on the profile row, and puts both in session storage.
+    - New writes use key k+1; a job re-encrypts rows under key k in chunks (0012) and runs only while the profile is unlocked.
+    - When no row uses key k, the job deletes key k from the profile row and session storage.
 - **Password change** re-wraps the 32-byte root key. Forgetting the password loses the data; there is no recovery key in v1.
 - **Deleting a profile** deletes its wrapped key first, which makes the data unreadable at once (crypto-shredding), then removes the rows.
 
@@ -103,8 +106,11 @@ Together these give a timeline of saves and browsing, how often each kind of rec
 - The body is the profile's rows, decrypted and re-encrypted in chunks under a fresh backup key that the backup password wraps.
 - Import:
     - unwraps the backup key;
-    - creates a new profile with a new root key, and gives every row a new id;
-    - re-encrypts each row, so two imports of one backup never share keys or collide.
+    - creates a new profile with new root and index keys;
+    - maps every old id to a new UUID derived from an HMAC of the old id under a random per-import seed, so links, task-reminder pairs and assets keep pointing at the right rows across chunks without an id map in memory;
+    - recomputes `urlKey` and `originKey` under the new index key and re-encrypts each row, so two imports of one backup never share keys or collide;
+    - resets the AI provider, base URL, API key and model to defaults, as decision 0007 (A16) requires;
+    - runs while the import page is open; if the worker stops or the profile locks first, the half-imported profile is deleted and the user retries.
 - Readable JSON export decrypts and strips API keys, as today.
 
 ### Search
@@ -166,8 +172,9 @@ Search decrypts in memory at query time. A full-text or semantic index is a late
 
 ## Consequences
 
-- When this is accepted and shipped, it supersedes 0002 and 0004.
+- When this is accepted and shipped, it supersedes 0002, 0004 and 0005 (settings move from `chrome.storage.local` into the profile row and the encrypted settings row; the active profile lives in `chrome.storage.session`).
     - Their records get `Superseded-by: 0010` in a separate change labelled `human-edited`; their bodies stay as written.
+    - Decision 0007's import reset (A16) carries over unchanged.
     - The rule of one unlocked profile at a time carries over.
 - The service worker and pages never hold decrypted content outside a repository that drops it on lock.
 - Every new table states which of its fields are plain, and why.
@@ -191,6 +198,14 @@ An independent agent critiqued the first draft. Adopted:
     - captures are skipped while locked.
 - **Decision 0004** is superseded openly.
 - **Performance targets:** they measure unlock and search, not lock.
+
+A second review (AndysTMC, 2026-10-28) found gaps where this record meets 0012 and the current code. Adopted:
+
+- An upsert resolves the existing row's id before encrypting (see 0012).
+- Re-keying keeps both root keys until it finishes, and a separate index key keeps `urlKey` stable.
+- Import derives new ids from the old ones under a per-import seed, recomputes index values, and keeps 0007's AI reset.
+- Superseding 0005, and plain non-sensitive preferences on the profile row.
+- `originKey`, so the per-site history limit survives URL encryption.
 
 Not adopted: padding ciphertexts to size buckets, which can come later if size leakage matters, and encrypting captures to a public key while locked.
 

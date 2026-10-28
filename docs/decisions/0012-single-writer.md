@@ -39,9 +39,10 @@ Option B.
 
 **Transactions**
 
-- A handler first validates its input, then computes every ciphertext and HMAC. Only then does it open one Dexie transaction, which contains reads and writes and nothing else.
+- The worker runs commands one at a time through an in-memory queue. A command's reads, WebCrypto work and transaction together are atomic with respect to other commands, so two updates to the same encrypted `body` cannot overwrite each other. Long jobs yield to the queue between chunks.
+- A handler validates its input, reads what it needs (for an upsert, the existing row's id through `[profileId+urlKey]`), computes every ciphertext and HMAC with that id in the AAD (0010), and only then opens one Dexie transaction that contains reads and writes and nothing else.
 - WebCrypto calls are never awaited inside a transaction, because that would commit it early.
-- De-duplication is enforced by a unique compound index `&[profileId+urlKey]`, not by reading before inserting. This removes the capture-and-save race.
+- A unique compound index `&[profileId+urlKey]` backs de-duplication. With the queue it should never fire; if it does, the command fails loudly instead of creating a duplicate. Together they remove the capture-and-save race.
 
 **Messaging**
 
@@ -53,9 +54,14 @@ Option B.
 
 **Long work**
 
-- Import, export, re-keying and bulk delete each run as a job with a cursor saved in the database.
-- Each chunk is its own transaction and finishes well within Chrome's per-event limits. A job left unfinished resumes when the worker next starts.
+- Re-keying and bulk delete run as jobs with a cursor saved in the database. Each chunk is its own transaction and finishes well within Chrome's per-event limits. An unfinished job resumes the next time its profile is unlocked, because it needs the profile's keys.
+- Import and export are tied to an open page, a backup password and a file. They are not resumed: if the worker stops or the profile locks, a half-done import is deleted, the staging files are swept, and the user retries.
 - The page that started the job holds a port open for progress, which also keeps the worker awake.
+
+**Development and tests**
+
+- Under `bun run dev`, unit tests and the screenshot runner, there is no service worker. `src/utils/chrome.ts` keeps its non-production fallback and adds one for `send`, which calls the same command handlers in memory, and one for `chrome.storage.session`, which uses memory.
+- The Playwright e2e suite moves to the built extension loaded in Chromium with `--load-extension`, so the real worker, messaging and session storage are tested.
 
 **Reads**
 
@@ -69,7 +75,7 @@ Option B.
     - Each user action is one transaction.
     - There are no races between contexts.
     - Cascades live in one place.
-    - Long jobs survive the worker shutting down.
+    - Re-keying and bulk deletes survive the worker shutting down.
 - **Security:**
     - One place validates input and encrypts.
     - The AI cannot reach a write that the UI lacks.
@@ -90,7 +96,7 @@ Option B.
 ## How to verify
 
 - **Handler tests**, run against fake-indexeddb, for every command, including cascades, idempotent deletes and a job resuming from its cursor.
-- **A race test:** capturing and saving the same URL at the same time produces one save.
+- **A race test:** capturing and saving the same URL at the same time produces one save, and two quick updates to one record keep both changes.
 - **A CI test** showing that a write made by the worker reaches a page's `liveQuery`.
 - **A messaging test:** a 10 MB image goes through OPFS staging, and messages with the wrong sender are rejected.
 - **A lint rule** fails the build when code outside `src/background/` writes to a table.
@@ -121,6 +127,13 @@ An independent agent critiqued the first draft. Adopted:
 - The corrected claim about which contexts hold keys.
 - Stronger sender checks.
 - The `liveQuery` check moved into CI.
+
+A second review (AndysTMC, 2026-10-28) found more. Adopted:
+
+- A command queue in the worker, so commands that read, encrypt and write do not lose each other's updates.
+- Upserts resolve the existing id before encrypting.
+- Jobs resume only when the profile is unlocked; import and export roll back instead of resuming.
+- A development fallback for `send` and session storage, and e2e against the built extension.
 
 ## Revisit if
 
