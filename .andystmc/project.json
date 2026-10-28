@@ -21,8 +21,8 @@
 		"Profiles encrypt the live vault with AES-GCM and PBKDF2; only one Dexie database is unlocked at a time.",
 		"AI Assist uses the OpenAI SDK against Ollama, LM Studio, or a custom compatible URL. Reads run immediately; writes and exports wait for in-chat Confirm.",
 		"Importable .lldat backups require the profile lock password. Readable JSON export strips AI API keys.",
-		"GitHub Actions typechecks, tests, and builds on main. Tagged releases upload a zip and SHA256 checksums.",
-		"Public GitHub Releases exist for v1.0.0, v2.0.0 (extension-only rebuild), and v2.1.0 (confirmed writes and lock-password backups)."
+		"CI runs format, lint, typecheck, unit and Playwright end-to-end tests, CodeQL, OpenSSF Scorecard and workflow audits. Tagged releases ship a zip, a signed CRX, a CycloneDX SBOM, checksums and a signed build provenance attestation.",
+		"Public GitHub Releases exist for v1.0.0, v2.0.0 (extension-only rebuild), v2.1.0 (confirmed writes and lock-password backups), and v2.1.1 (security fixes and supply-chain hardening)."
 	],
 	"story": {
 		"why": "Keep browsing captures, tasks, reminders, and notes in the browser profile instead of a hosted account, and let a local model act on that data only after a click.",
@@ -47,10 +47,10 @@
 		]
 	},
 	"future": {
-		"next": "Add a signed CRX to GitHub Release assets using SIGNING_KEY, while keeping the zip as the supported Chrome install.",
+		"next": "Rebuild the core in place: versioned storage formats (format v1), key wrapping, a single writer for the vault, and defineTool for AI tools.",
 		"roadmap": [
-			"The committed release workflow still ships zip plus checksums only.",
-			"CI runs typecheck, test, and build; Playwright e2e and the visual tour are local scripts, not CI jobs."
+			"Format v1 storage and its migration tests land first; the rest of the core rebuild follows, one decision record and pull request at a time.",
+			"The Playwright visual tour is still a local script, not a CI job."
 		],
 		"upcomingFeatures": [
 			"Note the current webpage from AI Assist",
