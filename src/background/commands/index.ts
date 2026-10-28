@@ -49,10 +49,20 @@ export const commands = [
 ] as const;
 
 type CommandList = typeof commands;
+
+// A field a parser may leave undefined is one a caller may leave out.
+type CallerInput<T> = T extends object
+	? {
+			[K in keyof T as undefined extends T[K] ? K : never]?: T[K];
+		} & {
+			[K in keyof T as undefined extends T[K] ? never : K]: T[K];
+		}
+	: T;
+
 export type CommandName = CommandList[number]["name"];
 export type Commands = {
 	[C in CommandList[number] as C["name"]]: {
-		input: ReturnType<C["parse"]>;
+		input: CallerInput<ReturnType<C["parse"]>>;
 		output: Awaited<ReturnType<C["run"]>>;
 	};
 };

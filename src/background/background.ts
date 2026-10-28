@@ -38,6 +38,7 @@ import {
 	isLittleNotice,
 	reschedulesReminders,
 } from "./scheduler";
+import { createAutoLock } from "./autoLock";
 import { openLittleDB } from "../storage/schema";
 import { sessionStore } from "../storage/session";
 
@@ -72,10 +73,21 @@ const dispatchCommand = createDispatcher(
 	createCommandContext(littleDB, sessionStore),
 	writeQueue,
 );
+const autoLock = createAutoLock({
+	db: littleDB,
+	session: sessionStore,
+	queue: writeQueue,
+	idle: chrome.idle,
+});
+autoLock.start();
+
 listenForCommands(async (name, input) => {
 	const result = await dispatchCommand(name, input);
 	if (result.ok && reschedulesReminders(name)) {
 		runReminderScheduler();
+	}
+	if (result.ok && name === "profile.update") {
+		void autoLock.configure();
 	}
 	return result;
 });

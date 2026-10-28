@@ -157,7 +157,7 @@ const Page = () => {
 								</div>
 								{userProfiles!.map((profile) => (
 									<LUIProfileMini
-										key={profile.userId}
+										key={profile.id}
 										userProfile={profile}
 										name={profile.name}
 										changeExit={(exit) =>

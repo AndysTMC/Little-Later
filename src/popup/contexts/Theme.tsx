@@ -1,8 +1,9 @@
 import { LTHEME } from "little-shared/enums";
 import { ReactNode, useCallback, useEffect, useState } from "react";
 import { createContext } from "react";
-import { updateUserProfile } from "../../services/user";
+import { send } from "../../utils/send";
 import { useCurrentUserProfile } from "../hooks/useCurrentUserProfile";
+import { resolveTheme } from "../hooks/useUserProfiles";
 
 export interface ThemeContextType {
 	theme: LTHEME;
@@ -19,19 +20,21 @@ interface ProviderProps {
 const ContextProvider: React.FC<ProviderProps> = ({ children }) => {
 	const userProfile = useCurrentUserProfile();
 	const [theme, setTheme] = useState(
-		userProfile ? userProfile.theme : LTHEME.LIGHT,
+		userProfile ? resolveTheme(userProfile.theme) : LTHEME.LIGHT,
 	);
 
 	const toggleTheme = useCallback(async () => {
 		if (!userProfile) return;
 		const newTheme = theme === LTHEME.DARK ? LTHEME.LIGHT : LTHEME.DARK;
-		await updateUserProfile(userProfile.userId, { theme: newTheme });
+		await send("profile.update", {
+			theme: newTheme === LTHEME.DARK ? "dark" : "light",
+		});
 		setTheme(newTheme);
 	}, [theme, userProfile]);
 
 	useEffect(() => {
 		if (userProfile) {
-			setTheme(userProfile.theme);
+			setTheme(resolveTheme(userProfile.theme));
 		}
 	}, [userProfile]);
 
