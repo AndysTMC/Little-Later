@@ -12,8 +12,8 @@ const Component = ({
 }: {
 	className?: string;
 	content: string;
-	id: number;
-	handleUnlink: (id: number, flag: boolean) => void;
+	id: string;
+	handleUnlink: (id: string) => void;
 }) => {
 	const { theme } = useTheme();
 	return (
@@ -29,7 +29,7 @@ const Component = ({
 						? "hover:bg-neutral-900"
 						: "hover:bg-neutral-100"
 				} cursor-pointer rounded-lg px-2`}
-				onClick={() => handleUnlink(id, false)}
+				onClick={() => handleUnlink(id)}
 			>
 				<LUIThemedIcon
 					Icon={TrashIcon}

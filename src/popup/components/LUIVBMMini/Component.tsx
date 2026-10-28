@@ -1,5 +1,7 @@
-import { LLink, LNote, LReminder, LTask, LVisualBM } from "little-shared/types";
-import { LINT_BOOLEAN, LLINK_TYPE, LTHEME } from "little-shared/enums";
+import { LTHEME } from "little-shared/enums";
+import type { Note, Reminder, Save, Task } from "../../../storage/repositories";
+import type { LinkRow } from "../../../storage/schema";
+import { linkedTo } from "../../records";
 import { ArrowSquareRightIcon } from "@phosphor-icons/react";
 import { useContext, useState } from "react";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
@@ -14,8 +16,8 @@ import { LUIGroup } from "../LUIGroup/Component";
 import { LUILink } from "../LUILink/Component";
 import { HomeContext } from "../../contexts/Home";
 import { useTheme } from "../../hooks/useTheme";
-import { useLazyVBMImage } from "../../hooks/useLazyVBMImage";
-import { updateVisualBM } from "../../../services/visualBM";
+import { useLazySavePreview } from "../../hooks/useSavePreview";
+import { send } from "../../../utils/send";
 
 const Component = ({
 	className,
@@ -27,40 +29,26 @@ const Component = ({
 	disableNavs = false,
 }: {
 	className?: string;
-	links: Array<LLink>;
-	notes: Array<LNote>;
-	reminders: Array<LReminder>;
-	tasks: Array<LTask>;
-	save: LVisualBM;
+	links: Array<LinkRow>;
+	notes: Array<Note>;
+	reminders: Array<Reminder>;
+	tasks: Array<Task>;
+	save: Save;
 	disableNavs?: boolean;
 }) => {
 	const { theme } = useTheme();
 	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
 		useContext(HomeContext);
 	const [isExpanded, setIsExpanded] = useState(false);
-	const linkedTasks = links
-		.filter((x) => x.type === LLINK_TYPE.TASK_VBM)
-		.filter((x) => x.vbmId === save.id)
-		.map((x) => tasks.find((y) => y.id === x.taskId))
-		.filter((x) => x !== undefined);
-	const linkedReminders = links
-		.filter((x) => x.type === LLINK_TYPE.REMINDER_VBM)
-		.filter((x) => x.vbmId === save.id)
-		.map((x) => reminders.find((y) => y.id === x.reminderId))
-		.filter((x) => x !== undefined);
-	const linkedNotes = links
-		.filter((x) => x.type === LLINK_TYPE.NOTE_VBM)
-		.filter((x) => x.vbmId === save.id)
-		.map((x) => notes.find((y) => y.id === x.noteId))
-		.filter((x) => x !== undefined);
+	const linkedTasks = linkedTo(links, save.id, tasks);
+	const linkedReminders = linkedTo(links, save.id, reminders);
+	const linkedNotes = linkedTo(links, save.id, notes);
 
 	const handleExpand = () => {
 		setIsExpanded(!isExpanded);
 	};
 	const handleDelete = async () => {
-		await updateVisualBM(save.url, {
-			isSaved: LINT_BOOLEAN.FALSE,
-		});
+		await send("save.update", { id: save.id, saved: false });
 	};
 	const handleEdit = () => {
 		if (disableNavs) return;
@@ -77,7 +65,7 @@ const Component = ({
 		setShouldHomeNavigate(true);
 	};
 
-	const { preview, elementRef } = useLazyVBMImage(save.id);
+	const { preview, elementRef } = useLazySavePreview(save.id);
 
 	return (
 		<div ref={elementRef} className={twMerge(`h-max w-full`, className)}>
@@ -86,7 +74,7 @@ const Component = ({
 			>
 				{!isExpanded ? (
 					<LUIWebPreview
-						previewBlob={preview?.blob}
+						previewBlob={preview}
 						url={save.url}
 						scaleType="short"
 					/>
@@ -179,9 +167,9 @@ const Component = ({
 						>
 							{linkedTasks.map((task) => (
 								<LUILink
-									key={task!.id}
-									content={task!.information}
-									navigateTo={"/task/" + task!.id}
+									key={task.id}
+									content={task.information}
+									navigateTo={"/task/" + task.id}
 									hoverBackground={
 										theme === LTHEME.DARK
 											? "bg-neutral-800"
@@ -199,9 +187,9 @@ const Component = ({
 						>
 							{linkedReminders.map((reminder) => (
 								<LUILink
-									key={reminder!.id}
-									content={reminder!.message}
-									navigateTo={"/reminder/" + reminder!.id}
+									key={reminder.id}
+									content={reminder.message}
+									navigateTo={"/reminder/" + reminder.id}
 									hoverBackground={
 										theme === LTHEME.DARK
 											? "bg-neutral-800"
@@ -214,9 +202,9 @@ const Component = ({
 					) : null}
 					{isExpanded && linkedNotes.length > 0 ? (
 						<LUIGroup title="Notes" headerTextSize="sm">
-							{linkedNotes.map((note, index) => (
+							{linkedNotes.map((note) => (
 								<div
-									key={index}
+									key={note.id}
 									className={`h-max w-full border text-xs ${
 										theme === LTHEME.DARK
 											? "border-neutral-600 text-neutral-300"
@@ -227,7 +215,7 @@ const Component = ({
 										urlTransform={safeUrlTransform}
 										components={safeMarkdownComponents}
 									>
-										{note!.content}
+										{note.content}
 									</Markdown>
 								</div>
 							))}
@@ -249,10 +237,7 @@ const Component = ({
 						</div>
 					) : null}
 					{isExpanded ? (
-						<LUIWebPreview
-							previewBlob={preview?.blob}
-							url={save.url}
-						/>
+						<LUIWebPreview previewBlob={preview} url={save.url} />
 					) : null}
 					{isExpanded ? (
 						<div

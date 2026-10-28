@@ -6,9 +6,12 @@ import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIReminderForm } from "../../components/LUIReminderForm/Component";
 import { useParams } from "react-router";
-import { useLinks } from "../../hooks/useLinks";
-import { useReminders } from "../../hooks/useReminders";
-import { useVisualBMs } from "../../hooks/useVisualBMs";
+import {
+	useLinks,
+	useReminders,
+	useSaves,
+	useTasks,
+} from "../../hooks/useRecords";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
@@ -20,12 +23,11 @@ const Page = () => {
 	});
 	const links = useLinks();
 	const reminders = useReminders();
-	const visualBMs = useVisualBMs();
-	const saves = visualBMs?.filter((visualBM) => visualBM.isSaved);
+	const pages = useSaves();
+	const tasks = useTasks();
 	const { id } = useParams();
-	const parsedId = Number.parseInt(id ?? "", 10);
-	const loading = useLoading([id, links, reminders, saves]);
-	const reminder = reminders?.find((item) => item.id === parsedId);
+	const loading = useLoading([id, links, reminders, pages, tasks]);
+	const reminder = reminders?.find((item) => item.id === id);
 
 	return (
 		<motion.div
@@ -44,10 +46,11 @@ const Page = () => {
 					<LUIBasicNav navigateTo="/home" />
 					{reminder ? (
 						<LUIReminderForm
-							id={parsedId}
+							key={reminder.id}
+							reminder={reminder}
 							links={links!}
-							reminders={reminders!}
-							saves={saves!}
+							saves={pages!.filter((page) => page.saved)}
+							tasks={tasks!}
 						/>
 					) : (
 						<LUIEmptyState title="Reminder not found." />

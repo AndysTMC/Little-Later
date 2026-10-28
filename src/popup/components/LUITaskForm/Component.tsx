@@ -1,13 +1,5 @@
-import {
-	LLINK_TYPE,
-	LRECURRING_TYPE,
-	LREMINDER_TYPE,
-	LTASK_PRIORITY,
-	LTASK_SCHEDULE_TYPE,
-} from "little-shared/enums";
 import { LTaskIcon } from "../LUIIcons";
 import { useTheme } from "../../hooks/useTheme";
-import { LLink, LTask, LTaskInsert, LVisualBM } from "little-shared/types";
 import { twMerge } from "tailwind-merge";
 import { LUIFeaturePageUD } from "../LUIFeaturePageUD/Component";
 import { LUITextArea } from "../LUITextArea/Component";
@@ -20,142 +12,307 @@ import { LUIVBMLinks } from "../LUIVBMLinks/Component";
 import { LUITimeInput } from "../LUITimeInput/Component";
 import { useEffect, useState } from "react";
 import { fakeWait } from "little-shared/utils/misc";
-import { putTask } from "../../../services/task";
 import {
 	LMAX_TASK_INFORMATION_LENGTH,
 	LMAX_TASK_LABEL_LENGTH,
 	LNONE,
 } from "little-shared/constants";
+import type { Frequency, RecurrenceRule } from "little-shared/utils/schedule";
 import { LUICUButton } from "../LUICUButton/Component";
-import { LDateUtl, LTimeUtl } from "little-shared/utils/datetime";
-import { getTaskInsert } from "little-shared/utils/task";
-import { useIdCache } from "../../hooks/useIdCache";
-import { getReminder } from "../../../services/reminder";
+import { LTHEME } from "little-shared/enums";
 import { LUIAIButton } from "../LUIAIButton/Component";
 import { LittleAI } from "../../../services/ai";
+import type {
+	Reminder,
+	Save,
+	Task,
+	TaskPriority,
+} from "../../../storage/repositories";
+import type { LinkRow, TaskSchedule } from "../../../storage/schema";
+import { linkedFrom, linkedTo, reminderKind } from "../../records";
+import { WEEKDAY_NAMES, deviceZone, nextHour } from "../../../utils/dates";
+import { send } from "../../../utils/send";
+
+type ScheduleKind = TaskSchedule["kind"];
+type ReminderKind = "normal" | "escalating";
+
+const PRIORITIES: Array<TaskPriority> = ["low", "medium", "high"];
+const SCHEDULE_KINDS: Array<ScheduleKind> = ["anytime", "due", "recurring"];
+const FREQUENCIES: Array<Frequency> = ["daily", "weekly", "monthly", "yearly"];
+const REMINDER_KINDS: Array<ReminderKind> = ["normal", "escalating"];
+
+type Draft = {
+	information: string;
+	label: string;
+	priority: TaskPriority;
+	schedule: TaskSchedule;
+};
+
+const today = () => Temporal.Now.plainDateISO(deviceZone());
+
+// A rule of the given frequency that keeps what still applies of `from`.
+const ruleOf = (freq: Frequency, from?: RecurrenceRule): RecurrenceRule => {
+	const date = today();
+	const base = {
+		freq,
+		interval: from?.interval ?? 1,
+		time:
+			from?.time ??
+			Temporal.Now.plainTimeISO(deviceZone()).toString({
+				smallestUnit: "minute",
+			}),
+		anchor: from?.anchor ?? date.toString(),
+		zone: from?.zone ?? "floating",
+	};
+	switch (freq) {
+		case "daily":
+			return base;
+		case "weekly":
+			return { ...base, byWeekday: from?.byWeekday ?? [date.dayOfWeek] };
+		case "monthly":
+			return { ...base, byMonthDay: from?.byMonthDay ?? date.day };
+		case "yearly":
+			return {
+				...base,
+				byMonth: from?.byMonth ?? date.month,
+				byMonthDay: from?.byMonthDay ?? date.day,
+			};
+	}
+};
+
+const scheduleOf = (kind: ScheduleKind): TaskSchedule => {
+	switch (kind) {
+		case "anytime":
+			return { kind };
+		case "due":
+			return { kind, at: nextHour() };
+		case "recurring":
+			return { kind, rule: ruleOf("daily") };
+	}
+};
+
+// Cycles `value + shift` through min..max.
+const wrap = (value: number, shift: number, min: number, max: number) =>
+	((((value - min + shift) % (max - min + 1)) + (max - min + 1)) %
+		(max - min + 1)) +
+	min;
+
+const RuleFields = ({
+	rule,
+	onChange,
+}: {
+	rule: RecurrenceRule;
+	onChange: (rule: RecurrenceRule) => void;
+}) => (
+	<div className={`my-1 flex h-max w-max justify-start gap-x-2`}>
+		<div className={`flex h-full w-40 flex-col gap-y-1`}>
+			<div className={`flex h-max w-full items-center justify-center`}>
+				<LUILabel name={"Repeats"} />
+			</div>
+			<LUISelectT1
+				passedItem={rule.freq}
+				items={FREQUENCIES}
+				onChange={(freq) => onChange(ruleOf(freq as Frequency, rule))}
+			/>
+		</div>
+		{rule.freq === "weekly" && rule.byWeekday ? (
+			<div className={`flex h-full w-44 flex-col gap-y-1`}>
+				<div
+					className={`flex h-max w-full items-center justify-center`}
+				>
+					<LUILabel name={"Weekday"} />
+				</div>
+				<LUISelectT1
+					passedItem={WEEKDAY_NAMES[rule.byWeekday[0] - 1]}
+					items={WEEKDAY_NAMES}
+					onChange={(weekday) =>
+						onChange({
+							...rule,
+							byWeekday: [WEEKDAY_NAMES.indexOf(weekday) + 1],
+						})
+					}
+				/>
+			</div>
+		) : null}
+		{rule.freq === "yearly" && rule.byMonth !== undefined ? (
+			<LUIDateNumInput
+				name="Month"
+				passedValue={rule.byMonth}
+				onChange={(byMonth) => onChange({ ...rule, byMonth })}
+				onShift={(shift) =>
+					onChange({
+						...rule,
+						byMonth: wrap(rule.byMonth ?? 1, shift, 1, 12),
+					})
+				}
+				minValue={1}
+				maxValue={12}
+				maxLength={2}
+				className={`w-16`}
+			/>
+		) : null}
+		{(rule.freq === "monthly" || rule.freq === "yearly") &&
+		rule.byMonthDay !== undefined ? (
+			<LUIDateNumInput
+				name="Day"
+				passedValue={rule.byMonthDay}
+				onChange={(byMonthDay) => onChange({ ...rule, byMonthDay })}
+				onShift={(shift) =>
+					onChange({
+						...rule,
+						byMonthDay: wrap(rule.byMonthDay ?? 1, shift, 1, 31),
+					})
+				}
+				minValue={1}
+				maxValue={31}
+				maxLength={2}
+				className={`w-12`}
+			/>
+		) : null}
+		<div className={`flex h-full w-max shrink-0 flex-col gap-y-1`}>
+			<LUITimeInput
+				name="Time"
+				time={rule.time}
+				onChange={(time) => onChange({ ...rule, time })}
+			/>
+		</div>
+	</div>
+);
 
 const Component = ({
 	className,
 	links,
+	reminders,
 	saves,
-	tasks,
-	id,
-	prelinkedVbmId,
+	task,
+	prelinkedSaveId,
 	additionalSubmitCallback = () => {},
 }: {
 	className?: string;
-	links: Array<LLink>;
-	saves: Array<LVisualBM>;
-	tasks: Array<LTask>;
-	id?: number;
-	prelinkedVbmId?: number;
+	links: Array<LinkRow>;
+	reminders: Array<Reminder>;
+	saves: Array<Save>;
+	// The task to edit; a new one when left out.
+	task?: Task;
+	prelinkedSaveId?: string;
 	additionalSubmitCallback?: () => void;
 }) => {
 	const { theme } = useTheme();
-	const [task, setTask] = useState<LTaskInsert>(
-		tasks.find((r) => r.id === id) ?? getTaskInsert(),
+	const [draft, setDraft] = useState<Draft>(() => ({
+		information: task?.information ?? "",
+		label: task?.label ?? "",
+		priority: task?.priority ?? "medium",
+		schedule: task?.schedule ?? scheduleOf("anytime"),
+	}));
+	// Edits stay local until Create or Update, then go out as commands,
+	// compared with what is stored then.
+	const storedSaveIds = task
+		? linkedFrom(links, task.id, saves).map((save) => save.id)
+		: [];
+	const [linkedReminder] = task ? linkedTo(links, task.id, reminders) : [];
+	const storedReminder: ReminderKind | null = linkedReminder
+		? reminderKind(linkedReminder)
+		: null;
+	const [linkedSaveIds, setLinkedSaveIds] = useState(() =>
+		prelinkedSaveId !== undefined &&
+		!storedSaveIds.includes(prelinkedSaveId)
+			? [...storedSaveIds, prelinkedSaveId]
+			: storedSaveIds,
 	);
-	const { currentIds: linkedSaveIds, idCache: saveIC } = useIdCache(
-		saves
-			.filter(
-				(x) =>
-					links.find((y) => y.vbmId === x.id && y.taskId === id) !==
-					undefined,
-			)
-			.map((x) => x.id),
-	);
+	const [reminder, setReminder] = useState(storedReminder);
+	const [warning, setWarning] = useState("");
 	const [aiRephrase, setAIRephrase] = useState<LittleAI | undefined>();
 	const [aiGenerate, setAIGenerate] = useState<LittleAI | undefined>();
-	const [linkedReminderType, setLinkedReminderType] = useState<
-		LREMINDER_TYPE | undefined
-	>();
-	const validateInformation = (value: string) => {
-		if (value.length > LMAX_TASK_INFORMATION_LENGTH) {
-			return {
-				success: false,
-				error: "Information is too long",
-			};
-		}
-		return {
-			success: true,
-			error: "",
-		};
-	};
-	const validateLabel = (value: string) => {
-		if (value.length > LMAX_TASK_LABEL_LENGTH) {
-			return {
-				success: false,
-				error: "Label is too long",
-			};
-		}
-		return {
-			success: true,
-			error: "",
-		};
-	};
-	const handleSaveLinking = (vbmId: number, flag: boolean) => {
-		if (!task) {
-			return;
-		}
-		if (flag) {
-			saveIC.insert(vbmId);
-		} else {
-			saveIC.delete(vbmId);
-		}
-	};
 
-	const handleChangeReminderType = async (
-		newReminderType: LREMINDER_TYPE | string,
-	) => {
-		if (!task) {
-			return;
-		}
-		if (newReminderType === LNONE) {
-			setLinkedReminderType(undefined);
-			return;
-		}
-		if (newReminderType === LREMINDER_TYPE.NORMAL) {
-			setLinkedReminderType(LREMINDER_TYPE.NORMAL);
-		} else if (newReminderType === LREMINDER_TYPE.ESCALATING) {
-			setLinkedReminderType(LREMINDER_TYPE.ESCALATING);
-		} else {
-			return;
-		}
-	};
-	const handleTaskCU = async () => {
-		if (!task) {
-			return;
-		}
-		if (
-			!validateInformation(task.information).success ||
-			!validateLabel(task.label).success
-		) {
-			return;
-		}
-		await fakeWait();
-		await putTask(task, saveIC.inserts, saveIC.deletes, linkedReminderType);
-		additionalSubmitCallback();
-	};
-	useEffect(() => {
-		if (prelinkedVbmId !== undefined) {
-			saveIC.insert(prelinkedVbmId);
-		}
-	}, [prelinkedVbmId]);
+	const validateInformation = (value: string) =>
+		value.length > LMAX_TASK_INFORMATION_LENGTH
+			? { success: false, error: "Information is too long" }
+			: { success: true, error: "" };
+	const validateLabel = (value: string) =>
+		value.length > LMAX_TASK_LABEL_LENGTH
+			? { success: false, error: "Label is too long" }
+			: { success: true, error: "" };
+	const isValid =
+		draft.information.trim() !== "" &&
+		validateInformation(draft.information).success &&
+		validateLabel(draft.label).success;
 
-	useEffect(() => {
-		const reminderLink = links.find(
-			(x) => x.taskId === id && x.type === LLINK_TYPE.REMINDER_TASK,
+	const handleSaveLinking = (saveId: string, flag: boolean) => {
+		setLinkedSaveIds((ids) =>
+			flag
+				? [...ids.filter((id) => id !== saveId), saveId]
+				: ids.filter((id) => id !== saveId),
 		);
-		if (reminderLink && reminderLink.reminderId) {
-			getReminder(reminderLink.reminderId).then((reminder) => {
-				if (reminder) {
-					setLinkedReminderType(reminder.type);
-				}
+	};
+
+	const setSchedule = (schedule: TaskSchedule) => {
+		setDraft((current) => ({ ...current, schedule }));
+		if (schedule.kind === "anytime") {
+			setReminder(null);
+		}
+	};
+
+	const handleTaskCU = async () => {
+		if (!isValid) {
+			return;
+		}
+		setWarning("");
+		await fakeWait();
+		try {
+			await submit();
+			additionalSubmitCallback();
+		} catch (error) {
+			setWarning(
+				error instanceof Error
+					? error.message
+					: "Couldn't save this task.",
+			);
+		}
+	};
+
+	const submit = async () => {
+		const content = {
+			information: draft.information,
+			label: draft.label,
+			priority: draft.priority,
+		};
+		let taskId: string;
+		let alreadyLinked: Array<string>;
+		if (task) {
+			taskId = task.id;
+			alreadyLinked = storedSaveIds;
+			// Sending an unchanged recurring schedule would move an overdue
+			// occurrence on, so only changes go out.
+			const scheduleChanged =
+				JSON.stringify(draft.schedule) !==
+				JSON.stringify(task.schedule);
+			await send("task.update", {
+				id: task.id,
+				...content,
+				schedule: scheduleChanged ? draft.schedule : undefined,
+				reminder: reminder !== storedReminder ? reminder : undefined,
 			});
 		} else {
-			setLinkedReminderType(undefined);
+			const [firstSaveId] = linkedSaveIds;
+			({ id: taskId } = await send("task.create", {
+				...content,
+				schedule: draft.schedule,
+				reminder,
+				saveId: firstSaveId,
+			}));
+			alreadyLinked = firstSaveId === undefined ? [] : [firstSaveId];
 		}
-	}, [links, id]);
+		for (const saveId of linkedSaveIds) {
+			if (!alreadyLinked.includes(saveId)) {
+				await send("link.create", { fromId: taskId, toId: saveId });
+			}
+		}
+		for (const saveId of alreadyLinked) {
+			if (!linkedSaveIds.includes(saveId)) {
+				await send("link.delete", { fromId: taskId, toId: saveId });
+			}
+		}
+	};
 
 	useEffect(() => {
 		if (!aiRephrase) {
@@ -171,46 +328,35 @@ const Component = ({
 	}, []);
 
 	const handleRephraseInformation = async () => {
-		if (!task || !aiRephrase) {
+		if (!aiRephrase) {
 			return;
 		}
-		const rephrasedInformation = await aiRephrase.rewrite(
-			task.information,
-			{
-				tone: "as-is",
-				format: "plain-text",
-				length: "as-is",
-			},
-		);
-		setTask({
-			...task,
-			information: rephrasedInformation,
-		} as LTask);
+		const information = await aiRephrase.rewrite(draft.information, {
+			tone: "as-is",
+			format: "plain-text",
+			length: "as-is",
+		});
+		setDraft((current) => ({ ...current, information }));
 	};
 
 	const handleGenerateLabel = async () => {
-		if (!task || !aiGenerate) {
+		if (!aiGenerate) {
 			return;
 		}
-		const generatedLabel = await aiGenerate.write(task.information, {
+		const label = await aiGenerate.write(draft.information, {
 			tone: "neutral",
 			format: "plain-text",
 			length: "short",
 			sharedContext:
 				"Generate a short label that summarizes the task information provided. (Max 5 words).",
 		});
-		if (generatedLabel.trim() === "") {
+		if (label.trim() === "") {
 			return;
 		}
-		setTask({
-			...task,
-			label: generatedLabel.trim(),
-		} as LTask);
+		setDraft((current) => ({ ...current, label: label.trim() }));
 	};
 
-	if (!task) {
-		return;
-	}
+	const { schedule } = draft;
 	return (
 		<div
 			className={twMerge(
@@ -224,12 +370,9 @@ const Component = ({
 			>
 				<LUITextArea
 					name="Information"
-					passedValue={task.information}
-					onChange={(value) =>
-						setTask({
-							...task,
-							information: value,
-						} as LTask)
+					passedValue={draft.information}
+					onChange={(information) =>
+						setDraft((current) => ({ ...current, information }))
 					}
 					validate={validateInformation}
 					lengthLimit={LMAX_TASK_INFORMATION_LENGTH}
@@ -246,12 +389,9 @@ const Component = ({
 				</div>
 				<LUITextInputT1
 					name="Label"
-					passedValue={task.label}
-					onChange={(value) =>
-						setTask({
-							...task,
-							label: value,
-						} as LTask)
+					passedValue={draft.label}
+					onChange={(label) =>
+						setDraft((current) => ({ ...current, label }))
 					}
 					validate={validateLabel}
 					lengthLimit={LMAX_TASK_LABEL_LENGTH}
@@ -264,17 +404,13 @@ const Component = ({
 							<LUILabel name={"Priority"} />
 						</div>
 						<LUISelectT1
-							passedItem={task.priority}
-							items={[
-								LTASK_PRIORITY.LOW,
-								LTASK_PRIORITY.MEDIUM,
-								LTASK_PRIORITY.HIGH,
-							]}
-							onChange={(taskPriority) =>
-								setTask({
-									...task,
-									priority: taskPriority,
-								} as LTask)
+							passedItem={draft.priority}
+							items={PRIORITIES}
+							onChange={(priority) =>
+								setDraft((current) => ({
+									...current,
+									priority: priority as TaskPriority,
+								}))
 							}
 						/>
 					</div>
@@ -285,282 +421,36 @@ const Component = ({
 							<LUILabel name={"Type"} />
 						</div>
 						<LUISelectT1
-							passedItem={task.schedule.type}
-							items={[
-								LTASK_SCHEDULE_TYPE.ADHOC,
-								LTASK_SCHEDULE_TYPE.DUE,
-								LTASK_SCHEDULE_TYPE.RECURRING,
-							]}
-							onChange={(taskType) =>
-								setTask({
-									...task,
-									schedule: {
-										recurringInfo:
-											taskType ===
-											LTASK_SCHEDULE_TYPE.RECURRING
-												? {
-														day: null,
-														month: null,
-														type: LRECURRING_TYPE.DAILY,
-														time: LTimeUtl.getNow(),
-														weekDay: null,
-													}
-												: null,
-										deadlineInfo:
-											taskType === LTASK_SCHEDULE_TYPE.DUE
-												? {
-														deadlineDate:
-															LDateUtl.getNow(),
-													}
-												: null,
-										type: taskType,
-									},
-								} as LTask)
+							passedItem={schedule.kind}
+							items={SCHEDULE_KINDS}
+							onChange={(kind) =>
+								kind !== schedule.kind &&
+								setSchedule(scheduleOf(kind as ScheduleKind))
 							}
 						/>
 					</div>
 				</div>
 				<div className={`my-1 flex h-max w-full flex-wrap gap-x-2`}>
-					{task.schedule.type === LTASK_SCHEDULE_TYPE.RECURRING &&
-					task.schedule.recurringInfo ? (
-						<div
-							className={`my-1 flex h-max w-max justify-start gap-x-2`}
-						>
-							<div
-								className={`flex h-full w-40 flex-col gap-y-1`}
-							>
-								<div
-									className={`flex h-max w-full items-center justify-center`}
-								>
-									<LUILabel name={"Recurring Type"} />
-								</div>
-								<LUISelectT1
-									passedItem={
-										task.schedule.recurringInfo.type
-									}
-									items={[
-										LRECURRING_TYPE.DAILY,
-										LRECURRING_TYPE.WEEKLY,
-										LRECURRING_TYPE.MONTHLY,
-										LRECURRING_TYPE.YEARLY,
-									]}
-									onChange={(recurringType) =>
-										setTask({
-											...task,
-											schedule: {
-												...task.schedule,
-												recurringInfo: {
-													...task.schedule
-														.recurringInfo,
-													type: recurringType,
-													weekDay:
-														recurringType ==
-														LRECURRING_TYPE.WEEKLY
-															? 0
-															: null,
-													day:
-														recurringType ==
-															LRECURRING_TYPE.MONTHLY ||
-														recurringType ==
-															LRECURRING_TYPE.YEARLY
-															? 1
-															: null,
-													month:
-														recurringType ==
-														LRECURRING_TYPE.YEARLY
-															? 0
-															: null,
-												},
-											},
-										} as LTask)
-									}
-								/>
-							</div>
-							{task.schedule.recurringInfo.type ===
-								LRECURRING_TYPE.WEEKLY &&
-							task.schedule.recurringInfo.weekDay !== null ? (
-								<div
-									className={`flex h-full w-44 flex-col gap-y-1`}
-								>
-									<div
-										className={`flex h-max w-full items-center justify-center`}
-									>
-										<LUILabel name={"Weekday"} />
-									</div>
-									<LUISelectT1
-										passedItem={LDateUtl.getWeekDayName(
-											task.schedule.recurringInfo.weekDay,
-										)}
-										items={LDateUtl.getWeekDayNames()}
-										onChange={(weekDay) => {
-											setTask({
-												...task,
-												schedule: {
-													...task.schedule,
-													recurringInfo: {
-														...task.schedule
-															.recurringInfo,
-														weekDay:
-															LDateUtl.getWeekDayNames().indexOf(
-																weekDay,
-															),
-													},
-												},
-											} as LTask);
-										}}
-									/>
-								</div>
-							) : null}
-							{task.schedule.recurringInfo.type ===
-								LRECURRING_TYPE.YEARLY &&
-							task.schedule.recurringInfo.month !== null ? (
-								<LUIDateNumInput
-									name="Month"
-									passedValue={
-										task.schedule.recurringInfo.month + 1
-									}
-									onChange={(month) =>
-										setTask({
-											...task,
-											schedule: {
-												...task.schedule,
-												recurringInfo: {
-													...task.schedule
-														.recurringInfo,
-													month: month - 1,
-												},
-											},
-										} as LTask)
-									}
-									onShift={(shift) => {
-										setTask({
-											...task,
-											schedule: {
-												...task.schedule,
-												recurringInfo: {
-													...task.schedule
-														.recurringInfo,
-													month:
-														task.schedule
-															.recurringInfo &&
-														task.schedule
-															.recurringInfo
-															.month !== null
-															? (12 +
-																	task
-																		.schedule
-																		.recurringInfo
-																		.month +
-																	shift) %
-																12
-															: 1,
-												},
-											},
-										} as LTask);
-									}}
-									minValue={1}
-									maxValue={12}
-									maxLength={2}
-									className={`w-16`}
-								/>
-							) : null}
-							{(task.schedule.recurringInfo.type ===
-								LRECURRING_TYPE.YEARLY ||
-								task.schedule.recurringInfo.type ==
-									LRECURRING_TYPE.MONTHLY) &&
-							task.schedule.recurringInfo.day !== null ? (
-								<LUIDateNumInput
-									name="Day"
-									passedValue={
-										task.schedule.recurringInfo.day
-									}
-									onChange={(day) =>
-										setTask({
-											...task,
-											schedule: {
-												...task.schedule,
-												recurringInfo: {
-													...task.schedule
-														.recurringInfo,
-													day,
-												},
-											},
-										} as LTask)
-									}
-									onShift={(shift) => {
-										const currentDay =
-											task.schedule.recurringInfo?.day ??
-											1;
-										setTask({
-											...task,
-											schedule: {
-												...task.schedule,
-												recurringInfo: {
-													...task.schedule
-														.recurringInfo,
-													day:
-														((currentDay -
-															1 +
-															shift +
-															28) %
-															28) +
-														1,
-												},
-											},
-										} as LTask);
-									}}
-									minValue={1}
-									maxValue={28}
-									maxLength={2}
-									className={`w-12`}
-								/>
-							) : null}
-							<div
-								className={`flex h-full w-max shrink-0 flex-col gap-y-1`}
-							>
-								<LUITimeInput
-									name="Time"
-									time={task.schedule.recurringInfo.time}
-									onChange={(time) =>
-										setTask({
-											...task,
-											schedule: {
-												...task.schedule,
-												recurringInfo: {
-													...task.schedule
-														.recurringInfo,
-													time: time,
-												},
-											},
-										} as LTask)
-									}
-								/>
-							</div>
-						</div>
+					{schedule.kind === "recurring" ? (
+						<RuleFields
+							rule={schedule.rule}
+							onChange={(rule) =>
+								setSchedule({ kind: "recurring", rule })
+							}
+						/>
 					) : null}
-					{task.schedule.type === LTASK_SCHEDULE_TYPE.DUE &&
-					task.schedule.deadlineInfo ? (
+					{schedule.kind === "due" ? (
 						<div className={`h-max w-max`}>
 							<LUIDateTimeInput
 								name="Deadline"
-								date={task.schedule.deadlineInfo?.deadlineDate}
-								onChange={(date) =>
-									setTask({
-										...task,
-										schedule: {
-											...task.schedule,
-											deadlineInfo: {
-												...task.schedule.deadlineInfo,
-												deadlineDate: date,
-											},
-										},
-									} as LTask)
+								value={schedule.at}
+								onChange={(at) =>
+									setSchedule({ kind: "due", at })
 								}
 							/>
 						</div>
 					) : null}
-					{task.schedule.type === LTASK_SCHEDULE_TYPE.DUE ||
-					task.schedule.type === LTASK_SCHEDULE_TYPE.RECURRING ? (
+					{schedule.kind !== "anytime" ? (
 						<div className={`flex h-full w-44 flex-col gap-y-1`}>
 							<div
 								className={`flex h-max w-full items-center justify-center`}
@@ -568,13 +458,17 @@ const Component = ({
 								<LUILabel name={"Reminder"} />
 							</div>
 							<LUISelectT1
-								passedItem={linkedReminderType ?? LNONE}
-								items={[
-									LNONE,
-									LREMINDER_TYPE.NORMAL,
-									LREMINDER_TYPE.ESCALATING,
-								]}
-								onChange={handleChangeReminderType}
+								passedItem={reminder ?? LNONE}
+								items={[LNONE, ...REMINDER_KINDS]}
+								onChange={(kind) =>
+									setReminder(
+										REMINDER_KINDS.includes(
+											kind as ReminderKind,
+										)
+											? (kind as ReminderKind)
+											: null,
+									)
+								}
 							/>
 						</div>
 					) : null}
@@ -584,18 +478,22 @@ const Component = ({
 					linkedSaveIds={linkedSaveIds}
 					handleSaveLinking={handleSaveLinking}
 				/>
+				{warning !== "" ? (
+					<div
+						className={`text-sm italic ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
+					>
+						{warning}
+					</div>
+				) : null}
 			</div>
 			<div
 				className={`flex h-16 w-full items-center justify-center pt-1 pb-2`}
 			>
 				<LUICUButton
-					name={id ? "Update" : "Create"}
+					name={task ? "Update" : "Create"}
 					onClick={handleTaskCU}
 					passedTheme={theme}
-					disabled={
-						!validateInformation(task.information).success ||
-						!validateLabel(task.label).success
-					}
+					disabled={!isValid}
 				/>
 			</div>
 		</div>

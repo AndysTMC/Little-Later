@@ -15,7 +15,8 @@ import {
 } from "../services/visualBM";
 import { createNote } from "../services/note";
 import { LittleAI } from "../services/ai";
-import { getUserSettings } from "../services/settings";
+import { importProfileKeys } from "../storage/keys";
+import { getSettings } from "../storage/repositories";
 import {
 	getDefaultBaseUrl,
 	getResolvedBaseUrl,
@@ -89,6 +90,9 @@ listenForCommands(async (name, input) => {
 	if (result.ok && name === "profile.update") {
 		void autoLock.configure();
 	}
+	if (result.ok && name === "settings.update") {
+		void configureLocalAIRequestHeaders();
+	}
 	return result;
 });
 
@@ -142,13 +146,15 @@ const collectLocalAIEndpoints = async (): Promise<Array<URL>> => {
 		getDefaultBaseUrl(LAI_PROVIDERS.OLLAMA),
 		getDefaultBaseUrl(LAI_PROVIDERS.LM_STUDIO),
 	];
-	try {
-		const settings = await getUserSettings();
-		if (settings.ai) {
-			endpoints.push(getResolvedBaseUrl(settings.ai));
-		}
-	} catch {
-		// Settings may be unavailable while the worker is booting.
+	// The configured endpoint is in the profile's sealed settings, so it is
+	// known only while a profile is unlocked.
+	const unlocked = await sessionStore.get();
+	if (unlocked) {
+		const { ai } = await getSettings(
+			littleDB,
+			await importProfileKeys(unlocked),
+		);
+		endpoints.push(getResolvedBaseUrl(ai));
 	}
 	// getResolvedBaseUrl returns "" for a missing or invalid custom URL.
 	return endpoints
@@ -177,13 +183,9 @@ const configureLocalAIRequestHeaders = async (): Promise<void> => {
 void configureLocalAIRequestHeaders();
 void reconcileActiveSession();
 
-if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
-	chrome.storage.onChanged.addListener((changes) => {
-		if (changes.userSettings) {
-			void configureLocalAIRequestHeaders();
-		}
-	});
-}
+sessionStore.subscribe(() => {
+	void configureLocalAIRequestHeaders();
+});
 
 function keepAlive() {
 	if (keepAliveIntervalId !== null) {

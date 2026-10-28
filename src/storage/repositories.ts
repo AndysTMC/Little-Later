@@ -32,11 +32,10 @@ export type Note = NoteContent & {
 	updatedAt: number;
 };
 
-export const openSave = async (
-	keys: ProfileKeys,
-	row: SaveRow,
-): Promise<Save> => ({
-	...(await openBody<SaveContent>(keys, "saves", row.id, row.body)),
+// Builders join a row's plain fields with its opened body. Pages that cache
+// opened bodies use them directly.
+export const toSave = (row: SaveRow, content: SaveContent): Save => ({
+	...content,
 	id: row.id,
 	saved: row.saved === 1,
 	browsed: row.browsed === 1,
@@ -45,15 +44,24 @@ export const openSave = async (
 	updatedAt: row.updatedAt,
 });
 
-export const openNote = async (
-	keys: ProfileKeys,
-	row: NoteRow,
-): Promise<Note> => ({
-	...(await openBody<NoteContent>(keys, "notes", row.id, row.body)),
+export const toNote = (row: NoteRow, content: NoteContent): Note => ({
+	...content,
 	id: row.id,
 	createdAt: row.createdAt,
 	updatedAt: row.updatedAt,
 });
+
+export const openSave = async (
+	keys: ProfileKeys,
+	row: SaveRow,
+): Promise<Save> =>
+	toSave(row, await openBody<SaveContent>(keys, "saves", row.id, row.body));
+
+export const openNote = async (
+	keys: ProfileKeys,
+	row: NoteRow,
+): Promise<Note> =>
+	toNote(row, await openBody<NoteContent>(keys, "notes", row.id, row.body));
 
 const ownedBy = (profileId: string) =>
 	[
@@ -158,11 +166,8 @@ export type Reminder = ReminderContent &
 		"id" | "target" | "escalation" | "lastFiredAt" | "nextFireAt"
 	>;
 
-export const openTask = async (
-	keys: ProfileKeys,
-	row: TaskRow,
-): Promise<Task> => ({
-	...(await openBody<TaskContent>(keys, "tasks", row.id, row.body)),
+export const toTask = (row: TaskRow, content: TaskContent): Task => ({
+	...content,
 	id: row.id,
 	schedule: row.schedule,
 	dueAt: row.dueAt,
@@ -170,17 +175,32 @@ export const openTask = async (
 	done: row.done === 1,
 });
 
-export const openReminder = async (
-	keys: ProfileKeys,
+export const toReminder = (
 	row: ReminderRow,
-): Promise<Reminder> => ({
-	...(await openBody<ReminderContent>(keys, "reminders", row.id, row.body)),
+	content: ReminderContent,
+): Reminder => ({
+	...content,
 	id: row.id,
 	target: row.target,
 	escalation: row.escalation,
 	lastFiredAt: row.lastFiredAt,
 	nextFireAt: row.nextFireAt,
 });
+
+export const openTask = async (
+	keys: ProfileKeys,
+	row: TaskRow,
+): Promise<Task> =>
+	toTask(row, await openBody<TaskContent>(keys, "tasks", row.id, row.body));
+
+export const openReminder = async (
+	keys: ProfileKeys,
+	row: ReminderRow,
+): Promise<Reminder> =>
+	toReminder(
+		row,
+		await openBody<ReminderContent>(keys, "reminders", row.id, row.body),
+	);
 
 // Open or finished tasks, soonest deadline first; tasks without one last.
 export const listTasks = async (

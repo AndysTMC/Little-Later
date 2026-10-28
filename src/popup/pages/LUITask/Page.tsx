@@ -6,9 +6,12 @@ import { useParams } from "react-router";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUITaskForm } from "../../components/LUITaskForm/Component";
-import { useLinks } from "../../hooks/useLinks";
-import { useVisualBMs } from "../../hooks/useVisualBMs";
-import { useTasks } from "../../hooks/useTasks";
+import {
+	useLinks,
+	useReminders,
+	useSaves,
+	useTasks,
+} from "../../hooks/useRecords";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
@@ -19,13 +22,12 @@ const Page = () => {
 		defaultExit: exitTransitions.slideRight,
 	});
 	const links = useLinks();
-	const visualBMs = useVisualBMs();
-	const saves = visualBMs?.filter((x) => x.isSaved);
+	const pages = useSaves();
+	const reminders = useReminders();
 	const tasks = useTasks();
 	const { id } = useParams();
-	const parsedId = Number.parseInt(id ?? "", 10);
-	const loading = useLoading([id, links, saves, tasks]);
-	const task = tasks?.find((item) => item.id === parsedId);
+	const loading = useLoading([id, links, pages, reminders, tasks]);
+	const task = tasks?.find((item) => item.id === id);
 	return (
 		<motion.div
 			className={`h-full w-full select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} `}
@@ -43,10 +45,11 @@ const Page = () => {
 					<LUIBasicNav navigateTo="/home" />
 					{task ? (
 						<LUITaskForm
-							id={parsedId}
+							key={task.id}
+							task={task}
 							links={links!}
-							saves={saves!}
-							tasks={tasks!}
+							reminders={reminders!}
+							saves={pages!.filter((page) => page.saved)}
 						/>
 					) : (
 						<LUIEmptyState title="Task not found." />

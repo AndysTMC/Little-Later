@@ -1,33 +1,43 @@
-import { LUserSettings } from "little-shared/types";
+import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
-import { getUserSettings } from "../../services/settings";
+import { openBody } from "../../storage/keys";
+import { littleDB } from "../../storage/pageDB";
+import { defaultSettings, type Settings } from "../../storage/repositories";
+import type { SettingsRow } from "../../storage/schema";
+import { useProfileKeys } from "./useSession";
 
-const useCurrentUserSettings = (): LUserSettings | undefined => {
-	const [result, setResult] = useState<LUserSettings | undefined>();
-
+// The unlocked profile's sealed settings: AI provider and history limits.
+const useCurrentUserSettings = (): Settings | undefined => {
+	const keys = useProfileKeys();
+	const profileId = keys?.profileId;
+	// null: the profile has no settings row yet, so it uses the defaults.
+	const row = useLiveQuery(
+		async (): Promise<SettingsRow | null | undefined> =>
+			profileId === undefined
+				? undefined
+				: ((await littleDB.settings.get(profileId)) ?? null),
+		[profileId],
+		undefined,
+	);
+	const [opened, setOpened] = useState<{
+		row: SettingsRow;
+		settings: Settings;
+	} | null>(null);
 	useEffect(() => {
-		const refresh = () => {
-			void getUserSettings().then((settings) => setResult(settings));
-		};
-		refresh();
-
-		window.addEventListener("little-storage-change", refresh);
-		const chromeListener = () => {
-			refresh();
-		};
-		if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
-			chrome.storage.onChanged.addListener(chromeListener);
-		}
-
+		if (!keys || !row) return;
+		let active = true;
+		void openBody<Settings>(keys, "settings", row.id, row.body).then(
+			(settings) => {
+				if (active) setOpened({ row, settings });
+			},
+		);
 		return () => {
-			window.removeEventListener("little-storage-change", refresh);
-			if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
-				chrome.storage.onChanged.removeListener(chromeListener);
-			}
+			active = false;
 		};
-	}, []);
-
-	return result;
+	}, [keys, row]);
+	if (!keys || row === undefined) return undefined;
+	if (row === null) return defaultSettings();
+	return opened?.row === row ? opened.settings : undefined;
 };
 
 export { useCurrentUserSettings };
