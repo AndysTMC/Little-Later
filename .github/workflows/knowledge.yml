@@ -1,6 +1,12 @@
 name: Knowledge
 
 on:
+    # Push runs catch drift that no single pull request shows, such as two
+    # merged pull requests that each add the same row to an index.
+    push:
+        branches:
+            - main
+            - dev
     pull_request:
         types: [opened, synchronize, reopened, labeled, unlabeled]
 
@@ -29,6 +35,7 @@ jobs:
             # human label. The base branch's copy of the checker runs, so a
             # pull request cannot weaken its own gate.
             - name: Decision gate
+              if: github.event_name == 'pull_request'
               env:
                   BASE: ${{ github.event.pull_request.base.sha }}
                   ALLOW_PROMO: ${{ contains(github.event.pull_request.labels.*.name, 'human-accepted') }}
