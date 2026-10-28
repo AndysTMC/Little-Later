@@ -86,4 +86,38 @@ describe("Markdown rendering", () => {
 		expect(html).toContain('rel="noopener noreferrer"');
 		expect(html).toContain("(evil.example)");
 	});
+
+	it.each([
+		[
+			"a query naming another host",
+			"[https://bank.example/login?from=evil.example](https://evil.example/phish)",
+		],
+		[
+			"a short host inside a word",
+			"[Check your tax.com account](https://x.co/a)",
+		],
+		[
+			"userinfo before the real host",
+			"[https://bank.example@evil.example](https://evil.example/)",
+		],
+	])(
+		"shows the host when the text only mentions it (%s)",
+		(_name, markdown) => {
+			const host = new URL(
+				markdown.slice(markdown.lastIndexOf("(") + 1, -1),
+			).host;
+			expect(render(markdown)).toContain(`(${host})`);
+		},
+	);
+
+	it.each([
+		["the host", "[evil.example](https://evil.example/path)"],
+		[
+			"a URL on the host",
+			"[https://evil.example/a](https://evil.example/b)",
+		],
+		["an autolink", "<https://evil.example/path>"],
+	])("leaves out the host when the text already is %s", (_name, markdown) => {
+		expect(render(markdown)).not.toContain("(evil.example)");
+	});
 });
