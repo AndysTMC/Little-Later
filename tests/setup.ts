@@ -1,3 +1,4 @@
+import { Temporal as TemporalPolyfill } from "@js-temporal/polyfill";
 import { Blob as NodeBlob } from "node:buffer";
 
 // jsdom's Blob has no arrayBuffer() and cannot be structured-cloned by
@@ -95,3 +96,13 @@ if (!fileReaderUnderstandsNodeBlob()) {
 }
 
 export {};
+
+// The extension relies on Chrome's built-in Temporal (decision 0011). Node
+// and jsdom do not have it yet, so tests use the polyfill until they do.
+if (!("Temporal" in globalThis)) {
+	Object.defineProperty(globalThis, "Temporal", {
+		value: TemporalPolyfill,
+		configurable: true,
+		writable: true,
+	});
+}
