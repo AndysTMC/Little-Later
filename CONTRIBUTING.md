@@ -18,7 +18,13 @@ bun run build:shared
 bun run dev
 ```
 
-Load `dist/` as an unpacked extension from `chrome://extensions` with Developer mode on.
+Load `dist/` as an unpacked extension from `chrome://extensions` with Developer mode on. While `bun run dev` is running, `dist/` loads the code from the dev server and reloads on change, so it stops working when you stop the server. For a build that runs on its own, use `bun run build` and load `dist/` again.
+
+The end-to-end tests need Playwright's Chromium. Install it once, and again after a Playwright update in `bun.lock`:
+
+```sh
+bunx playwright install chromium
+```
 
 ## Branches and pull requests
 
