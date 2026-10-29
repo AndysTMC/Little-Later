@@ -1,6 +1,10 @@
 import Dexie from "dexie";
-import { importProfileKeys, type ProfileKeys } from "../storage/keys";
-import { openReminder, openSave } from "../storage/repositories";
+import {
+	importProfileKeys,
+	openAsset,
+	type ProfileKeys,
+} from "../storage/keys";
+import { PREVIEW_KIND, openReminder, openSave } from "../storage/repositories";
 import type { LittleDB, ReminderRow } from "../storage/schema";
 import type { SessionStore } from "../storage/session";
 import { nextFireAfter } from "./commands/reminders";
@@ -31,7 +35,8 @@ export type ReminderSchedulerDeps = {
 	queue: SerialQueue;
 	// Arms the alarm for an instant, or clears it when nothing is pending.
 	setAlarm: (when: number | null) => Promise<void>;
-	notify: (id: string, message: string) => Promise<void>;
+	// `image` is the attached page's preview, only while unlocked.
+	notify: (id: string, message: string, image?: Uint8Array) => Promise<void>;
 };
 
 export type SchedulerRun = { fired: number; nextAlarm: number | null };
@@ -70,6 +75,51 @@ const reminderText = async (
 
 export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 	const { db, session, queue } = deps;
+
+	// The save a reminder is about, when its profile is the unlocked one.
+	// A task's reminder links to its task as well, so look past other links.
+	const attachedSave = async (keys: ProfileKeys | null, row: ReminderRow) => {
+		if (keys?.profileId !== row.profileId) {
+			return undefined;
+		}
+		const links = await db.links
+			.where("[profileId+fromId]")
+			.equals([keys.profileId, row.id])
+			.toArray();
+		for (const link of links) {
+			const save = await db.saves.get(link.toId);
+			if (save?.profileId === keys.profileId) {
+				return save;
+			}
+		}
+		return undefined;
+	};
+
+	const previewOf = async (
+		keys: ProfileKeys | null,
+		row: ReminderRow,
+	): Promise<Uint8Array | undefined> => {
+		const save = await attachedSave(keys, row);
+		const asset =
+			keys && save
+				? await db.assets
+						.where("[profileId+ownerId]")
+						.equals([keys.profileId, save.id])
+						.filter((candidate) => candidate.kind === PREVIEW_KIND)
+						.first()
+				: undefined;
+		if (!keys || !asset) {
+			return undefined;
+		}
+		// The preview only adds to the notice, and the reminder has already
+		// moved past this fire: one that cannot open must not cost the text.
+		try {
+			return await openAsset(keys, asset.id, asset.body);
+		} catch (error) {
+			console.warn("Could not open a reminder's preview.", error);
+			return undefined;
+		}
+	};
 
 	const dueRows = async (profileId: string, now: number) =>
 		db.reminders
@@ -142,6 +192,7 @@ export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 					deps.notify(
 						`${REMINDER_NOTICE}${row.id}`,
 						await reminderText(keys, row),
+						await previewOf(keys, row),
 					),
 			);
 		if (collapsed.size > 0) {
@@ -180,15 +231,8 @@ export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 			const row = await db.reminders.get(
 				notificationId.slice(REMINDER_NOTICE.length),
 			);
-			if (!keys || !row || row.profileId !== keys.profileId) {
-				return null;
-			}
-			const link = await db.links
-				.where("[profileId+fromId]")
-				.equals([keys.profileId, row.id])
-				.first();
-			const save = link ? await db.saves.get(link.toId) : undefined;
-			return save ? (await openSave(keys, save)).url : null;
+			const save = row ? await attachedSave(keys, row) : undefined;
+			return keys && save ? (await openSave(keys, save)).url : null;
 		},
 	};
 };

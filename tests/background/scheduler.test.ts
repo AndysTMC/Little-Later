@@ -19,6 +19,8 @@ import {
 	rearmAfterCommands,
 	type ReminderScheduler,
 } from "../../src/background/scheduler";
+import { importProfileKeys } from "../../src/storage/keys";
+import { putPreview } from "../../src/storage/repositories";
 import { openLittleDB, type LittleDB } from "../../src/storage/schema";
 import {
 	createMemorySessionStore,
@@ -37,6 +39,7 @@ let queue: SerialQueue;
 let scheduler: ReminderScheduler;
 let alarm: number | null | undefined;
 let notices: Array<{ id: string; message: string }>;
+let images: Map<string, Array<number>>;
 let failNotice: ((id: string) => boolean) | null;
 
 const run = async <T>(name: string, input: unknown): Promise<T> => {
@@ -59,6 +62,7 @@ beforeEach(async () => {
 	zone = "UTC";
 	alarm = undefined;
 	notices = [];
+	images = new Map();
 	failNotice = null;
 	queue = createSerialQueue();
 	dispatch = createDispatcher(
@@ -80,9 +84,10 @@ beforeEach(async () => {
 		setAlarm: async (when) => {
 			alarm = when;
 		},
-		notify: async (id, message) => {
+		notify: async (id, message, image) => {
 			if (failNotice?.(id)) throw new Error("Notification refused.");
 			notices.push({ id, message });
+			if (image) images.set(id, [...image]);
 		},
 	});
 	await run("profile.create", { name: "Ada", password: null });
@@ -364,6 +369,104 @@ describe("reminder scheduler", () => {
 		expect(await scheduler.noticeTarget("taskReminder1::x")).toBeNull();
 		await run("profile.lock", {});
 		expect(await scheduler.noticeTarget(notice)).toBeNull();
+	});
+
+	// 2.1.1 showed the page's preview on a reminder for a saved page. The
+	// preview is sealed, so it shows only while its profile is unlocked.
+	it("shows the attached page's preview while its profile is unlocked", async () => {
+		const { id: saveId } = await run<{ id: string }>("save.capture", {
+			url: "https://example.com/read",
+			title: "Read me",
+			saved: true,
+		});
+		const keys = await importProfileKeys((await session.get())!);
+		await putPreview(
+			db,
+			keys,
+			saveId,
+			new Uint8Array([0xff, 0xd8, 7]),
+			clock,
+		);
+		const { id } = await remind("Read it", START + 10 * MINUTE, { saveId });
+		const { id: locked } = await remind("Read later", START + 20 * MINUTE, {
+			saveId,
+		});
+		clock = START + 10 * MINUTE;
+		await scheduler.run();
+		expect(images.get(`little/reminder::${id}`)).toEqual([0xff, 0xd8, 7]);
+
+		await run("profile.lock", {});
+		clock = START + 20 * MINUTE;
+		await scheduler.run();
+		expect(messages()).toEqual(["Read it", LOCKED_REMINDER_TEXT]);
+		expect(images.has(`little/reminder::${locked}`)).toBe(false);
+	});
+
+	// A task's reminder may also be about a saved page; links come back in
+	// id order, so put the task's first.
+	it("finds the attached page among a reminder's other links", async () => {
+		const { id: saveId } = await run<{ id: string }>("save.capture", {
+			url: "https://example.com/read",
+			title: "Read me",
+			saved: true,
+		});
+		const keys = await importProfileKeys((await session.get())!);
+		await putPreview(
+			db,
+			keys,
+			saveId,
+			new Uint8Array([0xff, 0xd8, 7]),
+			clock,
+		);
+		await run("task.create", {
+			information: "Read it",
+			schedule: { kind: "due", at: START + 10 * MINUTE },
+			reminder: "normal",
+		});
+		const [reminder] = await db.reminders.toArray();
+		await run("link.create", { fromId: reminder.id, toId: saveId });
+		const links = await db.links
+			.filter((link) => link.fromId === reminder.id)
+			.toArray();
+		await db.links.bulkDelete(links.map(({ id }) => id));
+		await db.links.bulkAdd(
+			links.map((link) => ({
+				...link,
+				id: link.toId === saveId ? "f-save" : "0-task",
+			})),
+		);
+		clock = START + 10 * MINUTE;
+		await scheduler.run();
+		const notice = `little/reminder::${reminder.id}`;
+		expect(images.get(notice)).toEqual([0xff, 0xd8, 7]);
+		expect(await scheduler.noticeTarget(notice)).toBe(
+			"https://example.com/read",
+		);
+	});
+
+	// The preview only adds to a notice; the reminder has already moved
+	// past this fire, so a lost notice is lost for good.
+	it("shows a reminder without its preview when the preview cannot open", async () => {
+		const { id: saveId } = await run<{ id: string }>("save.capture", {
+			url: "https://example.com/read",
+			title: "Read me",
+			saved: true,
+		});
+		const keys = await importProfileKeys((await session.get())!);
+		await putPreview(
+			db,
+			keys,
+			saveId,
+			new Uint8Array([0xff, 0xd8, 7]),
+			clock,
+		);
+		const [asset] = await db.assets.toArray();
+		await db.assets.update(asset.id, { body: new Uint8Array(40) });
+		const { id } = await remind("Read it", START + 10 * MINUTE, { saveId });
+		clock = START + 10 * MINUTE;
+		await scheduler.run();
+		expect(messages()).toEqual(["Read it"]);
+		expect(images.has(`little/reminder::${id}`)).toBe(false);
 	});
 
 	it("runs in the command queue, never between a command's steps", async () => {
