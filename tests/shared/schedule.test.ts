@@ -158,6 +158,38 @@ describe("monthly and yearly rules", () => {
 		]);
 	});
 
+	// The search used to start at elapsed days / 28 months, which runs
+	// ahead of the calendar by about a month every year, so a rule a few
+	// years old skipped straight past its next occurrence.
+	it("finds the next occurrence of a monthly rule years after its anchor", () => {
+		const r = rule({
+			freq: "monthly",
+			byMonthDay: 31,
+			anchor: "2020-01-31",
+		});
+		expect(series(r, at(`2026-10-15T00:00[${NY}]`), NY, 3)).toEqual([
+			"2026-10-31T09:00",
+			"2026-11-30T09:00",
+			"2026-12-31T09:00",
+		]);
+		expect(
+			countOccurrences(
+				r,
+				at(`2026-10-15T00:00[${NY}]`),
+				at(`2026-12-31T12:00[${NY}]`),
+				NY,
+			),
+		).toBe(3);
+	});
+
+	// Years of 365 days drift the same way, only far more slowly.
+	it("finds the next occurrence of a yearly rule millennia after its anchor", () => {
+		const r = rule({ freq: "yearly", anchor: "2024-03-01" });
+		expect(series(r, at(`9026-02-01T00:00[${NY}]`), NY, 1)).toEqual([
+			"9026-03-01T09:00",
+		]);
+	});
+
 	it("moves Feb 29 to Feb 28 in non-leap years", () => {
 		const r = rule({ freq: "yearly", anchor: "2028-02-29" });
 		expect(series(r, at(`2028-01-01T00:00[${NY}]`), NY, 3)).toEqual([

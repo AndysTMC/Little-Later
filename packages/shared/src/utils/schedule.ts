@@ -182,18 +182,25 @@ const datesOfPeriod = (
 	);
 };
 
-// Rough number of periods between two dates, used only to start the search
-// near the answer instead of at the anchor.
+const PERIOD_UNIT = {
+	daily: "days",
+	weekly: "weeks",
+	monthly: "months",
+	yearly: "years",
+} as const;
+
+// The periods between two dates, counted in calendar units, less a margin,
+// so the search starts just before the answer instead of at the anchor.
+// Counting months as 28 days ran ahead of the calendar and started the
+// search past the next occurrence once a rule was a few years old.
 const periodsBetween = (
 	rule: RecurrenceRule,
 	from: Temporal.PlainDate,
 	to: Temporal.PlainDate,
 ): number => {
-	const days = from.until(to, { largestUnit: "days" }).days;
-	const periodDays = { daily: 1, weekly: 7, monthly: 28, yearly: 365 }[
-		rule.freq
-	];
-	return Math.max(0, Math.floor(days / (periodDays * rule.interval)) - 2);
+	const unit = PERIOD_UNIT[rule.freq];
+	const elapsed = from.until(to, { largestUnit: unit })[unit];
+	return Math.max(0, Math.floor(elapsed / rule.interval) - 2);
 };
 
 export const resolveZone = (rule: RecurrenceRule, deviceZone: string) =>
