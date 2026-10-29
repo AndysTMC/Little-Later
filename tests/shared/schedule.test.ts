@@ -288,6 +288,18 @@ describe("escalation", () => {
 		}
 		expect(fires).toEqual(["10:00", "11:00", "11:30", "12:00"]);
 	});
+
+	// A backup may set stopBefore to 0, so the gap halves down to 1 ms.
+	it("always moves forward and reaches the target with stopBefore 0", () => {
+		const noStop = { escalate: true as const, stopBefore: 0 };
+		let last = target - 5;
+		const fires: Array<number> = [];
+		while (last < target) {
+			last = nextEscalationFire(last, target, noStop);
+			fires.push(target - last);
+		}
+		expect(fires).toEqual([3, 2, 1, 0]);
+	});
 });
 
 describe("parseRule", () => {
@@ -305,6 +317,9 @@ describe("parseRule", () => {
 		[{ freq: "monthly", byMonthDay: 0 }, /byMonthDay/],
 		[{ byMonthDay: 3 }, /byMonthDay/],
 		[{ freq: "monthly", byMonth: 2 }, /byMonth/],
+		// 2026-01-01 is a Thursday; every 7 or 14 days stays on Thursday.
+		[{ interval: 7, byWeekday: [5] }, /never/],
+		[{ interval: 14, byWeekday: [1, 3] }, /never/],
 	])("refuses %j", (overrides, message) => {
 		expect(() =>
 			parseRule({
