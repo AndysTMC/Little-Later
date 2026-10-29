@@ -28,6 +28,26 @@
 - Run the targeted test, and `python3 scripts/lint_knowledge.py --strict` if docs changed, before calling the task done.
 - Branch from `dev` and open pull requests into `dev`; see CONTRIBUTING.md.
 
+## Fixing bugs
+
+- State the root cause in a sentence or two before changing code. If you cannot, keep investigating.
+- Reproduce it first, ideally as a failing test. If that is not feasible, say why and what evidence you rely on.
+- Fix it at the layer where it originates (the shared helper, the type), not at each call site, and fix every path with the same cause.
+- Do not match the reported input, hardcode values, add try/catch, null checks or fallbacks that hide the symptom, or edit a test to pass unless the test is wrong (say so).
+- Generalize only as far as the cause reaches. No speculative abstractions or unrelated refactors.
+- Before tightening validation, check whether stored data would break, and say what migration it needs.
+- If the right fix changes a public interface or needs a redesign, stop and explain the cause, the fix, what it touches and any smaller interim option.
+- The pull request states the root cause, where it was fixed, the other cases covered, and how it was verified.
+
+## Commits and pull requests
+
+- Commit as the human contributor, with their own `user.name` and `user.email`. Never author a commit as an AI tool or bot account.
+- No `Co-Authored-By`, session or tool trailers for AI tools. A squash merge copies every branch commit's author into the merged commit, so one tool-authored commit adds the tool to the contributor list.
+- Name branches after the work (`fix/…`, `feat/…`, `docs/…`), never after a tool.
+- Do not rewrite pushed history on `main`, `dev` or another person's branch.
+- A pull request body may end with one plain line naming the tool, such as `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. Never link a chat, session or conversation.
+- Write commits, pull requests, decisions, docs and the changelog as the project's engineering record. Do not quote chats, describe the prompts behind a change, or name the AI that reviewed it.
+
 ## Stack notes
 
 - Bun workspace: root = Chrome extension; `packages/shared` = types, enums, constants, crypto/date helpers.
