@@ -474,6 +474,8 @@ export const taskDelete = defineCommand({
 	},
 });
 
+const DAY = 86_400_000;
+
 // Moves each open recurring task, with its reminder, to its occurrence's
 // civil date and time in the device's current zone (0011): a floating
 // 09:00 is 09:00 wherever the device is. A rule with its own zone resolves
@@ -494,34 +496,55 @@ export const followDeviceZone = async (
 			continue;
 		}
 		const { rule } = task.schedule;
-		const dueAt = toInstant(
-			Temporal.PlainDate.from(task.occursOn),
-			rule.time,
-			resolveZone(rule, zone),
-		);
-		if (dueAt === task.dueAt) {
-			continue;
-		}
+		const occursOn = Temporal.PlainDate.from(task.occursOn);
+		const dueAt = toInstant(occursOn, rule.time, resolveZone(rule, zone));
 		await db.transaction("rw", cascadeTables(db), async () => {
 			const reminder = await findTaskReminder(
 				db,
 				task.profileId,
 				task.id,
 			);
-			await db.tasks.update(task.id, { dueAt });
+			if (dueAt !== task.dueAt) {
+				await db.tasks.update(task.id, { dueAt });
+			}
 			if (
 				reminder &&
 				reminder.target !== task.dueAt &&
 				reminder.nextFireAt !== 0
 			) {
 				// Already moved on to a later occurrence, after reminding of
-				// the open one: the next occurrence in the new zone.
-				const target = nextOccurrence(rule, now, zone);
-				await db.reminders.update(reminder.id, {
-					target,
-					nextFireAt: nextFireAfter(target, reminder.escalation, now),
+				// the open one. Its offset can change when the open one's does
+				// not, so re-resolve its date too. Both times came from one
+				// zone, whose offset differs between them by a daylight saving
+				// shift, never half a day: the whole days between them are its
+				// date's distance from the open one's.
+				const later = occursOn.add({
+					days: Math.round((reminder.target - task.dueAt) / DAY),
 				});
-			} else if (reminder && reminder.target === task.dueAt) {
+				const target = toInstant(
+					later,
+					rule.time,
+					resolveZone(rule, zone),
+				);
+				if (target !== reminder.target) {
+					await db.reminders.update(reminder.id, {
+						target,
+						// One whose new time has passed fires now.
+						nextFireAt:
+							target <= now
+								? now
+								: nextFireAfter(
+										target,
+										reminder.escalation,
+										now,
+									),
+					});
+				}
+			} else if (
+				reminder &&
+				reminder.target === task.dueAt &&
+				dueAt !== task.dueAt
+			) {
 				await db.reminders.update(reminder.id, {
 					target: dueAt,
 					// One that already fired its last stays quiet; one whose

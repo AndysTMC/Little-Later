@@ -176,6 +176,35 @@ describe("re-arming after commands", () => {
 		);
 	});
 
+	// New York and Lima share an offset on 7 March 2026, not on the 8th,
+	// when New York starts daylight saving time.
+	it("moves a reminder on a later occurrence when only that occurrence's offset changes", async () => {
+		zone = "America/New_York";
+		await run("task.create", {
+			information: "Stand-up",
+			schedule: {
+				kind: "recurring",
+				rule: {
+					freq: "daily",
+					interval: 1,
+					time: "09:00",
+					anchor: "2026-03-01",
+					zone: "floating",
+				},
+			},
+			reminder: "normal",
+		});
+		clock = Date.UTC(2026, 2, 7, 14);
+		expect(await scheduler.run()).toEqual({
+			fired: 1,
+			nextAlarm: Date.UTC(2026, 2, 8, 13),
+		});
+		zone = "America/Lima";
+		expect((await scheduler.run()).nextAlarm).toBe(
+			Date.UTC(2026, 2, 8, 14),
+		);
+	});
+
 	it("still reminds once for a one-off task", async () => {
 		await run("task.create", {
 			information: "File taxes",
