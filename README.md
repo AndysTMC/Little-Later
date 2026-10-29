@@ -85,7 +85,7 @@ Every release is built by GitHub Actions from a tag on `main` and ships SHA256 c
 gh attestation verify Little-Later-<version>.zip --repo AndysTMC/Little-Later
 ```
 
-How releases are cut is in [CONTRIBUTING.md](./CONTRIBUTING.md#releases).
+Official builds come only from this repository's releases and, once listed, the maintainer's Chrome Web Store listing. How releases are cut is in [CONTRIBUTING.md](./CONTRIBUTING.md#releases).
 
 ## Contributing and support
 
@@ -96,7 +96,7 @@ How releases are cut is in [CONTRIBUTING.md](./CONTRIBUTING.md#releases).
 
 ## License
 
-MIT, see [LICENSE.md](./LICENSE.md). Every build includes `THIRD_PARTY_NOTICES.txt` with the license of each bundled package; the Rubik font is under the SIL Open Font License ([public/fonts/OFL.txt](./public/fonts/OFL.txt)).
+MIT, see [LICENSE.md](./LICENSE.md). The license covers the code, not the name or logo: a version you publish yourself needs its own name and icons ([TRADEMARKS.md](./TRADEMARKS.md)). Every build includes `THIRD_PARTY_NOTICES.txt` with the license of each bundled package; the Rubik font is under the SIL Open Font License ([public/fonts/OFL.txt](./public/fonts/OFL.txt)).
 
 ## Acknowledgements
 
