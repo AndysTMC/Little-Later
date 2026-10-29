@@ -22,9 +22,15 @@ export type Staging = {
 	put: (bytes: Uint8Array<ArrayBuffer>) => Promise<string>;
 	// Worker side: returns the bytes and deletes the file.
 	take: (name: string) => Promise<Uint8Array<ArrayBuffer>>;
-	// Deletes every staged file, such as those a closed page left behind.
-	sweep: () => Promise<void>;
+	// Deletes files staged before `before` (epoch ms): those a closed or
+	// crashed page left behind. Newer files may belong to a command still
+	// on its way, which a sweep at worker start would otherwise race.
+	sweep: (before: number) => Promise<void>;
 };
+
+// Staged files older than this are leftovers. A page sends its command
+// right after staging, so this is far longer than any real wait.
+export const STAGED_FILE_MAX_AGE = 10 * 60_000;
 
 const assertName = (name: string) => {
 	if (!NAME.test(name)) {
@@ -32,24 +38,35 @@ const assertName = (name: string) => {
 	}
 };
 
-export const createMemoryStaging = (): Staging => {
-	const files = new Map<string, Uint8Array<ArrayBuffer>>();
+export const createMemoryStaging = (
+	now: () => number = () => Date.now(),
+): Staging => {
+	const files = new Map<
+		string,
+		{ bytes: Uint8Array<ArrayBuffer>; stagedAt: number }
+	>();
 	return {
 		put: async (bytes) => {
 			const name = crypto.randomUUID();
-			files.set(name, bytes.slice());
+			files.set(name, { bytes: bytes.slice(), stagedAt: now() });
 			return name;
 		},
 		take: async (name) => {
 			assertName(name);
-			const bytes = files.get(name);
-			if (!bytes) {
+			const file = files.get(name);
+			if (!file) {
 				throw new StagingError("The staged file is gone.");
 			}
 			files.delete(name);
-			return bytes;
+			return file.bytes;
 		},
-		sweep: async () => files.clear(),
+		sweep: async (before) => {
+			for (const [name, file] of files) {
+				if (file.stagedAt < before) {
+					files.delete(name);
+				}
+			}
+		},
 	};
 };
 
@@ -85,19 +102,29 @@ export const createOpfsStaging = (): Staging => {
 			await dir.removeEntry(name);
 			return bytes;
 		},
-		sweep: async () => {
-			const root = await navigator.storage.getDirectory();
-			await root
-				.removeEntry(STAGING_DIR, { recursive: true })
-				.catch((error: unknown) => {
-					// Nothing staged yet is not a failure.
-					if (
-						!(error instanceof DOMException) ||
-						error.name !== "NotFoundError"
-					) {
-						throw error;
-					}
-				});
+		sweep: async (before) => {
+			const dir = await directory();
+			for await (const entry of dir.values()) {
+				if (entry.kind !== "file") {
+					continue;
+				}
+				await (entry as FileSystemFileHandle)
+					.getFile()
+					.then((file) =>
+						file.lastModified < before
+							? dir.removeEntry(entry.name)
+							: undefined,
+					)
+					.catch((error: unknown) => {
+						// Its command took the file meanwhile.
+						if (
+							!(error instanceof DOMException) ||
+							error.name !== "NotFoundError"
+						) {
+							throw error;
+						}
+					});
+			}
 		},
 	};
 };

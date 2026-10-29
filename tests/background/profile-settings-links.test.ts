@@ -21,7 +21,11 @@ import {
 	createMemorySessionStore,
 	type SessionStore,
 } from "../../src/storage/session";
-import { createMemoryStaging, type Staging } from "../../src/storage/staging";
+import {
+	STAGED_FILE_MAX_AGE,
+	createMemoryStaging,
+	type Staging,
+} from "../../src/storage/staging";
 
 let db: LittleDB;
 let session: SessionStore;
@@ -138,6 +142,37 @@ describe("profile.setAvatar", () => {
 				type: "image/png",
 			}),
 		).toBe("rejected");
+	});
+});
+
+describe("leftover staged files", () => {
+	// A page that closes between staging a file and sending its command
+	// leaves the file behind (0012, Messaging). Unlocking sweeps it, but
+	// not a file a page staged moments ago for a command still on its way.
+	it("are swept at unlock, apart from fresh ones", async () => {
+		let clock = 0;
+		const files = createMemoryStaging(() => clock);
+		const send = createDispatcher(
+			commands,
+			createCommandContext(
+				db,
+				session,
+				() => clock,
+				() => "UTC",
+				files,
+			),
+		);
+		const old = await files.put(new Uint8Array([1]));
+		clock = STAGED_FILE_MAX_AGE + 1;
+		const fresh = await files.put(new Uint8Array([2]));
+		await send("profile.lock", {});
+		expect(
+			await send("profile.unlock", { profileId, password: null }),
+		).toMatchObject({ ok: true });
+		await expect(files.take(old)).rejects.toThrow(
+			"The staged file is gone.",
+		);
+		expect([...(await files.take(fresh))]).toEqual([2]);
 	});
 });
 

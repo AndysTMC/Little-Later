@@ -10,6 +10,7 @@ import {
 	type ProfileTheme,
 } from "../../storage/profiles";
 import { LMAX_NAME_LENGTH } from "little-shared/constants";
+import { STAGED_FILE_MAX_AGE } from "../../storage/staging";
 import {
 	CommandError,
 	asNullableString,
@@ -68,6 +69,8 @@ export const profileUnlock = defineCommand({
 			input.profileId,
 			input.password,
 		);
+		// Unlock is the other moment 0012 sweeps leftovers (Messaging).
+		await ctx.staging.sweep(ctx.now() - STAGED_FILE_MAX_AGE);
 		return null;
 	},
 });
