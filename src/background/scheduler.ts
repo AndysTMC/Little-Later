@@ -38,8 +38,8 @@ export type SchedulerRun = { fired: number; nextAlarm: number | null };
 // table, so no list of command names can fall behind them.
 export const rearmAfterCommands =
 	(dispatch: Dispatch, rearm: () => void): Dispatch =>
-	async (name, input) => {
-		const result = await dispatch(name, input);
+	async (name, input, options) => {
+		const result = await dispatch(name, input, options);
 		if (result.ok) {
 			rearm();
 		}
