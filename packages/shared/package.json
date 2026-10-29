@@ -26,18 +26,6 @@
 			"require": "./dist/index.js",
 			"default": "./dist/index.js"
 		},
-		"./utils/crypto": {
-			"types": "./dist/utils/crypto.d.ts",
-			"import": "./dist/utils/crypto.js",
-			"require": "./dist/utils/crypto.js",
-			"default": "./dist/utils/crypto.js"
-		},
-		"./utils/crypto.js": {
-			"types": "./dist/utils/crypto.d.ts",
-			"import": "./dist/utils/crypto.js",
-			"require": "./dist/utils/crypto.js",
-			"default": "./dist/utils/crypto.js"
-		},
 		"./utils/envelope": {
 			"types": "./dist/utils/envelope.d.ts",
 			"import": "./dist/utils/envelope.js",
@@ -49,18 +37,6 @@
 			"import": "./dist/utils/envelope.js",
 			"require": "./dist/utils/envelope.js",
 			"default": "./dist/utils/envelope.js"
-		},
-		"./utils/datetime": {
-			"types": "./dist/utils/datetime.d.ts",
-			"import": "./dist/utils/datetime.js",
-			"require": "./dist/utils/datetime.js",
-			"default": "./dist/utils/datetime.js"
-		},
-		"./utils/datetime.js": {
-			"types": "./dist/utils/datetime.d.ts",
-			"import": "./dist/utils/datetime.js",
-			"require": "./dist/utils/datetime.js",
-			"default": "./dist/utils/datetime.js"
 		},
 		"./utils/misc": {
 			"types": "./dist/utils/misc.d.ts",
@@ -74,18 +50,6 @@
 			"require": "./dist/utils/misc.js",
 			"default": "./dist/utils/misc.js"
 		},
-		"./utils/reminder": {
-			"types": "./dist/utils/reminder.d.ts",
-			"import": "./dist/utils/reminder.js",
-			"require": "./dist/utils/reminder.js",
-			"default": "./dist/utils/reminder.js"
-		},
-		"./utils/reminder.js": {
-			"types": "./dist/utils/reminder.d.ts",
-			"import": "./dist/utils/reminder.js",
-			"require": "./dist/utils/reminder.js",
-			"default": "./dist/utils/reminder.js"
-		},
 		"./utils/schedule": {
 			"types": "./dist/utils/schedule.d.ts",
 			"import": "./dist/utils/schedule.js",
@@ -97,18 +61,6 @@
 			"import": "./dist/utils/schedule.js",
 			"require": "./dist/utils/schedule.js",
 			"default": "./dist/utils/schedule.js"
-		},
-		"./utils/task": {
-			"types": "./dist/utils/task.d.ts",
-			"import": "./dist/utils/task.js",
-			"require": "./dist/utils/task.js",
-			"default": "./dist/utils/task.js"
-		},
-		"./utils/task.js": {
-			"types": "./dist/utils/task.d.ts",
-			"import": "./dist/utils/task.js",
-			"require": "./dist/utils/task.js",
-			"default": "./dist/utils/task.js"
 		},
 		"./constants": {
 			"types": "./dist/constants.d.ts",
@@ -156,7 +108,6 @@
 		"typescript": "^5.6.2"
 	},
 	"dependencies": {
-		"@formkit/tempo": "^1.1.0",
 		"@msgpack/msgpack": "^3.1.2"
 	},
 	"files": [
