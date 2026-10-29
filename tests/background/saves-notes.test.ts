@@ -204,6 +204,26 @@ describe("save.update and save.delete", () => {
 		expect(notes.map((n) => n.content)).toEqual(["standalone"]);
 	});
 
+	// A note can be attached to several pages (link.create). It is the
+	// deleted page's own note only when no other page still has it.
+	it("keeps a note that another page still has", async () => {
+		const a = await capture("https://a.test/", "A", true);
+		const b = await capture("https://b.test/", "B", true);
+		const shared = await run<{ id: string }>("note.create", {
+			content: "shared",
+			saveId: a.id,
+		});
+		await run("link.create", { fromId: shared.id, toId: b.id });
+		await run("note.create", { content: "only on A", saveId: a.id });
+
+		await run("save.delete", { id: a.id });
+		const notes = await listNotes(db, await keys());
+		expect(notes.map((n) => n.content)).toEqual(["shared"]);
+		expect(await db.links.toArray()).toMatchObject([
+			{ fromId: shared.id, toId: b.id },
+		]);
+	});
+
 	it("does not touch another profile's records", async () => {
 		const { id } = await capture("https://a.test/", "A", true);
 		await run("profile.create", { name: "Bo", password: null });
