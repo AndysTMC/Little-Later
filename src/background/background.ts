@@ -33,6 +33,7 @@ import { createAutoLock } from "./autoLock";
 import { createPageCapture } from "./capture";
 import { openLittleDB } from "../storage/schema";
 import { sessionStore } from "../storage/session";
+import { STAGED_FILE_MAX_AGE, staging } from "../storage/staging";
 
 const littleDB = openLittleDB();
 const writeQueue = createSerialQueue();
@@ -91,9 +92,13 @@ listenForCommands(async (name, input) => {
 // suspension. Fires what was missed and re-arms the alarm.
 runReminderScheduler();
 
-// An import still running when the worker starts was cut off (0012, Jobs).
-writeQueue(() => cleanUpImports(littleDB)).catch((error: unknown) => {
-	console.error("Couldn't clean up an interrupted import.", error);
+// An import still running when the worker starts was cut off (0012, Jobs),
+// and staged files a closed page left behind are swept (0012, Messaging).
+writeQueue(async () => {
+	await cleanUpImports(littleDB);
+	await staging.sweep(Date.now() - STAGED_FILE_MAX_AGE);
+}).catch((error: unknown) => {
+	console.error("Couldn't clean up after the last run.", error);
 });
 
 let keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
