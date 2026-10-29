@@ -50,8 +50,8 @@ const reminderScheduler = createReminderScheduler({
 			await chrome.alarms.create(REMINDER_ALARM, { when });
 		}
 	},
-	notify: (id, message) =>
-		createChromeNativeNotification({ id, message, priority: 1 }),
+	notify: (id, message, image) =>
+		createChromeNativeNotification({ id, message, priority: 1, image }),
 });
 
 const runReminderScheduler = () => {
