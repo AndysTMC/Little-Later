@@ -4,7 +4,7 @@ import { openReminder, openSave } from "../storage/repositories";
 import type { LittleDB, ReminderRow } from "../storage/schema";
 import type { SessionStore } from "../storage/session";
 import { nextFireAfter } from "./commands/reminders";
-import { followDeviceZone } from "./commands/tasks";
+import { followDeviceZone, nextTaskOccurrence } from "./commands/tasks";
 import type { Dispatch, SerialQueue } from "./commands/registry";
 
 // Fires reminders from their plain schedule (decisions 0010, 0011), for
@@ -103,14 +103,31 @@ export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 		}
 		// Advance first: a crash before the notices costs a notice, never a
 		// repeat of every notice at each later alarm.
-		await db.transaction("rw", db.reminders, async () => {
-			for (const row of due) {
-				await db.reminders.update(row.id, {
-					lastFiredAt: now,
-					nextFireAt: nextFireAfter(row.target, row.escalation, now),
-				});
-			}
-		});
+		await db.transaction(
+			"rw",
+			[db.reminders, db.links, db.tasks],
+			async () => {
+				for (const row of due) {
+					let target = row.target;
+					let nextFireAt = nextFireAfter(target, row.escalation, now);
+					if (nextFireAt === 0) {
+						target =
+							(await nextTaskOccurrence(
+								db,
+								row,
+								deps.zone(),
+								now,
+							)) ?? target;
+						nextFireAt = nextFireAfter(target, row.escalation, now);
+					}
+					await db.reminders.update(row.id, {
+						lastFiredAt: now,
+						target,
+						nextFireAt,
+					});
+				}
+			},
+		);
 		const nextAlarm = await nextFire(profileIds);
 		await deps.setAlarm(nextAlarm);
 

@@ -165,16 +165,22 @@ const planTaskReminder = async (
 	const now = ctx.now();
 	const id = existing?.id ?? crypto.randomUUID();
 	const escalation = wanted === "escalating" ? ESCALATION : null;
+	// At the task's deadline; for a recurring task whose open occurrence
+	// has passed, at the next one (0011: every occurrence fires).
+	const target =
+		task.schedule.kind === "recurring" && task.dueAt <= now
+			? nextOccurrence(task.schedule.rule, now, ctx.zone())
+			: task.dueAt;
 	const sealed =
 		information === undefined && existing
 			? { keyId: existing.keyId, body: existing.body }
 			: await sealBody<ReminderContent>(keys, "reminders", id, {
 					message: information ?? "",
 				});
-	// Same deadline and kind, still armed: keep its place in the schedule.
+	// Same time and kind, still armed: keep its place in the schedule.
 	const unchanged =
 		existing !== undefined &&
-		existing.target === task.dueAt &&
+		existing.target === target &&
 		(existing.escalation !== null) === (escalation !== null) &&
 		existing.nextFireAt !== 0;
 	return {
@@ -186,7 +192,7 @@ const planTaskReminder = async (
 			...sealed,
 			createdAt: existing?.createdAt ?? now,
 			updatedAt: now,
-			target: task.dueAt,
+			target,
 			escalation,
 			lastFiredAt: unchanged ? existing.lastFiredAt : 0,
 			nextFireAt:
@@ -194,7 +200,7 @@ const planTaskReminder = async (
 					? 0
 					: unchanged
 						? existing.nextFireAt
-						: nextFireAfter(task.dueAt, escalation, now),
+						: nextFireAfter(target, escalation, now),
 			privacy: existing?.privacy ?? "private",
 		},
 	};
@@ -503,7 +509,19 @@ export const followDeviceZone = async (
 				task.id,
 			);
 			await db.tasks.update(task.id, { dueAt });
-			if (reminder && reminder.target === task.dueAt) {
+			if (
+				reminder &&
+				reminder.target !== task.dueAt &&
+				reminder.nextFireAt !== 0
+			) {
+				// Already moved on to a later occurrence, after reminding of
+				// the open one: the next occurrence in the new zone.
+				const target = nextOccurrence(rule, now, zone);
+				await db.reminders.update(reminder.id, {
+					target,
+					nextFireAt: nextFireAfter(target, reminder.escalation, now),
+				});
+			} else if (reminder && reminder.target === task.dueAt) {
 				await db.reminders.update(reminder.id, {
 					target: dueAt,
 					// One that already fired its last stays quiet; one whose
@@ -522,4 +540,27 @@ export const followDeviceZone = async (
 			}
 		});
 	}
+};
+
+// The next time a task's reminder fires once it has fired at its target:
+// the following occurrence of its task's rule, while the task recurs and
+// is open, so it reminds at every occurrence (0011). null for any other
+// reminder, which is then done.
+export const nextTaskOccurrence = async (
+	db: LittleDB,
+	reminder: ReminderRow,
+	zone: string,
+	now: number,
+): Promise<number | null> => {
+	const links = await db.links
+		.where("[profileId+fromId]")
+		.equals([reminder.profileId, reminder.id])
+		.toArray();
+	for (const link of links) {
+		const task = await db.tasks.get(link.toId);
+		if (task?.schedule.kind === "recurring" && task.done === 0) {
+			return nextOccurrence(task.schedule.rule, now, zone);
+		}
+	}
+	return null;
 };
