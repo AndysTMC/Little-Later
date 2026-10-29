@@ -502,270 +502,75 @@ const createMockProviderServer = async (): Promise<MockProviderServer> => {
 	};
 };
 
+// Outside production, `send` runs the worker's commands in the page. The
+// clock and zone are fixed so the scenarios' April dates read the same
+// everywhere and stay in the future.
 const seedAIState = async (page: Page, providerBaseUrl: string) => {
+	await page.clock.setFixedTime(new Date("2026-04-01T00:00:00+05:30"));
 	await page.goto("/");
 	await page.evaluate(
 		async ({ providerBaseUrl }) => {
-			const toBlob = (base64: string, mimeType: string): Blob => {
-				const binary = atob(base64);
-				const bytes = new Uint8Array(binary.length);
-				for (let i = 0; i < binary.length; i++) {
-					bytes[i] = binary.charCodeAt(i);
-				}
-				return new Blob([bytes], { type: mimeType });
-			};
+			const { send } = await import("/src/utils/send.ts");
+			const { littleDB } = await import("/src/storage/pageDB.ts");
+			const { putPreview } = await import("/src/storage/repositories.ts");
+			const { importProfileKeys } = await import("/src/storage/keys.ts");
+			const { sessionStore } = await import("/src/storage/session.ts");
+			const at = (iso: string) => new Date(iso).getTime();
 
-			const ensureSchema = (db: IDBDatabase) => {
-				if (!db.objectStoreNames.contains("linkTbl")) {
-					const linkStore = db.createObjectStore("linkTbl", {
-						keyPath: "id",
-						autoIncrement: true,
-					});
-					linkStore.createIndex("reminderId", "reminderId", {
-						unique: false,
-					});
-					linkStore.createIndex("taskId", "taskId", {
-						unique: false,
-					});
-					linkStore.createIndex("vbmId", "vbmId", {
-						unique: false,
-					});
-					linkStore.createIndex("noteId", "noteId", {
-						unique: false,
-					});
-					linkStore.createIndex("[type+taskId]", ["type", "taskId"], {
-						unique: false,
-					});
-					linkStore.createIndex(
-						"[type+reminderId+taskId]",
-						["type", "reminderId", "taskId"],
-						{ unique: false },
-					);
-					linkStore.createIndex(
-						"[type+reminderId+vbmId]",
-						["type", "reminderId", "vbmId"],
-						{ unique: false },
-					);
-					linkStore.createIndex(
-						"[type+noteId+vbmId]",
-						["type", "noteId", "vbmId"],
-						{ unique: false },
-					);
-					linkStore.createIndex(
-						"[type+taskId+vbmId]",
-						["type", "taskId", "vbmId"],
-						{ unique: false },
-					);
-				}
-
-				if (!db.objectStoreNames.contains("noteTbl")) {
-					db.createObjectStore("noteTbl", {
-						keyPath: "id",
-						autoIncrement: true,
-					});
-				}
-
-				if (!db.objectStoreNames.contains("reminderTbl")) {
-					const reminderStore = db.createObjectStore("reminderTbl", {
-						keyPath: "id",
-						autoIncrement: true,
-					});
-					reminderStore.createIndex("type", "type", {
-						unique: false,
-					});
-				}
-
-				if (!db.objectStoreNames.contains("taskTbl")) {
-					const taskStore = db.createObjectStore("taskTbl", {
-						keyPath: "id",
-						autoIncrement: true,
-					});
-					taskStore.createIndex("information", "information", {
-						unique: false,
-					});
-					taskStore.createIndex("finishDate", "finishDate", {
-						unique: false,
-					});
-					taskStore.createIndex("label", "label", { unique: false });
-				}
-
-				if (!db.objectStoreNames.contains("userAvatarTbl")) {
-					db.createObjectStore("userAvatarTbl", {
-						keyPath: "userId",
-						autoIncrement: false,
-					});
-				}
-
-				if (!db.objectStoreNames.contains("userProfileTbl")) {
-					const userProfileStore = db.createObjectStore(
-						"userProfileTbl",
-						{
-							keyPath: "userId",
-							autoIncrement: true,
-						},
-					);
-					userProfileStore.createIndex("isCurrent", "isCurrent", {
-						unique: false,
-					});
-				}
-
-				if (!db.objectStoreNames.contains("userVaultTbl")) {
-					db.createObjectStore("userVaultTbl", {
-						keyPath: "userId",
-						autoIncrement: false,
-					});
-				}
-
-				if (!db.objectStoreNames.contains("vbmPreviewTbl")) {
-					db.createObjectStore("vbmPreviewTbl", {
-						keyPath: "vbmId",
-						autoIncrement: false,
-					});
-				}
-
-				if (!db.objectStoreNames.contains("visualBMTbl")) {
-					const visualStore = db.createObjectStore("visualBMTbl", {
-						keyPath: "id",
-						autoIncrement: true,
-					});
-					visualStore.createIndex("hasBrowsed", "hasBrowsed", {
-						unique: false,
-					});
-					visualStore.createIndex("isSaved", "isSaved", {
-						unique: false,
-					});
-					visualStore.createIndex("url", "url", { unique: true });
-					visualStore.createIndex(
-						"lastBrowseDate",
-						"lastBrowseDate",
-						{
-							unique: false,
-						},
-					);
-				}
-			};
-
-			const db = await new Promise<IDBDatabase>((resolve, reject) => {
-				const request = indexedDB.open("LLDB", 1);
-				request.onupgradeneeded = () => {
-					ensureSchema(request.result);
-				};
-				request.onerror = () => {
-					reject(request.error ?? new Error("Could not open LLDB"));
-				};
-				request.onsuccess = () => {
-					resolve(request.result);
-				};
-			});
-
-			const seedStoreNames = [
-				"linkTbl",
-				"noteTbl",
-				"reminderTbl",
-				"taskTbl",
-				"userProfileTbl",
-				"vbmPreviewTbl",
-				"visualBMTbl",
-			].filter((storeName) => db.objectStoreNames.contains(storeName));
-
-			const transaction = db.transaction(seedStoreNames, "readwrite");
-			for (const storeName of seedStoreNames) {
-				transaction.objectStore(storeName).clear();
-			}
-
-			transaction.objectStore("userProfileTbl").put({
-				userId: 1,
+			await send("profile.create", {
 				name: "Playwright User",
-				theme: "little-dark",
-				isCurrent: 1,
+				password: null,
 			});
-
-			transaction.objectStore("noteTbl").put({
-				id: 1,
+			await send("profile.update", { theme: "dark" });
+			await send("settings.update", {
+				ai: {
+					provider: "Custom",
+					baseUrl: `${providerBaseUrl}/v1`,
+					apiKey: "",
+					model: "mock-model",
+				},
+			});
+			await send("note.create", {
 				content:
 					"Project Phoenix sprint goals\n- Ship onboarding fixes\n- Review analytics",
-				lastModificationDate: "2026-04-05T09:10:00+05:30",
 			});
-
-			transaction.objectStore("reminderTbl").put({
-				id: 1,
+			await send("reminder.create", {
 				message: "Standup with product and design",
-				type: "normal",
-				targetDate: "2026-04-05T18:00:00+05:30",
-				lastNotificationDate: "2026-04-05T08:00:00+05:30",
+				target: at("2026-04-05T18:00:00+05:30"),
 			});
-
-			transaction.objectStore("taskTbl").put({
-				id: 1,
+			await send("task.create", {
 				information: "Ship AI reliability fixes",
 				label: "Work",
 				priority: "high",
-				finishDate: null,
-				schedule: {
-					type: "due",
-					deadlineInfo: {
-						deadlineDate: "2026-04-06T11:00:00+05:30",
-					},
-					recurringInfo: null,
-				},
+				schedule: { kind: "due", at: at("2026-04-06T11:00:00+05:30") },
+				reminder: null,
 			});
-
-			transaction.objectStore("visualBMTbl").put({
-				id: 47,
-				customName:
-					"JioHotstar - Watch TV Shows, Movies, Specials, Live Cricket & Football",
-				title: "JioHotstar - Watch TV Shows, Movies, Specials, Live Cricket & Football",
+			const { id: saveId } = await send("save.capture", {
 				url: "https://www.hotstar.com/in/home",
-				hasBrowsed: 1,
-				isSaved: 1,
-				lastBrowseDate: "2026-04-05T00:58:25+05:30",
+				title: "JioHotstar - Watch TV Shows, Movies, Specials, Live Cricket & Football",
+				saved: true,
 			});
-
-			transaction.objectStore("vbmPreviewTbl").put({
-				vbmId: 47,
-				blob: toBlob(
+			const png = Uint8Array.from(
+				atob(
 					"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5n2xkAAAAASUVORK5CYII=",
-					"image/png",
 				),
-			});
-
-			await new Promise<void>((resolve, reject) => {
-				transaction.oncomplete = () => resolve();
-				transaction.onerror = () => {
-					reject(
-						transaction.error ??
-							new Error("Could not seed LLDB data"),
-					);
-				};
-				transaction.onabort = () => {
-					reject(new Error("LLDB seed transaction aborted"));
-				};
-			});
-
-			db.close();
-
+				(char) => char.charCodeAt(0),
+			);
+			const session = await sessionStore.get();
+			await putPreview(
+				littleDB,
+				await importProfileKeys(session!),
+				saveId,
+				png,
+				Date.now(),
+			);
 			localStorage.setItem(
 				"userSettings",
 				JSON.stringify({
-					ai: {
-						provider: "Custom",
-						baseUrl: `${providerBaseUrl}/v1`,
-						apiKey: "",
-						model: "mock-model",
-					},
-					guide: {
-						isFirstTimeUser: false,
-					},
-					misc: {
-						VBMLimit: 1000,
-						VBMSameOriginLimit: 1,
-					},
+					guide: { isFirstTimeUser: false },
 				}),
 			);
 			localStorage.setItem("toasts", "[]");
-			// Settings belong to the profile stamped as active (decision
-			// 0005); without the stamp the app resets them at start.
-			localStorage.setItem("activeUserId", "1");
 		},
 		{ providerBaseUrl },
 	);
@@ -784,6 +589,8 @@ const askAI = async (
 	await input.press("Enter");
 	await expect(page.getByText(expectedText)).toBeVisible();
 };
+
+test.use({ timezoneId: "Asia/Kolkata" });
 
 test.describe("AI Assist Playwright scenarios", () => {
 	let mockProvider: MockProviderServer;

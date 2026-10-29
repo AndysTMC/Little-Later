@@ -4,14 +4,6 @@ import path from "node:path";
 
 const SCREEN_DIR = path.resolve("artifacts/screenshots");
 
-const toLittleDate = (date: Date): string => {
-	const pad = (value: number) => String(value).padStart(2, "0");
-	const offsetMinutes = -date.getTimezoneOffset();
-	const sign = offsetMinutes >= 0 ? "+" : "-";
-	const absolute = Math.abs(offsetMinutes);
-	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}${sign}${pad(Math.floor(absolute / 60))}:${pad(absolute % 60)}`;
-};
-
 const capture = async (page: Page, name: string, waitFor?: Locator) => {
 	if (waitFor) {
 		await waitFor.waitFor({ state: "visible", timeout: 8000 });
@@ -22,133 +14,110 @@ const capture = async (page: Page, name: string, waitFor?: Locator) => {
 	});
 };
 
+// Outside production, `send` runs the worker's commands in the page.
 const seedProfiles = async (page: Page) => {
 	return await page.evaluate(async () => {
-		const { createUser, unlockUser } =
-			await import("/src/services/user.ts");
-		const averyId = await createUser("Avery", null);
-		await createUser("Blake", null);
-		await unlockUser(averyId);
+		const { send } = await import("/src/utils/send.ts");
+		const { profileId: averyId } = await send("profile.create", {
+			name: "Avery",
+			password: null,
+		});
+		await send("profile.create", { name: "Blake", password: null });
+		await send("profile.unlock", { profileId: averyId, password: null });
 		return { averyId };
 	});
 };
 
 const seedRecords = async (page: Page) => {
-	const now = new Date();
-	const later = toLittleDate(new Date(now.getTime() + 24 * 60 * 60 * 1000));
-	const earlier = toLittleDate(new Date(now.getTime() - 24 * 60 * 60 * 1000));
-	const stamped = toLittleDate(now);
+	return await page.evaluate(async () => {
+		const { send } = await import("/src/utils/send.ts");
+		const DAY = 24 * 60 * 60 * 1000;
+		const later = Date.now() + DAY;
+		const earlier = Date.now() - DAY;
+		const today = Temporal.Now.plainDateISO().toString();
 
-	return await page.evaluate(
-		async ({ laterDate, earlierDate, nowDate }) => {
-			const { createNote } = await import("/src/services/note.ts");
-			const { createTask } = await import("/src/services/task.ts");
-			const { createReminder } =
-				await import("/src/services/reminder.ts");
-			const { updateVisualBM } =
-				await import("/src/services/visualBM.ts");
+		const { id: noteId } = await send("note.create", {
+			content:
+				"# Project notes\n\nShip the local-first vault polish.\n\n- [ ] Confirm export\n- [x] Fix focus chrome",
+		});
+		await send("note.create", {
+			content: "Quick scratch about the reminder copy.",
+		});
 
-			const noteId = await createNote({
-				content:
-					"# Project notes\n\nShip the local-first vault polish.\n\n- [ ] Confirm export\n- [x] Fix focus chrome",
-			});
-			await createNote({
-				content: "Quick scratch about the reminder copy.",
-			});
-
-			const taskId = await createTask({
-				information: "Review export password flow",
-				label: "Export review",
-				priority: "high",
-				finishDate: null,
-				schedule: {
-					type: "due",
-					deadlineInfo: { deadlineDate: laterDate },
-					recurringInfo: null,
+		const { id: taskId } = await send("task.create", {
+			information: "Review export password flow",
+			label: "Export review",
+			priority: "high",
+			schedule: { kind: "due", at: later },
+			reminder: null,
+		});
+		await send("task.create", {
+			information: "Inbox zero the captures",
+			label: "Triage",
+			priority: "low",
+			schedule: { kind: "anytime" },
+			reminder: null,
+		});
+		const { id: receiptsId } = await send("task.create", {
+			information: "File last week's receipts",
+			label: "Receipts",
+			priority: "medium",
+			schedule: { kind: "due", at: earlier },
+			reminder: null,
+		});
+		await send("task.complete", { id: receiptsId });
+		await send("task.create", {
+			information: "Renew the domain",
+			label: "Domain",
+			priority: "high",
+			schedule: { kind: "due", at: earlier },
+			reminder: null,
+		});
+		await send("task.create", {
+			information: "Write the weekly recap",
+			label: "Recap",
+			priority: "medium",
+			schedule: {
+				kind: "recurring",
+				rule: {
+					freq: "weekly",
+					interval: 1,
+					byWeekday: [1],
+					time: "09:00",
+					anchor: today,
+					zone: "floating",
 				},
-			});
-			await createTask({
-				information: "Inbox zero the captures",
-				label: "Triage",
-				priority: "low",
-				finishDate: null,
-				schedule: {
-					type: "ad-hoc",
-					deadlineInfo: null,
-					recurringInfo: null,
-				},
-			});
-			await createTask({
-				information: "File last week's receipts",
-				label: "Receipts",
-				priority: "medium",
-				finishDate: nowDate,
-				schedule: {
-					type: "due",
-					deadlineInfo: { deadlineDate: earlierDate },
-					recurringInfo: null,
-				},
-			});
-			await createTask({
-				information: "Renew the domain",
-				label: "Domain",
-				priority: "high",
-				finishDate: null,
-				schedule: {
-					type: "due",
-					deadlineInfo: { deadlineDate: earlierDate },
-					recurringInfo: null,
-				},
-			});
-			await createTask({
-				information: "Write the weekly recap",
-				label: "Recap",
-				priority: "medium",
-				finishDate: null,
-				schedule: {
-					type: "recurring",
-					deadlineInfo: null,
-					recurringInfo: {
-						type: "weekly",
-						time: "09:00:00+00:00",
-						weekDay: 1,
-						day: null,
-						month: null,
-					},
-				},
-			});
+			},
+			reminder: null,
+		});
 
-			const reminderId = await createReminder({
-				message: "Lock the profile before you leave",
-				type: "normal",
-				targetDate: laterDate,
-			});
-			await createReminder({
-				message: "Escalate if the backup is late",
-				type: "escalating",
-				targetDate: laterDate,
-			});
+		const { id: reminderId } = await send("reminder.create", {
+			message: "Lock the profile before you leave",
+			target: later,
+		});
+		await send("reminder.create", {
+			message: "Escalate if the backup is late",
+			target: later,
+			escalate: true,
+		});
 
-			const saveId = await updateVisualBM("https://example.com/later", {
-				title: "Little Later docs",
-				isSaved: 1,
-				hasBrowsed: 1,
-			});
-			await updateVisualBM("https://news.example.com/today", {
-				title: "Morning briefing",
-				isSaved: 0,
-				hasBrowsed: 1,
-			});
-			await updateVisualBM("https://notes.example.com/draft", {
-				title: "Draft notes",
-				isSaved: 1,
-				hasBrowsed: 1,
-			});
+		const { id: saveId } = await send("save.capture", {
+			url: "https://example.com/later",
+			title: "Little Later docs",
+			saved: true,
+		});
+		await send("save.capture", {
+			url: "https://news.example.com/today",
+			title: "Morning briefing",
+		});
+		await send("save.capture", {
+			url: "https://notes.example.com/draft",
+			title: "Draft notes",
+			saved: true,
+		});
 
-			return { noteId, taskId, reminderId, saveId };
-		},
-		{ laterDate: later, earlierDate: earlier, nowDate: stamped },
-	);
+		return { noteId, taskId, reminderId, saveId };
+	});
 };
 
 test("capture every popup screen and edge state", async ({ page }) => {
@@ -283,7 +252,7 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await capture(
 		page,
 		"36-export-importable",
-		page.getByText("lock password"),
+		page.getByText("Choose a password for this backup"),
 	);
 	await page.getByText("Importable").click();
 	await page.getByText("Readable", { exact: true }).click();
@@ -292,9 +261,12 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await capture(page, "38-profile", page.getByLabel("Name"));
 
 	await page.goto("/#/lock");
-	await capture(page, "39-lock", page.getByRole("button", { name: "Go" }));
-	await page.getByLabel("Password").click();
-	await capture(page, "40-lock-password-focused");
+	await capture(page, "39-lock", page.getByRole("button", { name: "Lock" }));
+	await capture(
+		page,
+		"40-lock-no-password",
+		page.getByText("not encrypted at rest"),
+	);
 	await page.getByRole("button", { name: "Delete" }).click();
 	await capture(
 		page,
@@ -325,7 +297,7 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await capture(
 		page,
 		"48-lock-dark",
-		page.getByRole("button", { name: "Go" }),
+		page.getByRole("button", { name: "Lock" }),
 	);
 	await page.goto("/#/ai");
 	await capture(page, "49-ai-dark", page.getByText("Try one of these"));

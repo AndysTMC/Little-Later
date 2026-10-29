@@ -1,7 +1,8 @@
+// @vitest-environment node
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { resetLLDB } from "../../src/utils/db";
 import { toolRegistry } from "../../src/services/ai/toolRegistry";
+import { freshProfile } from "./profile";
 
 const aiContext = {
 	ai: {
@@ -11,7 +12,7 @@ const aiContext = {
 
 describe("ai tool resilience", { concurrent: false }, () => {
 	beforeEach(async () => {
-		await resetLLDB();
+		await freshProfile();
 	});
 
 	it("normalizes malformed payloads without throwing", () => {

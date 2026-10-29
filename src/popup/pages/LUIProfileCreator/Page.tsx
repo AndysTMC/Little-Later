@@ -15,7 +15,7 @@ import { LUICUButton } from "../../components/LUICUButton/Component";
 import { LUIIconField } from "../../components/LUIIconField/Component";
 import { send } from "../../../utils/send";
 import { sendAvatar } from "../../../utils/avatar";
-import { getUserSettings } from "../../../services/settings";
+import { isFirstTimeUser } from "../../../services/settings";
 import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import { NO_PASSWORD_NOTE, passwordProblem } from "../../passwords";
 import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
@@ -61,8 +61,7 @@ const Page = () => {
 			if (avatar) {
 				await sendAvatar(avatar);
 			}
-			const { guide } = await getUserSettings();
-			navigate(guide.isFirstTimeUser ? "/getting-started" : "/home", {
+			navigate((await isFirstTimeUser()) ? "/getting-started" : "/home", {
 				state: { entryTransition: entryTransitions.slideLeft },
 			});
 		} catch (error) {
