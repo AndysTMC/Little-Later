@@ -5,11 +5,13 @@ import { motion } from "framer-motion";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIVBMForm } from "../../components/LUIVBMForm/Component";
-import { useLinks } from "../../hooks/useLinks";
-import { useNotes } from "../../hooks/useNotes";
-import { useReminders } from "../../hooks/useReminders";
-import { useVisualBMs } from "../../hooks/useVisualBMs";
-import { useTasks } from "../../hooks/useTasks";
+import {
+	useLinks,
+	useNotes,
+	useReminders,
+	useSaves,
+	useTasks,
+} from "../../hooks/useRecords";
 import { useParams } from "react-router";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
@@ -22,15 +24,13 @@ const Page = () => {
 	});
 
 	const { id } = useParams();
-	const parsedId = Number.parseInt(id ?? "", 10);
 	const links = useLinks();
 	const notes = useNotes();
 	const reminders = useReminders();
-	const visualBMs = useVisualBMs();
-	const saves = visualBMs?.filter((x) => x.isSaved);
+	const pages = useSaves();
 	const tasks = useTasks();
-	const loading = useLoading([id, links, notes, reminders, saves, tasks]);
-	const save = saves?.find((item) => item.id === parsedId);
+	const loading = useLoading([id, links, notes, reminders, pages, tasks]);
+	const save = pages?.find((page) => page.saved && page.id === id);
 
 	return (
 		<motion.div
@@ -52,9 +52,8 @@ const Page = () => {
 							links={links!}
 							notes={notes!}
 							reminders={reminders!}
-							saves={saves!}
 							tasks={tasks!}
-							id={parsedId}
+							save={save}
 						/>
 					) : (
 						<LUIEmptyState title="Save not found." />

@@ -1,11 +1,5 @@
-import { getCurrentUserProfile } from "../../../services/user";
+import { readProfile, unlockedKeys } from "../records";
 
-const toolCall = async () => {
-	const currentUserProfile = await getCurrentUserProfile();
-	if (!currentUserProfile) {
-		throw new Error("Current user profile not found.");
-	}
-	return currentUserProfile.name;
-};
+const toolCall = async () => (await readProfile(await unlockedKeys())).name;
 
 export { toolCall as getUserNameToolCall };

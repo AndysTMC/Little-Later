@@ -4,9 +4,10 @@ import { useTheme } from "../../hooks/useTheme";
 import { LUIGroup } from "../LUIGroup/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
 import { LUITaskMini } from "../LUITaskMini/Component";
-import { LLink, LReminder, LTask, LVisualBM } from "little-shared/types";
+import type { Reminder, Save, Task } from "../../../storage/repositories";
+import type { LinkRow } from "../../../storage/schema";
 import { twMerge } from "tailwind-merge";
-import { isTaskFinished, isTaskActive } from "little-shared/utils/task";
+import { taskStatus } from "../../records";
 import { usePagination } from "../../hooks/usePagination";
 import { useEffect, useMemo, useState } from "react";
 
@@ -18,21 +19,27 @@ const Component = ({
 	tasks,
 }: {
 	className?: string;
-	links: Array<LLink>;
-	reminders: Array<LReminder>;
-	saves: Array<LVisualBM>;
-	tasks: Array<LTask>;
+	links: Array<LinkRow>;
+	reminders: Array<Reminder>;
+	saves: Array<Save>;
+	tasks: Array<Task>;
 }) => {
 	const { theme } = useTheme();
 
-	const finishedTasks = useMemo(() => tasks.filter(isTaskFinished), [tasks]);
-
-	const activeTasks = tasks.filter((task) => isTaskActive(task));
-
+	const finishedTasks = useMemo(
+		() =>
+			tasks
+				.filter((task) => task.done)
+				.sort((a, b) => b.finishedAt - a.finishedAt),
+		[tasks],
+	);
+	// Ticks so tasks move to Missed as their deadlines pass.
+	const [now, setNow] = useState(() => Date.now());
+	const activeTasks = tasks.filter(
+		(task) => taskStatus(task, now) === "active",
+	);
 	const missedTasks = tasks.filter(
-		(task) =>
-			!activeTasks.find((x) => x.id === task.id) &&
-			!finishedTasks.find((x) => x.id === task.id),
+		(task) => taskStatus(task, now) === "missed",
 	);
 
 	const { startIndex, endIndex, currentBatch, batchCount, onBatchChange } =
@@ -43,11 +50,9 @@ const Component = ({
 		[finishedTasks, startIndex, endIndex],
 	);
 
-	const [, setTrigger] = useState(0);
-
 	useEffect(() => {
 		const interval = setInterval(() => {
-			setTrigger((t) => t + 1);
+			setNow(Date.now());
 		}, 15000);
 
 		return () => clearInterval(interval);

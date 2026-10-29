@@ -13,7 +13,7 @@ const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
 					description: "The updated content of the note",
 				},
 				id: {
-					type: "number",
+					type: "string",
 					description: "The id of the note to be updated",
 				},
 			},

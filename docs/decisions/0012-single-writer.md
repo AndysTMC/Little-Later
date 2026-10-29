@@ -6,7 +6,7 @@ type: decision
 
 Status: accepted
 Date: 2026-10-28
-Deciders: AndysTMC (accepted 2026-10-28: "Got it, I accept it. Go ahead.")
+Deciders: AndysTMC
 Supersedes: —
 Superseded-by: —
 
@@ -123,7 +123,7 @@ Option B.
 
 ## Review
 
-An independent agent critiqued the first draft. Adopted:
+An independent review of the first draft led to these changes. Adopted:
 
 - No WebCrypto awaits inside transactions.
 - De-duplication by a unique index.
@@ -133,9 +133,9 @@ An independent agent critiqued the first draft. Adopted:
 - Stronger sender checks.
 - The `liveQuery` check moved into CI.
 
-A third review (AndysTMC, 2026-10-28) found two gaps. Adopted: staging files are encrypted before they reach OPFS, and jobs keep the worker alive with heartbeat and progress messages instead of an idle port, with a durable job record so a crashed import is cleaned up.
+A third review (2026-10-28) found two gaps. Adopted: staging files are encrypted before they reach OPFS, and jobs keep the worker alive with heartbeat and progress messages instead of an idle port, with a durable job record so a crashed import is cleaned up.
 
-A second review (AndysTMC, 2026-10-28) found more. Adopted:
+A second review (2026-10-28) found more. Adopted:
 
 - A command queue in the worker, so commands that read, encrypt and write do not lose each other's updates.
 - Upserts resolve the existing id before encrypting.

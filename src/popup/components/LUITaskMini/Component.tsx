@@ -1,10 +1,8 @@
-import { LLink, LReminder, LTask, LVisualBM } from "little-shared/types";
-import { LLINK_TYPE, LTHEME } from "little-shared/enums";
+import { LTHEME } from "little-shared/enums";
 import { useContext, useEffect, useState } from "react";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import { AnimatePresence, motion } from "framer-motion";
 import { twMerge } from "tailwind-merge";
-import { deleteTask, updateTask } from "../../../services/task";
 import { fakeWait, capitalize } from "little-shared/utils/misc";
 import { HomeContext } from "../../contexts/Home";
 import { useTheme } from "../../hooks/useTheme";
@@ -13,11 +11,11 @@ import { LVBMIcon, LReminderIcon } from "../LUIIcons";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LUIGroup } from "../LUIGroup/Component";
 import { LUILink } from "../LUILink/Component";
-import { LDateUtl } from "little-shared/utils/datetime";
-import {
-	getPrettyRecurringInfo,
-	isTaskFinished,
-} from "little-shared/utils/task";
+import type { Reminder, Save, Task } from "../../../storage/repositories";
+import type { LinkRow } from "../../../storage/schema";
+import { linkedFrom, linkedTo, reminderKind } from "../../records";
+import { prettyDate, prettyRule } from "../../../utils/dates";
+import { send } from "../../../utils/send";
 
 const Component = ({
 	className,
@@ -28,24 +26,20 @@ const Component = ({
 	disableNavs = false,
 }: {
 	className?: string;
-	links: Array<LLink>;
-	reminders: Array<LReminder>;
-	saves: Array<LVisualBM>;
-	task: LTask;
+	links: Array<LinkRow>;
+	reminders: Array<Reminder>;
+	saves: Array<Save>;
+	task: Task;
 	disableNavs?: boolean;
 }) => {
 	const { theme } = useTheme();
 	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
 		useContext(HomeContext);
-	const linkedSaves = links
-		.filter((x) => x.type === LLINK_TYPE.TASK_VBM)
-		.filter((x) => x.taskId === task.id)
-		.map((x) => saves.find((y) => y.id === x.vbmId))
-		.filter((x) => x !== undefined);
-	const linkedReminderId = links
-		.filter((y) => y.type === LLINK_TYPE.REMINDER_TASK)
-		.find((y) => y.taskId === task.id)?.reminderId;
-	const linkedReminder = reminders.find((x) => x.id === linkedReminderId);
+	const linkedSaves = linkedFrom(links, task.id, saves);
+	const [linkedReminder] = linkedTo(links, task.id, reminders);
+	const linkedReminderKind = linkedReminder
+		? reminderKind(linkedReminder)
+		: undefined;
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [isEditHovered, setIsEditHovered] = useState(false);
 	const [isVisible, setIsVisible] = useState(false);
@@ -55,7 +49,7 @@ const Component = ({
 	};
 
 	const handleDelete = async () => {
-		await deleteTask(task.id);
+		await send("task.delete", { id: task.id });
 	};
 
 	const handleEdit = () => {
@@ -76,8 +70,9 @@ const Component = ({
 	const handleMark = async () => {
 		setIsVisible(false);
 		await fakeWait({ waitPeriod: 200 });
-		await updateTask(task.id, {
-			finishDate: task.finishDate !== null ? null : LDateUtl.getNow(),
+		// A recurring task never stays done: completing moves it on.
+		await send(task.done ? "task.reopen" : "task.complete", {
+			id: task.id,
 		});
 	};
 
@@ -117,7 +112,7 @@ const Component = ({
 								<button
 									type="button"
 									aria-label={
-										isTaskFinished(task)
+										task.done
 											? "Mark task as unfinished"
 											: "Mark task as finished"
 									}
@@ -130,11 +125,7 @@ const Component = ({
 								>
 									<LUIThemedIcon
 										Icon={FlagIcon}
-										weight={
-											isTaskFinished(task)
-												? "fill"
-												: "regular"
-										}
+										weight={task.done ? "fill" : "regular"}
 										className={`size-5`}
 									/>
 								</button>
@@ -174,7 +165,7 @@ const Component = ({
 								>
 									{task.label}
 								</div>
-								{task.schedule.deadlineInfo ? (
+								{task.schedule.kind === "due" ? (
 									<div
 										className={`line-clamp-2 h-max w-max rounded-full border px-2 text-xs leading-snug font-medium text-pretty text-ellipsis ${
 											theme === LTHEME.DARK
@@ -193,15 +184,11 @@ const Component = ({
 										{"Due" +
 											(isExpanded
 												? " by " +
-													LDateUtl.getPrettyDate(
-														task.schedule
-															.deadlineInfo
-															.deadlineDate,
-													)
+													prettyDate(task.schedule.at)
 												: "")}
 									</div>
 								) : null}
-								{task.schedule.recurringInfo ? (
+								{task.schedule.kind === "recurring" ? (
 									<div
 										className={`line-clamp-2 h-max w-max rounded-full border px-2 text-xs leading-snug font-medium text-pretty text-ellipsis ${
 											theme === LTHEME.DARK
@@ -219,9 +206,7 @@ const Component = ({
 									>
 										{!isExpanded
 											? "Recurring"
-											: getPrettyRecurringInfo(
-													task.schedule.recurringInfo,
-												)}
+											: `${prettyRule(task.schedule.rule)}, next ${prettyDate(task.dueAt)}`}
 									</div>
 								) : null}
 							</div>
@@ -253,9 +238,9 @@ const Component = ({
 											className="size-4 transition-all"
 										/>
 									</div>
-									{linkedReminder ? (
+									{linkedReminderKind ? (
 										<div
-											className={`flex h-max w-max items-end justify-center gap-x-0.5 ${!linkedReminder ? "hidden" : ""} `}
+											className={`flex h-max w-max items-end justify-center gap-x-0.5`}
 										>
 											<LUIThemedIcon
 												Icon={LReminderIcon}
@@ -277,20 +262,20 @@ const Component = ({
 												{!isExpanded
 													? "(" +
 														capitalize(
-															linkedReminder.type,
+															linkedReminderKind,
 														).slice(0, 1) +
 														")"
 													: capitalize(
-															linkedReminder.type,
+															linkedReminderKind,
 														)}
 											</div>
 										</div>
 									) : null}
 								</div>
 							) : null}
-							{isExpanded && linkedReminder ? (
+							{isExpanded && linkedReminderKind ? (
 								<div
-									className={`flex h-max w-max items-end justify-center gap-x-0.5 ${!linkedReminder ? "hidden" : ""} mt-1`}
+									className={`mt-1 flex h-max w-max items-end justify-center gap-x-0.5`}
 								>
 									<LUIThemedIcon
 										Icon={LReminderIcon}
@@ -312,10 +297,10 @@ const Component = ({
 										{!isExpanded
 											? "(" +
 												capitalize(
-													linkedReminder.type,
+													linkedReminderKind,
 												).slice(0, 1) +
 												")"
-											: capitalize(linkedReminder.type)}
+											: capitalize(linkedReminderKind)}
 									</div>
 								</div>
 							) : null}
@@ -327,7 +312,7 @@ const Component = ({
 									{linkedSaves.map((save) => (
 										<LUILink
 											key={save.id}
-											content={save!.customName}
+											content={save.customName}
 											navigateTo={"/vbm/" + save.id}
 											hoverBackground={
 												theme === LTHEME.DARK
@@ -370,9 +355,7 @@ const Component = ({
 										<LUIThemedIcon
 											Icon={FlagIcon}
 											weight={
-												task.finishDate !== null
-													? "fill"
-													: "regular"
+												task.done ? "fill" : "regular"
 											}
 											color={
 												theme === LTHEME.DARK

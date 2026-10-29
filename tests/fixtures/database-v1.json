@@ -1,0 +1,262 @@
+{
+	"name": "little",
+	"version": 1,
+	"password": "fixture-password",
+	"stores": {
+		"profiles": "id",
+		"avatars": "profileId",
+		"saves": "id, &[profileId+urlKey], [profileId+originKey], [profileId+saved+browsedAt], [profileId+browsed+browsedAt], [profileId+keyId]",
+		"notes": "id, [profileId+updatedAt], [profileId+keyId]",
+		"tasks": "id, [profileId+done+dueAt], [profileId+keyId]",
+		"reminders": "id, [profileId+nextFireAt], [profileId+keyId]",
+		"links": "id, [profileId+fromId], [profileId+toId]",
+		"assets": "id, [profileId+ownerId], [profileId+keyId]",
+		"settings": "id, [profileId+keyId]",
+		"jobs": "id"
+	},
+	"tables": {
+		"profiles": [
+			{
+				"id": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"name": "Fixture",
+				"createdAt": 1793188800000,
+				"protection": "password",
+				"keys": [
+					{
+						"keyId": 1,
+						"wrapped": {
+							"keyId": 1,
+							"kdf": {
+								"name": "PBKDF2-SHA-256",
+								"iterations": 1000,
+								"salt": {
+									"$bytes": "SFecHSPHk44NDf5UPCNMrw=="
+								}
+							},
+							"iv": {
+								"$bytes": "uG/mEtHyNulctgTW"
+							},
+							"ciphertext": {
+								"$bytes": "8ChbCV7UGFZGjjXY7F35H+Dr6zn1ItMqspxCnFWgx2WLbWj+b93lVDrL+v0hL1r8"
+							}
+						}
+					}
+				],
+				"currentKeyId": 1,
+				"indexKey": {
+					"$bytes": "TExFAQGasJdZk9EGU8DJtHpGMW8yc7LfAX2AYazxVEdN74hkkc7gkT9XDV+5Mh9us3yk15ijr5h6LxgqsaUjb3w="
+				},
+				"prefs": {
+					"theme": "dark",
+					"autoLockMinutes": 20
+				}
+			}
+		],
+		"avatars": [
+			{
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"image": {
+					"$blob": {
+						"type": "image/png",
+						"bytes": "iVBORw=="
+					}
+				}
+			}
+		],
+		"saves": [
+			{
+				"id": "37283963-d1d6-49d6-a269-8cf9701ebe27",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQFphCEORjiiwJXT8MPP+aRdReNbJtep0zYcr78sCLrwB70b5KKzqwbMTwBI/BMv6i8Qo0oSRrWwJrImeDxhVi18kMPxftKWdQIVKdcHGoVgiGucEicli3+5FGb40gF3Kpc+QOU="
+				},
+				"createdAt": 1793188800000,
+				"updatedAt": 1793188800000,
+				"urlKey": "d9c59a7aaa27eb1a3183af046b03362ec4fb5a46d4bcd6c5265ab793e83737a5",
+				"originKey": "b9a0a1550740adec3b925d6713dea5092593e732f92cee15fed15f59349f4384",
+				"saved": 1,
+				"browsed": 1,
+				"browsedAt": 1793188800000,
+				"privacy": "private"
+			}
+		],
+		"notes": [
+			{
+				"id": "f1c23210-9ce9-4a06-9afd-6d01f78da53c",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQG7l5gRclOfwyeZQlkCaT9VIJ3BJcZLb2M+TqWHY7BMwRgtYJmO/KhwdR9QudWY5CgGfA=="
+				},
+				"createdAt": 1793188800000,
+				"updatedAt": 1793188800000,
+				"privacy": "private"
+			}
+		],
+		"tasks": [
+			{
+				"id": "572277ba-895a-4fe8-bfd7-b6f84e6f3159",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQEQZPmh5NIy5tv5SOFrw0wT1BkCB3Ep87FIi7rzwU/5RMrHJ/rrjUwICkgd5r1OF0MJWuhZgGjNsQVWlrwxta6MSppByIMLG1v4+TpFOnM="
+				},
+				"createdAt": 1793188800000,
+				"updatedAt": 1793188800000,
+				"schedule": {
+					"kind": "due",
+					"at": 1793523600000
+				},
+				"dueAt": 1793523600000,
+				"occursOn": null,
+				"done": 0,
+				"finishedAt": 0,
+				"privacy": "private"
+			},
+			{
+				"id": "86cebe9e-ddcd-49ea-94a5-deaafc666aff",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQGpuVJ9HzvhCkFJNTAs2/9KdTk3T2g7604oBPs8Geitz6KeBCvM6f4pz5iWaiq8BBFlD8XToXxr171WGPuLK3UJ5sO1a6ZPf89YOi1sMag="
+				},
+				"createdAt": 1793188800000,
+				"updatedAt": 1793188800000,
+				"schedule": {
+					"kind": "recurring",
+					"rule": {
+						"freq": "weekly",
+						"interval": 1,
+						"time": "09:00",
+						"anchor": "2026-10-30",
+						"zone": "floating",
+						"byWeekday": [5]
+					}
+				},
+				"dueAt": 1793350800000,
+				"occursOn": "2026-10-30",
+				"done": 0,
+				"finishedAt": 0,
+				"privacy": "private"
+			}
+		],
+		"reminders": [
+			{
+				"id": "6e086c06-0ffc-4768-8f7f-f8a0e01a90ea",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQH1hZeLwYT9VNFhmm5eOCG+R8jpdfYxsGJYyca6bXsxA1ejyKiXXt4HKTvvhufBnyxA/3HTwKA="
+				},
+				"createdAt": 1793188800000,
+				"updatedAt": 1793188800000,
+				"target": 1793610000000,
+				"escalation": {
+					"escalate": true,
+					"stopBefore": 15
+				},
+				"lastFiredAt": 0,
+				"nextFireAt": 1793399400000,
+				"privacy": "private"
+			},
+			{
+				"id": "784fc163-4c56-469d-a6c5-773f86dc86dc",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQHqi1jjNbB4+thWsZ4NDkJCkOwRx5r3GSzGETEpYNGo8Jz2sbZhMCxGzHhziHhRBLmT35E="
+				},
+				"createdAt": 1793188800000,
+				"updatedAt": 1793188800000,
+				"target": 1793350800000,
+				"escalation": {
+					"escalate": true,
+					"stopBefore": 15
+				},
+				"lastFiredAt": 0,
+				"nextFireAt": 1793269800000,
+				"privacy": "private"
+			},
+			{
+				"id": "83ce7186-9512-458d-9ced-923d4e2a2ccd",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQEsZVXPn/jV1cxeKZxhSs5O9m6oi9FmPjZTPQQq0ghhCbC08y9sNi9BKlNUXul+jrFV7g=="
+				},
+				"createdAt": 1793188800000,
+				"updatedAt": 1793188800000,
+				"target": 1793523600000,
+				"escalation": null,
+				"lastFiredAt": 0,
+				"nextFireAt": 1793523600000,
+				"privacy": "private"
+			}
+		],
+		"links": [
+			{
+				"id": "1932ddb1-cb53-47ab-9e2f-f87db49dfb36",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"fromId": "6e086c06-0ffc-4768-8f7f-f8a0e01a90ea",
+				"toId": "37283963-d1d6-49d6-a269-8cf9701ebe27",
+				"createdAt": 1793188800000
+			},
+			{
+				"id": "329e0b25-bc1c-476c-b14b-a5a7bc190c7e",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"fromId": "83ce7186-9512-458d-9ced-923d4e2a2ccd",
+				"toId": "572277ba-895a-4fe8-bfd7-b6f84e6f3159",
+				"createdAt": 1793188800000
+			},
+			{
+				"id": "8ee2e5ed-158f-4edd-b81b-c1a0dcaaf271",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"fromId": "f1c23210-9ce9-4a06-9afd-6d01f78da53c",
+				"toId": "37283963-d1d6-49d6-a269-8cf9701ebe27",
+				"createdAt": 1793188800000
+			},
+			{
+				"id": "d494cdff-cd77-4ada-9815-a691a5c7f5f5",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"fromId": "572277ba-895a-4fe8-bfd7-b6f84e6f3159",
+				"toId": "37283963-d1d6-49d6-a269-8cf9701ebe27",
+				"createdAt": 1793188800000
+			},
+			{
+				"id": "ee756ca0-054c-4e26-9fe2-42098842942c",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"fromId": "784fc163-4c56-469d-a6c5-773f86dc86dc",
+				"toId": "86cebe9e-ddcd-49ea-94a5-deaafc666aff",
+				"createdAt": 1793188800000
+			}
+		],
+		"assets": [
+			{
+				"id": "f72e12e8-cfc1-44f3-b5ad-96b51ad950ab",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQF4Yz+skiMUoBaaXGINaDjCmc5TwfNsTO2dgV3nP7S7"
+				},
+				"createdAt": 1793188800000,
+				"updatedAt": 1793188800000,
+				"ownerId": "37283963-d1d6-49d6-a269-8cf9701ebe27",
+				"kind": "preview"
+			}
+		],
+		"settings": [
+			{
+				"id": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"profileId": "d41b1749-7b1e-4b7b-acc4-f7f5c82240c9",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQHEY46MdcuudPNEovFWWdwzQDx1dXyFEWGpxXLhy+NJ5JeAMyQlvVSS9UBRg0uzsCyDkeFpnWpzjTAlJjLOyHI3GdPpmVsF0uHTwtFX39JEokWzsyh+cdLGWl6C2kKASuXpPYNh2BRKD02ys8GvfdZYccz/BQC5P/SkZcZfpqU4/ewl8PoHIXt4"
+				},
+				"createdAt": 1793188800000,
+				"updatedAt": 1793188800000
+			}
+		],
+		"jobs": []
+	}
+}

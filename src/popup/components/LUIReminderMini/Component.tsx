@@ -1,6 +1,5 @@
 import { capitalize } from "little-shared/utils/misc";
-import { LLink, LReminder, LVisualBM } from "little-shared/types";
-import { LTHEME, LREMINDER_TYPE, LLINK_TYPE } from "little-shared/enums";
+import { LTHEME } from "little-shared/enums";
 import {
 	CaretDownIcon,
 	CaretUpIcon,
@@ -15,36 +14,40 @@ import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LUIGroup } from "../LUIGroup/Component";
 import { LUILink } from "../LUILink/Component";
 import { useTheme } from "../../hooks/useTheme";
-import { LDateUtl } from "little-shared/utils/datetime";
-import { getNextNotifyingDate } from "little-shared/utils/reminder";
-import { deleteReminder } from "../../../services/reminder";
+import type { Reminder, Save, Task } from "../../../storage/repositories";
+import type { LinkRow } from "../../../storage/schema";
+import { linkedFrom, reminderKind } from "../../records";
+import { prettyDate } from "../../../utils/dates";
+import { send } from "../../../utils/send";
 
 const Component = ({
 	className,
 	links,
 	saves,
+	tasks,
 	reminder,
 	disableNavs,
 }: {
 	className?: string;
-	links: Array<LLink>;
-	saves: Array<LVisualBM>;
-	reminder: LReminder;
+	links: Array<LinkRow>;
+	saves: Array<Save>;
+	tasks: Array<Task>;
+	reminder: Reminder;
 	disableNavs?: boolean;
 }) => {
 	const { theme } = useTheme();
 	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
 		useContext(HomeContext);
 	const [showDetails, setShowDetails] = useState(false);
-	const linkedSaves = links
-		.filter((x) => x.type === LLINK_TYPE.REMINDER_VBM)
-		.filter((x) => x.reminderId === reminder.id)
-		.map((x) => saves.find((y) => y.id === x.vbmId))
-		.filter((x) => x !== undefined);
-	const linkedTask = links
-		.filter((x) => x.type === LLINK_TYPE.REMINDER_TASK)
-		.filter((x) => x.reminderId === reminder.id)
-		.at(0);
+	const linkedSaves = linkedFrom(links, reminder.id, saves);
+	// A task's own reminder is changed and removed through the task.
+	const [linkedTask] = linkedFrom(links, reminder.id, tasks);
+	const kind = reminderKind(reminder);
+	// Escalating reminders fire ahead of their target; 0 once done.
+	const nextFire =
+		kind === "escalating" && reminder.nextFireAt !== 0
+			? reminder.nextFireAt
+			: 0;
 	const handleEdit = () => {
 		if (disableNavs) return;
 		setHomeSubNavigation({
@@ -60,7 +63,7 @@ const Component = ({
 		setShouldHomeNavigate(true);
 	};
 	const handleDelete = async () => {
-		await deleteReminder(reminder.id);
+		await send("reminder.delete", { id: reminder.id });
 	};
 	return (
 		<div
@@ -81,7 +84,7 @@ const Component = ({
 							: "border border-black bg-white text-black"
 					} text-sm font-semibold`}
 				>
-					{LDateUtl.getPrettyDate(reminder.targetDate)}
+					{prettyDate(reminder.target)}
 				</div>
 				<div
 					className={`flex grow flex-col items-center justify-center pl-2`}
@@ -91,12 +94,9 @@ const Component = ({
 							theme === LTHEME.DARK ? "text-white" : "text-black"
 						} `}
 					>
-						{capitalize(reminder.type) +
-							(reminder.type === LREMINDER_TYPE.ESCALATING
-								? " | Next At:"
-								: "")}
+						{capitalize(kind) + (nextFire ? " | Next At:" : "")}
 					</div>
-					{reminder.type === LREMINDER_TYPE.ESCALATING ? (
+					{nextFire ? (
 						<div
 							className={`w-full text-xs font-medium opacity-75 ${
 								theme === LTHEME.DARK
@@ -104,16 +104,7 @@ const Component = ({
 									: "text-black"
 							} `}
 						>
-							{LDateUtl.from(
-								LDateUtl.shiftMinute(
-									getNextNotifyingDate(reminder),
-									15,
-								),
-							).lt(reminder.targetDate)
-								? LDateUtl.getPrettyDate(
-										getNextNotifyingDate(reminder),
-									)
-								: LDateUtl.getPrettyDate(reminder.targetDate)}
+							{prettyDate(nextFire)}
 						</div>
 					) : null}
 				</div>
@@ -186,9 +177,9 @@ const Component = ({
 							>
 								{linkedSaves.map((save) => (
 									<LUILink
-										key={save!.id}
-										content={save!.customName}
-										navigateTo={"/vbm/" + save!.id}
+										key={save.id}
+										content={save.customName}
+										navigateTo={"/vbm/" + save.id}
 										hoverBackground={
 											theme === LTHEME.DARK
 												? "bg-neutral-900"

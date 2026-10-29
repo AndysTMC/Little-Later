@@ -35,12 +35,7 @@ export interface LIconProps
 }
 
 export type LIconWeight =
-	| "thin"
-	| "light"
-	| "regular"
-	| "bold"
-	| "fill"
-	| "duotone";
+	"thin" | "light" | "regular" | "bold" | "fill" | "duotone";
 
 export type LittleNavigation = {
 	exit: MotionProps;

@@ -13,7 +13,7 @@ import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
 import { useLittleTransition } from "../../hooks/useLittleTransition";
 import { useTheme } from "../../hooks/useTheme";
 import { exitTransitions } from "../../../route-transitions";
-import { updateUserSettings } from "../../../services/settings";
+import { send } from "../../../utils/send";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
@@ -32,11 +32,20 @@ const Page = () => {
 			return;
 		}
 
+		const inRange =
+			miscSettings.VBMLimit >= LMIN_VBM_LIMIT &&
+			miscSettings.VBMLimit <= LMAX_VBM_LIMIT &&
+			miscSettings.VBMSameOriginLimit >= LMIN_VBM_SAME_ORIGIN_LIMIT &&
+			miscSettings.VBMSameOriginLimit <= LMAX_VBM_SAME_ORIGIN_LIMIT;
+		const changed =
+			miscSettings.VBMLimit !== userSettings.misc.VBMLimit ||
+			miscSettings.VBMSameOriginLimit !==
+				userSettings.misc.VBMSameOriginLimit;
+		if (!inRange || !changed) {
+			return;
+		}
 		const handler = setTimeout(() => {
-			updateUserSettings({
-				...userSettings,
-				misc: miscSettings,
-			});
+			void send("settings.update", { misc: miscSettings });
 		}, 500);
 
 		return () => {

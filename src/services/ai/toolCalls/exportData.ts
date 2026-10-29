@@ -1,8 +1,5 @@
 import { LEXPORT_TYPE } from "little-shared/enums";
-import {
-	exportDataReadable,
-	exportDataImportable,
-} from "../../../services/dataExchange";
+import { exportBackup, exportReadable } from "../../backup";
 
 const toolCall = async ({
 	type,
@@ -13,9 +10,9 @@ const toolCall = async ({
 }): Promise<() => Promise<void>> => {
 	return async () => {
 		if (type === LEXPORT_TYPE.READABLE) {
-			await exportDataReadable();
+			await exportReadable();
 		} else if (type === LEXPORT_TYPE.IMPORTABLE) {
-			await exportDataImportable(password);
+			await exportBackup(password ?? "");
 		}
 	};
 };

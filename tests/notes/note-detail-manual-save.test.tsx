@@ -4,16 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LTHEME } from "little-shared/enums";
 import { ThemeContext } from "../../src/popup/contexts/Theme";
 import { LUINoteDetailForm } from "../../src/popup/components/LUINoteDetailForm/Component";
-import { LNote } from "little-shared/types";
 
 const mocks = vi.hoisted(() => ({
-	updateNote: vi.fn(async () => {}),
-	deleteNote: vi.fn(async () => {}),
+	send: vi.fn(async () => null),
 }));
 
-vi.mock("../../src/services/note", () => ({
-	updateNote: mocks.updateNote,
-	deleteNote: mocks.deleteNote,
+vi.mock("../../src/utils/send", () => ({
+	send: mocks.send,
 }));
 
 vi.mock("react-router", async () => {
@@ -21,17 +18,14 @@ vi.mock("react-router", async () => {
 		await vi.importActual<typeof import("react-router")>("react-router");
 	return {
 		...actual,
+		useNavigate: () => () => {},
 	};
 });
 
 describe("note detail manual save flow", () => {
 	let container: HTMLDivElement;
 	let root: Root;
-	const note: LNote = {
-		id: 99,
-		content: "Initial note",
-		lastModificationDate: "2026-04-05T16:10:00+05:30",
-	};
+	const note = { id: "note-99", content: "Initial note" };
 
 	beforeEach(async () => {
 		(
@@ -40,8 +34,7 @@ describe("note detail manual save flow", () => {
 		container = document.createElement("div");
 		document.body.appendChild(container);
 		root = createRoot(container);
-		mocks.updateNote.mockClear();
-		mocks.deleteNote.mockClear();
+		mocks.send.mockClear();
 
 		await act(async () => {
 			root.render(
@@ -96,7 +89,7 @@ describe("note detail manual save flow", () => {
 			textarea.dispatchEvent(new Event("change", { bubbles: true }));
 		});
 
-		expect(mocks.updateNote).not.toHaveBeenCalled();
+		expect(mocks.send).not.toHaveBeenCalled();
 
 		const updateButton = Array.from(
 			container.querySelectorAll("button"),
@@ -113,13 +106,10 @@ describe("note detail manual save flow", () => {
 			);
 		});
 
-		expect(mocks.updateNote).toHaveBeenCalledTimes(1);
-		expect(mocks.updateNote).toHaveBeenCalledWith(
-			note.id,
-			expect.objectContaining({
-				content: "Updated draft",
-				lastModificationDate: expect.any(String),
-			}),
-		);
+		expect(mocks.send).toHaveBeenCalledTimes(1);
+		expect(mocks.send).toHaveBeenCalledWith("note.update", {
+			id: note.id,
+			content: "Updated draft",
+		});
 	});
 });

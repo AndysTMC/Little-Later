@@ -10,7 +10,7 @@ Thanks for helping. Little Later is a local-first Chrome extension: no backend, 
 
 ## Set up
 
-You need [Bun](https://bun.sh) 1.3 or later.
+You need [Bun](https://bun.sh) 1.3 or later, and Node.js 22 or later for the test runner.
 
 ```sh
 bun install
@@ -31,6 +31,7 @@ bunx playwright install chromium
 - Branch from `dev` and name the branch after the work: `fix/lock-timeout`, `feat/voice-notes`, `docs/setup`.
 - Open the pull request into `dev`. `main` only moves when a release is cut.
 - Title the pull request in [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) form, for example `fix: keep the lock screen open after a wrong password`. Pull requests are squash-merged, so the title becomes the commit message. Use `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`, `ci` or `chore`, and add `!` for a breaking change.
+- If an AI assistant helps, you are still the author: commit under your own name, leave out AI co-author trailers and chat links, and review every line before you push. [AGENTS.md](./AGENTS.md) has the rules agents follow.
 - Keep a pull request to one change. Under about 400 changed lines is easiest to review.
 - Add a line to the `Unreleased` section of [CHANGELOG.md](./CHANGELOG.md) when users would notice the change.
 
@@ -49,9 +50,11 @@ bun run test:e2e
 
 New behaviour needs a test. A change to stored data needs a migration and a test that runs it.
 
+A bug fix starts from the root cause. Reproduce the bug with a failing test, fix it where it originates rather than where it shows, and cover every path with the same cause. The pull request says what the cause was, where it was fixed, which other cases it covers and how it was verified.
+
 ## Releases
 
-A release starts with a pull request from `dev` into `main` that bumps the version in `manifest.json`, `package.json` and `packages/shared/package.json` and moves the changelog's `Unreleased` entries under the new version. Its description proposes the version and why: major for a breaking change, minor for new features, patch for fixes only. That pull request is merged with a merge commit, not squashed, so `dev` and `main` keep a shared history. Tagging `vX.Y.Z` on `main` then builds and publishes the release.
+A release starts with a pull request from `dev` into `main` that bumps the version in `manifest.json`, `package.json` and `packages/shared/package.json` and moves the changelog's `Unreleased` entries under the new version. Its description proposes the version and why: major for a breaking change, minor for new features, patch for fixes only. That pull request is merged with a merge commit, not squashed, so `dev` and `main` keep a shared history. The decision gate skips this pull request, because every decision change in it already passed the gate on its way into `dev`. Tagging `vX.Y.Z` on `main` then builds and publishes the release. Only the maintainer can create release tags, and the signing job waits for the maintainer's approval in the `release` environment, which holds `SIGNING_KEY`.
 
 An urgent fix branches from `main`, is released the same way, and `main` is then merged back into `dev`.
 

@@ -1,12 +1,12 @@
-import { deleteTask } from "../../../services/task";
+import { send } from "../../../utils/send";
 
 const toolCall = async ({
 	id,
 }: {
-	id: number;
+	id: string;
 }): Promise<() => Promise<void>> => {
 	return async () => {
-		await deleteTask(id);
+		await send("task.delete", { id });
 	};
 };
 

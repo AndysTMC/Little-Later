@@ -4,11 +4,11 @@ type: decision
 
 # 0004. Importable `.lldat` uses the real lock password; passwordless profiles cannot export importable bundles
 
-Status: accepted
+Status: superseded by 0010
 Date: 2026-08-19
 Deciders: existing project
 Supersedes: —
-Superseded-by: —
+Superseded-by: 0010
 
 ## Context
 

@@ -6,7 +6,7 @@ type: decision
 
 Status: accepted
 Date: 2026-10-28
-Deciders: AndysTMC (accepted 2026-10-28: "Got it, I accept it. Go ahead.")
+Deciders: AndysTMC
 Supersedes: —
 Superseded-by: —
 
@@ -91,7 +91,7 @@ Option D.
 ## Assumptions
 
 - [A1] `Temporal` is available in Chrome 144 and later, in both the service worker and pages. Revisit if a supported Chrome lacks it.
-- [A2] The toolchain lacks `Temporal` today: the Bun 1.3.11 pinned in CI, the Node 22 that runs Vitest, and TypeScript 5.9's built-in types. Bun 1.4 has it at runtime. Implementation either moves CI to a Bun and TypeScript with `Temporal`, or adds `@js-temporal/polyfill` as a dev dependency loaded in `tests/setup.ts`, with its types. Either path is a dependency change that comes to AndysTMC first.
+- [A2] The toolchain lacks `Temporal` today: the Bun 1.3.11 pinned in CI, the Node 22 that runs Vitest, and TypeScript 5.9's built-in types. Bun 1.4 has it at runtime. Implementation either moves CI to a Bun and TypeScript with `Temporal`, or adds `@js-temporal/polyfill` as a dev dependency loaded in `tests/setup.ts`, with its types. Either path is a dependency change and is reviewed on its own.
 - [A3] Daily, weekly, monthly and yearly rules with one time each, plus escalation, cover what the UI offers. Revisit if users need "every second Tuesday" or several times a day.
 
 ## Consequences
@@ -104,9 +104,9 @@ Option D.
 
 ## Review
 
-A third review (AndysTMC, 2026-10-28) pointed out that RFC 5545 drops invalid and nonexistent recurrence instances, so the draft's "RFC 5545 behaviour" claim was wrong for recurrences. Adopted: the fire-every-occurrence policy is now stated as our own choice, and iCal export translates it with `BYSETPOS` and `RDATE`.
+A third review (2026-10-28) pointed out that RFC 5545 drops invalid and nonexistent recurrence instances, so the draft's "RFC 5545 behaviour" claim was wrong for recurrences. Adopted: the fire-every-occurrence policy is now stated as our own choice, and iCal export translates it with `BYSETPOS` and `RDATE`.
 
-An independent agent critiqued the first draft. Adopted:
+An independent review of the first draft led to these changes. Adopted:
 
 - An anchor and an occurrence index, which fix month-end drift and make `interval` work.
 - RFC 5545 handling of skipped times.
@@ -118,14 +118,14 @@ An independent agent critiqued the first draft. Adopted:
 - A plain rule, so reminders keep firing while locked.
 - Moving to `Temporal` after checking that it shipped in Chrome 144.
 
-A second review (AndysTMC, 2026-10-28) found more. Adopted:
+A second review (2026-10-28) found more. Adopted:
 
 - Monthly and yearly occurrences advance a year-month and then apply the rule's day, which fixes "last day" rules created in a short month.
 - Floating rules also recompute when the device wakes or a page opens.
 - Escalation is written down as it works today, instead of a new invented behaviour.
 - A corrected [A2]: the pinned Bun and TypeScript lack `Temporal`, so tests need a toolchain bump or a polyfill.
 
-The first critique also suggested caching `Intl` formatters. That no longer applies, because `Temporal` replaces them.
+The first review also suggested caching `Intl` formatters. That no longer applies, because `Temporal` replaces them.
 
 ## Revisit if
 

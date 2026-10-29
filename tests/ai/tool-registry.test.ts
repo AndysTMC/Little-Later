@@ -25,7 +25,7 @@ describe("ai tool registry normalization", () => {
 			id: "4",
 			targetTS: "2026-04-05T09:00:00+05:30",
 		});
-		expect(args.id).toBe(4);
+		expect(args.id).toBe("4");
 		expect(args.targetDate).toBe("2026-04-05T09:00:00+05:30");
 	});
 
@@ -124,7 +124,7 @@ describe("ai tool registry normalization", () => {
 				deadlineDate: "soon",
 			}),
 		).toMatchObject({
-			id: 12,
+			id: "12",
 			deadlineDate: undefined,
 			deadlineDateInvalid: true,
 		});
@@ -135,7 +135,8 @@ describe("ai tool registry normalization", () => {
 				name: "  Streaming Home  ",
 			}),
 		).toMatchObject({
-			id: 47,
+			// Ids are strings; a model that writes a number still finds the record.
+			id: "47",
 			customName: "Streaming Home",
 		});
 	});

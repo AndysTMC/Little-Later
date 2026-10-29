@@ -1,3 +1,4 @@
+import { Temporal as TemporalPolyfill } from "@js-temporal/polyfill";
 import { Blob as NodeBlob } from "node:buffer";
 
 // jsdom's Blob has no arrayBuffer() and cannot be structured-cloned by
@@ -95,3 +96,25 @@ if (!fileReaderUnderstandsNodeBlob()) {
 }
 
 export {};
+
+// The extension relies on Chrome's built-in Temporal (decision 0011). Node
+// and jsdom do not have it yet, so tests use the polyfill until they do.
+// The polyfill's namespace is frozen; the built-in one is not, and fake
+// timers replace its `Now`, so tests get a copy with the built-in's
+// property attributes.
+if (!("Temporal" in globalThis)) {
+	const temporal = Object.create(Object.getPrototypeOf(TemporalPolyfill));
+	for (const key of Reflect.ownKeys(TemporalPolyfill)) {
+		Object.defineProperty(temporal, key, {
+			value: TemporalPolyfill[key as keyof typeof TemporalPolyfill],
+			configurable: true,
+			writable: true,
+			enumerable: false,
+		});
+	}
+	Object.defineProperty(globalThis, "Temporal", {
+		value: temporal,
+		configurable: true,
+		writable: true,
+	});
+}

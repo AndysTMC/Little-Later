@@ -1,10 +1,3 @@
-import {
-	LLink,
-	LReminder,
-	LReminderInsert,
-	LVisualBM,
-} from "little-shared/types";
-import { LREMINDER_TYPE } from "little-shared/enums";
 import { useTheme } from "../../hooks/useTheme";
 import { twMerge } from "tailwind-merge";
 import { LUIFeaturePageUD } from "../LUIFeaturePageUD/Component";
@@ -15,96 +8,138 @@ import { LUILabel } from "../LUILabel/Component";
 import { LUISelectT1 } from "../LUISelectT1/Component";
 import { LUIVBMLinks } from "../LUIVBMLinks/Component";
 import { LUICUButton } from "../LUICUButton/Component";
-import { putReminder } from "../../../services/reminder";
+import { LUILink } from "../LUILink/Component";
 import { fakeWait } from "little-shared/utils/misc";
 import { useEffect, useState } from "react";
-import { getReminderInsert } from "little-shared/utils/reminder";
 import { LMAX_REMINDER_MESSAGE_LENGTH } from "little-shared/constants";
-import { useIdCache } from "../../hooks/useIdCache";
+import { LTHEME } from "little-shared/enums";
 import { LUIAIButton } from "../LUIAIButton/Component";
 import { LittleAI } from "../../../services/ai";
+import type { Reminder, Save, Task } from "../../../storage/repositories";
+import type { LinkRow } from "../../../storage/schema";
+import { linkedFrom, reminderKind } from "../../records";
+import { nextHour } from "../../../utils/dates";
+import { send } from "../../../utils/send";
+
+type ReminderKind = "normal" | "escalating";
+const REMINDER_KINDS: Array<ReminderKind> = ["normal", "escalating"];
 
 const Component = ({
 	className,
 	links,
-	reminders,
 	saves,
-	id,
-	prelinkedVbmId,
+	tasks = [],
+	reminder,
+	prelinkedSaveId,
 	additionalSubmitCallback = () => {},
 }: {
 	className?: string;
-	links: Array<LLink>;
-	reminders: Array<LReminder>;
-	saves: Array<LVisualBM>;
-	id?: number;
-	prelinkedVbmId?: number;
+	links: Array<LinkRow>;
+	saves: Array<Save>;
+	tasks?: Array<Task>;
+	// The reminder to edit; a new one when left out.
+	reminder?: Reminder;
+	prelinkedSaveId?: string;
 	additionalSubmitCallback?: () => void;
 }) => {
 	const { theme } = useTheme();
-	const [reminder, setReminder] = useState<LReminderInsert>(
-		reminders.find((r) => r.id === id) ?? getReminderInsert(),
+	const [message, setMessage] = useState(reminder?.message ?? "");
+	const [target, setTarget] = useState(() => reminder?.target ?? nextHour());
+	const [kind, setKind] = useState<ReminderKind>(
+		reminder ? reminderKind(reminder) : "normal",
 	);
+	const [warning, setWarning] = useState("");
+	// A task's own reminder follows the task's deadline (task.update).
+	const [task] = reminder ? linkedFrom(links, reminder.id, tasks) : [];
 
-	const { currentIds: linkedSaveIds, idCache: saveIC } = useIdCache(
-		saves
-			.filter(
-				(x) =>
-					links.find(
-						(y) => y.vbmId === x.id && y.reminderId === id,
-					) !== undefined,
-			)
-			.map((x) => x.id),
+	// Edits stay local until Create or Update, then go out as commands,
+	// compared with what is stored then.
+	const storedSaveIds = reminder
+		? linkedFrom(links, reminder.id, saves).map((save) => save.id)
+		: [];
+	const [linkedSaveIds, setLinkedSaveIds] = useState(() =>
+		prelinkedSaveId !== undefined &&
+		!storedSaveIds.includes(prelinkedSaveId)
+			? [...storedSaveIds, prelinkedSaveId]
+			: storedSaveIds,
 	);
 
 	const [aiRephrase, setAIRephrase] = useState<LittleAI | undefined>();
 
 	const validateMessage = (value: string) => {
-		if (value.length === 0) {
-			return {
-				success: false,
-				error: "Message cannot be empty",
-			};
+		if (value.trim().length === 0) {
+			return { success: false, error: "Message cannot be empty" };
 		} else if (value.length > LMAX_REMINDER_MESSAGE_LENGTH) {
-			return {
-				success: false,
-				error: "Message is too long",
-			};
+			return { success: false, error: "Message is too long" };
 		}
-		return {
-			success: true,
-			error: "",
-		};
+		return { success: true, error: "" };
 	};
 
-	const handleSaveLinking = (vbmId: number, flag: boolean) => {
-		if (!reminder) {
-			return;
-		}
-		if (flag) {
-			saveIC.insert(vbmId);
-		} else {
-			saveIC.delete(vbmId);
-		}
+	const handleSaveLinking = (saveId: string, flag: boolean) => {
+		setLinkedSaveIds((ids) =>
+			flag
+				? [...ids.filter((id) => id !== saveId), saveId]
+				: ids.filter((id) => id !== saveId),
+		);
 	};
 
 	const handleReminderCU = async () => {
-		if (!reminder) {
+		if (!validateMessage(message).success) {
 			return;
 		}
-		if (!validateMessage(reminder.message).success) {
-			return;
-		}
+		setWarning("");
 		await fakeWait();
-		await putReminder(reminder, saveIC.inserts, saveIC.deletes);
-		additionalSubmitCallback();
-	};
-
-	useEffect(() => {
-		if (prelinkedVbmId !== undefined) {
-			saveIC.insert(prelinkedVbmId);
+		try {
+			let reminderId: string;
+			let alreadyLinked: Array<string>;
+			if (reminder) {
+				reminderId = reminder.id;
+				alreadyLinked = storedSaveIds;
+				// The schedule restarts only when it changes, and only a
+				// future time is accepted then.
+				const storedKind = reminderKind(reminder);
+				await send("reminder.update", {
+					id: reminder.id,
+					message,
+					target: target !== reminder.target ? target : undefined,
+					escalate:
+						kind !== storedKind ? kind === "escalating" : undefined,
+				});
+			} else {
+				const [firstSaveId] = linkedSaveIds;
+				({ id: reminderId } = await send("reminder.create", {
+					message,
+					target,
+					escalate: kind === "escalating",
+					saveId: firstSaveId,
+				}));
+				alreadyLinked = firstSaveId === undefined ? [] : [firstSaveId];
+			}
+			for (const saveId of linkedSaveIds) {
+				if (!alreadyLinked.includes(saveId)) {
+					await send("link.create", {
+						fromId: reminderId,
+						toId: saveId,
+					});
+				}
+			}
+			for (const saveId of alreadyLinked) {
+				if (!linkedSaveIds.includes(saveId)) {
+					await send("link.delete", {
+						fromId: reminderId,
+						toId: saveId,
+					});
+				}
+			}
+			additionalSubmitCallback();
+		} catch (error) {
+			setWarning(
+				error instanceof Error
+					? error.message
+					: "Couldn't save this reminder.",
+			);
 		}
-	}, [prelinkedVbmId]);
+	};
 
 	useEffect(() => {
 		if (!aiRephrase) {
@@ -115,23 +150,19 @@ const Component = ({
 	}, []);
 
 	const handleRephraseMessage = async () => {
-		if (!reminder || !aiRephrase) {
+		if (!aiRephrase) {
 			return;
 		}
-		const rephrasedInformation = await aiRephrase.rewrite(
-			reminder.message,
-			{
+		setMessage(
+			await aiRephrase.rewrite(message, {
 				tone: "as-is",
 				format: "plain-text",
 				length: "as-is",
-			},
+			}),
 		);
-		setReminder({
-			...reminder,
-			message: rephrasedInformation,
-		} as LReminder);
 	};
 
+	const textColor = theme === LTHEME.DARK ? "text-white" : "text-black";
 	return (
 		<div
 			className={twMerge(
@@ -145,13 +176,8 @@ const Component = ({
 			>
 				<LUITextArea
 					name="Message"
-					passedValue={reminder.message}
-					onChange={(value) =>
-						setReminder({
-							...reminder,
-							message: value,
-						} as LReminder)
-					}
+					passedValue={message}
+					onChange={setMessage}
 					validate={validateMessage}
 					lengthLimit={LMAX_REMINDER_MESSAGE_LENGTH}
 				/>
@@ -161,54 +187,66 @@ const Component = ({
 						onClick={handleRephraseMessage}
 					/>
 				</div>
-				<div className={`my-2 flex h-max w-full gap-x-2`}>
-					<div className={`h-max w-max`}>
-						<LUIDateTimeInput
-							name="TimeStamp"
-							date={reminder.targetDate}
-							onChange={(targetDate) =>
-								setReminder({
-									...reminder,
-									targetDate,
-								} as LReminder)
-							}
-						/>
-					</div>
-					<div className={`flex h-full w-full flex-col gap-y-1`}>
-						<div
-							className={`flex h-max w-full items-center justify-center`}
-						>
-							<LUILabel name={"Type"} />
+				{task ? (
+					<div className={`my-2 flex h-max w-full flex-col gap-y-1`}>
+						<div className={`text-sm italic ${textColor}`}>
+							This reminder follows its task's deadline. Change
+							the time on the task.
 						</div>
-						<LUISelectT1
-							passedItem={reminder.type}
-							items={[
-								LREMINDER_TYPE.NORMAL,
-								LREMINDER_TYPE.ESCALATING,
-							]}
-							onChange={(reminderType) =>
-								setReminder({
-									...reminder,
-									type: reminderType,
-								} as LReminder)
+						<LUILink
+							content={task.information}
+							navigateTo={"/task/" + task.id}
+							hoverBackground={
+								theme === LTHEME.DARK
+									? "bg-neutral-800"
+									: "bg-neutral-200"
 							}
 						/>
 					</div>
-				</div>
+				) : (
+					<div className={`my-2 flex h-max w-full gap-x-2`}>
+						<div className={`h-max w-max`}>
+							<LUIDateTimeInput
+								name="TimeStamp"
+								value={target}
+								onChange={setTarget}
+							/>
+						</div>
+						<div className={`flex h-full w-full flex-col gap-y-1`}>
+							<div
+								className={`flex h-max w-full items-center justify-center`}
+							>
+								<LUILabel name={"Type"} />
+							</div>
+							<LUISelectT1
+								passedItem={kind}
+								items={REMINDER_KINDS}
+								onChange={(value) =>
+									setKind(value as ReminderKind)
+								}
+							/>
+						</div>
+					</div>
+				)}
 				<LUIVBMLinks
 					saves={saves}
 					linkedSaveIds={linkedSaveIds}
 					handleSaveLinking={handleSaveLinking}
 				/>
+				{warning !== "" ? (
+					<div className={`text-sm italic ${textColor}`}>
+						{warning}
+					</div>
+				) : null}
 			</div>
 			<div
 				className={`flex h-16 w-full items-center justify-center pt-1 pb-2`}
 			>
 				<LUICUButton
-					name={id ? "Update" : "Create"}
+					name={reminder ? "Update" : "Create"}
 					onClick={handleReminderCU}
 					passedTheme={theme}
-					disabled={!validateMessage(reminder.message).success}
+					disabled={!validateMessage(message).success}
 				/>
 			</div>
 		</div>

@@ -1,21 +1,11 @@
-import { LAI_PROVIDERS, LINT_BOOLEAN } from "little-shared/enums";
-import {
-	createChromeNativeNotification,
-	createNotifications,
-} from "../services/notification";
+import Dexie from "dexie";
+import { LAI_PROVIDERS } from "little-shared/enums";
+import { createChromeNativeNotification } from "./notify";
+import { dropPreV1Settings } from "../services/settings";
 import { getActiveTab } from "../utils/chrome";
-import {
-	getCurrentUserProfile,
-	reconcileActiveSession,
-} from "../services/user";
-import {
-	saveActiveWebPage,
-	updateVisualBM,
-	updateVisualBMPreview,
-} from "../services/visualBM";
-import { createNote } from "../services/note";
 import { LittleAI } from "../services/ai";
-import { getUserSettings } from "../services/settings";
+import { importProfileKeys } from "../storage/keys";
+import { getSettings } from "../storage/repositories";
 import {
 	getDefaultBaseUrl,
 	getResolvedBaseUrl,
@@ -25,20 +15,102 @@ import {
 	LOCAL_AI_ORIGIN_RULE_ID,
 	buildLocalAIOriginRule,
 } from "./localAIOriginRule";
+import { commands } from "./commands";
+import { cleanUpImports } from "./commands/backup";
+import { listenForCommands } from "./commands/listener";
+import {
+	createCommandContext,
+	createDispatcher,
+	createSerialQueue,
+} from "./commands/registry";
+import {
+	REMINDER_ALARM,
+	createReminderScheduler,
+	isLittleNotice,
+	rearmAfterCommands,
+} from "./scheduler";
+import { createAutoLock } from "./autoLock";
+import { createPageCapture } from "./capture";
+import { openLittleDB } from "../storage/schema";
+import { sessionStore } from "../storage/session";
+import { STAGED_FILE_MAX_AGE, staging } from "../storage/staging";
+
+const littleDB = openLittleDB();
+const writeQueue = createSerialQueue();
+const reminderScheduler = createReminderScheduler({
+	db: littleDB,
+	session: sessionStore,
+	now: Date.now,
+	zone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+	queue: writeQueue,
+	setAlarm: async (when) => {
+		if (when === null) {
+			await chrome.alarms.clear(REMINDER_ALARM);
+		} else {
+			await chrome.alarms.create(REMINDER_ALARM, { when });
+		}
+	},
+	notify: (id, message, image) =>
+		createChromeNativeNotification({ id, message, priority: 1, image }),
+});
+
+const runReminderScheduler = () => {
+	reminderScheduler.run().catch((error: unknown) => {
+		console.error("Reminder scheduler failed.", error);
+	});
+};
+
+// Registered synchronously at start-up, so a message that wakes the worker
+// finds its listener (0012).
+const dispatchCommand = rearmAfterCommands(
+	createDispatcher(
+		commands,
+		createCommandContext(littleDB, sessionStore),
+		writeQueue,
+	),
+	runReminderScheduler,
+);
+const autoLock = createAutoLock({
+	db: littleDB,
+	session: sessionStore,
+	queue: writeQueue,
+	idle: chrome.idle,
+});
+autoLock.start();
+
+listenForCommands(async (name, input) => {
+	const result = await dispatchCommand(name, input);
+	if (result.ok && name === "profile.update") {
+		void autoLock.configure();
+	}
+	if (result.ok && name === "settings.update") {
+		void configureLocalAIRequestHeaders();
+	}
+	return result;
+});
+
+// Every worker start: browser start, extension update, and waking after
+// suspension. Fires what was missed and re-arms the alarm.
+runReminderScheduler();
+
+// A device that wakes may be in another zone, which moves floating
+// deadlines (0011).
+chrome.idle.onStateChanged.addListener((state) => {
+	if (state === "active") {
+		runReminderScheduler();
+	}
+});
+
+// An import still running when the worker starts was cut off (0012, Jobs),
+// and staged files a closed page left behind are swept (0012, Messaging).
+writeQueue(async () => {
+	await cleanUpImports(littleDB);
+	await staging.sweep(Date.now() - STAGED_FILE_MAX_AGE);
+}).catch((error: unknown) => {
+	console.error("Couldn't clean up after the last run.", error);
+});
 
 let keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
-let lastCapturedTabSignature = "";
-let lastCaptureAt = 0;
-
-const CAPTURE_THROTTLE_MS = 15000;
-
-// Only normal web pages can be screenshot reliably from the MV3 service worker.
-const isCapturableTabUrl = (url?: string): url is string => {
-	if (!url) {
-		return false;
-	}
-	return /^https?:\/\//i.test(url);
-};
 
 // Wrap the callback API so the worker can safely skip unsupported windows/tabs.
 const captureVisibleTab = async (
@@ -65,6 +137,20 @@ const captureVisibleTab = async (
 	});
 };
 
+const pageCapture = createPageCapture({
+	db: littleDB,
+	session: sessionStore,
+	queue: writeQueue,
+	dispatch: dispatchCommand,
+	now: Date.now,
+	screenshot: async (windowId) => {
+		const dataUrl = await captureVisibleTab(windowId);
+		return dataUrl
+			? new Uint8Array(await (await fetch(dataUrl)).arrayBuffer())
+			: undefined;
+	},
+});
+
 // The built-in providers' endpoints, plus the configured endpoint when it is
 // on this machine. A remote endpoint never gets the loopback Origin.
 const collectLocalAIEndpoints = async (): Promise<Array<URL>> => {
@@ -72,13 +158,15 @@ const collectLocalAIEndpoints = async (): Promise<Array<URL>> => {
 		getDefaultBaseUrl(LAI_PROVIDERS.OLLAMA),
 		getDefaultBaseUrl(LAI_PROVIDERS.LM_STUDIO),
 	];
-	try {
-		const settings = await getUserSettings();
-		if (settings.ai) {
-			endpoints.push(getResolvedBaseUrl(settings.ai));
-		}
-	} catch {
-		// Settings may be unavailable while the worker is booting.
+	// The configured endpoint is in the profile's sealed settings, so it is
+	// known only while a profile is unlocked.
+	const unlocked = await sessionStore.get();
+	if (unlocked) {
+		const { ai } = await getSettings(
+			littleDB,
+			await importProfileKeys(unlocked),
+		);
+		endpoints.push(getResolvedBaseUrl(ai));
 	}
 	// getResolvedBaseUrl returns "" for a missing or invalid custom URL.
 	return endpoints
@@ -105,15 +193,10 @@ const configureLocalAIRequestHeaders = async (): Promise<void> => {
 };
 
 void configureLocalAIRequestHeaders();
-void reconcileActiveSession();
 
-if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
-	chrome.storage.onChanged.addListener((changes) => {
-		if (changes.userSettings) {
-			void configureLocalAIRequestHeaders();
-		}
-	});
-}
+sessionStore.subscribe(() => {
+	void configureLocalAIRequestHeaders();
+});
 
 function keepAlive() {
 	if (keepAliveIntervalId !== null) {
@@ -124,11 +207,23 @@ function keepAlive() {
 	}, 20000);
 }
 
+// Format v1 replaces the pre-v1 database, its notification alarm, and the
+// settings that held the AI key in chrome.storage.local (decision 0010).
+const removePreV1Data = async (): Promise<void> => {
+	await Dexie.delete("LLDB");
+	await chrome.alarms.clear("createNotifications");
+	await dropPreV1Settings();
+};
+
 chrome.runtime.onInstalled.addListener(async (details) => {
-	await reconcileActiveSession();
 	await configureLocalAIRequestHeaders();
 	if (details.reason === "install") {
 		chrome.storage.local.clear();
+	}
+	if (details.reason === "update") {
+		removePreV1Data().catch((error: unknown) => {
+			console.error("Couldn't remove pre-v1 data.", error);
+		});
 	}
 	chrome.contextMenus.removeAll(() => {
 		chrome.contextMenus.create({
@@ -156,7 +251,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 
 chrome.runtime.onStartup.addListener(async (): Promise<void> => {
-	await reconcileActiveSession();
 	await configureLocalAIRequestHeaders();
 	keepAlive();
 });
@@ -174,26 +268,40 @@ const notifyContextAction = async (message: string): Promise<void> => {
 	}
 };
 
+const createNote = async (content: string): Promise<void> => {
+	const result = await dispatchCommand("note.create", { content });
+	if (!result.ok) {
+		throw new Error(result.error.message);
+	}
+};
+
+const SAVE_PAGE_NOTICES = {
+	saved: "Page saved to Little Later.",
+	locked: "Unlock a profile first.",
+	unsupported: "Only web pages can be saved.",
+	failed: "Couldn't save this page.",
+};
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-	const currentUserProfile = await getCurrentUserProfile();
-	if (!currentUserProfile) {
+	if (!(await sessionStore.get())) {
 		await notifyContextAction("Unlock a profile first.");
 		return;
 	}
 	if (info.menuItemId === "convertPageToSave") {
 		if (tab?.id !== undefined) {
 			try {
-				await saveActiveWebPage();
-				await notifyContextAction("Page saved to Little Later.");
+				await notifyContextAction(
+					SAVE_PAGE_NOTICES[await pageCapture.save(tab)],
+				);
 			} catch (error) {
 				console.error("Failed to save page from context menu.", error);
-				await notifyContextAction("Couldn't save this page.");
+				await notifyContextAction(SAVE_PAGE_NOTICES.failed);
 			}
 		}
 	} else if (info.menuItemId === "noteThis") {
 		if (tab?.id !== undefined && info.selectionText) {
 			try {
-				await createNote({ content: info.selectionText });
+				await createNote(info.selectionText);
 				await notifyContextAction("Selection saved as a note.");
 			} catch (error) {
 				console.error(
@@ -215,7 +323,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 						format: "plain-text",
 					},
 				);
-				await createNote({ content: summary });
+				await createNote(summary);
 				await notifyContextAction("Quick summary saved as a note.");
 			} catch (error) {
 				console.error("Failed to summarize selection.", error);
@@ -236,7 +344,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 						format: "plain-text",
 					},
 				);
-				await createNote({ content: keypoints });
+				await createNote(keypoints);
 				await notifyContextAction("Key points saved as a note.");
 			} catch (error) {
 				console.error("Failed to extract key points.", error);
@@ -248,45 +356,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 	}
 });
 
-const captureActiveTab = async () => {
-	const currentUserProfile = await getCurrentUserProfile();
-	if (!currentUserProfile) return;
+const captureActiveTab = async (): Promise<void> => {
 	const activeTab = await getActiveTab();
 	if (!activeTab) return;
-	if (
-		!isCapturableTabUrl(activeTab.url) ||
-		activeTab.windowId === undefined
-	) {
-		return;
-	}
-
-	const activeTabUrl = activeTab.url;
-	const activeTabTitle = activeTab.title?.trim() || "Untitled";
-	const signature = `${activeTab.windowId}:${activeTabUrl}:${activeTabTitle}`;
-	const now = Date.now();
-	if (
-		signature === lastCapturedTabSignature &&
-		now - lastCaptureAt < CAPTURE_THROTTLE_MS
-	) {
-		return;
-	}
-
 	try {
-		const dataUrl = await captureVisibleTab(activeTab.windowId);
-		if (!dataUrl) {
-			return;
-		}
-		const response = await fetch(dataUrl);
-		const imageBlob = await response.blob();
-		await updateVisualBM(activeTabUrl, {
-			title: activeTabTitle,
-			hasBrowsed: LINT_BOOLEAN.TRUE,
-		});
-		await updateVisualBMPreview(activeTabUrl, imageBlob);
-		lastCapturedTabSignature = signature;
-		lastCaptureAt = now;
+		await pageCapture.visit(activeTab);
 	} catch (error) {
-		console.warn("Unable to persist captured tab preview.", error);
+		console.warn("Unable to capture the active tab.", error);
 	}
 };
 
@@ -300,59 +376,38 @@ chrome.tabs.onUpdated.addListener(async (_, changeInfo) => {
 	}
 });
 
-// Tab events are best-effort, so these alarms keep notifications and preview
-// capture fresh even after the MV3 worker gets suspended.
-chrome.alarms.create("createNotifications", {
-	delayInMinutes: 0.5,
-	periodInMinutes: 0.5,
-});
-
+// Tab events are best-effort, so this alarm keeps preview capture fresh
+// even after the MV3 worker gets suspended.
 chrome.alarms.create("captureActiveTab", {
 	delayInMinutes: 0.5,
 	periodInMinutes: 0.5,
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-	if (alarm.name === "createNotifications") {
-		try {
-			await createNotifications();
-		} catch (error) {
-			console.error("Failed to create notifications.", error);
-		}
-	}
 	if (alarm.name === "captureActiveTab") {
 		await captureActiveTab();
 	}
+	if (alarm.name === REMINDER_ALARM) {
+		runReminderScheduler();
+	}
 });
 
-const getNotificationPayload = (notificationId: string): string => {
-	const separator = notificationId.indexOf("::");
-	return separator === -1 ? "" : notificationId.slice(separator + 2);
-};
-
-const openNotificationTarget = (notificationId: string): void => {
-	if (notificationId.startsWith("vbmReminder")) {
-		const vbmUrl = getNotificationPayload(notificationId);
-		if (vbmUrl) {
-			void chrome.tabs.create({ url: vbmUrl });
-		}
-		return;
-	}
-	if (chrome.action?.openPopup) {
-		void chrome.action.openPopup();
+const openReminderNotice = async (notificationId: string): Promise<void> => {
+	const url = await reminderScheduler.noticeTarget(notificationId);
+	if (url) {
+		await chrome.tabs.create({ url });
+	} else if (chrome.action?.openPopup) {
+		await chrome.action.openPopup();
 	}
 };
-
-chrome.notifications.onButtonClicked.addListener(
-	(notificationId, buttonIndex) => {
-		if (notificationId.startsWith("vbmReminder") && buttonIndex === 1) {
-			openNotificationTarget(notificationId);
-		}
-		chrome.notifications.clear(notificationId);
-	},
-);
 
 chrome.notifications.onClicked.addListener((notificationId) => {
-	openNotificationTarget(notificationId);
+	if (isLittleNotice(notificationId)) {
+		openReminderNotice(notificationId).catch((error: unknown) => {
+			console.error("Could not open the reminder.", error);
+		});
+	} else if (chrome.action?.openPopup) {
+		void chrome.action.openPopup();
+	}
 	chrome.notifications.clear(notificationId);
 });

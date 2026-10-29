@@ -6,7 +6,8 @@ const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
 	type: "function",
 	function: {
 		name: "create_task",
-		description: "Creates a task. Ad-hoc if no deadlineDate is provided.",
+		description:
+			"Creates a task. It has no deadline (anytime) if no deadlineDate is provided; with one, it is due then and gets a reminder.",
 		parameters: {
 			type: "object",
 			properties: {

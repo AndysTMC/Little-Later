@@ -1,4 +1,3 @@
-import { authenticateUser, unlockUser } from "../../../services/user";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
@@ -7,10 +6,11 @@ import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { MotionProps } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import { fakeWait } from "little-shared/utils/misc";
-import { getUserSettings } from "../../../services/settings";
+import { isFirstTimeUser } from "../../../services/settings";
 import { createToast } from "../../../services/toasts";
 import { LTOAST_TYPE } from "little-shared/enums";
-import { LUserProfile } from "little-shared/types";
+import type { UserProfile } from "../../hooks/useUserProfiles";
+import { send } from "../../../utils/send";
 import { useUserAvatar } from "../../hooks/useUserAvatar";
 import { useObjectUrl } from "../../hooks/useObjectUrl";
 
@@ -21,7 +21,7 @@ const Component = ({
 	changeExit = () => {},
 }: {
 	className?: string;
-	userProfile: LUserProfile;
+	userProfile: UserProfile;
 	name: string;
 	changeExit: (exit: MotionProps) => void;
 }) => {
@@ -29,24 +29,25 @@ const Component = ({
 
 	const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-	const userAvatar = useUserAvatar(userProfile.userId);
-	const avatarUrl = useObjectUrl(userAvatar?.blob);
+	const userAvatar = useUserAvatar(userProfile.id);
+	const avatarUrl = useObjectUrl(userAvatar);
 
 	const handleClick = async () => {
 		setIsAuthenticating(true);
 		try {
 			await fakeWait();
-			const authenticated = await authenticateUser(userProfile.userId);
-			if (!authenticated) {
+			if (userProfile.hasPassword) {
 				changeExit(exitTransitions.zoomIn);
-				navigate("/unlock/" + userProfile.userId, {
+				navigate("/unlock/" + userProfile.id, {
 					state: { entryTransition: entryTransitions.zoomIn },
 				});
 				return;
 			}
-			await unlockUser(userProfile.userId);
-			const settings = await getUserSettings();
-			if (settings.guide.isFirstTimeUser) {
+			await send("profile.unlock", {
+				profileId: userProfile.id,
+				password: null,
+			});
+			if (await isFirstTimeUser()) {
 				changeExit(exitTransitions.slideLeft);
 				navigate("/getting-started", {
 					state: { entryTransition: entryTransitions.slideLeft },

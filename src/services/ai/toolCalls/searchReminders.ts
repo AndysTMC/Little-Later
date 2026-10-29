@@ -1,15 +1,20 @@
 import { LREMINDER_TYPE } from "little-shared/enums";
-import { LDate, LReminder } from "little-shared/types";
+import { LDate } from "little-shared/types";
+import type { Reminder } from "../../../storage/repositories";
 import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
-import { getDBTables } from "../../../utils/db";
-import { searchRemindersByText } from "little-shared/utils/reminder";
+import { reminderKind, searchReminders } from "../../../popup/records";
+import { readReminders, unlockedKeys } from "../records";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
 	pickSemanticCandidates,
 	quoteForPrompt,
 } from "./_utils/semanticSearch";
-import { dateMatchesCriteria, LDateMatchCriteria } from "./_utils/dateFilters";
+import {
+	dateMatchesCriteria,
+	toModelDate,
+	LDateMatchCriteria,
+} from "./_utils/dateFilters";
 
 const toolCall = async (
 	ai: Pick<LittleAI, "getStructuredResponse">,
@@ -24,34 +29,24 @@ const toolCall = async (
 		targetDate?: LDate;
 		targetDateCriteria?: LDateMatchCriteria;
 	},
-) => {
-	const { reminderTbl } = await getDBTables(["reminderTbl"]);
-
-	if (reminderTbl === undefined) {
-		throw new Error("Something went wrong while fetching reminders.");
-	}
-
+): Promise<Array<Reminder>> => {
+	const reminders = await readReminders(await unlockedKeys());
 	if (!query && !type && !targetDate) {
-		return reminderTbl;
+		return reminders;
 	}
-
-	let resultReminders: LReminder[] = reminderTbl.slice();
+	let resultReminders = reminders.slice();
 	if (query) {
-		const queryReminders: LReminder[] = [];
-		const filteredReminders = searchRemindersByText(reminderTbl, query);
-		filteredReminders.forEach((reminder) => {
-			if (!queryReminders.includes(reminder)) {
-				queryReminders.push(reminder);
-			}
-		});
+		const queryReminders = new Set<Reminder>(
+			searchReminders(reminders, query),
+		);
 		const remindersToSend = pickSemanticCandidates(
-			queryReminders,
-			reminderTbl,
+			[...queryReminders],
+			reminders,
 		).map((reminder) => ({
 			id: reminder.id,
 			message: reminder.message,
-			type: reminder.type,
-			targetDate: reminder.targetDate,
+			type: reminderKind(reminder),
+			targetDate: toModelDate(reminder.target),
 		}));
 		const response = await ai.getStructuredResponse(
 			`
@@ -66,36 +61,25 @@ const toolCall = async (
 			IDJSONObjectInstruction,
 		);
 		const semanticReminderIds = extractSemanticIds(response);
-		const semanticReminders = reminderTbl.filter((reminder) =>
-			semanticReminderIds.includes(reminder.id),
-		);
-		semanticReminders.forEach((reminder) => {
-			if (!queryReminders.includes(reminder)) {
-				queryReminders.push(reminder);
-			}
-		});
+		reminders
+			.filter((reminder) => semanticReminderIds.includes(reminder.id))
+			.forEach((reminder) => queryReminders.add(reminder));
 		resultReminders = resultReminders.filter((reminder) =>
-			queryReminders.includes(reminder),
+			queryReminders.has(reminder),
 		);
 	}
 	if (type) {
-		const typeFilteredReminders = resultReminders.filter(
-			(reminder) => reminder.type === type,
-		);
-		resultReminders = resultReminders.filter((reminder) =>
-			typeFilteredReminders.includes(reminder),
+		resultReminders = resultReminders.filter(
+			(reminder) => reminderKind(reminder) === type,
 		);
 	}
 	if (targetDate) {
-		const targetTSFilteredReminders = resultReminders.filter((reminder) =>
+		resultReminders = resultReminders.filter((reminder) =>
 			dateMatchesCriteria(
-				reminder.targetDate,
+				reminder.target,
 				targetDate,
 				targetDateCriteria,
 			),
-		);
-		resultReminders = resultReminders.filter((reminder) =>
-			targetTSFilteredReminders.includes(reminder),
 		);
 	}
 	return resultReminders;

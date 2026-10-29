@@ -1,8 +1,9 @@
 {
 	"manifest_version": 3,
 	"name": "Little Later",
-	"version": "2.1.1",
+	"version": "3.0.0",
 	"description": "A local-first Chrome extension for visual bookmarks, tasks, reminders, notes, and AI workflows.",
+	"minimum_chrome_version": "144",
 	"permissions": [
 		"storage",
 		"tabs",
@@ -10,6 +11,7 @@
 		"unlimitedStorage",
 		"contextMenus",
 		"alarms",
+		"idle",
 		"declarativeNetRequest",
 		"notifications"
 	],

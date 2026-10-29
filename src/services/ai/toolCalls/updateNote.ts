@@ -1,19 +1,18 @@
-import { getNote, updateNote } from "../../../services/note";
+import { send } from "../../../utils/send";
+import { readNotes, unlockedKeys } from "../records";
 
 const toolCall = async (
-	id: number,
+	id: string,
 	content: string,
 ): Promise<() => Promise<void>> => {
-	const note = await getNote(id);
+	const note = (await readNotes(await unlockedKeys())).find(
+		(item) => item.id === id,
+	);
 	if (note === undefined) {
 		throw new Error("Note not found.");
 	}
-	const modifiedNote = {
-		...note,
-		content: content ?? note.content,
-	};
 	return async () => {
-		await updateNote(note.id, modifiedNote);
+		await send("note.update", { id, content });
 	};
 };
 

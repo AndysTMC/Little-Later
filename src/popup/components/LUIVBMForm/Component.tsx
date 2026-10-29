@@ -1,4 +1,3 @@
-import { LLink, LNote, LReminder, LTask, LVisualBM } from "little-shared/types";
 import { LTHEME } from "little-shared/enums";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { PlusIcon, TrashIcon } from "@phosphor-icons/react";
@@ -9,128 +8,132 @@ import { LUIFeaturePageUD } from "../LUIFeaturePageUD/Component";
 import { LUITextInputT1 } from "../LUITextInput/Component";
 import { LUIWebPreview } from "../LUIWebPreview/Component";
 import { LUICUButton } from "../LUICUButton/Component";
-import { putVisualBM } from "../../../services/visualBM";
 import { fakeWait } from "little-shared/utils/misc";
 import { LVBMIcon } from "../LUIIcons";
 import { LUIReminderLinks } from "../LUIReminderLinks/Component";
 import { LUITaskLinks } from "../LUITaskLinks/Component";
-import { LDateUtl } from "little-shared/utils/datetime";
-import { useIdCache } from "../../hooks/useIdCache";
-import { useIdObjectChangeSet } from "../../hooks/useIdObjectChangeSet";
-import { useVBMImage } from "../../hooks/useVBMImage";
+import { useSavePreview } from "../../hooks/useSavePreview";
+import type { Note, Reminder, Save, Task } from "../../../storage/repositories";
+import type { LinkRow } from "../../../storage/schema";
+import { linkedTo } from "../../records";
+import { send } from "../../../utils/send";
+
+const MAX_NAME_LENGTH = 64;
+
+// A note being edited: an existing one, or a new one without an id yet.
+type DraftNote = { key: string; id: string | null; content: string };
 
 const Component = ({
 	className,
 	links,
 	notes,
 	reminders,
-	saves,
 	tasks,
-	id,
+	save,
 }: {
 	className?: string;
-	links: Array<LLink>;
-	notes: Array<LNote>;
-	reminders: Array<LReminder>;
-	saves: Array<LVisualBM>;
-	tasks: Array<LTask>;
-	id: number;
+	links: Array<LinkRow>;
+	notes: Array<Note>;
+	reminders: Array<Reminder>;
+	tasks: Array<Task>;
+	save: Save;
 }) => {
 	const { theme } = useTheme();
-	const [save, setSave] = useState(saves.find((save) => save.id === id)!);
-	const { preview } = useVBMImage(save.id);
+	const preview = useSavePreview(save.id);
+	const [customName, setCustomName] = useState(save.customName);
 
-	const { currentIds: linkedTaskIds, idCache: taskIC } = useIdCache(
-		tasks
-			.filter(
-				(x) =>
-					links.find(
-						(y) => y.taskId === x.id && y.vbmId === save.id,
-					) !== undefined,
-			)
-			.map((x) => x.id),
+	// Edits stay local until Update, then go out as commands, compared with
+	// what is stored then.
+	const storedNotes = linkedTo(links, save.id, notes);
+	const storedTaskIds = linkedTo(links, save.id, tasks).map(
+		(task) => task.id,
 	);
-
-	const { currentIds: linkedReminderIds, idCache: reminderIC } = useIdCache(
-		reminders
-			.filter(
-				(x) =>
-					links.find(
-						(y) => y.reminderId === x.id && y.vbmId === save.id,
-					) !== undefined,
-			)
-			.map((x) => x.id),
+	const storedReminderIds = linkedTo(links, save.id, reminders).map(
+		(reminder) => reminder.id,
 	);
+	const [draftNotes, setDraftNotes] = useState<Array<DraftNote>>(() =>
+		storedNotes.map((note) => ({
+			key: note.id,
+			id: note.id,
+			content: note.content,
+		})),
+	);
+	const [linkedTaskIds, setLinkedTaskIds] = useState(storedTaskIds);
+	const [linkedReminderIds, setLinkedReminderIds] =
+		useState(storedReminderIds);
 
-	const { currentObjects: linkedNotes, idObjectCS: noteCS } =
-		useIdObjectChangeSet(
-			notes.filter(
-				(x) =>
-					links.find(
-						(y) => y.noteId === x.id && y.vbmId === save.id,
-					) !== undefined,
-			),
-		);
-
-	const validateName = (value: string) => {
-		if (value.length > 64) {
-			return {
-				success: false,
-				error: "Name is too long",
-			};
-		}
-		return {
-			success: true,
-			error: "",
-		};
-	};
+	const validateName = (value: string) =>
+		value.length > MAX_NAME_LENGTH
+			? { success: false, error: "Name is too long" }
+			: { success: true, error: "" };
 
 	const handleCreateNote = () => {
-		noteCS.insert({
-			id: noteCS.newId,
-			content: "",
-			lastModificationDate: LDateUtl.getNow(),
-		});
+		setDraftNotes((current) => [
+			...current,
+			{ key: crypto.randomUUID(), id: null, content: "" },
+		]);
 	};
 
-	const handleUpdateNote = (modifiedNote: LNote) => {
-		noteCS.update(modifiedNote);
+	const handleNoteContentChange = (key: string, content: string) => {
+		setDraftNotes((current) =>
+			current.map((note) =>
+				note.key === key ? { ...note, content } : note,
+			),
+		);
 	};
 
-	const handleNoteContentChange = (noteId: number, content: string) => {
-		const note = linkedNotes.find((x) => x.id === noteId);
-		if (!note) {
-			return;
-		}
-		handleUpdateNote({
-			...note,
-			content,
-			lastModificationDate: LDateUtl.getNow(),
-		});
-	};
-
-	const handleDeleteNote = (note: LNote) => {
-		noteCS.delete(note);
-	};
-
-	const handleUnlinkTask = (taskId: number) => {
-		taskIC.delete(taskId);
-	};
-
-	const handleUnlinkReminder = (reminderId: number) => {
-		reminderIC.delete(reminderId);
+	const handleDeleteNote = (key: string) => {
+		setDraftNotes((current) => current.filter((note) => note.key !== key));
 	};
 
 	const handleUpdateSave = async () => {
 		await fakeWait();
-		await putVisualBM(
-			save,
-			noteCS.creates,
-			noteCS.updates,
-			noteCS.deletes,
-			reminderIC.deletes,
-			taskIC.deletes,
-		);
+		const name = customName.trim();
+		if (name !== "" && name !== save.customName) {
+			await send("save.update", { id: save.id, customName: name });
+		}
+		const kept = new Set(draftNotes.map((note) => note.id));
+		for (const note of storedNotes) {
+			if (!kept.has(note.id)) {
+				await send("note.delete", { id: note.id });
+			}
+		}
+		for (const draft of draftNotes) {
+			if (draft.content.trim() === "") continue;
+			if (draft.id === null) {
+				const { id } = await send("note.create", {
+					content: draft.content,
+					saveId: save.id,
+				});
+				// Created once: a later Update edits it.
+				setDraftNotes((current) =>
+					current.map((note) =>
+						note.key === draft.key ? { ...note, id } : note,
+					),
+				);
+			} else if (
+				draft.content !==
+				storedNotes.find((note) => note.id === draft.id)?.content
+			) {
+				await send("note.update", {
+					id: draft.id,
+					content: draft.content,
+				});
+			}
+		}
+		for (const taskId of storedTaskIds) {
+			if (!linkedTaskIds.includes(taskId)) {
+				await send("link.delete", { fromId: taskId, toId: save.id });
+			}
+		}
+		for (const reminderId of storedReminderIds) {
+			if (!linkedReminderIds.includes(reminderId)) {
+				await send("link.delete", {
+					fromId: reminderId,
+					toId: save.id,
+				});
+			}
+		}
 	};
 
 	return (
@@ -146,30 +149,20 @@ const Component = ({
 			>
 				<LUITextInputT1
 					name="Name"
-					passedValue={save.customName}
-					onChange={(value) =>
-						setSave({
-							...save,
-							customName: value,
-						} as LVisualBM)
-					}
+					passedValue={customName}
+					onChange={setCustomName}
 					validate={validateName}
-					lengthLimit={64}
+					lengthLimit={MAX_NAME_LENGTH}
 				/>
 				<LUITextInputT1
 					name="URL"
 					passedValue={save.url}
 					onChange={() => {}}
-					validate={() => {
-						return {
-							success: true,
-							error: "",
-						};
-					}}
+					validate={() => ({ success: true, error: "" })}
 					lengthLimit={256}
 					disabled
 				/>
-				<LUIWebPreview previewBlob={preview?.blob} url={save.url} />
+				<LUIWebPreview previewBlob={preview} url={save.url} />
 				<div className={`my-1 flex h-max w-full flex-col gap-y-1`}>
 					<div className={`my-1 flex h-max w-full flex-col gap-y-1`}>
 						<div
@@ -184,7 +177,9 @@ const Component = ({
 							>
 								Notes
 							</div>
-							<div
+							<button
+								type="button"
+								aria-label="Add note"
 								className={`h-max w-max cursor-pointer`}
 								onClick={handleCreateNote}
 							>
@@ -198,12 +193,12 @@ const Component = ({
 									weight="regular"
 									className={`size-5`}
 								/>
-							</div>
+							</button>
 						</div>
 					</div>
-					{linkedNotes.map((note) => (
+					{draftNotes.map((note) => (
 						<div
-							key={note.id}
+							key={note.key}
 							className={`relative flex h-max w-full items-start gap-x-1`}
 						>
 							<textarea
@@ -216,14 +211,16 @@ const Component = ({
 								placeholder="Write note..."
 								onChange={(event) =>
 									handleNoteContentChange(
-										note.id,
+										note.key,
 										event.target.value,
 									)
 								}
 							/>
-							<div
+							<button
+								type="button"
+								aria-label="Delete note"
 								className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg active:scale-95`}
-								onClick={() => handleDeleteNote(note)}
+								onClick={() => handleDeleteNote(note.key)}
 							>
 								<LUIThemedIcon
 									Icon={TrashIcon}
@@ -235,7 +232,7 @@ const Component = ({
 									weight="light"
 									className={`size-6`}
 								/>
-							</div>
+							</button>
 						</div>
 					))}
 				</div>
@@ -243,14 +240,22 @@ const Component = ({
 					<LUITaskLinks
 						tasks={tasks}
 						linkedTaskIds={linkedTaskIds}
-						handleUnlinkTask={handleUnlinkTask}
+						handleUnlinkTask={(id) =>
+							setLinkedTaskIds((ids) =>
+								ids.filter((taskId) => taskId !== id),
+							)
+						}
 					/>
 				) : null}
 				{linkedReminderIds.length > 0 ? (
 					<LUIReminderLinks
 						reminders={reminders}
 						linkedReminderIds={linkedReminderIds}
-						handleUnlinkReminder={handleUnlinkReminder}
+						handleUnlinkReminder={(id) =>
+							setLinkedReminderIds((ids) =>
+								ids.filter((reminderId) => reminderId !== id),
+							)
+						}
 					/>
 				) : null}
 			</div>
