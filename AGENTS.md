@@ -27,7 +27,7 @@
 - For work that will edit more than two files, write `PLAN.md` first (local; gitignored).
 - Run the targeted test, and `python3 scripts/lint_knowledge.py --strict` if docs changed, before calling the task done.
 - Branch from `dev` and open pull requests into `dev`; see CONTRIBUTING.md.
-- AI tools are built with `defineTool` on the worker commands (decision 0012). Do not add an agent framework such as LangChain or LangGraph.
+- AI Assist tools in the extension are built with `defineTool` on the worker commands (decision 0012). Do not add an agent framework such as LangChain or LangGraph.
 
 ## Fixing bugs
 
