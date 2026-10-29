@@ -4,11 +4,11 @@ type: decision
 
 # 0002. We will keep a single unlocked Dexie vault
 
-Status: accepted
+Status: superseded by 0010
 Date: 2026-08-19
 Deciders: existing project
 Supersedes: —
-Superseded-by: —
+Superseded-by: 0010
 
 ## Context
 

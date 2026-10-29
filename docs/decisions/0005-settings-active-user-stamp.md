@@ -4,11 +4,11 @@ type: decision
 
 # 0005. Settings stay in `chrome.storage.local` with a fail-closed `activeUserId` stamp
 
-Status: accepted
+Status: superseded by 0010
 Date: 2026-08-19
 Deciders: existing project
 Supersedes: —
-Superseded-by: —
+Superseded-by: 0010
 
 ## Context
 
