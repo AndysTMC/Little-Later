@@ -6,7 +6,7 @@ import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { MotionProps } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import { fakeWait } from "little-shared/utils/misc";
-import { getUserSettings } from "../../../services/settings";
+import { isFirstTimeUser } from "../../../services/settings";
 import { createToast } from "../../../services/toasts";
 import { LTOAST_TYPE } from "little-shared/enums";
 import type { UserProfile } from "../../hooks/useUserProfiles";
@@ -47,8 +47,7 @@ const Component = ({
 				profileId: userProfile.id,
 				password: null,
 			});
-			const settings = await getUserSettings();
-			if (settings.guide.isFirstTimeUser) {
+			if (await isFirstTimeUser()) {
 				changeExit(exitTransitions.slideLeft);
 				navigate("/getting-started", {
 					state: { entryTransition: entryTransitions.slideLeft },

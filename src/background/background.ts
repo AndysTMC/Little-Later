@@ -1,8 +1,7 @@
+import Dexie from "dexie";
 import { LAI_PROVIDERS } from "little-shared/enums";
-import {
-	createChromeNativeNotification,
-	createNotifications,
-} from "../services/notification";
+import { createChromeNativeNotification } from "./notify";
+import { dropPreV1Settings } from "../services/settings";
 import { getActiveTab } from "../utils/chrome";
 import { LittleAI } from "../services/ai";
 import { importProfileKeys } from "../storage/keys";
@@ -194,10 +193,23 @@ function keepAlive() {
 	}, 20000);
 }
 
+// Format v1 replaces the pre-v1 database, its notification alarm, and the
+// settings that held the AI key in chrome.storage.local (decision 0010).
+const removePreV1Data = async (): Promise<void> => {
+	await Dexie.delete("LLDB");
+	await chrome.alarms.clear("createNotifications");
+	await dropPreV1Settings();
+};
+
 chrome.runtime.onInstalled.addListener(async (details) => {
 	await configureLocalAIRequestHeaders();
 	if (details.reason === "install") {
 		chrome.storage.local.clear();
+	}
+	if (details.reason === "update") {
+		removePreV1Data().catch((error: unknown) => {
+			console.error("Couldn't remove pre-v1 data.", error);
+		});
 	}
 	chrome.contextMenus.removeAll(() => {
 		chrome.contextMenus.create({
@@ -350,26 +362,14 @@ chrome.tabs.onUpdated.addListener(async (_, changeInfo) => {
 	}
 });
 
-// Tab events are best-effort, so these alarms keep notifications and preview
-// capture fresh even after the MV3 worker gets suspended.
-chrome.alarms.create("createNotifications", {
-	delayInMinutes: 0.5,
-	periodInMinutes: 0.5,
-});
-
+// Tab events are best-effort, so this alarm keeps preview capture fresh
+// even after the MV3 worker gets suspended.
 chrome.alarms.create("captureActiveTab", {
 	delayInMinutes: 0.5,
 	periodInMinutes: 0.5,
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-	if (alarm.name === "createNotifications") {
-		try {
-			await createNotifications();
-		} catch (error) {
-			console.error("Failed to create notifications.", error);
-		}
-	}
 	if (alarm.name === "captureActiveTab") {
 		await captureActiveTab();
 	}
@@ -377,33 +377,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 		runReminderScheduler();
 	}
 });
-
-const getNotificationPayload = (notificationId: string): string => {
-	const separator = notificationId.indexOf("::");
-	return separator === -1 ? "" : notificationId.slice(separator + 2);
-};
-
-const openNotificationTarget = (notificationId: string): void => {
-	if (notificationId.startsWith("vbmReminder")) {
-		const vbmUrl = getNotificationPayload(notificationId);
-		if (vbmUrl) {
-			void chrome.tabs.create({ url: vbmUrl });
-		}
-		return;
-	}
-	if (chrome.action?.openPopup) {
-		void chrome.action.openPopup();
-	}
-};
-
-chrome.notifications.onButtonClicked.addListener(
-	(notificationId, buttonIndex) => {
-		if (notificationId.startsWith("vbmReminder") && buttonIndex === 1) {
-			openNotificationTarget(notificationId);
-		}
-		chrome.notifications.clear(notificationId);
-	},
-);
 
 const openReminderNotice = async (notificationId: string): Promise<void> => {
 	const url = await reminderScheduler.noticeTarget(notificationId);
@@ -419,8 +392,8 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 		openReminderNotice(notificationId).catch((error: unknown) => {
 			console.error("Could not open the reminder.", error);
 		});
-	} else {
-		openNotificationTarget(notificationId);
+	} else if (chrome.action?.openPopup) {
+		void chrome.action.openPopup();
 	}
 	chrome.notifications.clear(notificationId);
 });

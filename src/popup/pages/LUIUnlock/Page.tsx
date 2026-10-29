@@ -4,7 +4,7 @@ import { useLittleTransition } from "../../hooks/useLittleTransition";
 import { LTHEME } from "little-shared/enums";
 import { useNavigate, useParams } from "react-router";
 import { send } from "../../../utils/send";
-import { getUserSettings } from "../../../services/settings";
+import { isFirstTimeUser } from "../../../services/settings";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIAuthGate } from "../../components/LUIAuthGate/Component";
@@ -39,9 +39,9 @@ const Page = () => {
 			profileId: savedUP.id,
 			password: password ?? null,
 		});
-		const { guide } = await getUserSettings();
+		const firstTime = await isFirstTimeUser();
 		setExit(exitTransitions.zoomIn);
-		navigate(guide.isFirstTimeUser ? "/getting-started" : "/home", {
+		navigate(firstTime ? "/getting-started" : "/home", {
 			state: { entryTransition: entryTransitions.zoomIn },
 		});
 	};
