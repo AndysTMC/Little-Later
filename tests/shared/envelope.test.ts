@@ -180,6 +180,29 @@ describe("envelope", () => {
 			/32 bytes/,
 		);
 	});
+	// The decoder refuses a "__proto__" key, so a value holding one would seal
+	// but never open again.
+	it("refuses to seal a value it could not open", async () => {
+		const keys = await deriveContentKeys(randomKeyBytes(), 1);
+		const values = [
+			JSON.parse('{"__proto__": 1}'),
+			{ nested: [JSON.parse('{"a": {"__proto__": "x"}}')] },
+			new Map([["__proto__", 1]]),
+		];
+		for (const value of values) {
+			await expect(sealValue(keys, location, value)).rejects.toThrow(
+				EnvelopeError,
+			);
+		}
+		const safe = { proto: "__proto__", list: ["__proto__"] };
+		expect(
+			await openValue(
+				keys,
+				location,
+				await sealValue(keys, location, safe),
+			),
+		).toEqual(safe);
+	});
 });
 
 describe("key wrapping", () => {
