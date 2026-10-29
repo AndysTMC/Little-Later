@@ -47,7 +47,9 @@ const Page = () => {
 			setWarning(problem);
 			return;
 		}
-		if (password !== confirmPassword) {
+		// The confirmation belongs to setting a password; it is hidden, and
+		// may hold an old value, once the password is cleared.
+		if (password !== "" && password !== confirmPassword) {
 			setWarning("The passwords don't match.");
 			return;
 		}
