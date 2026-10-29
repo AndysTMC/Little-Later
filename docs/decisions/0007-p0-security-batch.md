@@ -6,7 +6,7 @@ type: decision
 
 Status: accepted
 Date: 2026-10-27
-Deciders: AndysTMC (plan approved 2026-10-27)
+Deciders: AndysTMC
 Supersedes: —
 Superseded-by: —
 
@@ -75,7 +75,7 @@ Each gap is its own commit, so `git revert` of that commit restores the previous
 
 ## Review
 
-An independent agent critiqued the first draft. Adopted: enforce the image policy in the renderer rather than a regex; keep notes inside the user's turn instead of a separate message (consecutive user turns break some local chat templates); refuse the sentinel and outer-space passwords and handle a missing vault; a separate password field for delete; restrict `chrome-extension://` images to this extension; escape save titles; spell out the full CSP; IPv6 loopback in the Origin rule; and the corrected trade-offs above. Not adopted yet: the AI settings page still fetches the model list (with the API key) while a URL is being typed, so a mistyped https host can receive the key. That belongs to the AI settings rework.
+An independent review of the first draft led to these changes. Adopted: enforce the image policy in the renderer rather than a regex; keep notes inside the user's turn instead of a separate message (consecutive user turns break some local chat templates); refuse the sentinel and outer-space passwords and handle a missing vault; a separate password field for delete; restrict `chrome-extension://` images to this extension; escape save titles; spell out the full CSP; IPv6 loopback in the Origin rule; and the corrected trade-offs above. Not adopted yet: the AI settings page still fetches the model list (with the API key) while a URL is being typed, so a mistyped https host can receive the key. That belongs to the AI settings rework.
 
 ## Revisit if
 

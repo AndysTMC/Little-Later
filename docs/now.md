@@ -1,20 +1,21 @@
 ---
 type: now
-updated: 2026-10-28
-horizon: 2026-10-28 → 2026-11-11
+updated: 2026-10-29
+horizon: 2026-10-29 → 2026-11-12
 ---
 
 # Now
 
 ## Focus
 
-Start the core rebuild planned in the October 2026 review: versioned storage formats (format v1), key wrapping, a single writer for the vault, and `defineTool` for AI tools. Each step lands as its own decision record and pull request into `dev`.
+Storage format v1 (decisions 0010–0012) is on `dev`: per-record encryption under wrapped profile keys, the service worker as the only writer, the Temporal time model and `.lldat` format 3 backups. Next is release 3.0.0, then `defineTool` for AI tools.
 
 ## Next
 
-- Draft the decision record for format v1 and its migration tests, critique it, and bring it to AndysTMC before code.
-- Settle the AI-centric product direction (open question with AndysTMC).
-- Decision 0008 (open-source workflow) is `proposed` and waits for AndysTMC.
+- Prepare release 3.0.0 from the `Unreleased` changelog section.
+- Build AI tools on the worker commands with `defineTool`.
+- Decide the product direction for AI features.
+- Decisions 0008 (open-source workflow) and 0009 (supply chain and licensing) are `proposed`.
 
 ## Blocked
 
@@ -22,5 +23,5 @@ Nothing.
 
 ## Do not do
 
-- Merge into `main` or tag a release without AndysTMC approving the proposed version.
-- Accept a decision on AndysTMC's behalf.
+- Merge into `main` or tag a release before the version is approved.
+- Mark a decision `accepted` without a named human deciding it.
