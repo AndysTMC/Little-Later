@@ -129,9 +129,7 @@ bun run build:shared   # build the shared package once
 bun run dev            # then load dist/ in chrome://extensions
 ```
 
-
-Official builds come only from this repository's releases and, once listed, the maintainer's Chrome Web Store listing. How releases are cut is in [CONTRIBUTING.md](./CONTRIBUTING.md#releases).
-
+While `bun run dev` runs, the loaded extension hot-reloads from the dev server. [CONTRIBUTING.md](./CONTRIBUTING.md) covers the end-to-end tests and every check CI runs.
 
 The service worker is the only code that writes data; the popup and the AI send it typed commands ([decision 0012](./docs/decisions/0012-single-writer.md)). Why the project is built the way it is lives in [docs/decisions](./docs/decisions/_index.md), what is being worked on now in [docs/now.md](./docs/now.md), and a map of the code in [AGENTS.md](./AGENTS.md#where-to-read).
 
@@ -141,9 +139,7 @@ Bug reports, ideas and pull requests are welcome. Please read [CONTRIBUTING.md](
 
 See also: [getting help](./SUPPORT.md), the [security policy](./SECURITY.md) (report vulnerabilities privately, never in a public issue), [how the project is run](./GOVERNANCE.md) and the [changelog](./CHANGELOG.md).
 
-
-MIT, see [LICENSE.md](./LICENSE.md). The license covers the code, not the name or logo: a version you publish yourself needs its own name and icons ([TRADEMARKS.md](./TRADEMARKS.md)). Every build includes `THIRD_PARTY_NOTICES.txt` with the license of each bundled package; the Rubik font is under the SIL Open Font License ([public/fonts/OFL.txt](./public/fonts/OFL.txt)).
-
+## License
 
 The code is released under the [MIT License](./LICENSE.md). The license covers the code, not the Little Later name or logo: if you publish your own build, give it your own name and icons ([TRADEMARKS.md](./TRADEMARKS.md)).
 
