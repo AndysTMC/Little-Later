@@ -137,6 +137,84 @@ describe("re-arming after commands", () => {
 		);
 	});
 
+	// 0011: every occurrence fires. A recurring task's reminder fired once
+	// and then fell silent until the task was completed.
+	it("reminds at every occurrence of a recurring task left open", async () => {
+		await run("task.create", {
+			information: "Stand-up",
+			schedule: {
+				kind: "recurring",
+				rule: {
+					freq: "daily",
+					interval: 1,
+					time: "09:00",
+					anchor: "2026-03-01",
+					zone: "floating",
+				},
+			},
+			reminder: "normal",
+		});
+		const day = (n: number) => Date.UTC(2026, 2, n, 9);
+		clock = day(8);
+		expect(await scheduler.run()).toEqual({ fired: 1, nextAlarm: day(9) });
+		clock = day(9);
+		expect(await scheduler.run()).toEqual({
+			fired: 1,
+			nextAlarm: day(10),
+		});
+		expect(messages()).toEqual(["Stand-up", "Stand-up"]);
+		// The task itself stays on the occurrence it is on until completed.
+		const [task] = await db.tasks.toArray();
+		expect(task.dueAt).toBe(day(8));
+		// Editing the task keeps reminding at the next occurrence.
+		await run("task.update", { id: task.id, information: "Stand-up!" });
+		expect((await scheduler.run()).nextAlarm).toBe(day(10));
+		// The next reminder follows the device to another zone too.
+		zone = "Asia/Kolkata";
+		expect((await scheduler.run()).nextAlarm).toBe(
+			Date.UTC(2026, 2, 10, 3, 30),
+		);
+	});
+
+	// New York and Lima share an offset on 7 March 2026, not on the 8th,
+	// when New York starts daylight saving time.
+	it("moves a reminder on a later occurrence when only that occurrence's offset changes", async () => {
+		zone = "America/New_York";
+		await run("task.create", {
+			information: "Stand-up",
+			schedule: {
+				kind: "recurring",
+				rule: {
+					freq: "daily",
+					interval: 1,
+					time: "09:00",
+					anchor: "2026-03-01",
+					zone: "floating",
+				},
+			},
+			reminder: "normal",
+		});
+		clock = Date.UTC(2026, 2, 7, 14);
+		expect(await scheduler.run()).toEqual({
+			fired: 1,
+			nextAlarm: Date.UTC(2026, 2, 8, 13),
+		});
+		zone = "America/Lima";
+		expect((await scheduler.run()).nextAlarm).toBe(
+			Date.UTC(2026, 2, 8, 14),
+		);
+	});
+
+	it("still reminds once for a one-off task", async () => {
+		await run("task.create", {
+			information: "File taxes",
+			schedule: { kind: "due", at: START + 30 * MINUTE },
+			reminder: "normal",
+		});
+		clock = START + 30 * MINUTE;
+		expect(await scheduler.run()).toEqual({ fired: 1, nextAlarm: null });
+	});
+
 	it("leaves the alarm alone after a refused command", async () => {
 		const runs: Array<true> = [];
 		const send = rearmAfterCommands(dispatch, () => runs.push(true));
