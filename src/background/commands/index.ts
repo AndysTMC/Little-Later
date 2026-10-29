@@ -7,6 +7,11 @@ import {
 	profileUnlock,
 	profileUpdate,
 } from "./profiles";
+import {
+	backupImportAbort,
+	backupImportBegin,
+	backupImportChunk,
+} from "./backup";
 import { linkCreate, linkDelete } from "./links";
 import { noteCreate, noteDelete, noteUpdate } from "./notes";
 import { reminderCreate, reminderDelete, reminderUpdate } from "./reminders";
@@ -46,6 +51,9 @@ export const commands = [
 	linkCreate,
 	linkDelete,
 	settingsUpdate,
+	backupImportBegin,
+	backupImportChunk,
+	backupImportAbort,
 ] as const;
 
 type CommandList = typeof commands;

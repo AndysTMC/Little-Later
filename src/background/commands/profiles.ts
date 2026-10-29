@@ -19,11 +19,16 @@ import {
 	fail,
 } from "./registry";
 
-const MAX_AUTO_LOCK_MINUTES = 24 * 60;
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
-const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+export const MAX_AUTO_LOCK_MINUTES = 24 * 60;
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+export const AVATAR_TYPES = [
+	"image/png",
+	"image/jpeg",
+	"image/webp",
+	"image/gif",
+];
 
-const asProfileName = (value: unknown): string => {
+export const asProfileName = (value: unknown): string => {
 	const name = asString(value, "name").trim();
 	return name.length > 0 && name.length <= LMAX_NAME_LENGTH
 		? name

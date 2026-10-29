@@ -25,7 +25,6 @@ describe("note context sent to the model", () => {
 	const requests: Array<Array<SentMessage>> = [];
 
 	beforeAll(async () => {
-		(globalThis as { self?: unknown }).self = globalThis;
 		({ OpenAICompatibleAI } = await import("../../src/services/ai/main"));
 	});
 

@@ -19,7 +19,7 @@ import {
 
 const MAX_TITLE_LENGTH = 1_000;
 
-const asWebUrl = (value: unknown): string => {
+export const asWebUrl = (value: unknown): string => {
 	const url = asString(value, "url");
 	try {
 		const { protocol } = new URL(url);

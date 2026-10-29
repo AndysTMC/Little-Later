@@ -33,9 +33,7 @@ import { putPreview } from "../../src/storage/repositories";
 import { send } from "../../src/utils/send";
 import { freshProfile, localDate } from "./profile";
 
-// The export tool still writes the pre-v1 backup, whose packer needs a
-// browser global; it moves to the v1 backup in its own change.
-(globalThis as { self?: unknown }).self = globalThis;
+const BACKUP_PASSWORD = "correct-horse-battery";
 
 let OpenAICompatibleAI: typeof OpenAICompatibleAIClass;
 let registeredTools: Array<{ function: { name: string } }>;
@@ -529,6 +527,14 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 					]),
 			},
 		});
+		// Exports end in a download.
+		vi.stubGlobal("document", {
+			createElement: () => ({ click: () => undefined }),
+			body: {
+				appendChild: () => undefined,
+				removeChild: () => undefined,
+			},
+		});
 		mockServer.resetToolExecutions();
 		seeded = await seedTestData();
 	});
@@ -827,6 +833,33 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 				} satisfies PromptScenario,
 			},
 			{
+				prompt: "Export readable data.",
+				expectedTool: "export_data",
+				expectedMessage: "Export completed.",
+				scenario: {
+					toolCalls: [
+						{
+							name: "export_data",
+							args: { type: "readable" },
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Export importable data.",
+				expectedTool: "export_data",
+				expectedMessage: "Export completed.",
+				confirmPassword: BACKUP_PASSWORD,
+				scenario: {
+					toolCalls: [
+						{
+							name: "export_data",
+							args: { type: "importable" },
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
 				prompt: "Delete note two.",
 				expectedTool: "delete_note",
 				expectedMessage: "Deleted the note.",
@@ -906,7 +939,11 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 							(entry) => entry.toolName === item.expectedTool,
 						),
 					).toBe(true);
-					finalOutput = await ai.confirmPendingMutations();
+					finalOutput = await ai.confirmPendingMutations(
+						"confirmPassword" in item && item.confirmPassword
+							? { password: item.confirmPassword }
+							: undefined,
+					);
 				}
 				toolExecutionSpy.setActivePrompt(null);
 				expect(
@@ -927,8 +964,6 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 		const executions = toolExecutionSpy.getGlobalToolExecutions();
 		const exposedToolNames = registeredTools
 			.map((tool) => tool.function.name)
-			// Covered again once it writes the v1 backup.
-			.filter((toolName) => toolName !== "export_data")
 			.sort();
 		expect(exposedToolNames.length).toBeGreaterThan(0);
 		for (const toolName of exposedToolNames) {

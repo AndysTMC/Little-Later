@@ -39,6 +39,25 @@ const asProvider = (value: unknown): LAI_PROVIDERS =>
 				`provider must be one of ${Object.values(LAI_PROVIDERS).join(", ")}.`,
 			);
 
+// The history limits; backups carry them too.
+export const asMisc = (value: unknown): Settings["misc"] => {
+	const misc = asRecord(value);
+	return {
+		VBMLimit: asIntIn(
+			misc.VBMLimit,
+			"VBMLimit",
+			LMIN_VBM_LIMIT,
+			LMAX_VBM_LIMIT,
+		),
+		VBMSameOriginLimit: asIntIn(
+			misc.VBMSameOriginLimit,
+			"VBMSameOriginLimit",
+			LMIN_VBM_SAME_ORIGIN_LIMIT,
+			LMAX_VBM_SAME_ORIGIN_LIMIT,
+		),
+	};
+};
+
 // Replaces the AI settings or the history limits of the unlocked profile.
 // The row is sealed: it holds the AI provider's key (0010).
 export const settingsUpdate = defineCommand({
@@ -66,25 +85,7 @@ export const settingsUpdate = defineCommand({
 						};
 					})();
 		const misc =
-			record.misc === undefined
-				? undefined
-				: (() => {
-						const misc = asRecord(record.misc);
-						return {
-							VBMLimit: asIntIn(
-								misc.VBMLimit,
-								"VBMLimit",
-								LMIN_VBM_LIMIT,
-								LMAX_VBM_LIMIT,
-							),
-							VBMSameOriginLimit: asIntIn(
-								misc.VBMSameOriginLimit,
-								"VBMSameOriginLimit",
-								LMIN_VBM_SAME_ORIGIN_LIMIT,
-								LMAX_VBM_SAME_ORIGIN_LIMIT,
-							),
-						};
-					})();
+			record.misc === undefined ? undefined : asMisc(record.misc);
 		return { ai, misc };
 	},
 	run: async (ctx, input) => {

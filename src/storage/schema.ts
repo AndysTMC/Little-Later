@@ -100,6 +100,16 @@ export type AssetRow = RecordBase & { ownerId: string; kind: string };
 // settings.
 export type SettingsRow = RecordBase;
 
+// A long job tied to an open page (decision 0012, Jobs). An import still
+// `running` when the worker starts was cut off: its rows are deleted.
+export type JobRow = {
+	id: string;
+	kind: "import";
+	profileId: string;
+	state: "running";
+	startedAt: number;
+};
+
 export type LittleDB = Dexie & {
 	profiles: EntityTable<ProfileRow, "id">;
 	avatars: EntityTable<AvatarRow, "profileId">;
@@ -110,6 +120,7 @@ export type LittleDB = Dexie & {
 	links: EntityTable<LinkRow, "id">;
 	assets: EntityTable<AssetRow, "id">;
 	settings: EntityTable<SettingsRow, "id">;
+	jobs: EntityTable<JobRow, "id">;
 };
 
 // Tables whose rows carry a sealed body under a profile key.
@@ -135,6 +146,7 @@ export const openLittleDB = (name: string = LITTLE_DB_NAME): LittleDB => {
 		links: "id, [profileId+fromId], [profileId+toId]",
 		assets: "id, [profileId+ownerId], [profileId+keyId]",
 		settings: "id, [profileId+keyId]",
+		jobs: "id",
 	});
 	return db;
 };

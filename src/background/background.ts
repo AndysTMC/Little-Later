@@ -17,6 +17,7 @@ import {
 	buildLocalAIOriginRule,
 } from "./localAIOriginRule";
 import { commands } from "./commands";
+import { cleanUpImports } from "./commands/backup";
 import { listenForCommands } from "./commands/listener";
 import {
 	createCommandContext,
@@ -90,6 +91,11 @@ listenForCommands(async (name, input) => {
 // Every worker start: browser start, extension update, and waking after
 // suspension. Fires what was missed and re-arms the alarm.
 runReminderScheduler();
+
+// An import still running when the worker starts was cut off (0012, Jobs).
+writeQueue(() => cleanUpImports(littleDB)).catch((error: unknown) => {
+	console.error("Couldn't clean up an interrupted import.", error);
+});
 
 let keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
 

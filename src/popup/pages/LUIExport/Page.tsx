@@ -4,10 +4,7 @@ import { exitTransitions } from "../../../route-transitions";
 import { LEXPORT_TYPE, LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { useState } from "react";
-import {
-	exportDataImportable,
-	exportDataReadable,
-} from "../../../services/dataExchange";
+import { exportBackup, exportReadable } from "../../../services/backup";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
 import { LUISelectT2 } from "../../components/LUISelectT2/Component";
@@ -23,7 +20,7 @@ const Page = () => {
 	const [exportType, setExportType] = useState<LEXPORT_TYPE>(
 		LEXPORT_TYPE.IMPORTABLE,
 	);
-	const [lockPassword, setLockPassword] = useState("");
+	const [backupPassword, setBackupPassword] = useState("");
 	const [isExporting, setIsExporting] = useState(false);
 	const handleExport = async () => {
 		if (isExporting) {
@@ -32,9 +29,9 @@ const Page = () => {
 		setIsExporting(true);
 		try {
 			if (exportType === LEXPORT_TYPE.IMPORTABLE) {
-				await exportDataImportable(lockPassword);
+				await exportBackup(backupPassword);
 			} else {
-				await exportDataReadable();
+				await exportReadable();
 			}
 			await createToast("Export started.", LTOAST_TYPE.SUCCESS);
 		} catch (error) {
@@ -84,14 +81,16 @@ const Page = () => {
 										: "text-neutral-600"
 								}`}
 							>
-								Use this profile's lock password. Passwordless
-								profiles need a lock first.
+								Choose a password for this backup; you can use
+								this profile's password. Importing the backup
+								needs it, and the imported profile opens with
+								it.
 							</div>
 							<LUITextInputT1
-								name="Lock password"
+								name="Backup password"
 								inputType="password"
-								passedValue={lockPassword}
-								onChange={setLockPassword}
+								passedValue={backupPassword}
+								onChange={setBackupPassword}
 								lengthLimit={128}
 								disableLengthCounter
 								validate={(value) =>
@@ -122,7 +121,7 @@ const Page = () => {
 							disabled={
 								isExporting ||
 								(exportType === LEXPORT_TYPE.IMPORTABLE &&
-									lockPassword.trim() === "")
+									backupPassword.trim() === "")
 							}
 							className={`h-max w-max text-base ${
 								theme === LTHEME.DARK
