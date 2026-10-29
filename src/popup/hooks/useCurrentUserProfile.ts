@@ -1,4 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
+import { useMemo } from "react";
 import { littleDB } from "../../storage/pageDB";
 import { useSession } from "./useSession";
 import { toUserProfile, type UserProfile } from "./useUserProfiles";
@@ -19,13 +20,16 @@ const useResolvedCurrentUser = (): {
 		[profileId],
 		undefined,
 	);
+	// One object per row, so effects that depend on the profile run when
+	// it changes, not on every render.
+	const profile = useMemo(
+		() => (row ? toUserProfile(row) : undefined),
+		[row],
+	);
 	if (!isResolved || (profileId !== undefined && row === undefined)) {
 		return { isResolved: false, profile: undefined };
 	}
-	return {
-		isResolved: true,
-		profile: row ? toUserProfile(row) : undefined,
-	};
+	return { isResolved: true, profile };
 };
 
 const useCurrentUserProfile = (): UserProfile | undefined =>
