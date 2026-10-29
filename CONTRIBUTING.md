@@ -31,6 +31,7 @@ bunx playwright install chromium
 - Branch from `dev` and name the branch after the work: `fix/lock-timeout`, `feat/voice-notes`, `docs/setup`.
 - Open the pull request into `dev`. `main` only moves when a release is cut.
 - Title the pull request in [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) form, for example `fix: keep the lock screen open after a wrong password`. Pull requests are squash-merged, so the title becomes the commit message. Use `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`, `ci` or `chore`, and add `!` for a breaking change.
+- If an AI assistant helps, you are still the author: commit under your own name, leave out AI co-author trailers and chat links, and review every line before you push. [AGENTS.md](./AGENTS.md) has the rules agents follow.
 - Keep a pull request to one change. Under about 400 changed lines is easiest to review.
 - Add a line to the `Unreleased` section of [CHANGELOG.md](./CHANGELOG.md) when users would notice the change.
 

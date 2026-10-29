@@ -28,6 +28,14 @@
 - Run the targeted test, and `python3 scripts/lint_knowledge.py --strict` if docs changed, before calling the task done.
 - Branch from `dev` and open pull requests into `dev`; see CONTRIBUTING.md.
 
+## Commits and pull requests
+
+- Commit as the human contributor, with their own `user.name` and `user.email`. Never author a commit as an AI tool or bot account.
+- No `Co-Authored-By`, session or tool trailers for AI tools. A squash merge copies every branch commit's author into the merged commit, so one tool-authored commit adds the tool to the contributor list.
+- Name branches after the work (`fix/…`, `feat/…`, `docs/…`), never after a tool.
+- A pull request body may end with one plain line naming the tool, such as `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. Never link a chat, session or conversation.
+- Write commits, pull requests, decisions, docs and the changelog as the project's engineering record. Do not quote chats, describe the prompts behind a change, or name the AI that reviewed it.
+
 ## Stack notes
 
 - Bun workspace: root = Chrome extension; `packages/shared` = types, enums, constants, crypto/date helpers.
