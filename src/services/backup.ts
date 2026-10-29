@@ -41,6 +41,15 @@ const unlockedKeys = async (): Promise<ProfileKeys> => {
 	return importProfileKeys(session);
 };
 
+// An export reads with keys it took at the start. It checks between pages
+// that the profile is still the unlocked one, so locking stops it and
+// nothing is returned.
+const assertStillUnlocked = async (profileId: string): Promise<void> => {
+	if ((await sessionStore.get())?.profileId !== profileId) {
+		throw new BackupError("The profile was locked, so the export stopped.");
+	}
+};
+
 // Rows are read in pages, so a large profile is never all in memory twice.
 const PAGE_SIZE = 200;
 // A chunk is sealed once its entries reach about this size, which keeps
@@ -62,6 +71,7 @@ async function* ownRows<T extends { id: string }>(
 				typeof table.bulkGet
 			>[0],
 		);
+		await assertStillUnlocked(profileId);
 		for (const row of rows) {
 			if (row) {
 				yield row;
@@ -238,6 +248,7 @@ export const createBackup = async (
 		pendingBytes += entrySize(entry);
 	}
 	await flush(true);
+	await assertStillUnlocked(keys.profileId);
 	return new Blob(
 		backupFileParts(encodeHeader(header), chunks).map((part) =>
 			part.slice(),
@@ -323,6 +334,7 @@ export const createReadableExport = async (): Promise<unknown> => {
 				break;
 		}
 	}
+	await assertStillUnlocked(keys.profileId);
 	return out;
 };
 
