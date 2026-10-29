@@ -80,6 +80,33 @@ afterEach(async () => {
 });
 
 describe("page capture", () => {
+	// The screenshot is awaited before the save is written. A profile
+	// opened meanwhile must not receive the page the first one browsed.
+	it("drops a capture when another profile opens during the screenshot", async () => {
+		let release = () => {};
+		const paused = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		capture = createPageCapture({
+			db,
+			session,
+			queue: createSerialQueue(),
+			dispatch,
+			now: () => clock,
+			screenshot: async () => {
+				await paused;
+				return shot;
+			},
+		});
+		const saving = capture.save(tab);
+		await dispatch("profile.lock", {});
+		await dispatch("profile.create", { name: "Bea", password: null });
+		release();
+		expect(await saving).toBe("failed");
+		expect(await listSaves(db, await keys(), true)).toEqual([]);
+		expect(await db.saves.count()).toBe(0);
+	});
+
 	it("records a visit with a sealed preview", async () => {
 		await capture.visit(tab);
 		const [save] = await listSaves(db, await keys(), false);

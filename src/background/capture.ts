@@ -45,11 +45,13 @@ export const createPageCapture = ({
 			return false;
 		}
 		const bytes = await screenshot(tab.windowId!);
-		const result = await dispatch("save.capture", {
-			url,
-			title: tab.title?.trim() ?? "",
-			saved,
-		});
+		// Another profile may have been opened during the screenshot; the
+		// page belongs to the one that was browsing.
+		const result = await dispatch(
+			"save.capture",
+			{ url, title: tab.title?.trim() ?? "", saved },
+			{ profileId: unlocked.profileId },
+		);
 		if (!result.ok) {
 			return false;
 		}

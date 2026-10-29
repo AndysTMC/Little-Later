@@ -106,9 +106,17 @@ const toFailure = (
 	};
 };
 
+export type DispatchOptions = {
+	// Runs the command only if this profile is still the unlocked one when
+	// its turn comes. For work that waited on something else first, such as
+	// a screenshot, while another profile could be opened.
+	profileId?: string;
+};
+
 export type Dispatch = (
 	name: string,
 	input: unknown,
+	options?: DispatchOptions,
 ) => Promise<CommandResult<unknown>>;
 
 // Runs tasks strictly one after another. Everything in the worker that
@@ -132,7 +140,7 @@ export const createDispatcher = (
 	queue: SerialQueue = createSerialQueue(),
 ): Dispatch => {
 	const byName = new Map(commands.map((command) => [command.name, command]));
-	return (name, input) => {
+	return (name, input, options) => {
 		const run = async (): Promise<CommandResult<unknown>> => {
 			const command = byName.get(name);
 			if (!command) {
@@ -140,6 +148,17 @@ export const createDispatcher = (
 					new CommandError(
 						"unknown-command",
 						`Unknown command ${name}.`,
+					),
+				);
+			}
+			if (
+				options?.profileId !== undefined &&
+				(await ctx.session.get())?.profileId !== options.profileId
+			) {
+				return toFailure(
+					new CommandError(
+						"rejected",
+						"The profile changed before this could run.",
 					),
 				);
 			}
