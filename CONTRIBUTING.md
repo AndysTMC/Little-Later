@@ -50,6 +50,8 @@ bun run test:e2e
 
 New behaviour needs a test. A change to stored data needs a migration and a test that runs it.
 
+A bug fix starts from the root cause. Reproduce the bug with a failing test, fix it where it originates rather than where it shows, and cover every path with the same cause. The pull request says what the cause was, where it was fixed, which other cases it covers and how it was verified.
+
 ## Releases
 
 A release starts with a pull request from `dev` into `main` that bumps the version in `manifest.json`, `package.json` and `packages/shared/package.json` and moves the changelog's `Unreleased` entries under the new version. Its description proposes the version and why: major for a breaking change, minor for new features, patch for fixes only. That pull request is merged with a merge commit, not squashed, so `dev` and `main` keep a shared history. The decision gate skips this pull request, because every decision change in it already passed the gate on its way into `dev`. Tagging `vX.Y.Z` on `main` then builds and publishes the release.
