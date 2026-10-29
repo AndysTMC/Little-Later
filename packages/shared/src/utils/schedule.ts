@@ -68,8 +68,9 @@ export const parseRule = (input: unknown): RecurrenceRule => {
 	if (typeof raw.anchor !== "string") {
 		throw new ScheduleError('anchor must be a "YYYY-MM-DD" date.');
 	}
+	let anchor: Temporal.PlainDate;
 	try {
-		Temporal.PlainDate.from(raw.anchor, { overflow: "reject" });
+		anchor = Temporal.PlainDate.from(raw.anchor, { overflow: "reject" });
 	} catch {
 		throw new ScheduleError('anchor must be a "YYYY-MM-DD" date.');
 	}
@@ -102,6 +103,17 @@ export const parseRule = (input: unknown): RecurrenceRule => {
 			throw new ScheduleError("byWeekday must list weekdays 1 to 7.");
 		}
 		rule.byWeekday = [...new Set(raw.byWeekday as Array<number>)].sort();
+		// Every 7th day is the anchor's weekday, so a daily rule whose
+		// interval is a multiple of 7 can only occur on that day.
+		if (
+			freq === "daily" &&
+			rule.interval % 7 === 0 &&
+			!rule.byWeekday.includes(anchor.dayOfWeek)
+		) {
+			throw new ScheduleError(
+				"This rule never occurs: every interval lands on the anchor's weekday.",
+			);
+		}
 	}
 	if (raw.byMonthDay !== undefined) {
 		if (freq !== "monthly" && freq !== "yearly") {
@@ -273,14 +285,16 @@ const MINUTE = 60_000;
 // Escalating reminders, as before format v1: each fire lands halfway
 // between the last fire and the target, so the gaps halve as the target
 // nears; within `stopBefore` minutes of the target the next fire is the
-// target itself.
+// target itself. Once the gap is 1 ms the midpoint is the last fire, so
+// that also fires at the target.
 export const nextEscalationFire = (
 	lastFire: number,
 	target: number,
 	escalation: Escalation,
 ): number => {
 	const midpoint = lastFire + Math.floor((target - lastFire) / 2);
-	return midpoint < target - escalation.stopBefore * MINUTE
+	return midpoint > lastFire &&
+		midpoint < target - escalation.stopBefore * MINUTE
 		? midpoint
 		: target;
 };
