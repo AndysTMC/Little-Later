@@ -27,7 +27,7 @@ import {
 	REMINDER_ALARM,
 	createReminderScheduler,
 	isLittleNotice,
-	reschedulesReminders,
+	rearmAfterCommands,
 } from "./scheduler";
 import { createAutoLock } from "./autoLock";
 import { createPageCapture } from "./capture";
@@ -60,10 +60,13 @@ const runReminderScheduler = () => {
 
 // Registered synchronously at start-up, so a message that wakes the worker
 // finds its listener (0012).
-const dispatchCommand = createDispatcher(
-	commands,
-	createCommandContext(littleDB, sessionStore),
-	writeQueue,
+const dispatchCommand = rearmAfterCommands(
+	createDispatcher(
+		commands,
+		createCommandContext(littleDB, sessionStore),
+		writeQueue,
+	),
+	runReminderScheduler,
 );
 const autoLock = createAutoLock({
 	db: littleDB,
@@ -75,9 +78,6 @@ autoLock.start();
 
 listenForCommands(async (name, input) => {
 	const result = await dispatchCommand(name, input);
-	if (result.ok && reschedulesReminders(name)) {
-		runReminderScheduler();
-	}
 	if (result.ok && name === "profile.update") {
 		void autoLock.configure();
 	}
