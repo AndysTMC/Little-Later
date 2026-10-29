@@ -20,10 +20,6 @@ import { putPreview } from "../../src/storage/repositories";
 import { send } from "../../src/utils/send";
 import { freshProfile, localDate } from "./profile";
 
-// The export tool still writes the pre-v1 backup, whose packer needs a
-// browser global; it is replaced with the v1 backup in its own change.
-vi.mock("../../src/services/dataExchange", () => ({}));
-
 const aiContext = {
 	ai: {
 		getStructuredResponse: async () => ({ ids: [] }),

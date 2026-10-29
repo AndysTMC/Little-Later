@@ -7,7 +7,7 @@ import React, { useRef, useState } from "react";
 import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import { PasswordIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { LUIIconField } from "../../components/LUIIconField/Component";
-import { importData } from "../../../services/dataExchange";
+import { importBackup } from "../../../services/backup";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIProfileMini } from "../../components/LUIProfileMini/Component";
 import { useUserProfiles } from "../../hooks/useUserProfiles";
@@ -54,11 +54,11 @@ const Page = () => {
 		}
 		setIsImporting(true);
 		try {
-			await importData(pendingImport, importPassword);
+			await importBackup(pendingImport, importPassword);
 			setPendingImport(null);
 			setImportPassword("");
 			await createToast(
-				"Profile imported. Unlock it to continue.",
+				"Profile imported. Unlock it with the backup's password.",
 				LTOAST_TYPE.SUCCESS,
 			);
 		} catch (error) {

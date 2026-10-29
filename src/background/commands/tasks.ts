@@ -40,12 +40,12 @@ import { ESCALATION, nextFireAfter } from "./reminders";
 
 const PRIORITIES: ReadonlyArray<TaskPriority> = ["low", "medium", "high"];
 
-const asPriority = (value: unknown): TaskPriority =>
+export const asPriority = (value: unknown): TaskPriority =>
 	PRIORITIES.includes(value as TaskPriority)
 		? (value as TaskPriority)
 		: fail("priority must be low, medium or high.");
 
-const asSchedule = (value: unknown): TaskSchedule => {
+export const asSchedule = (value: unknown): TaskSchedule => {
 	const record = asRecord(value);
 	switch (record.kind) {
 		case "anytime":

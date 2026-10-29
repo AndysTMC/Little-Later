@@ -1,4 +1,5 @@
 import { EnvelopeError } from "little-shared/utils/envelope";
+import { BackupError } from "../../storage/backup";
 import { importProfileKeys, type ProfileKeys } from "../../storage/keys";
 import { ProfileError } from "../../storage/profiles";
 import type { LittleDB } from "../../storage/schema";
@@ -90,7 +91,8 @@ const toFailure = (
 	if (
 		error instanceof ProfileError ||
 		error instanceof EnvelopeError ||
-		error instanceof StagingError
+		error instanceof StagingError ||
+		error instanceof BackupError
 	) {
 		return {
 			ok: false,
