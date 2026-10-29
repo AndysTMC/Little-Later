@@ -31,6 +31,7 @@ const START = Date.UTC(2026, 2, 7, 12);
 let db: LittleDB;
 let session: SessionStore;
 let clock: number;
+let zone: string;
 let dispatch: Dispatch;
 let queue: SerialQueue;
 let scheduler: ReminderScheduler;
@@ -55,6 +56,7 @@ beforeEach(async () => {
 	await db.open();
 	session = createMemorySessionStore();
 	clock = START;
+	zone = "UTC";
 	alarm = undefined;
 	notices = [];
 	failNotice = null;
@@ -65,7 +67,7 @@ beforeEach(async () => {
 			db,
 			session,
 			() => clock,
-			() => "UTC",
+			() => zone,
 		),
 		queue,
 	);
@@ -73,6 +75,7 @@ beforeEach(async () => {
 		db,
 		session,
 		now: () => clock,
+		zone: () => zone,
 		queue,
 		setAlarm: async (when) => {
 			alarm = when;
@@ -109,6 +112,29 @@ describe("re-arming after commands", () => {
 		await send("task.delete", { id });
 		await queue(async () => {});
 		expect(alarm).toBeNull();
+	});
+
+	// 0011: a floating 09:00 follows the device to another zone.
+	it("moves a floating task's reminder when the device changes zone", async () => {
+		await run("task.create", {
+			information: "Stand-up",
+			schedule: {
+				kind: "recurring",
+				rule: {
+					freq: "daily",
+					interval: 1,
+					time: "09:00",
+					anchor: "2026-03-01",
+					zone: "floating",
+				},
+			},
+			reminder: "normal",
+		});
+		expect((await scheduler.run()).nextAlarm).toBe(Date.UTC(2026, 2, 8, 9));
+		zone = "Asia/Kolkata";
+		expect((await scheduler.run()).nextAlarm).toBe(
+			Date.UTC(2026, 2, 8, 3, 30),
+		);
 	});
 
 	it("leaves the alarm alone after a refused command", async () => {

@@ -81,6 +81,7 @@ export type BackupEntry =
 			table: "tasks";
 			schedule: TaskSchedule;
 			dueAt: number;
+			occursOn: string | null;
 			done: boolean;
 			finishedAt: number;
 			privacy: Privacy;

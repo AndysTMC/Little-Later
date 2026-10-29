@@ -44,7 +44,7 @@ import {
 import { asRecord, asString, defineCommand } from "./registry";
 import { asWebUrl } from "./saves";
 import { asMisc } from "./settings";
-import { asPriority, asSchedule } from "./tasks";
+import { asPriority, asSchedule, occurrenceDate } from "./tasks";
 
 // Importing a backup (decision 0010, Backups) into a new profile. The page
 // drives it one staged chunk per command, so the worker stays awake while
@@ -163,6 +163,7 @@ const addEntry = async (
 	job: ImportJob,
 	rows: Rows,
 	value: unknown,
+	zone: string,
 ): Promise<void> => {
 	const entry = record(value);
 	const { keys, seed, profileId } = job;
@@ -250,6 +251,8 @@ const addEntry = async (
 		case "tasks": {
 			const row = await base();
 			const content = record(entry.content);
+			const schedule = parsed(() => asSchedule(entry.schedule));
+			const dueAt = instant(entry.dueAt);
 			rows.tasks.push({
 				...row,
 				...(await sealBody(keys, "tasks", row.id, {
@@ -260,8 +263,19 @@ const addEntry = async (
 					label: text(content.label, LMAX_TASK_LABEL_LENGTH),
 					priority: parsed(() => asPriority(content.priority)),
 				})),
-				schedule: parsed(() => asSchedule(entry.schedule)),
-				dueAt: instant(entry.dueAt),
+				schedule,
+				dueAt,
+				occursOn:
+					schedule.kind !== "recurring"
+						? null
+						: entry.occursOn === undefined
+							? // Written before backups carried it.
+								occurrenceDate(schedule.rule, dueAt, zone)
+							: parsed(() =>
+									Temporal.PlainDate.from(
+										text(entry.occursOn, 10),
+									).toString(),
+								),
 				done: flag(entry.done),
 				finishedAt: instant(entry.finishedAt),
 				privacy: privacy(entry.privacy),
@@ -404,7 +418,7 @@ export const backupImportChunk = defineCommand({
 			settings: [],
 		};
 		for (const entry of entries) {
-			await addEntry(job, rows, entry);
+			await addEntry(job, rows, entry, ctx.zone());
 		}
 		if (last && !job.sawProfile) {
 			damaged();

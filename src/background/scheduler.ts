@@ -4,6 +4,7 @@ import { openReminder, openSave } from "../storage/repositories";
 import type { LittleDB, ReminderRow } from "../storage/schema";
 import type { SessionStore } from "../storage/session";
 import { nextFireAfter } from "./commands/reminders";
+import { followDeviceZone } from "./commands/tasks";
 import type { Dispatch, SerialQueue } from "./commands/registry";
 
 // Fires reminders from their plain schedule (decisions 0010, 0011), for
@@ -24,6 +25,8 @@ export type ReminderSchedulerDeps = {
 	db: LittleDB;
 	session: SessionStore;
 	now: () => number;
+	// The device's current IANA time zone, for floating schedules (0011).
+	zone: () => string;
 	// The worker's write queue, shared with commands (0012).
 	queue: SerialQueue;
 	// Arms the alarm for an instant, or clears it when nothing is pending.
@@ -90,6 +93,9 @@ export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 
 	const fire = async (): Promise<SchedulerRun> => {
 		const now = deps.now();
+		// Before anything is read as due: a floating deadline is due by the
+		// clock of the zone the device is in now (0011).
+		await followDeviceZone(db, deps.zone(), now);
 		const profileIds = (await db.profiles.toArray()).map(({ id }) => id);
 		const due: Array<ReminderRow> = [];
 		for (const profileId of profileIds) {
@@ -142,7 +148,8 @@ export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 
 	return {
 		// Fires what is due and re-arms the alarm. Safe to call at any time:
-		// at worker start, on the alarm, and after a reminder changes.
+		// at worker start, on the alarm, when the device wakes, and after
+		// every command.
 		run: (): Promise<SchedulerRun> => queue(fire),
 		// The page a reminder notice opens: its attached save, when the
 		// reminder's profile is unlocked. Otherwise null, for the popup.
