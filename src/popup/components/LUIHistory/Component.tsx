@@ -6,7 +6,7 @@ import { ClockCounterClockwiseIcon } from "@phosphor-icons/react";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../LUINavs/LUIBasicNav/Component";
 import { LUIFeaturePageUD } from "../LUIFeaturePageUD/Component";
-import { LVisualBM } from "little-shared/types";
+import type { HomeData } from "../../records";
 import { useOutletContext } from "react-router";
 import { twMerge } from "tailwind-merge";
 import { LUIBrowsedVBM } from "../LUIBrowsedVBM/Component";
@@ -14,25 +14,22 @@ import { usePagination } from "../../hooks/usePagination";
 import { useMemo, useState } from "react";
 import { LUIPagination } from "../LUIPagination/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
-import { LDateUtl } from "little-shared/utils/datetime";
 
-const Component = () => {
-	const {
-		className,
-		visualBMs,
-	}: {
-		className?: string;
-		visualBMs: Array<LVisualBM>;
-	} = useOutletContext();
+const Component = ({ className }: { className?: string }) => {
+	const { pages } = useOutletContext<HomeData>();
 	const { theme } = useTheme();
 	const { entry, exit } = useLittleTransition({
 		transitionName: "subEntryTransition",
 		defaultExit: exitTransitions.slideUpToDown,
 	});
 
-	const history = visualBMs
-		.filter((visualBM) => visualBM.hasBrowsed)
-		.sort((a, b) => LDateUtl.compare(b.lastBrowseDate, a.lastBrowseDate));
+	const history = useMemo(
+		() =>
+			pages
+				.filter((page) => page.browsed)
+				.sort((a, b) => b.browsedAt - a.browsedAt),
+		[pages],
+	);
 
 	const { startIndex, endIndex, batchCount, currentBatch, onBatchChange } =
 		usePagination(history.length, 5);

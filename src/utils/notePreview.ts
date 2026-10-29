@@ -1,5 +1,4 @@
-import { LDate } from "little-shared/types";
-import { LDateUtl } from "little-shared/utils/datetime";
+import { prettyTime, zoned } from "./dates";
 
 const cleanPreviewLine = (line: string): string => {
 	return line
@@ -34,13 +33,11 @@ const getNoteCardTitleAndSnippet = (
 	};
 };
 
-const getNoteCardTimeLabel = (date: LDate): string => {
-	const month = LDateUtl.getMonthName(LDateUtl.getMonth(date)).slice(0, 3);
-	const day = LDateUtl.getDay(date);
-	const hour = LDateUtl.getHour12HF(date);
-	const minute = LDateUtl.getMinute(date).toString().padStart(2, "0");
-	const meridiem = LDateUtl.getMerideum(date);
-	return `${month} ${day} ${hour}:${minute} ${meridiem}`;
+// "Apr 5 5:35 PM" in the device's zone.
+const getNoteCardTimeLabel = (ms: number): string => {
+	const date = zoned(ms);
+	const month = date.toLocaleString("en-US", { month: "short" });
+	return `${month} ${date.day} ${prettyTime(date)}`;
 };
 
 export { getNoteCardTitleAndSnippet, getNoteCardTimeLabel };

@@ -1,18 +1,15 @@
-import { LUserAvatar } from "little-shared/types";
-import { db } from "../../utils/db";
 import { useLiveQuery } from "dexie-react-hooks";
+import { littleDB } from "../../storage/pageDB";
 
-const useUserAvatar = (userId: number | undefined): LUserAvatar | undefined => {
-	return useLiveQuery(
-		() => {
-			if (userId === undefined) {
-				return undefined;
-			}
-			return db.userAvatarTbl.get(userId);
-		},
-		[userId],
+// A profile's avatar image, plain for the lock screen (0010).
+const useUserAvatar = (profileId: string | undefined): Blob | undefined =>
+	useLiveQuery(
+		async () =>
+			profileId === undefined
+				? undefined
+				: (await littleDB.avatars.get(profileId))?.image,
+		[profileId],
 		undefined,
 	);
-};
 
 export { useUserAvatar };

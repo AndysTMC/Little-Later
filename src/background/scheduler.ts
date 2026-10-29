@@ -4,7 +4,8 @@ import { openReminder, openSave } from "../storage/repositories";
 import type { LittleDB, ReminderRow } from "../storage/schema";
 import type { SessionStore } from "../storage/session";
 import { nextFireAfter } from "./commands/reminders";
-import type { SerialQueue } from "./commands/registry";
+import { followDeviceZone } from "./commands/tasks";
+import type { Dispatch, SerialQueue } from "./commands/registry";
 
 // Fires reminders from their plain schedule (decisions 0010, 0011), for
 // every profile and whether or not it is unlocked. One Chrome alarm stands
@@ -24,6 +25,8 @@ export type ReminderSchedulerDeps = {
 	db: LittleDB;
 	session: SessionStore;
 	now: () => number;
+	// The device's current IANA time zone, for floating schedules (0011).
+	zone: () => string;
 	// The worker's write queue, shared with commands (0012).
 	queue: SerialQueue;
 	// Arms the alarm for an instant, or clears it when nothing is pending.
@@ -33,9 +36,18 @@ export type ReminderSchedulerDeps = {
 
 export type SchedulerRun = { fired: number; nextAlarm: number | null };
 
-// The commands after which the next fire may have moved.
-export const reschedulesReminders = (command: string): boolean =>
-	command.startsWith("reminder.") || command === "profile.delete";
+// Re-arms after every successful command. Reminder, task, import and
+// delete commands all write reminders, and the alarm is read back from the
+// table, so no list of command names can fall behind them.
+export const rearmAfterCommands =
+	(dispatch: Dispatch, rearm: () => void): Dispatch =>
+	async (name, input, options) => {
+		const result = await dispatch(name, input, options);
+		if (result.ok) {
+			rearm();
+		}
+		return result;
+	};
 
 const unlockedKeys = async (
 	session: SessionStore,
@@ -81,6 +93,9 @@ export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 
 	const fire = async (): Promise<SchedulerRun> => {
 		const now = deps.now();
+		// Before anything is read as due: a floating deadline is due by the
+		// clock of the zone the device is in now (0011).
+		await followDeviceZone(db, deps.zone(), now);
 		const profileIds = (await db.profiles.toArray()).map(({ id }) => id);
 		const due: Array<ReminderRow> = [];
 		for (const profileId of profileIds) {
@@ -133,7 +148,8 @@ export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 
 	return {
 		// Fires what is due and re-arms the alarm. Safe to call at any time:
-		// at worker start, on the alarm, and after a reminder changes.
+		// at worker start, on the alarm, when the device wakes, and after
+		// every command.
 		run: (): Promise<SchedulerRun> => queue(fire),
 		// The page a reminder notice opens: its attached save, when the
 		// reminder's profile is unlocked. Otherwise null, for the popup.

@@ -9,13 +9,14 @@ import {
 	createSerialQueue,
 	type CommandResult,
 	type Dispatch,
+	type SerialQueue,
 } from "../../src/background/commands/registry";
 import {
 	LOCKED_REMINDER_TEXT,
 	MISSED_AFTER,
 	createReminderScheduler,
 	isLittleNotice,
-	reschedulesReminders,
+	rearmAfterCommands,
 	type ReminderScheduler,
 } from "../../src/background/scheduler";
 import { openLittleDB, type LittleDB } from "../../src/storage/schema";
@@ -30,7 +31,9 @@ const START = Date.UTC(2026, 2, 7, 12);
 let db: LittleDB;
 let session: SessionStore;
 let clock: number;
+let zone: string;
 let dispatch: Dispatch;
+let queue: SerialQueue;
 let scheduler: ReminderScheduler;
 let alarm: number | null | undefined;
 let notices: Array<{ id: string; message: string }>;
@@ -53,17 +56,18 @@ beforeEach(async () => {
 	await db.open();
 	session = createMemorySessionStore();
 	clock = START;
+	zone = "UTC";
 	alarm = undefined;
 	notices = [];
 	failNotice = null;
-	const queue = createSerialQueue();
+	queue = createSerialQueue();
 	dispatch = createDispatcher(
 		commands,
 		createCommandContext(
 			db,
 			session,
 			() => clock,
-			() => "UTC",
+			() => zone,
 		),
 		queue,
 	);
@@ -71,6 +75,7 @@ beforeEach(async () => {
 		db,
 		session,
 		now: () => clock,
+		zone: () => zone,
 		queue,
 		setAlarm: async (when) => {
 			alarm = when;
@@ -85,6 +90,59 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	await db.delete();
+});
+
+describe("re-arming after commands", () => {
+	// Task commands and imports write reminders too. A list of reminder
+	// commands missed them, so a task's reminder never armed the alarm.
+	it("follows a reminder that a task command wrote", async () => {
+		const send = rearmAfterCommands(dispatch, () => void scheduler.run());
+		const due = START + 30 * MINUTE;
+		const created = await send("task.create", {
+			information: "Pay rent",
+			schedule: { kind: "due", at: due },
+			reminder: "normal",
+		});
+		expect(created.ok).toBe(true);
+		// The run queues behind the command.
+		await queue(async () => {});
+		expect(alarm).toBe(due);
+
+		const { id } = (created as { value: { id: string } }).value;
+		await send("task.delete", { id });
+		await queue(async () => {});
+		expect(alarm).toBeNull();
+	});
+
+	// 0011: a floating 09:00 follows the device to another zone.
+	it("moves a floating task's reminder when the device changes zone", async () => {
+		await run("task.create", {
+			information: "Stand-up",
+			schedule: {
+				kind: "recurring",
+				rule: {
+					freq: "daily",
+					interval: 1,
+					time: "09:00",
+					anchor: "2026-03-01",
+					zone: "floating",
+				},
+			},
+			reminder: "normal",
+		});
+		expect((await scheduler.run()).nextAlarm).toBe(Date.UTC(2026, 2, 8, 9));
+		zone = "Asia/Kolkata";
+		expect((await scheduler.run()).nextAlarm).toBe(
+			Date.UTC(2026, 2, 8, 3, 30),
+		);
+	});
+
+	it("leaves the alarm alone after a refused command", async () => {
+		const runs: Array<true> = [];
+		const send = rearmAfterCommands(dispatch, () => runs.push(true));
+		await send("task.update", { id: "missing" });
+		expect(runs).toEqual([]);
+	});
 });
 
 describe("reminder scheduler", () => {
@@ -203,7 +261,6 @@ describe("reminder scheduler", () => {
 	it("follows a rescheduled reminder", async () => {
 		const { id } = await remind("Moved", START + 10 * MINUTE);
 		await run("reminder.update", { id, target: START + 40 * MINUTE });
-		expect(reschedulesReminders("reminder.update")).toBe(true);
 		expect((await scheduler.run()).nextAlarm).toBe(START + 40 * MINUTE);
 		await run("reminder.delete", { id });
 		expect((await scheduler.run()).nextAlarm).toBeNull();
@@ -253,7 +310,7 @@ describe("reminder scheduler", () => {
 
 describe("serial queue", () => {
 	it("keeps running tasks after one fails", async () => {
-		const queue = createSerialQueue();
+		queue = createSerialQueue();
 		const failed = queue(async () => {
 			throw new Error("boom");
 		});

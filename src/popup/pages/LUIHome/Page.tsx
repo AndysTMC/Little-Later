@@ -8,11 +8,14 @@ import { useEffect, useContext, useRef } from "react";
 import { HomeContext } from "../../contexts/Home";
 import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
 import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
-import { useLinks } from "../../hooks/useLinks";
-import { useNotes } from "../../hooks/useNotes";
-import { useTasks } from "../../hooks/useTasks";
-import { useVisualBMs } from "../../hooks/useVisualBMs";
-import { useReminders } from "../../hooks/useReminders";
+import {
+	useLinks,
+	useNotes,
+	useReminders,
+	useSaves,
+	useTasks,
+} from "../../hooks/useRecords";
+import type { HomeData } from "../../records";
 import { LUILoading } from "../../components/LUILoading/Component";
 
 const Page = () => {
@@ -27,7 +30,7 @@ const Page = () => {
 	const notes = useNotes();
 	const reminders = useReminders();
 	const tasks = useTasks();
-	const visualBMs = useVisualBMs();
+	const pages = useSaves();
 	const hasLoadedOnce = useRef(false);
 	if (
 		!hasLoadedOnce.current &&
@@ -37,7 +40,7 @@ const Page = () => {
 		notes &&
 		reminders &&
 		tasks &&
-		visualBMs
+		pages
 	) {
 		hasLoadedOnce.current = true;
 	}
@@ -118,7 +121,7 @@ const Page = () => {
 			notes === undefined ||
 			reminders === undefined ||
 			tasks === undefined ||
-			visualBMs === undefined ? (
+			pages === undefined ? (
 				!hasLoadedOnce.current ? (
 					<LUILoading />
 				) : null
@@ -128,15 +131,17 @@ const Page = () => {
 				>
 					<div className={`w-full grow overflow-y-hidden`}>
 						<Outlet
-							context={{
-								currentUserProfile,
-								userSettings,
-								links,
-								notes,
-								reminders,
-								tasks,
-								visualBMs,
-							}}
+							context={
+								{
+									currentUserProfile,
+									userSettings,
+									links,
+									notes,
+									reminders,
+									tasks,
+									pages,
+								} satisfies HomeData
+							}
 						/>
 					</div>
 					<LUIHomeNav />

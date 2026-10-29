@@ -1,20 +1,12 @@
+import { taskStatus } from "../../../popup/records";
 import {
-	LINT_BOOLEAN,
-	LTASK_PRIORITY,
-	LTASK_SCHEDULE_TYPE,
-} from "little-shared/enums";
-import { LDateUtl } from "little-shared/utils/datetime";
-import { db } from "../../../utils/db";
-
-const isFutureDate = (value: string): boolean => {
-	const parsed = Date.parse(value);
-	return Number.isFinite(parsed) && parsed >= Date.now();
-};
-
-const isPastDate = (value: string): boolean => {
-	const parsed = Date.parse(value);
-	return Number.isFinite(parsed) && parsed < Date.now();
-};
+	readNotes,
+	readReminders,
+	readSaves,
+	readTasks,
+	unlockedKeys,
+} from "../records";
+import { toModelDate } from "./_utils/dateFilters";
 
 const toolCall = async (): Promise<{
 	generatedAt: string;
@@ -30,55 +22,43 @@ const toolCall = async (): Promise<{
 		overdueDueTasks: number;
 	};
 }> => {
+	const keys = await unlockedKeys();
 	const [notes, saves, reminders, tasks] = await Promise.all([
-		db.noteTbl.toArray(),
-		db.visualBMTbl.toArray(),
-		db.reminderTbl.toArray(),
-		db.taskTbl.toArray(),
+		readNotes(keys),
+		readSaves(keys),
+		readReminders(keys),
+		readTasks(keys),
 	]);
-
-	const completedTasks = tasks.filter((task) => task.finishDate !== null);
-	const pendingTasks = tasks.filter((task) => task.finishDate === null);
-	const overdueDueTasks = pendingTasks.filter((task) => {
-		if (
-			task.schedule.type !== LTASK_SCHEDULE_TYPE.DUE ||
-			!task.schedule.deadlineInfo?.deadlineDate
-		) {
-			return false;
-		}
-		return isPastDate(task.schedule.deadlineInfo.deadlineDate);
-	});
-
+	const now = Date.now();
+	const pendingTasks = tasks.filter((task) => !task.done);
 	return {
-		generatedAt: LDateUtl.getNow(),
+		generatedAt: toModelDate(now),
 		notes: {
 			total: notes.length,
 		},
 		saves: {
-			total: saves.filter((save) => save.isSaved === LINT_BOOLEAN.TRUE)
-				.length,
+			total: saves.filter((save) => save.saved).length,
 		},
 		history: {
-			total: saves.filter((save) => save.hasBrowsed === LINT_BOOLEAN.TRUE)
-				.length,
+			total: saves.filter((save) => save.browsed).length,
 		},
 		reminders: {
 			total: reminders.length,
-			upcoming: reminders.filter((reminder) =>
-				isFutureDate(reminder.targetDate),
-			).length,
-			overdue: reminders.filter((reminder) =>
-				isPastDate(reminder.targetDate),
-			).length,
+			upcoming: reminders.filter((reminder) => reminder.target >= now)
+				.length,
+			overdue: reminders.filter((reminder) => reminder.target < now)
+				.length,
 		},
 		tasks: {
 			total: tasks.length,
 			pending: pendingTasks.length,
-			completed: completedTasks.length,
+			completed: tasks.length - pendingTasks.length,
 			highPriorityPending: pendingTasks.filter(
-				(task) => task.priority === LTASK_PRIORITY.HIGH,
+				(task) => task.priority === "high",
 			).length,
-			overdueDueTasks: overdueDueTasks.length,
+			overdueDueTasks: pendingTasks.filter(
+				(task) => taskStatus(task, now) === "missed",
+			).length,
 		},
 	};
 };

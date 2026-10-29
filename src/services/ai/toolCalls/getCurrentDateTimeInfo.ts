@@ -1,24 +1,23 @@
-import { LDateUtl } from "little-shared/utils/datetime";
+import {
+	WEEKDAY_NAMES,
+	deviceZone,
+	hour12,
+	meridiem,
+} from "../../../utils/dates";
 
 const toolCall = () => {
-	const year = LDateUtl.getYear();
-	const month = LDateUtl.getMonth();
-	const monthName = LDateUtl.getMonthName(month);
-	const day = LDateUtl.getDay();
-	const weekDay = LDateUtl.getWeekDay();
-	const weekDayName = LDateUtl.getWeekDayName(weekDay);
-	const hours24 = LDateUtl.getHour();
-	const hours12 = LDateUtl.getHour12HF();
-	const meridiem = LDateUtl.getMerideum();
-	const minutes = LDateUtl.getMinute();
+	const now = Temporal.Now.zonedDateTimeISO(deviceZone());
+	const monthName = now.toLocaleString("en-US", { month: "long" });
+	const minutes = String(now.minute).padStart(2, "0");
 	return `
                 Latest Date & Time Information:
-                - Year: ${year}
-                - Month: ${monthName} (${month + 1})
-                - Day: ${day}
-                - Week Day: ${weekDayName}
-                - Time (24-hour): ${hours24}:${minutes}
-                - Time (12-hour, preferred): ${hours12}:${minutes} ${meridiem}
+                - Year: ${now.year}
+                - Month: ${monthName} (${now.month})
+                - Day: ${now.day}
+                - Week Day: ${WEEKDAY_NAMES[now.dayOfWeek - 1]}
+                - Time (24-hour): ${now.hour}:${minutes}
+                - Time (12-hour, preferred): ${hour12(now.hour)}:${minutes} ${meridiem(now.hour)}
+                - Time zone: ${now.timeZoneId}
             `;
 };
 

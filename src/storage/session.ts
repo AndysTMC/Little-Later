@@ -69,10 +69,42 @@ export const createChromeSessionStore = (): SessionStore => ({
 	},
 });
 
+// Development pages have no worker and reload often, so the session lives
+// in the tab's sessionStorage there, which like chrome.storage.session ends
+// with the browsing session.
+export const createWebSessionStore = (storage: Storage): SessionStore => {
+	const listeners = new Set<Listener>();
+	const read = () => {
+		const text = storage.getItem(SESSION_KEY);
+		return text === null ? null : (JSON.parse(text) as UnlockedSession);
+	};
+	const emit = () => {
+		const current = read();
+		listeners.forEach((listener) => listener(current));
+	};
+	return {
+		get: async () => read(),
+		set: async (session) => {
+			storage.setItem(SESSION_KEY, JSON.stringify(session));
+			emit();
+		},
+		clear: async () => {
+			storage.removeItem(SESSION_KEY);
+			emit();
+		},
+		subscribe: (listener) => {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+	};
+};
+
 export const sessionStore: SessionStore =
 	import.meta.env.MODE === "production"
 		? createChromeSessionStore()
-		: createMemorySessionStore();
+		: typeof sessionStorage === "undefined"
+			? createMemorySessionStore()
+			: createWebSessionStore(sessionStorage);
 
 export const toBase64 = (bytes: Uint8Array): string => {
 	let binary = "";

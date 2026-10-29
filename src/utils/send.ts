@@ -22,20 +22,20 @@ export class CommandFailure extends Error {
 }
 
 // Outside production there is no service worker: the same handlers run in
-// the page against the same database, with an in-memory session.
+// the page against the page's database and session.
 let devDispatch: Promise<Dispatch> | null = null;
 const getDevDispatch = () => {
 	devDispatch ??= (async () => {
-		const [{ commands }, registry, schema, session] = await Promise.all([
+		const [{ commands }, registry, pageDB, session] = await Promise.all([
 			import("../background/commands"),
 			import("../background/commands/registry"),
-			import("../storage/schema"),
+			import("../storage/pageDB"),
 			import("../storage/session"),
 		]);
 		return registry.createDispatcher(
 			commands,
 			registry.createCommandContext(
-				schema.openLittleDB(),
+				pageDB.littleDB,
 				session.sessionStore,
 			),
 		);

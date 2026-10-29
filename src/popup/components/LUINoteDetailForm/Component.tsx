@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { twMerge } from "tailwind-merge";
-import { LNote } from "little-shared/types";
-import { LDateUtl } from "little-shared/utils/datetime";
+import { useNavigate } from "react-router";
 import { fakeWait } from "little-shared/utils/misc";
 import { LTHEME } from "little-shared/enums";
 import { useTheme } from "../../hooks/useTheme";
-import { updateNote } from "../../../services/note";
+import { send } from "../../../utils/send";
 import { LUIFeaturePageUD } from "../LUIFeaturePageUD/Component";
 import { LUICUButton } from "../LUICUButton/Component";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
@@ -54,9 +53,11 @@ const Component = ({
 	note,
 }: {
 	className?: string;
-	note: LNote;
+	// A new note has no id until its first save.
+	note: { id: string | null; content: string };
 }) => {
 	const { theme } = useTheme();
+	const navigate = useNavigate();
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const historyRef = useRef<Array<string>>([note.content]);
 	const historyIndexRef = useRef(0);
@@ -65,7 +66,9 @@ const Component = ({
 	const [baselineContent, setBaselineContent] = useState(note.content);
 	const [canUndo, setCanUndo] = useState(false);
 	const [canRedo, setCanRedo] = useState(false);
-	const [viewMode, setViewMode] = useState<"edit" | "preview">("preview");
+	const [viewMode, setViewMode] = useState<"edit" | "preview">(
+		note.id === null ? "edit" : "preview",
+	);
 	const [isSaving, setIsSaving] = useState(false);
 
 	const syncHistoryFlags = () => {
@@ -102,7 +105,7 @@ const Component = ({
 	useEffect(() => {
 		setDraftContent(note.content);
 		setBaselineContent(note.content);
-		setViewMode("preview");
+		setViewMode(note.id === null ? "edit" : "preview");
 		resetHistory(note.content);
 	}, [note.id, note.content]);
 
@@ -160,16 +163,25 @@ const Component = ({
 	};
 
 	const handleSave = async () => {
-		if (isSaving || draftContent === baselineContent) {
+		if (
+			isSaving ||
+			draftContent === baselineContent ||
+			draftContent.trim() === ""
+		) {
 			return;
 		}
 		setIsSaving(true);
 		try {
+			if (note.id === null) {
+				const [{ id }] = await Promise.all([
+					send("note.create", { content: draftContent }),
+					fakeWait({ waitPeriod: 1200 }),
+				]);
+				navigate(`/note/${id}`, { replace: true });
+				return;
+			}
 			await Promise.all([
-				updateNote(note.id, {
-					content: draftContent,
-					lastModificationDate: LDateUtl.getNow(),
-				}),
+				send("note.update", { id: note.id, content: draftContent }),
 				fakeWait({ waitPeriod: 1200 }),
 			]);
 			setIsSaving(false);

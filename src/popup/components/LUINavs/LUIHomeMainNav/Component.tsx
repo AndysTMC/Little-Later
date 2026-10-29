@@ -19,7 +19,8 @@ import { useContext } from "react";
 import { HomeContext } from "../../../contexts/Home";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../../hooks/useTheme";
-import { LAISettings, LUserProfile } from "little-shared/types";
+import { LAISettings } from "little-shared/types";
+import type { UserProfile } from "../../../hooks/useUserProfiles";
 import { useUserAvatar } from "../../../hooks/useUserAvatar";
 import { useObjectUrl } from "../../../hooks/useObjectUrl";
 import { isAISettingsConfigured } from "../../../../services/ai/config";
@@ -30,7 +31,7 @@ const Component = ({
 	aiSettings,
 }: {
 	className?: string;
-	currentUserProfile: LUserProfile;
+	currentUserProfile: UserProfile;
 	aiSettings: LAISettings | null;
 }) => {
 	const { theme, toggleTheme } = useTheme();
@@ -39,8 +40,8 @@ const Component = ({
 		setIsMenuOpen(!isMenuOpen);
 	};
 
-	const userAvatar = useUserAvatar(currentUserProfile.userId);
-	const avatarUrl = useObjectUrl(userAvatar?.blob);
+	const userAvatar = useUserAvatar(currentUserProfile.id);
+	const avatarUrl = useObjectUrl(userAvatar);
 
 	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
 		useContext(HomeContext);

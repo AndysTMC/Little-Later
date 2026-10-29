@@ -2,7 +2,7 @@ import { LTHEME } from "little-shared/enums";
 import { useTheme } from "../../hooks/useTheme";
 import { twMerge } from "tailwind-merge";
 import { LUIUnlinker } from "../LUIUnlinker/Component";
-import { LTask } from "little-shared/types";
+import type { Task } from "../../../storage/repositories";
 
 const Component = ({
 	className,
@@ -11,9 +11,9 @@ const Component = ({
 	handleUnlinkTask,
 }: {
 	className?: string;
-	tasks: Array<LTask>;
-	linkedTaskIds: number[];
-	handleUnlinkTask: (id: number, flag: boolean) => void;
+	tasks: Array<Task>;
+	linkedTaskIds: Array<string>;
+	handleUnlinkTask: (id: string) => void;
 }) => {
 	const { theme } = useTheme();
 	const linkedTasks = tasks.filter((x) => linkedTaskIds.includes(x.id));
@@ -38,9 +38,9 @@ const Component = ({
 				</div>
 			</div>
 			<div className={`flex max-h-56 w-full flex-col`}>
-				{linkedTasks.map((task, index) => (
+				{linkedTasks.map((task) => (
 					<LUIUnlinker
-						key={index}
+						key={task.id}
 						content={task.information}
 						id={task.id}
 						handleUnlink={handleUnlinkTask}

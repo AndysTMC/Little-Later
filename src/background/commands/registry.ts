@@ -1,8 +1,10 @@
 import { EnvelopeError } from "little-shared/utils/envelope";
+import { BackupError } from "../../storage/backup";
 import { importProfileKeys, type ProfileKeys } from "../../storage/keys";
 import { ProfileError } from "../../storage/profiles";
 import type { LittleDB } from "../../storage/schema";
 import type { SessionStore } from "../../storage/session";
+import { StagingError, staging, type Staging } from "../../storage/staging";
 
 // The service worker is the only writer (decision 0012). Each write is a
 // command: a name, an input parser and a handler. Pages and AI tools send
@@ -27,6 +29,8 @@ export type CommandContext = {
 	now: () => number;
 	// The device's current IANA time zone, for floating schedules (0011).
 	zone: () => string;
+	// Where pages leave binary input for a command (0012, Messaging).
+	staging: Staging;
 	// The unlocked profile's keys; fails with "locked" when none is unlocked.
 	keys: () => Promise<ProfileKeys>;
 };
@@ -54,13 +58,16 @@ type AnyCommand = Command<string, any, any>;
 export const createCommandContext = (
 	db: LittleDB,
 	session: SessionStore,
-	now: () => number = Date.now,
+	// Read at call time, so a page's clock follows its global `Date`.
+	now: () => number = () => Date.now(),
 	zone: () => string = () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+	stagingStore: Staging = staging,
 ): CommandContext => ({
 	db,
 	session,
 	now,
 	zone,
+	staging: stagingStore,
 	keys: async () => {
 		const unlocked = await session.get();
 		if (!unlocked) {
@@ -81,7 +88,12 @@ const toFailure = (
 	}
 	// Expected refusals from the storage layer: a wrong password, a bad
 	// profile state. Anything else is a bug and is reported as internal.
-	if (error instanceof ProfileError || error instanceof EnvelopeError) {
+	if (
+		error instanceof ProfileError ||
+		error instanceof EnvelopeError ||
+		error instanceof StagingError ||
+		error instanceof BackupError
+	) {
 		return {
 			ok: false,
 			error: { code: "rejected", message: error.message },
@@ -94,9 +106,17 @@ const toFailure = (
 	};
 };
 
+export type DispatchOptions = {
+	// Runs the command only if this profile is still the unlocked one when
+	// its turn comes. For work that waited on something else first, such as
+	// a screenshot, while another profile could be opened.
+	profileId?: string;
+};
+
 export type Dispatch = (
 	name: string,
 	input: unknown,
+	options?: DispatchOptions,
 ) => Promise<CommandResult<unknown>>;
 
 // Runs tasks strictly one after another. Everything in the worker that
@@ -120,7 +140,7 @@ export const createDispatcher = (
 	queue: SerialQueue = createSerialQueue(),
 ): Dispatch => {
 	const byName = new Map(commands.map((command) => [command.name, command]));
-	return (name, input) => {
+	return (name, input, options) => {
 		const run = async (): Promise<CommandResult<unknown>> => {
 			const command = byName.get(name);
 			if (!command) {
@@ -128,6 +148,17 @@ export const createDispatcher = (
 					new CommandError(
 						"unknown-command",
 						`Unknown command ${name}.`,
+					),
+				);
+			}
+			if (
+				options?.profileId !== undefined &&
+				(await ctx.session.get())?.profileId !== options.profileId
+			) {
+				return toFailure(
+					new CommandError(
+						"rejected",
+						"The profile changed before this could run.",
 					),
 				);
 			}

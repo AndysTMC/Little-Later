@@ -4,7 +4,7 @@ import { StarFourIcon } from "@phosphor-icons/react";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
 import { useState } from "react";
-import { fakeWait } from "little-shared";
+import { fakeWait } from "little-shared/utils/misc";
 
 const Component = ({
 	className,

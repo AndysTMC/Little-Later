@@ -1,7 +1,7 @@
 import { LTHEME } from "little-shared/enums";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../hooks/useTheme";
-import { LReminder } from "little-shared/types";
+import type { Reminder } from "../../../storage/repositories";
 import { LUIUnlinker } from "../LUIUnlinker/Component";
 
 const Component = ({
@@ -11,9 +11,9 @@ const Component = ({
 	handleUnlinkReminder,
 }: {
 	className?: string;
-	reminders: Array<LReminder>;
-	linkedReminderIds: number[];
-	handleUnlinkReminder: (reminderId: number) => void;
+	reminders: Array<Reminder>;
+	linkedReminderIds: Array<string>;
+	handleUnlinkReminder: (reminderId: string) => void;
 }) => {
 	const { theme } = useTheme();
 	const linkedReminders = reminders.filter((x) =>
@@ -40,9 +40,9 @@ const Component = ({
 				</div>
 			</div>
 			<div className={`flex max-h-56 w-full flex-col`}>
-				{linkedReminders.map((reminder, index) => (
+				{linkedReminders.map((reminder) => (
 					<LUIUnlinker
-						key={index}
+						key={reminder.id}
 						content={reminder.message}
 						id={reminder.id}
 						handleUnlink={handleUnlinkReminder}

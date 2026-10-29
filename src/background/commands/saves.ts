@@ -19,7 +19,7 @@ import {
 
 const MAX_TITLE_LENGTH = 1_000;
 
-const asWebUrl = (value: unknown): string => {
+export const asWebUrl = (value: unknown): string => {
 	const url = asString(value, "url");
 	try {
 		const { protocol } = new URL(url);
@@ -220,7 +220,8 @@ export const saveUpdate = defineCommand({
 	},
 });
 
-// Deletes a page with its notes, links and assets (decision 0012).
+// Deletes a page with its notes, links and assets (decision 0012). A note
+// that another page also has stays, and only loses its link to this page.
 export const saveDelete = defineCommand({
 	name: "save.delete",
 	parse: (input) => ({ id: asString(asRecord(input).id, "id") }),
@@ -239,9 +240,22 @@ export const saveDelete = defineCommand({
 					.toArray()
 			).map((link) => link.fromId);
 			const notes = await ctx.db.notes.bulkGet(noteIds);
+			const ownNoteIds: Array<string> = [];
+			for (const note of notes) {
+				if (
+					note &&
+					(await ctx.db.links
+						.where("[profileId+fromId]")
+						.equals([keys.profileId, note.id])
+						.filter((link) => link.toId !== row.id)
+						.count()) === 0
+				) {
+					ownNoteIds.push(note.id);
+				}
+			}
 			await removeRecords(ctx.db, keys.profileId, [
 				row.id,
-				...notes.flatMap((note) => (note ? [note.id] : [])),
+				...ownNoteIds,
 			]);
 		});
 		return null;

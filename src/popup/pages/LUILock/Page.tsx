@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import { useLittleTransition } from "../../hooks/useLittleTransition";
 import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
-import { lockUser } from "../../../services/user";
+import { send } from "../../../utils/send";
 import { createToast } from "../../../services/toasts";
 import { useNavigate } from "react-router";
 import { useTheme } from "../../hooks/useTheme";
@@ -10,7 +10,7 @@ import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIAuthGate } from "../../components/LUIAuthGate/Component";
 import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
 import { useEffect, useState } from "react";
-import { LUserProfile } from "little-shared/types";
+import type { UserProfile } from "../../hooks/useUserProfiles";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
@@ -24,14 +24,14 @@ const Page = () => {
 	});
 
 	const currentUserProfile = useCurrentUserProfile();
-	const [savedUP, setSavedUP] = useState<LUserProfile | undefined>();
+	const [savedUP, setSavedUP] = useState<UserProfile | undefined>();
 
-	const handleLock = async (password?: string) => {
+	const handleLock = async () => {
 		if (currentUserProfile === undefined) {
 			return;
 		}
 		try {
-			await lockUser({ password });
+			await send("profile.lock", null);
 			setExit(exitTransitions.zoomOut);
 			setTheme(LTHEME.LIGHT);
 			navigate("/browse-profiles", {

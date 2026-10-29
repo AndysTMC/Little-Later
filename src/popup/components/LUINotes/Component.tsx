@@ -1,11 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { LTHEME } from "little-shared/enums";
-import { LNote } from "little-shared/types";
+import type { Note } from "../../../storage/repositories";
 import { useTheme } from "../../hooks/useTheme";
 import { twMerge } from "tailwind-merge";
 import { motion } from "framer-motion";
-import { LDateUtl } from "little-shared/utils/datetime";
-import { createNote, deleteNote } from "../../../services/note";
+import { send } from "../../../utils/send";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { NoteBlankIcon } from "@phosphor-icons/react";
 import { useNavigate } from "react-router";
@@ -19,35 +18,20 @@ const Component = ({
 	emptyMessage = "No notes yet?",
 }: {
 	className?: string;
-	notes: Array<LNote>;
+	notes: Array<Note>;
 	showCreate?: boolean;
 	emptyMessage?: string;
 }) => {
 	const { theme } = useTheme();
 	const navigate = useNavigate();
-	const [isCreating, setIsCreating] = useState(false);
-
 	const sortedNotes = useMemo(
-		() =>
-			[...notes].sort((a, b) =>
-				LDateUtl.from(a.lastModificationDate).lt(b.lastModificationDate)
-					? 1
-					: -1,
-			),
+		() => [...notes].sort((a, b) => b.updatedAt - a.updatedAt),
 		[notes],
 	);
 
-	const createNewNote = async () => {
-		if (isCreating) {
-			return;
-		}
-		setIsCreating(true);
-		try {
-			const noteId = await createNote({ content: "" });
-			navigate(`/note/${noteId}`);
-		} finally {
-			setIsCreating(false);
-		}
+	// A note is stored once it has content, from its page.
+	const createNewNote = () => {
+		navigate("/note/new");
 	};
 
 	return (
@@ -71,7 +55,6 @@ const Component = ({
 						aria-label="Create note"
 						className="flex h-full w-max cursor-pointer items-center justify-center active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
 						onClick={createNewNote}
-						disabled={isCreating}
 					>
 						<LUIThemedIcon
 							Icon={NoteBlankIcon}
@@ -95,7 +78,7 @@ const Component = ({
 								onOpen={(selectedNote) =>
 									navigate(`/note/${selectedNote.id}`)
 								}
-								onDelete={deleteNote}
+								onDelete={(id) => send("note.delete", { id })}
 							/>
 						))}
 					</div>

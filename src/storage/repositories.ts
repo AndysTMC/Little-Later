@@ -1,7 +1,7 @@
 import Dexie from "dexie";
 import { LINITIAL_USER_SETTINGS } from "little-shared/constants";
 import type { LUserSettings } from "little-shared/types";
-import { openBody, type ProfileKeys } from "./keys";
+import { openBody, sealAsset, type ProfileKeys } from "./keys";
 import type {
 	LittleDB,
 	NoteRow,
@@ -32,11 +32,10 @@ export type Note = NoteContent & {
 	updatedAt: number;
 };
 
-export const openSave = async (
-	keys: ProfileKeys,
-	row: SaveRow,
-): Promise<Save> => ({
-	...(await openBody<SaveContent>(keys, "saves", row.id, row.body)),
+// Builders join a row's plain fields with its opened body. Pages that cache
+// opened bodies use them directly.
+export const toSave = (row: SaveRow, content: SaveContent): Save => ({
+	...content,
 	id: row.id,
 	saved: row.saved === 1,
 	browsed: row.browsed === 1,
@@ -45,15 +44,24 @@ export const openSave = async (
 	updatedAt: row.updatedAt,
 });
 
-export const openNote = async (
-	keys: ProfileKeys,
-	row: NoteRow,
-): Promise<Note> => ({
-	...(await openBody<NoteContent>(keys, "notes", row.id, row.body)),
+export const toNote = (row: NoteRow, content: NoteContent): Note => ({
+	...content,
 	id: row.id,
 	createdAt: row.createdAt,
 	updatedAt: row.updatedAt,
 });
+
+export const openSave = async (
+	keys: ProfileKeys,
+	row: SaveRow,
+): Promise<Save> =>
+	toSave(row, await openBody<SaveContent>(keys, "saves", row.id, row.body));
+
+export const openNote = async (
+	keys: ProfileKeys,
+	row: NoteRow,
+): Promise<Note> =>
+	toNote(row, await openBody<NoteContent>(keys, "notes", row.id, row.body));
 
 const ownedBy = (profileId: string) =>
 	[
@@ -76,6 +84,44 @@ export const listSaves = async (
 		.reverse()
 		.toArray();
 	return Promise.all(rows.map((row) => openSave(keys, row)));
+};
+
+// A save's page preview: a sealed JPEG asset the worker captures (0010).
+export const PREVIEW_KIND = "preview";
+export const PREVIEW_TYPE = "image/jpeg";
+
+// Replaces a save's preview. False when the save is gone or not the
+// profile's, as when it was deleted after the capture began.
+export const putPreview = async (
+	db: LittleDB,
+	keys: ProfileKeys,
+	saveId: string,
+	bytes: Uint8Array,
+	now: number,
+): Promise<boolean> => {
+	const id = crypto.randomUUID();
+	const sealed = await sealAsset(keys, id, bytes);
+	return db.transaction("rw", [db.saves, db.assets], async () => {
+		const save = await db.saves.get(saveId);
+		if (!save || save.profileId !== keys.profileId) {
+			return false;
+		}
+		await db.assets
+			.where("[profileId+ownerId]")
+			.equals([keys.profileId, saveId])
+			.filter((asset) => asset.kind === PREVIEW_KIND)
+			.delete();
+		await db.assets.add({
+			id,
+			profileId: keys.profileId,
+			...sealed,
+			createdAt: now,
+			updatedAt: now,
+			ownerId: saveId,
+			kind: PREVIEW_KIND,
+		});
+		return true;
+	});
 };
 
 export const getSave = async (
@@ -120,14 +166,23 @@ export const listNotesFor = async (
 	);
 };
 
+// A profile's sealed settings: the AI provider with its key, and the
+// history limits. The first-run guide is not per profile and stays out.
+export type Settings = Pick<LUserSettings, "ai" | "misc">;
+
+export const defaultSettings = (): Settings => {
+	const { ai, misc } = LINITIAL_USER_SETTINGS.value;
+	return { ai, misc };
+};
+
 export const getSettings = async (
 	db: LittleDB,
 	keys: ProfileKeys,
-): Promise<LUserSettings> => {
+): Promise<Settings> => {
 	const row = await db.settings.get(keys.profileId);
 	return row
-		? openBody<LUserSettings>(keys, "settings", row.id, row.body)
-		: LINITIAL_USER_SETTINGS.value;
+		? openBody<Settings>(keys, "settings", row.id, row.body)
+		: defaultSettings();
 };
 
 export type TaskPriority = "low" | "medium" | "high";
@@ -149,11 +204,8 @@ export type Reminder = ReminderContent &
 		"id" | "target" | "escalation" | "lastFiredAt" | "nextFireAt"
 	>;
 
-export const openTask = async (
-	keys: ProfileKeys,
-	row: TaskRow,
-): Promise<Task> => ({
-	...(await openBody<TaskContent>(keys, "tasks", row.id, row.body)),
+export const toTask = (row: TaskRow, content: TaskContent): Task => ({
+	...content,
 	id: row.id,
 	schedule: row.schedule,
 	dueAt: row.dueAt,
@@ -161,17 +213,32 @@ export const openTask = async (
 	done: row.done === 1,
 });
 
-export const openReminder = async (
-	keys: ProfileKeys,
+export const toReminder = (
 	row: ReminderRow,
-): Promise<Reminder> => ({
-	...(await openBody<ReminderContent>(keys, "reminders", row.id, row.body)),
+	content: ReminderContent,
+): Reminder => ({
+	...content,
 	id: row.id,
 	target: row.target,
 	escalation: row.escalation,
 	lastFiredAt: row.lastFiredAt,
 	nextFireAt: row.nextFireAt,
 });
+
+export const openTask = async (
+	keys: ProfileKeys,
+	row: TaskRow,
+): Promise<Task> =>
+	toTask(row, await openBody<TaskContent>(keys, "tasks", row.id, row.body));
+
+export const openReminder = async (
+	keys: ProfileKeys,
+	row: ReminderRow,
+): Promise<Reminder> =>
+	toReminder(
+		row,
+		await openBody<ReminderContent>(keys, "reminders", row.id, row.body),
+	);
 
 // Open or finished tasks, soonest deadline first; tasks without one last.
 export const listTasks = async (

@@ -63,6 +63,29 @@ const readNote = async (id: string) => {
 };
 
 describe("password-protected profile", () => {
+	it("refuses an empty password or one with outer spaces", async () => {
+		for (const password of ["", " pw", "pw "]) {
+			await expect(
+				createProfile(
+					db,
+					session,
+					{ name: "Ada", password, now },
+					fast,
+				),
+			).rejects.toThrow(ProfileError);
+		}
+		const id = await createProfile(
+			db,
+			session,
+			{ name: "Ada", password: "pw", now },
+			fast,
+		);
+		await expect(
+			changePassword(db, id, "pw", " pw2", fast),
+		).rejects.toThrow(ProfileError);
+		expect(await db.profiles.count()).toBe(1);
+	});
+
 	it("is unlocked after creation and stores no raw key", async () => {
 		const id = await createProfile(
 			db,

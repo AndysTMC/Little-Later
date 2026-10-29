@@ -68,6 +68,11 @@ export type TaskRow = RecordBase & {
 	// Plain so due lists are range queries. For a recurring task, the
 	// occurrence currently open. 0 means no deadline.
 	dueAt: number;
+	// For a recurring task, the civil date (YYYY-MM-DD) of the occurrence
+	// dueAt stands for; null otherwise. With the rule's time and zone it
+	// gives dueAt again, so a floating deadline can follow the device to
+	// another zone (0011).
+	occursOn: string | null;
 	// A recurring task is never done; finishing it moves dueAt on.
 	done: 0 | 1;
 	finishedAt: number;
@@ -100,6 +105,16 @@ export type AssetRow = RecordBase & { ownerId: string; kind: string };
 // settings.
 export type SettingsRow = RecordBase;
 
+// A long job tied to an open page (decision 0012, Jobs). An import still
+// `running` when the worker starts was cut off: its rows are deleted.
+export type JobRow = {
+	id: string;
+	kind: "import";
+	profileId: string;
+	state: "running";
+	startedAt: number;
+};
+
 export type LittleDB = Dexie & {
 	profiles: EntityTable<ProfileRow, "id">;
 	avatars: EntityTable<AvatarRow, "profileId">;
@@ -110,6 +125,7 @@ export type LittleDB = Dexie & {
 	links: EntityTable<LinkRow, "id">;
 	assets: EntityTable<AssetRow, "id">;
 	settings: EntityTable<SettingsRow, "id">;
+	jobs: EntityTable<JobRow, "id">;
 };
 
 // Tables whose rows carry a sealed body under a profile key.
@@ -135,6 +151,7 @@ export const openLittleDB = (name: string = LITTLE_DB_NAME): LittleDB => {
 		links: "id, [profileId+fromId], [profileId+toId]",
 		assets: "id, [profileId+ownerId], [profileId+keyId]",
 		settings: "id, [profileId+keyId]",
+		jobs: "id",
 	});
 	return db;
 };

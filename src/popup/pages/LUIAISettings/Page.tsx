@@ -3,7 +3,7 @@ import { exitTransitions } from "../../../route-transitions";
 import { LAI_PROVIDERS, LTHEME } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { updateAISettings } from "../../../services/settings";
+import { send } from "../../../utils/send";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
@@ -43,11 +43,14 @@ const Page = () => {
 		if (userSettings === undefined || aiSettings === undefined) {
 			return;
 		}
+		if (JSON.stringify(aiSettings) === JSON.stringify(userSettings.ai)) {
+			return;
+		}
 		if (updateTimeoutRef.current) {
 			clearTimeout(updateTimeoutRef.current);
 		}
 		updateTimeoutRef.current = setTimeout(async () => {
-			await updateAISettings(aiSettings);
+			await send("settings.update", { ai: aiSettings });
 		}, 500);
 		return () => {
 			if (updateTimeoutRef.current) {

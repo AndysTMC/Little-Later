@@ -133,19 +133,20 @@ const startSession = async (
 	});
 };
 
-// Creates a profile and unlocks it. A null password makes a profile that is
-// not encrypted at rest.
-export const createProfile = async (
-	db: LittleDB,
-	session: SessionStore,
+// A new profile's row with fresh root and index keys, not yet stored. A
+// null password makes a profile that is not encrypted at rest. The raw keys
+// come back for callers that write records before the profile is stored,
+// such as an import.
+export const newProfile = async (
 	input: { name: string; password: string | null; now: number },
 	options: KeyOptions = {},
-): Promise<string> => {
+): Promise<{ row: ProfileRow; root: Uint8Array; indexKey: Uint8Array }> => {
 	assertNewPassword(input.password);
 	const id = crypto.randomUUID();
 	const root = randomKeyBytes();
+	const indexKey = randomKeyBytes();
 	const keys = await deriveContentKeys(root, FIRST_KEY_ID);
-	const profile: ProfileRow = {
+	const row: ProfileRow = {
 		id,
 		name: input.name,
 		createdAt: input.now,
@@ -156,13 +157,24 @@ export const createProfile = async (
 			keys.content,
 			FIRST_KEY_ID,
 			indexKeyLocation(id),
-			randomKeyBytes(),
+			indexKey,
 		),
 		prefs: DEFAULT_PREFS,
 	};
-	await db.profiles.add(profile);
-	await startSession(session, profile, new Map([[FIRST_KEY_ID, root]]));
-	return id;
+	return { row, root, indexKey };
+};
+
+// Creates a profile and unlocks it.
+export const createProfile = async (
+	db: LittleDB,
+	session: SessionStore,
+	input: { name: string; password: string | null; now: number },
+	options: KeyOptions = {},
+): Promise<string> => {
+	const { row, root } = await newProfile(input, options);
+	await db.profiles.add(row);
+	await startSession(session, row, new Map([[FIRST_KEY_ID, root]]));
+	return row.id;
 };
 
 // One profile is unlocked at a time: unlocking replaces any other session.
@@ -219,6 +231,14 @@ export const deleteProfile = async (
 		await session.clear();
 	}
 	await db.profiles.update(profileId, { keys: [] });
+	await removeProfileRows(db, profileId);
+};
+
+// Removes every row a profile owns, its own row last.
+export const removeProfileRows = async (
+	db: LittleDB,
+	profileId: string,
+): Promise<void> => {
 	const owned = [profileId, Dexie.minKey] as const;
 	const ownedEnd = [profileId, Dexie.maxKey] as const;
 	await db.transaction(
@@ -256,4 +276,41 @@ export const deleteProfile = async (
 			await db.profiles.delete(profileId);
 		},
 	);
+};
+
+export const PROFILE_THEMES = ["system", "light", "dark"] as const;
+export type ProfileTheme = (typeof PROFILE_THEMES)[number];
+
+// Plain profile fields the lock screen and the locked worker read (0010).
+export const updateProfile = async (
+	db: LittleDB,
+	profileId: string,
+	changes: { name?: string; theme?: ProfileTheme; autoLockMinutes?: number },
+): Promise<void> => {
+	await db.transaction("rw", db.profiles, async () => {
+		const profile = await getProfile(db, profileId);
+		await db.profiles.put({
+			...profile,
+			name: changes.name ?? profile.name,
+			prefs: {
+				theme: changes.theme ?? profile.prefs.theme,
+				autoLockMinutes:
+					changes.autoLockMinutes ?? profile.prefs.autoLockMinutes,
+			},
+		});
+	});
+};
+
+// The avatar stays plain: the lock screen shows it (0010). Null removes it.
+export const setAvatar = async (
+	db: LittleDB,
+	profileId: string,
+	image: Blob | null,
+): Promise<void> => {
+	await getProfile(db, profileId);
+	if (image === null) {
+		await db.avatars.delete(profileId);
+	} else {
+		await db.avatars.put({ profileId, image });
+	}
 };

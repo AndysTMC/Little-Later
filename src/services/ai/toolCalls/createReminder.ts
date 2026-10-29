@@ -1,6 +1,7 @@
 import { LREMINDER_TYPE } from "little-shared/enums";
-import { createReminder } from "../../../services/reminder";
 import { LDate } from "little-shared/types";
+import { send } from "../../../utils/send";
+import { fromModelDate } from "./_utils/dateFilters";
 
 const toolCall = async ({
 	message,
@@ -12,7 +13,11 @@ const toolCall = async ({
 	type: LREMINDER_TYPE;
 }): Promise<() => Promise<void>> => {
 	return async () => {
-		await createReminder({ message, type, targetDate });
+		await send("reminder.create", {
+			message,
+			target: fromModelDate(targetDate),
+			escalate: type === LREMINDER_TYPE.ESCALATING,
+		});
 	};
 };
 

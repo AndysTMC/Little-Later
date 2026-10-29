@@ -1,10 +1,10 @@
-import { LTime } from "little-shared/types";
 import { twMerge } from "tailwind-merge";
 import { LUILabel } from "../LUILabel/Component";
 import { LUIDateNumInput } from "../LUIDateNumInput/Component";
 import { LUIMeridiumInput } from "../LUIMeridiumInput/Component";
-import { LTimeUtl } from "little-shared/utils/datetime";
+import { hour12, meridiem, withHour12 } from "../../../utils/dates";
 
+// Edits a wall-clock time, "HH:mm".
 const Component = ({
 	className,
 	name,
@@ -13,9 +13,15 @@ const Component = ({
 }: {
 	className?: string;
 	name: string;
-	time: LTime;
-	onChange: (time: LTime) => void;
+	time: string;
+	onChange: (time: string) => void;
 }) => {
+	const clock = Temporal.PlainTime.from(time);
+	const emit = (next: Temporal.PlainTime) =>
+		onChange(next.toString({ smallestUnit: "minute" }));
+	const shift = (duration: Parameters<Temporal.PlainTime["add"]>[0]) =>
+		emit(clock.add(duration));
+
 	return (
 		<div
 			className={twMerge(
@@ -29,13 +35,11 @@ const Component = ({
 			<div className={`flex w-full`}>
 				<LUIDateNumInput
 					name={"hh"}
-					passedValue={LTimeUtl.getHour12HF(time)}
-					onChange={(value) =>
-						onChange(LTimeUtl.setHour12HF(time, value))
+					passedValue={hour12(clock.hour)}
+					onChange={(hour) =>
+						emit(clock.with({ hour: withHour12(clock.hour, hour) }))
 					}
-					onShift={(shift) =>
-						onChange(LTimeUtl.shiftHour(time, shift))
-					}
+					onShift={(hours) => shift({ hours })}
 					minValue={1}
 					maxValue={12}
 					maxLength={2}
@@ -43,23 +47,17 @@ const Component = ({
 				/>
 				<LUIDateNumInput
 					name={"mm"}
-					passedValue={LTimeUtl.getMinute(time)}
-					onChange={(value) =>
-						onChange(LTimeUtl.setMinute(time, value))
-					}
-					onShift={(shift) => {
-						onChange(LTimeUtl.shiftMinute(time, shift));
-					}}
+					passedValue={clock.minute}
+					onChange={(minute) => emit(clock.with({ minute }))}
+					onShift={(minutes) => shift({ minutes })}
 					minValue={0}
 					maxValue={59}
 					maxLength={2}
 					className={`w-8`}
 				/>
 				<LUIMeridiumInput
-					passedValue={LTimeUtl.getMerideum(time)}
-					onShift={(direction) =>
-						onChange(LTimeUtl.shiftMerideum(time, direction))
-					}
+					passedValue={meridiem(clock.hour)}
+					onShift={(direction) => shift({ hours: 12 * direction })}
 					className={`w-10`}
 				/>
 			</div>

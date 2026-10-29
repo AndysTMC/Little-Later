@@ -3,12 +3,12 @@ import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
 import { twMerge } from "tailwind-merge";
 import { LUIVBMMini } from "../LUIVBMMini/Component";
-import { LLink, LNote, LReminder, LTask, LVisualBM } from "little-shared/types";
+import type { Note, Reminder, Save, Task } from "../../../storage/repositories";
+import type { LinkRow } from "../../../storage/schema";
 import { useMemo } from "react";
 import { usePagination } from "../../hooks/usePagination";
 import { LUIPagination } from "../LUIPagination/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
-import { LDateUtl } from "little-shared/utils/datetime";
 
 const Component = ({
 	className,
@@ -19,11 +19,11 @@ const Component = ({
 	tasks,
 }: {
 	className?: string;
-	links: Array<LLink>;
-	notes: Array<LNote>;
-	reminders: Array<LReminder>;
-	saves: Array<LVisualBM>;
-	tasks: Array<LTask>;
+	links: Array<LinkRow>;
+	notes: Array<Note>;
+	reminders: Array<Reminder>;
+	saves: Array<Save>;
+	tasks: Array<Task>;
 }) => {
 	const { theme } = useTheme();
 
@@ -32,9 +32,7 @@ const Component = ({
 
 	const paginationSaves = useMemo(() => {
 		return [...saves]
-			.sort((a, b) =>
-				LDateUtl.compare(b.lastBrowseDate, a.lastBrowseDate),
-			)
+			.sort((a, b) => b.browsedAt - a.browsedAt)
 			.slice(startIndex, endIndex);
 	}, [saves, startIndex, endIndex]);
 

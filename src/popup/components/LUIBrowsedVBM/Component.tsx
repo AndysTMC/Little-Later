@@ -1,26 +1,25 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { twMerge } from "tailwind-merge";
-import { LINT_BOOLEAN, LTHEME } from "little-shared/enums";
+import { LTHEME } from "little-shared/enums";
 import { CircleNotchIcon, TrashIcon } from "@phosphor-icons/react";
 import { entryTransitions } from "../../../route-transitions";
 import { LReminderIcon, LVBMIcon, LTaskIcon } from "../LUIIcons";
 import { useTheme } from "../../hooks/useTheme";
-import { LVisualBM } from "little-shared/types";
+import type { Save } from "../../../storage/repositories";
 import { fakeWait } from "little-shared/utils/misc";
 import { LUIWebPreview } from "../LUIWebPreview/Component";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
-import { useLazyVBMImage } from "../../hooks/useLazyVBMImage";
-import { LDateUtl } from "little-shared/utils/datetime";
-import { getLastSeenInfo } from "../../../utils/visualBM";
-import { updateVisualBM } from "../../../services/visualBM";
+import { useLazySavePreview } from "../../hooks/useSavePreview";
+import { lastSeenInfo, prettyDate } from "../../../utils/dates";
+import { send } from "../../../utils/send";
 
 const Component = ({
 	className,
 	visualBM,
 }: {
 	className?: string;
-	visualBM: LVisualBM;
+	visualBM: Save;
 }) => {
 	const navigate = useNavigate();
 	const { theme } = useTheme();
@@ -29,9 +28,7 @@ const Component = ({
 	const handleSaveClick = async () => {
 		setIsCreatingSave(true);
 		await fakeWait();
-		await updateVisualBM(visualBM.url, {
-			isSaved: LINT_BOOLEAN.TRUE,
-		});
+		await send("save.update", { id: visualBM.id, saved: true });
 		setIsCreatingSave(false);
 	};
 
@@ -40,7 +37,7 @@ const Component = ({
 		navigate("/home/new-task", {
 			state: {
 				passedWebDataUrl: webDataUrl,
-				passedVbmId: visualBM.id,
+				passedSaveId: visualBM.id,
 				subEntryTransition: entryTransitions.slideUp,
 			},
 		});
@@ -51,19 +48,17 @@ const Component = ({
 		navigate("/home/new-reminder", {
 			state: {
 				passedWebDataUrl: webDataUrl,
-				passedVbmId: visualBM.id,
+				passedSaveId: visualBM.id,
 				subEntryTransition: entryTransitions.slideUp,
 			},
 		});
 	};
 
 	const handleDeleteClick = async () => {
-		await updateVisualBM(visualBM.url, {
-			hasBrowsed: LINT_BOOLEAN.FALSE,
-		});
+		await send("save.update", { id: visualBM.id, browsed: false });
 	};
 
-	const { preview, elementRef } = useLazyVBMImage(visualBM.id);
+	const { preview, elementRef } = useLazySavePreview(visualBM.id);
 
 	return (
 		<div
@@ -76,7 +71,7 @@ const Component = ({
 			<div className={`flex h-max w-full gap-x-2.5`}>
 				<LUIWebPreview
 					scaleType="medium"
-					previewBlob={preview?.blob}
+					previewBlob={preview}
 					url={visualBM.url}
 				/>
 				<div className={`flex h-auto w-full grow flex-col`}>
@@ -96,24 +91,23 @@ const Component = ({
 							className={`h-max w-full text-xs font-medium ${theme === LTHEME.DARK ? "text-white" : "text-black"} opacity-50`}
 						>
 							<span className="font-bold">
-								( {getLastSeenInfo(visualBM.lastBrowseDate)} )
-								&nbsp;
+								( {lastSeenInfo(visualBM.browsedAt)} ) &nbsp;
 							</span>
-							{LDateUtl.getPrettyDate(visualBM.lastBrowseDate)}
+							{prettyDate(visualBM.browsedAt)}
 						</div>
 						<div className={`flex h-max w-full gap-x-2 opacity-80`}>
 							<button
 								className={`h-max w-max border ${theme === LTHEME.DARK ? "border-white" : "border-black"} ${
-									visualBM.isSaved
+									visualBM.saved
 										? theme === LTHEME.DARK
 											? "bg-white"
 											: "bg-black"
 										: theme === LTHEME.DARK
 											? "hover:bg-neutral-800"
 											: "hover:bg-neutral-200"
-								} rounded-lg p-1 ${visualBM.isSaved ? "cursor-default" : "cursor-pointer"} `}
+								} rounded-lg p-1 ${visualBM.saved ? "cursor-default" : "cursor-pointer"} `}
 								onClick={
-									!visualBM.isSaved
+									!visualBM.saved
 										? handleSaveClick
 										: undefined
 								}
@@ -123,10 +117,10 @@ const Component = ({
 										Icon={LVBMIcon}
 										color={
 											theme === LTHEME.DARK
-												? visualBM.isSaved
+												? visualBM.saved
 													? "black"
 													: "white"
-												: visualBM.isSaved
+												: visualBM.saved
 													? "white"
 													: "black"
 										}
@@ -138,10 +132,10 @@ const Component = ({
 										Icon={CircleNotchIcon}
 										color={
 											theme === LTHEME.DARK
-												? visualBM.isSaved
+												? visualBM.saved
 													? "black"
 													: "white"
-												: visualBM.isSaved
+												: visualBM.saved
 													? "white"
 													: "black"
 										}
