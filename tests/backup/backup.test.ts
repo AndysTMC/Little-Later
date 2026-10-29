@@ -1,7 +1,7 @@
 // @vitest-environment node
 import "fake-indexeddb/auto";
 import { readFileSync } from "node:fs";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LAI_PROVIDERS } from "little-shared/enums";
 import { newKdfParams } from "little-shared/utils/envelope";
 import { cleanUpImports } from "../../src/background/commands/backup";
@@ -216,6 +216,40 @@ describe("backups", { timeout: 30_000 }, () => {
 		]);
 		expect(original.previews).toHaveLength(1);
 		expect(await littleDB.jobs.count()).toBe(0);
+	});
+
+	// An export holds the profile's keys while it reads. Locking during
+	// it must stop it, so no plain export or backup comes out afterwards.
+	describe("when the profile locks during the export", () => {
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		const lockWhenNotesAreRead = () => {
+			const bulkGet = littleDB.notes.bulkGet.bind(littleDB.notes);
+			vi.spyOn(littleDB.notes, "bulkGet").mockImplementation(
+				async (keys) => {
+					await send("profile.lock", {});
+					return bulkGet(keys);
+				},
+			);
+		};
+
+		it("stops the readable export", async () => {
+			await seedProfile();
+			lockWhenNotesAreRead();
+			await expect(createReadableExport()).rejects.toThrow(
+				"The profile was locked, so the export stopped.",
+			);
+		});
+
+		it("stops the backup", async () => {
+			await seedProfile();
+			lockWhenNotesAreRead();
+			await expect(createBackup(PASSWORD, cheap())).rejects.toThrow(
+				"The profile was locked, so the export stopped.",
+			);
+		});
 	});
 
 	it("resets the AI provider and key, and keeps them out of the file", async () => {
