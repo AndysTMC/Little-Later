@@ -233,12 +233,39 @@ export const openBytes = async (
 	}
 };
 
+// The msgpack decoder refuses a "__proto__" key (prototype pollution), so a
+// value holding one would seal but never open. Refuse it before writing.
+const assertOpenable = (value: unknown): void => {
+	if (Array.isArray(value)) {
+		value.forEach(assertOpenable);
+		return;
+	}
+	if (typeof value !== "object" || value === null) {
+		return;
+	}
+	if (ArrayBuffer.isView(value) || value instanceof Date) {
+		return;
+	}
+	const entries =
+		value instanceof Map ? [...value.entries()] : Object.entries(value);
+	for (const [key, child] of entries) {
+		if (key === "__proto__") {
+			throw new EnvelopeError(
+				'A sealed value cannot have a "__proto__" key.',
+			);
+		}
+		assertOpenable(child);
+	}
+};
+
 export const sealValue = async <T>(
 	keys: ContentKeys,
 	location: EnvelopeLocation,
 	value: T,
-): Promise<Uint8Array> =>
-	sealBytes(keys.content, keys.keyId, location, encode(value));
+): Promise<Uint8Array> => {
+	assertOpenable(value);
+	return sealBytes(keys.content, keys.keyId, location, encode(value));
+};
 
 export const openValue = async <T>(
 	keys: ContentKeys,
