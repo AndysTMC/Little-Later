@@ -324,6 +324,48 @@ describe("reminder scheduler", () => {
 		expect(images.has(`little/reminder::${locked}`)).toBe(false);
 	});
 
+	// A task's reminder may also be about a saved page; links come back in
+	// id order, so put the task's first.
+	it("finds the attached page among a reminder's other links", async () => {
+		const { id: saveId } = await run<{ id: string }>("save.capture", {
+			url: "https://example.com/read",
+			title: "Read me",
+			saved: true,
+		});
+		const keys = await importProfileKeys((await session.get())!);
+		await putPreview(
+			db,
+			keys,
+			saveId,
+			new Uint8Array([0xff, 0xd8, 7]),
+			clock,
+		);
+		await run("task.create", {
+			information: "Read it",
+			schedule: { kind: "due", at: START + 10 * MINUTE },
+			reminder: "normal",
+		});
+		const [reminder] = await db.reminders.toArray();
+		await run("link.create", { fromId: reminder.id, toId: saveId });
+		const links = await db.links
+			.filter((link) => link.fromId === reminder.id)
+			.toArray();
+		await db.links.bulkDelete(links.map(({ id }) => id));
+		await db.links.bulkAdd(
+			links.map((link) => ({
+				...link,
+				id: link.toId === saveId ? "f-save" : "0-task",
+			})),
+		);
+		clock = START + 10 * MINUTE;
+		await scheduler.run();
+		const notice = `little/reminder::${reminder.id}`;
+		expect(images.get(notice)).toEqual([0xff, 0xd8, 7]);
+		expect(await scheduler.noticeTarget(notice)).toBe(
+			"https://example.com/read",
+		);
+	});
+
 	it("runs in the command queue, never between a command's steps", async () => {
 		const { id } = await remind("Queued", START + 10 * MINUTE);
 		clock = START + 10 * MINUTE;

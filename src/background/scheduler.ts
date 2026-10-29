@@ -77,16 +77,22 @@ export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 	const { db, session, queue } = deps;
 
 	// The save a reminder is about, when its profile is the unlocked one.
+	// A task's reminder links to its task as well, so look past other links.
 	const attachedSave = async (keys: ProfileKeys | null, row: ReminderRow) => {
 		if (keys?.profileId !== row.profileId) {
 			return undefined;
 		}
-		const link = await db.links
+		const links = await db.links
 			.where("[profileId+fromId]")
 			.equals([keys.profileId, row.id])
-			.first();
-		const save = link ? await db.saves.get(link.toId) : undefined;
-		return save?.profileId === keys.profileId ? save : undefined;
+			.toArray();
+		for (const link of links) {
+			const save = await db.saves.get(link.toId);
+			if (save?.profileId === keys.profileId) {
+				return save;
+			}
+		}
+		return undefined;
 	};
 
 	const previewOf = async (
