@@ -6,7 +6,16 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 ### Changed
 
+- **Breaking:** data is stored in a new encrypted format; data from 2.x is removed on update.
+- Every record is encrypted on disk, and only the background worker writes data.
+- Backups use `.lldat` format 3 and always need a password; profiles without a password can now export too.
+- A task's reminder moves with the task's deadline, and recurring times follow the device to another time zone.
+- Requires Chrome 144 or later.
 - Releases also attach their signed build provenance as `Little-Later-<version>.intoto.jsonl`.
+
+### Fixed
+
+- The intro page no longer redirects in a loop, and the misc settings page no longer freezes.
 
 ## [2.1.1] - 2026-10-28
 

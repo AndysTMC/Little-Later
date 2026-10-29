@@ -6,7 +6,7 @@ type: decision
 
 Status: accepted
 Date: 2026-10-28
-Deciders: AndysTMC (accepted 2026-10-28: "Got it, I accept it. Go ahead.")
+Deciders: AndysTMC
 Supersedes: 0002, 0004, 0005
 Superseded-by: —
 
@@ -20,7 +20,7 @@ Today a profile's data lives in the `LLDB` Dexie database in plain form while th
 - Stored blobs carry no magic bytes, version or KDF parameters, so the format cannot evolve safely (A17, A21).
 - Reminders cannot fire while locked, because their times are inside the vault.
 
-There are no users yet (AndysTMC, 2026-10-27), so schema and formats may change, and no importer for v2.x data is needed. This record defines storage format v1. Decisions 0011 (time model) and 0012 (single writer) land in the same migration.
+There are no users yet, so schema and formats may change, and no importer for v2.x data is needed. This record defines storage format v1. Decisions 0011 (time model) and 0012 (single writer) land in the same migration.
 
 ## Options
 
@@ -181,7 +181,7 @@ Search decrypts in memory at query time. A full-text or semantic index is a late
 
 ## Review
 
-An independent agent critiqued the first draft. Adopted:
+An independent review of the first draft led to these changes. Adopted:
 
 - **Backups:** import re-keys into a fresh profile with new ids, instead of copying rows, which broke the AAD and shared keys between profiles.
 - **Leakage:** the list is complete, including sizes, timeline, profile name and avatar, and the plain recurrence rule.
@@ -199,7 +199,7 @@ An independent agent critiqued the first draft. Adopted:
 - **Decision 0004** is superseded openly.
 - **Performance targets:** they measure unlock and search, not lock.
 
-A second review (AndysTMC, 2026-10-28) found gaps where this record meets 0012 and the current code. Adopted:
+A second review (2026-10-28) found gaps where this record meets 0012 and the current code. Adopted:
 
 - An upsert resolves the existing row's id before encrypting (see 0012).
 - Re-keying keeps both root keys until it finishes, and a separate index key keeps `urlKey` stable.
