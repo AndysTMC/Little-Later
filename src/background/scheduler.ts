@@ -108,9 +108,17 @@ export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 						.filter((candidate) => candidate.kind === PREVIEW_KIND)
 						.first()
 				: undefined;
-		return keys && asset
-			? openAsset(keys, asset.id, asset.body)
-			: undefined;
+		if (!keys || !asset) {
+			return undefined;
+		}
+		// The preview only adds to the notice, and the reminder has already
+		// moved past this fire: one that cannot open must not cost the text.
+		try {
+			return await openAsset(keys, asset.id, asset.body);
+		} catch (error) {
+			console.warn("Could not open a reminder's preview.", error);
+			return undefined;
+		}
 	};
 
 	const dueRows = async (profileId: string, now: number) =>

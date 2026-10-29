@@ -366,6 +366,31 @@ describe("reminder scheduler", () => {
 		);
 	});
 
+	// The preview only adds to a notice; the reminder has already moved
+	// past this fire, so a lost notice is lost for good.
+	it("shows a reminder without its preview when the preview cannot open", async () => {
+		const { id: saveId } = await run<{ id: string }>("save.capture", {
+			url: "https://example.com/read",
+			title: "Read me",
+			saved: true,
+		});
+		const keys = await importProfileKeys((await session.get())!);
+		await putPreview(
+			db,
+			keys,
+			saveId,
+			new Uint8Array([0xff, 0xd8, 7]),
+			clock,
+		);
+		const [asset] = await db.assets.toArray();
+		await db.assets.update(asset.id, { body: new Uint8Array(40) });
+		const { id } = await remind("Read it", START + 10 * MINUTE, { saveId });
+		clock = START + 10 * MINUTE;
+		await scheduler.run();
+		expect(messages()).toEqual(["Read it"]);
+		expect(images.has(`little/reminder::${id}`)).toBe(false);
+	});
+
 	it("runs in the command queue, never between a command's steps", async () => {
 		const { id } = await remind("Queued", START + 10 * MINUTE);
 		clock = START + 10 * MINUTE;
