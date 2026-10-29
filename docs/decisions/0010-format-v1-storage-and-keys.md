@@ -7,7 +7,7 @@ type: decision
 Status: accepted
 Date: 2026-10-28
 Deciders: AndysTMC (accepted 2026-10-28: "Got it, I accept it. Go ahead.")
-Supersedes: —
+Supersedes: 0002, 0004, 0005
 Superseded-by: —
 
 ## Context
