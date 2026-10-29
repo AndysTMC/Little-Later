@@ -41,6 +41,7 @@ const reminderScheduler = createReminderScheduler({
 	db: littleDB,
 	session: sessionStore,
 	now: Date.now,
+	zone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
 	queue: writeQueue,
 	setAlarm: async (when) => {
 		if (when === null) {
@@ -91,6 +92,14 @@ listenForCommands(async (name, input) => {
 // Every worker start: browser start, extension update, and waking after
 // suspension. Fires what was missed and re-arms the alarm.
 runReminderScheduler();
+
+// A device that wakes may be in another zone, which moves floating
+// deadlines (0011).
+chrome.idle.onStateChanged.addListener((state) => {
+	if (state === "active") {
+		runReminderScheduler();
+	}
+});
 
 // An import still running when the worker starts was cut off (0012, Jobs),
 // and staged files a closed page left behind are swept (0012, Messaging).

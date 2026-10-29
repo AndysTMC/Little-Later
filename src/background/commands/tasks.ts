@@ -6,6 +6,9 @@ import {
 	ScheduleError,
 	nextOccurrence,
 	parseRule,
+	resolveZone,
+	toInstant,
+	type RecurrenceRule,
 } from "little-shared/utils/schedule";
 import { sealBody, type ProfileKeys } from "../../storage/keys";
 import {
@@ -67,22 +70,41 @@ export const asSchedule = (value: unknown): TaskSchedule => {
 	}
 };
 
+type Deadline = Pick<TaskRow, "dueAt" | "occursOn">;
+
 // The deadline the task's lists sort and filter by: for a recurring task,
-// the first occurrence after `from`.
-const dueAtFor = (
+// the first occurrence after `from`, and the civil date it falls on.
+const deadlineFor = (
 	ctx: CommandContext,
 	schedule: TaskSchedule,
 	from: number,
-): number => {
+): Deadline => {
 	switch (schedule.kind) {
 		case "anytime":
-			return 0;
+			return { dueAt: 0, occursOn: null };
 		case "due":
-			return schedule.at;
-		case "recurring":
-			return nextOccurrence(schedule.rule, from, ctx.zone());
+			return { dueAt: schedule.at, occursOn: null };
+		case "recurring": {
+			const dueAt = nextOccurrence(schedule.rule, from, ctx.zone());
+			return {
+				dueAt,
+				occursOn: occurrenceDate(schedule.rule, dueAt, ctx.zone()),
+			};
+		}
 	}
 };
+
+// The civil date that an occurrence at `dueAt` falls on, in the zone its
+// rule resolves to.
+export const occurrenceDate = (
+	rule: RecurrenceRule,
+	dueAt: number,
+	deviceZone: string,
+): string =>
+	Temporal.Instant.fromEpochMilliseconds(dueAt)
+		.toZonedDateTimeISO(resolveZone(rule, deviceZone))
+		.toPlainDate()
+		.toString();
 
 export type TaskReminderKind = "normal" | "escalating";
 
@@ -286,7 +308,7 @@ export const taskCreate = defineCommand({
 			createdAt: now,
 			updatedAt: now,
 			schedule: input.schedule,
-			dueAt: dueAtFor(ctx, input.schedule, now),
+			...deadlineFor(ctx, input.schedule, now),
 			done: 0,
 			finishedAt: 0,
 			privacy: "private",
@@ -366,9 +388,7 @@ export const taskUpdate = defineCommand({
 				...row,
 				...sealed,
 				schedule,
-				dueAt: input.schedule
-					? dueAtFor(ctx, schedule, now)
-					: row.dueAt,
+				...(input.schedule ? deadlineFor(ctx, schedule, now) : {}),
 				updatedAt: now,
 			},
 			input.reminder,
@@ -388,23 +408,18 @@ export const taskComplete = defineCommand({
 		const row = await getOwnTask(ctx.db, keys, input.id);
 		const now = ctx.now();
 		const recurring = row.schedule.kind === "recurring";
-		const dueAt = recurring
-			? dueAtFor(ctx, row.schedule, Math.max(now, row.dueAt))
-			: row.dueAt;
-		await putTask(
-			ctx,
-			keys,
-			{
-				...row,
-				done: recurring ? 0 : 1,
-				finishedAt: now,
-				dueAt,
-				updatedAt: now,
-			},
-			undefined,
-			undefined,
-		);
-		return { dueAt };
+		const deadline = recurring
+			? deadlineFor(ctx, row.schedule, Math.max(now, row.dueAt))
+			: {};
+		const task: TaskRow = {
+			...row,
+			...deadline,
+			done: recurring ? 0 : 1,
+			finishedAt: now,
+			updatedAt: now,
+		};
+		await putTask(ctx, keys, task, undefined, undefined);
+		return { dueAt: task.dueAt };
 	},
 });
 
@@ -452,3 +467,59 @@ export const taskDelete = defineCommand({
 		return null;
 	},
 });
+
+// Moves each open recurring task, with its reminder, to its occurrence's
+// civil date and time in the device's current zone (0011): a floating
+// 09:00 is 09:00 wherever the device is. A rule with its own zone resolves
+// as before, so it does not move. Plain fields only, so it runs while
+// locked; the scheduler calls it before each run.
+export const followDeviceZone = async (
+	db: LittleDB,
+	zone: string,
+	now: number,
+): Promise<void> => {
+	// Rows from builds before occursOn have none, and keep their deadline
+	// until the task is next completed or rescheduled.
+	const open = await db.tasks
+		.filter((task) => task.done === 0 && typeof task.occursOn === "string")
+		.toArray();
+	for (const task of open) {
+		if (task.schedule.kind !== "recurring" || task.occursOn === null) {
+			continue;
+		}
+		const { rule } = task.schedule;
+		const dueAt = toInstant(
+			Temporal.PlainDate.from(task.occursOn),
+			rule.time,
+			resolveZone(rule, zone),
+		);
+		if (dueAt === task.dueAt) {
+			continue;
+		}
+		await db.transaction("rw", cascadeTables(db), async () => {
+			const reminder = await findTaskReminder(
+				db,
+				task.profileId,
+				task.id,
+			);
+			await db.tasks.update(task.id, { dueAt });
+			if (reminder && reminder.target === task.dueAt) {
+				await db.reminders.update(reminder.id, {
+					target: dueAt,
+					// One that already fired its last stays quiet; one whose
+					// new time has passed fires now.
+					nextFireAt:
+						reminder.nextFireAt === 0
+							? 0
+							: dueAt <= now
+								? now
+								: nextFireAfter(
+										dueAt,
+										reminder.escalation,
+										now,
+									),
+				});
+			}
+		});
+	}
+};

@@ -148,6 +148,7 @@ async function* profileEntries(
 			...times(row),
 			schedule: row.schedule,
 			dueAt: row.dueAt,
+			occursOn: row.occursOn,
 			done: row.done === 1,
 			finishedAt: row.finishedAt,
 			privacy: row.privacy,

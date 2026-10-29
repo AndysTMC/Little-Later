@@ -68,6 +68,11 @@ export type TaskRow = RecordBase & {
 	// Plain so due lists are range queries. For a recurring task, the
 	// occurrence currently open. 0 means no deadline.
 	dueAt: number;
+	// For a recurring task, the civil date (YYYY-MM-DD) of the occurrence
+	// dueAt stands for; null otherwise. With the rule's time and zone it
+	// gives dueAt again, so a floating deadline can follow the device to
+	// another zone (0011).
+	occursOn: string | null;
 	// A recurring task is never done; finishing it moves dueAt on.
 	done: 0 | 1;
 	finishedAt: number;
