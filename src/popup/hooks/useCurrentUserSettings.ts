@@ -6,6 +6,10 @@ import { defaultSettings, type Settings } from "../../storage/repositories";
 import type { SettingsRow } from "../../storage/schema";
 import { useProfileKeys } from "./useSession";
 
+// One object for every profile without stored settings, so effects that
+// depend on the settings do not run on every render.
+const NOT_STORED = defaultSettings();
+
 // The unlocked profile's sealed settings: AI provider and history limits.
 const useCurrentUserSettings = (): Settings | undefined => {
 	const keys = useProfileKeys();
@@ -36,7 +40,7 @@ const useCurrentUserSettings = (): Settings | undefined => {
 		};
 	}, [keys, row]);
 	if (!keys || row === undefined) return undefined;
-	if (row === null) return defaultSettings();
+	if (row === null) return NOT_STORED;
 	return opened?.row === row ? opened.settings : undefined;
 };
 
