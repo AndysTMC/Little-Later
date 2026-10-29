@@ -54,7 +54,7 @@ A bug fix starts from the root cause. Reproduce the bug with a failing test, fix
 
 ## Releases
 
-A release starts with a pull request from `dev` into `main` that bumps the version in `manifest.json`, `package.json` and `packages/shared/package.json` and moves the changelog's `Unreleased` entries under the new version. Its description proposes the version and why: major for a breaking change, minor for new features, patch for fixes only. That pull request is merged with a merge commit, not squashed, so `dev` and `main` keep a shared history. The decision gate skips this pull request, because every decision change in it already passed the gate on its way into `dev`. Tagging `vX.Y.Z` on `main` then builds and publishes the release.
+A release starts with a pull request from `dev` into `main` that bumps the version in `manifest.json`, `package.json` and `packages/shared/package.json` and moves the changelog's `Unreleased` entries under the new version. Its description proposes the version and why: major for a breaking change, minor for new features, patch for fixes only. That pull request is merged with a merge commit, not squashed, so `dev` and `main` keep a shared history. The decision gate skips this pull request, because every decision change in it already passed the gate on its way into `dev`. Tagging `vX.Y.Z` on `main` then builds and publishes the release. Only the maintainer can create release tags, and the signing job waits for the maintainer's approval in the `release` environment, which holds `SIGNING_KEY`.
 
 An urgent fix branches from `main`, is released the same way, and `main` is then merged back into `dev`.
 
