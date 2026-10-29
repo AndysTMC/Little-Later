@@ -7,7 +7,6 @@
       "dependencies": {
         "@phosphor-icons/react": "^2.1.7",
         "dexie": "^4.0.11",
-        "dexie-export-import": "^4.1.4",
         "dexie-react-hooks": "^1.1.7",
         "framer-motion": "^12.0.5",
         "little-shared": "workspace:*",
@@ -50,7 +49,6 @@
       "name": "little-shared",
       "version": "2.1.1",
       "dependencies": {
-        "@formkit/tempo": "^1.1.0",
         "@msgpack/msgpack": "^3.1.2",
       },
       "devDependencies": {
@@ -176,8 +174,6 @@
     "@eslint/object-schema": ["@eslint/object-schema@3.0.5", "", {}, "sha512-vqTaUEgxzm+YDSdElad6PiRoX4t8VGDjCtt05zn4nU810UIx/uNEV7/lZJ6KwFThKZOzOxzXy48da+No7HZaMw=="],
 
     "@eslint/plugin-kit": ["@eslint/plugin-kit@0.7.3", "", { "dependencies": { "@eslint/core": "^1.2.1", "levn": "^0.4.1" } }, "sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q=="],
-
-    "@formkit/tempo": ["@formkit/tempo@1.1.0", "", {}, "sha512-LF36zxNFvNO+U2uS2RX5h0SJZuL4z/JpDHbMOgumhv+re6k/Jpt9S9mZuEMLaLUtpDZlRZZE3UkIiwSS+Forig=="],
 
     "@humanfs/core": ["@humanfs/core@0.19.2", "", { "dependencies": { "@humanfs/types": "^0.15.0" } }, "sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA=="],
 
@@ -474,8 +470,6 @@
     "devlop": ["devlop@1.1.0", "", { "dependencies": { "dequal": "^2.0.0" } }, "sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA=="],
 
     "dexie": ["dexie@4.4.7", "", {}, "sha512-wemFiCl3DTCnfzyqepUTX1ugbYbkTrw3aEZOG7YjAOUoEQB5g5PrEywPzk5JpbX/SxqQ9IvjUpxCDIEjoOWEfA=="],
-
-    "dexie-export-import": ["dexie-export-import@4.4.2", "", { "peerDependencies": { "dexie": "^4.4.7" } }, "sha512-bvDkLkgvo1ZDpfiAi11Jj6CmaCJx9QUrhA5Q8T3MMQHDcFqlC8lZdhg151+jj3gvqEPEyvryYF9/kJZeC34sOw=="],
 
     "dexie-react-hooks": ["dexie-react-hooks@1.1.7", "", { "peerDependencies": { "@types/react": ">=16", "dexie": "^3.2 || ^4.0.1-alpha", "react": ">=16" } }, "sha512-Lwv5W0Hk+uOW3kGnsU9GZoR1er1B7WQ5DSdonoNG+focTNeJbHW6vi6nBoX534VKI3/uwHebYzSw1fwY6a7mTw=="],
 

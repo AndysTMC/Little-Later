@@ -37,7 +37,6 @@
 	"dependencies": {
 		"@phosphor-icons/react": "^2.1.7",
 		"dexie": "^4.0.11",
-		"dexie-export-import": "^4.1.4",
 		"dexie-react-hooks": "^1.1.7",
 		"framer-motion": "^12.0.5",
 		"little-shared": "workspace:*",
