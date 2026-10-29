@@ -4,7 +4,7 @@ import { openReminder, openSave } from "../storage/repositories";
 import type { LittleDB, ReminderRow } from "../storage/schema";
 import type { SessionStore } from "../storage/session";
 import { nextFireAfter } from "./commands/reminders";
-import type { SerialQueue } from "./commands/registry";
+import type { Dispatch, SerialQueue } from "./commands/registry";
 
 // Fires reminders from their plain schedule (decisions 0010, 0011), for
 // every profile and whether or not it is unlocked. One Chrome alarm stands
@@ -33,9 +33,18 @@ export type ReminderSchedulerDeps = {
 
 export type SchedulerRun = { fired: number; nextAlarm: number | null };
 
-// The commands after which the next fire may have moved.
-export const reschedulesReminders = (command: string): boolean =>
-	command.startsWith("reminder.") || command === "profile.delete";
+// Re-arms after every successful command. Reminder, task, import and
+// delete commands all write reminders, and the alarm is read back from the
+// table, so no list of command names can fall behind them.
+export const rearmAfterCommands =
+	(dispatch: Dispatch, rearm: () => void): Dispatch =>
+	async (name, input) => {
+		const result = await dispatch(name, input);
+		if (result.ok) {
+			rearm();
+		}
+		return result;
+	};
 
 const unlockedKeys = async (
 	session: SessionStore,
