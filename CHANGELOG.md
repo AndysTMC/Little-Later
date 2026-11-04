@@ -4,6 +4,8 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-29
+
 ### Changed
 
 - **Breaking:** data is stored in a new encrypted format; data from 2.x is removed on update.
@@ -62,7 +64,8 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 - First release.
 
-[Unreleased]: https://github.com/AndysTMC/Little-Later/compare/v2.1.1...HEAD
+[Unreleased]: https://github.com/AndysTMC/Little-Later/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/AndysTMC/Little-Later/compare/v2.1.1...v3.0.0
 [2.1.1]: https://github.com/AndysTMC/Little-Later/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/AndysTMC/Little-Later/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/AndysTMC/Little-Later/compare/v1.0.0...v2.0.0
