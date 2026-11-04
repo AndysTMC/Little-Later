@@ -1,6 +1,6 @@
 # Governance
 
-Little Later has one maintainer, [@AndysTMC](https://github.com/AndysTMC), who reviews and merges pull requests, cuts releases and has the final say. Only the maintainer publishes official builds: they hold the release signing key and the Chrome Web Store developer account, and the name and logo are reserved for those builds ([TRADEMARKS.md](./TRADEMARKS.md)).
+Little Later has one maintainer, [@AndysTMC](https://github.com/AndysTMC), who reviews and merges pull requests, cuts releases and has the final say.
 
 ## How decisions are made
 
@@ -14,4 +14,4 @@ Someone whose reports and diagnoses have helped over time can be invited to join
 
 ## If the maintainer is unavailable
 
-Security reports go through GitHub private vulnerability reporting, which notifies the maintainer directly ([SECURITY.md](./SECURITY.md)). The code is MIT-licensed, so anyone may fork it if the project stops being maintained, under a new name and logo.
+Security reports go through GitHub private vulnerability reporting, which notifies the maintainer directly ([SECURITY.md](./SECURITY.md)). The code is MIT-licensed, so anyone may fork it if the project stops being maintained.
