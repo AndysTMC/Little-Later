@@ -52,7 +52,7 @@ export default defineConfig({
 		],
 	},
 	build: {
-		target: "ES2022",
+		target: "es2022",
 		chunkSizeWarningLimit: 1500,
 		rollupOptions: {
 			output: {},
