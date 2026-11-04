@@ -1,0 +1,21 @@
+name: Documentation
+description: Something in the docs is wrong, missing or unclear.
+labels: ["documentation"]
+body:
+    - type: input
+      id: where
+      attributes:
+          label: Where
+          description: The file or page, for example README.md or CONTRIBUTING.md.
+      validations:
+          required: true
+    - type: textarea
+      id: problem
+      attributes:
+          label: What is wrong or missing
+      validations:
+          required: true
+    - type: textarea
+      id: suggestion
+      attributes:
+          label: Suggested wording (optional)

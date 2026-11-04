@@ -1,0 +1,19 @@
+name: Question
+description: Ask how something works or how to do something.
+labels: ["question"]
+body:
+    - type: markdown
+      attributes:
+          value: Please search existing issues first. If something is broken, use the bug report instead.
+    - type: textarea
+      id: question
+      attributes:
+          label: Your question
+          description: What you are trying to do, and what you tried so far.
+      validations:
+          required: true
+    - type: input
+      id: version
+      attributes:
+          label: Little Later version
+          description: Shown on chrome://extensions, if it matters for the question.
