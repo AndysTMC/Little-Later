@@ -101,7 +101,7 @@ type ToolSafetyMetadata = {
 };
 
 type ToolDefinition = {
-	tool: OpenAI.Chat.Completions.ChatCompletionTool;
+	tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool;
 	safety?: ToolSafetyMetadata;
 	normalizeArgs: (args: Record<string, unknown>) => Record<string, unknown>;
 	execute: (

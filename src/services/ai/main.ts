@@ -233,6 +233,12 @@ const mergeOutputContent = (
 	};
 };
 
+// Every tool we offer is a function tool, but a provider can still return a
+// custom tool call; those are named so they can be answered as unsupported.
+const toolCallName = (
+	call: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
+): string => (call.type === "function" ? call.function.name : call.custom.name);
+
 const isOutputContentEmpty = (content: AIOutputContent): boolean =>
 	content.saves.length === 0 &&
 	content.reminders.length === 0 &&
@@ -240,7 +246,7 @@ const isOutputContentEmpty = (content: AIOutputContent): boolean =>
 	content.notes.length === 0;
 
 type PendingMutation = {
-	call: OpenAI.Chat.Completions.ChatCompletionMessageToolCall;
+	call: OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall;
 	definition: ToolDefinition;
 	args: Record<string, unknown>;
 };
@@ -1026,10 +1032,13 @@ export class OpenAICompatibleAI extends LittleAI {
 	private async executeToolCall(
 		toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
 	): Promise<ToolExecutionResult> {
-		const definition = toolRegistry.get(toolCall.function.name);
-		if (!definition) {
+		const definition =
+			toolCall.type === "function"
+				? toolRegistry.get(toolCall.function.name)
+				: undefined;
+		if (toolCall.type !== "function" || !definition) {
 			return {
-				message: `Tool '${toolCall.function.name}' is not supported.`,
+				message: `Tool '${toolCallName(toolCall)}' is not supported.`,
 				expression: LFACE_EXPRESSION.FROWNING,
 			};
 		}
@@ -1198,11 +1207,15 @@ export class OpenAICompatibleAI extends LittleAI {
 				emitProgress(
 					"Running tool",
 					"tool",
-					call.function.name,
+					toolCallName(call),
 					round + 1,
 				);
-				const definition = toolRegistry.get(call.function.name);
+				const definition =
+					call.type === "function"
+						? toolRegistry.get(call.function.name)
+						: undefined;
 				if (
+					call.type === "function" &&
 					definition &&
 					toolRequiresConfirmation(call.function.name)
 				) {
@@ -1246,7 +1259,11 @@ export class OpenAICompatibleAI extends LittleAI {
 			}
 
 			const roundDefinitions = assistantMessage.tool_calls
-				.map((call) => toolRegistry.get(call.function.name))
+				.map((call) =>
+					call.type === "function"
+						? toolRegistry.get(call.function.name)
+						: undefined,
+				)
 				.filter(
 					(definition): definition is ToolDefinition =>
 						definition !== undefined,
