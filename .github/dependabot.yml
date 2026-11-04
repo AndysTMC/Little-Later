@@ -29,5 +29,10 @@ updates:
               update-types: [minor, patch]
           major:
               update-types: [major]
+      ignore:
+          # typescript-eslint cannot run on TypeScript 7 yet. Drop this once
+          # it supports it: https://github.com/typescript-eslint/typescript-eslint/issues/10940
+          - dependency-name: typescript
+            update-types: ["version-update:semver-major"]
       commit-message:
           prefix: build
