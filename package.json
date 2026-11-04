@@ -2,7 +2,7 @@
 	"name": "little-later",
 	"private": true,
 	"description": "Little Later Chrome extension workspace",
-	"version": "2.1.1",
+	"version": "3.0.0",
 	"license": "MIT",
 	"author": "Thatikonda Mukesh",
 	"homepage": "https://github.com/AndysTMC/Little-Later#readme",
