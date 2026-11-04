@@ -6,6 +6,7 @@ We don't take pull requests from outside the team. Open an issue instead.
 
 - **Bugs:** use the bug form. Say what happened, how to reproduce it and which version you run.
 - **Ideas:** use the feature form and describe the problem you want solved.
+- **Questions and docs problems** have their own forms.
 - **Security problems** go through [SECURITY.md](./SECURITY.md), never a public issue.
 
 A diagnosis is as welcome as a report: redacted logs, the code you suspect, or a fix as a diff in the issue. If your analysis shapes the fix, the pull request that lands it credits you.
