@@ -4,6 +4,16 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-11-04
+
+### Fixed
+
+- The AI assistant no longer stops with an error when a provider replies with a custom tool call; it answers that the tool is not supported.
+
+### Changed
+
+- Updated dependencies, including Vite 8, React Router 8 and the OpenAI client 7.
+
 ## [3.0.0] - 2026-10-29
 
 ### Changed
@@ -64,7 +74,8 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 - First release.
 
-[Unreleased]: https://github.com/AndysTMC/Little-Later/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/AndysTMC/Little-Later/compare/v3.0.1...HEAD
+[3.0.1]: https://github.com/AndysTMC/Little-Later/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/AndysTMC/Little-Later/compare/v2.1.1...v3.0.0
 [2.1.1]: https://github.com/AndysTMC/Little-Later/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/AndysTMC/Little-Later/compare/v2.0.0...v2.1.0
