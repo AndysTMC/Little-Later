@@ -1,12 +1,20 @@
 # Contributing to Little Later
 
-Thanks for helping. Little Later is a local-first Chrome extension: no backend, and your data never leaves the browser unless you send it to an AI provider you chose.
+We don't take pull requests from outside the team. Open an issue instead.
 
-## Before you start
+## Issues
 
-- **Bugs:** open an issue with the bug form. Security problems go through [SECURITY.md](./SECURITY.md), never a public issue.
-- **Features:** open an issue with the feature form first. Large unannounced pull requests are hard to review and may be closed.
-- **Design choices** are recorded in [docs/decisions/](./docs/decisions/). A change that goes against one needs a new decision record.
+- **Bugs:** use the bug form. Say what happened, how to reproduce it and which version you run.
+- **Ideas:** use the feature form and describe the problem you want solved.
+- **Security problems** go through [SECURITY.md](./SECURITY.md), never a public issue.
+
+A diagnosis is as welcome as a report: redacted logs, the code you suspect, or a fix as a diff in the issue. If your analysis shapes the fix, the pull request that lands it credits you.
+
+Design choices are recorded in [docs/decisions/](./docs/decisions/). An issue that goes against one should say which record and why.
+
+## Working on the code
+
+The rest of this guide is for the team. To build Little Later from source for yourself, [Set up](#set-up) is all you need.
 
 ## Set up
 
@@ -60,4 +68,4 @@ An urgent fix branches from `main`, is released the same way, and `main` is then
 
 ## Conduct and license
 
-Everyone taking part follows the [Code of Conduct](./CODE_OF_CONDUCT.md). By opening a pull request you agree to license your contribution under the [MIT License](./LICENSE.md).
+Everyone taking part follows the [Code of Conduct](./CODE_OF_CONDUCT.md). A patch you post in an issue or a pull request is licensed under the [MIT License](./LICENSE.md), like the rest of the code.

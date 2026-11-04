@@ -135,7 +135,7 @@ The service worker is the only code that writes data; the popup and the AI send 
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. Please read [CONTRIBUTING.md](./CONTRIBUTING.md) first, and open an issue before starting on a large change. Everyone taking part follows the [Code of Conduct](./CODE_OF_CONDUCT.md).
+Bug reports, ideas and diagnoses are welcome as issues. Pull requests come from the team only; [CONTRIBUTING.md](./CONTRIBUTING.md) explains how to report and how your analysis is credited. Everyone taking part follows the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 See also: [getting help](./SUPPORT.md), the [security policy](./SECURITY.md) (report vulnerabilities privately, never in a public issue), [how the project is run](./GOVERNANCE.md) and the [changelog](./CHANGELOG.md).
 
