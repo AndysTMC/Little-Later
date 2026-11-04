@@ -1,7 +1,7 @@
 import { LEXPORT_TYPE } from "little-shared/enums";
 import OpenAI from "openai";
 
-const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
+const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	type: "function",
 	function: {
 		name: "export_data",

@@ -2,7 +2,7 @@ import { LDATE_FORMAT } from "little-shared/constants";
 import { LTASK_PRIORITY } from "little-shared/enums";
 import OpenAI from "openai";
 
-const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
+const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	type: "function",
 	function: {
 		name: "create_task",

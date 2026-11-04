@@ -1,7 +1,7 @@
 import { LTHEME } from "little-shared/enums";
 import OpenAI from "openai";
 
-const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
+const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	type: "function",
 	function: {
 		name: "set_user_app_theme_pref",

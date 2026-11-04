@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-const tool: OpenAI.Chat.Completions.ChatCompletionTool = {
+const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	type: "function",
 	function: {
 		name: "get_save_preview_image",
