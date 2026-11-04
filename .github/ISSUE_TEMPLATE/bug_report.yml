@@ -49,3 +49,8 @@ body:
       attributes:
           label: Errors or screenshots
           description: Errors from the popup's or service worker's DevTools console help most.
+    - type: textarea
+      id: diagnosis
+      attributes:
+          label: Diagnosis or fix (optional)
+          description: The code you suspect, or a fix as a diff. If your analysis shapes the fix, the pull request credits you.

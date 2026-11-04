@@ -42,18 +42,30 @@ let toolRegistry: typeof import("../../src/services/ai/toolRegistry").toolRegist
 type ChatMessage = {
 	role?: string;
 	content?: string | null;
-	tool_calls?: Array<{
-		id: string;
-		type: "function";
-		function: {
-			name: string;
-			arguments: string;
-		};
-	}>;
+	tool_calls?: Array<MockToolCall>;
 };
+
+type MockToolCall =
+	| {
+			id: string;
+			type: "function";
+			function: {
+				name: string;
+				arguments: string;
+			};
+	  }
+	| {
+			id: string;
+			type: "custom";
+			custom: {
+				name: string;
+				input: string;
+			};
+	  };
 
 type ToolCallSpec = {
 	name: string;
+	custom?: boolean;
 	args?: Record<string, unknown>;
 	rawArguments?: string;
 };
@@ -144,24 +156,22 @@ const getTrailingToolMessageCount = (messages: Array<ChatMessage>): number => {
 	return count;
 };
 
-const buildToolCalls = (
-	specs: Array<ToolCallSpec>,
-): Array<{
-	id: string;
-	type: "function";
-	function: {
-		name: string;
-		arguments: string;
-	};
-}> =>
-	specs.map((spec, index) => ({
-		id: `tool_${index + 1}_${Date.now()}`,
-		type: "function",
-		function: {
-			name: spec.name,
-			arguments: spec.rawArguments ?? JSON.stringify(spec.args ?? {}),
-		},
-	}));
+const buildToolCalls = (specs: Array<ToolCallSpec>): Array<MockToolCall> =>
+	specs.map((spec, index) => {
+		const id = `tool_${index + 1}_${Date.now()}`;
+		const payload = spec.rawArguments ?? JSON.stringify(spec.args ?? {});
+		return spec.custom
+			? {
+					id,
+					type: "custom",
+					custom: { name: spec.name, input: payload },
+				}
+			: {
+					id,
+					type: "function",
+					function: { name: spec.name, arguments: payload },
+				};
+	});
 
 const createMockProviderServer = async (): Promise<MockServerState> => {
 	let activeScenarios: Record<string, PromptScenario> = {};
@@ -1082,6 +1092,19 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 						{
 							name: "create_note",
 							rawArguments: "{",
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Reject a custom tool call.",
+				expectedMessage: "Tool 'create_note' is not supported.",
+				scenario: {
+					toolCalls: [
+						{
+							name: "create_note",
+							custom: true,
+							args: { content: "should not be created" },
 						},
 					],
 				} satisfies PromptScenario,

@@ -40,7 +40,7 @@ Little Later has no account, no server and no sync. Everything you save is store
 
 ## Install
 
-Little Later needs **Chrome 144 or later**, or another Chromium-based browser on the same version. It is not on the Chrome Web Store yet.
+Little Later needs **Chrome 144 or later**, or another Chromium-based browser on the same version. It is not on the Chrome Web Store.
 
 ### From a GitHub release
 
@@ -58,7 +58,7 @@ Every release is built by GitHub Actions from a version tag on `main`, and ships
 gh attestation verify Little-Later-<version>.zip --repo AndysTMC/Little-Later
 ```
 
-[SECURITY.md](./SECURITY.md#verifying-a-release) explains offline verification. Official builds are published only from this repository's releases and, once listed, the maintainer's Chrome Web Store account.
+[SECURITY.md](./SECURITY.md#verifying-a-release) explains offline verification.
 
 ### From source
 
@@ -135,12 +135,12 @@ The service worker is the only code that writes data; the popup and the AI send 
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. Please read [CONTRIBUTING.md](./CONTRIBUTING.md) first, and open an issue before starting on a large change. Everyone taking part follows the [Code of Conduct](./CODE_OF_CONDUCT.md).
+Bug reports, ideas and diagnoses are welcome as issues. Pull requests come from the team only; [CONTRIBUTING.md](./CONTRIBUTING.md) explains how to report and how your analysis is credited. Everyone taking part follows the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 See also: [getting help](./SUPPORT.md), the [security policy](./SECURITY.md) (report vulnerabilities privately, never in a public issue), [how the project is run](./GOVERNANCE.md) and the [changelog](./CHANGELOG.md).
 
 ## License
 
-The code is released under the [MIT License](./LICENSE.md). The license covers the code, not the Little Later name or logo: if you publish your own build, give it your own name and icons ([TRADEMARKS.md](./TRADEMARKS.md)).
+The code is released under the [MIT License](./LICENSE.md).
 
 Little Later is built with [React](https://react.dev), [Vite](https://vite.dev), [Dexie.js](https://dexie.org), [Tailwind CSS](https://tailwindcss.com), [Framer Motion](https://motion.dev) and the [OpenAI SDK](https://github.com/openai/openai-node). Every build includes `THIRD_PARTY_NOTICES.txt` with the license of each bundled package. The Rubik font is under the [SIL Open Font License](./public/fonts/OFL.txt).

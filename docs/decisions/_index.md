@@ -14,4 +14,5 @@
 | 0010 | We will encrypt each record under a wrapped profile key, in one versioned database                      | accepted           | 2026-10-28 | 0002, 0004, 0005 |
 | 0011 | We will store instants as epoch milliseconds and recurrence as anchored rules, computed with Temporal   | accepted           | 2026-10-28 | —                |
 | 0012 | We will make the service worker the only writer, through typed commands                                 | accepted           | 2026-10-28 | —                |
-| 0013 | Only the maintainer can publish official builds                                                         | proposed           | 2026-10-29 | —                |
+| 0013 | Only release tags can use the signing key                                                               | proposed           | 2026-10-29 | —                |
+| 0014 | Outside contributions come as issues, not pull requests                                                 | proposed           | 2026-11-04 | —                |
