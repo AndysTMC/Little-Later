@@ -56,9 +56,6 @@
 			"Note the current webpage from AI Assist",
 			"Link a note to the current webpage from AI Assist"
 		],
-		"ideas": [
-			"Chrome Web Store listing with a store-assigned ID.",
-			"More than one profile unlocked at once."
-		]
+		"ideas": ["More than one profile unlocked at once."]
 	}
 }
