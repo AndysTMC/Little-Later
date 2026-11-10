@@ -1,21 +1,22 @@
 ---
 type: now
-updated: 2026-10-29
-horizon: 2026-10-29 → 2026-11-12
+updated: 2026-11-10
+horizon: 2026-11-10 → 2026-11-24
 ---
 
 # Now
 
 ## Focus
 
-Storage format v1 (decisions 0010–0012) is on `dev`: per-record encryption under wrapped profile keys, the service worker as the only writer, the Temporal time model and `.lldat` format 3 backups. Next is release 3.0.0, then `defineTool` for AI tools.
+3.0.1 is released, with storage format v1 (decisions 0010–0012) in place since 3.0.0. `dev` carries dependency updates since then. Nothing is in progress until the next piece of work is chosen.
 
 ## Next
 
-- Prepare release 3.0.0 from the `Unreleased` changelog section.
-- Build AI tools on the worker commands with `defineTool`.
+- Build AI tools on the worker commands with `defineTool` (decision 0012).
 - Decide the product direction for AI features.
-- Decisions 0008 (open-source workflow) and 0009 (supply chain and licensing) are `proposed`.
+- Decisions 0008 (open-source workflow), 0009 (supply chain and licensing), 0013 (signing key for release tags) and 0014 (issues, not outside pull requests) are `proposed`.
+- Design-system phase: fix the React Compiler lint warnings screen by screen, then raise them back to errors (`eslint.config.js`).
+- Recompute floating schedules when a page opens; the alarm, start-up, idle and after-command triggers from decision 0011 are in place.
 
 ## Blocked
 

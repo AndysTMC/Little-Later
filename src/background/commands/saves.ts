@@ -95,7 +95,7 @@ export const saveCapture = defineCommand({
 		return {
 			url,
 			title: asTitle(record.title, url),
-			saved: optionalBoolean(record.saved, "saved") ?? false,
+			saved: optionalBoolean(record.saved, "saved"),
 		};
 	},
 	run: async (ctx, input) => {

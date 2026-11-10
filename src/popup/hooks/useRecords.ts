@@ -1,6 +1,6 @@
 import Dexie from "dexie";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { openBody, type ProfileKeys } from "../../storage/keys";
 import { littleDB } from "../../storage/pageDB";
 import {
@@ -171,20 +171,3 @@ export const useLinks = (): Array<LinkRow> | undefined => {
 			.toArray(),
 	);
 };
-
-// The ids a record links to, and the ids linking to it.
-export const useLinkIndex = (links: Array<LinkRow> | undefined) =>
-	useMemo(() => {
-		const to = new Map<string, Set<string>>();
-		const from = new Map<string, Set<string>>();
-		for (const link of links ?? []) {
-			if (!to.has(link.fromId)) to.set(link.fromId, new Set());
-			to.get(link.fromId)!.add(link.toId);
-			if (!from.has(link.toId)) from.set(link.toId, new Set());
-			from.get(link.toId)!.add(link.fromId);
-		}
-		return {
-			targetsOf: (id: string) => to.get(id) ?? new Set<string>(),
-			sourcesOf: (id: string) => from.get(id) ?? new Set<string>(),
-		};
-	}, [links]);

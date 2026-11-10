@@ -1,0 +1,14 @@
+{
+	"extends": "./tsconfig.app.json",
+	"compilerOptions": {
+		"tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+		"types": ["vitest/jsdom", "chrome", "node"],
+		"paths": {
+			"little-shared": ["./packages/shared/src/index"],
+			"little-shared/*": ["./packages/shared/src/*"],
+			// Playwright tests import the dev server's own modules by URL.
+			"/src/*": ["./src/*"]
+		}
+	},
+	"include": ["src", "tests", "scripts", "./packages/shared/src/**/*.ts"]
+}

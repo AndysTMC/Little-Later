@@ -43,13 +43,6 @@ export type LittleNavigation = {
 	navigateOptions?: NavigateOptions;
 };
 
-export type LittleTransition = {
-	entry: MotionProps;
-	setEntry: (entry: MotionProps) => void;
-	exit: MotionProps;
-	setExit: (exit: MotionProps) => void;
-};
-
 export type Validation = {
 	success: boolean;
 	error: string;

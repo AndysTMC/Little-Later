@@ -286,7 +286,7 @@ export const script = `
 				- DeadlineDate: When the task is due next; for a recurring task, its next occurrence. Null for an anytime task.
 				- Finished: Whether the task is done. A recurring task stays open and moves on to its next occurrence when completed.
 				- FinishDate: When the task was last completed, or null.
-		LReminder:
+		Reminder:
 			- A reminder is a notification that is triggered at a specific time.
 			- It contains the following information:
 				- ID: A unique identifier for the reminder.

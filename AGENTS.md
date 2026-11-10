@@ -14,12 +14,11 @@
 - Playwright: `bun run test:e2e`
 - Screenshots: `bun run screenshots` (writes `artifacts/screenshots/`)
 - Live AI smoke: `bun run test:ai:live`
-- Live AI matrix: `bun run test:ai:live:validate`
 
 ## Hard rules
 
 - Minimal diffs. Touch only what the task requires.
-- Do not add a dependency, edit generated code (`packages/shared/dist`, `dist/`), or change a Dexie schema / shared types without an explicit ask.
+- Do not add a dependency, edit generated code (`packages/shared/dist`, `dist/`), or change the storage schema (`src/storage/schema.ts`) or shared types without an explicit ask.
 - Do not commit secrets, credentials, `.env` values, `*.pem` files, or `SIGNING_KEY`.
 - Architecture is extension-only and local-first; do not assume a backend exists.
 - If you change versions, update `manifest.json`, `package.json`, and `packages/shared/package.json`.
@@ -50,18 +49,20 @@
 
 ## Stack notes
 
-- Bun workspace: root = Chrome extension; `packages/shared` = types, enums, constants, crypto/date helpers.
-- Production storage: `chrome.storage.local`. Dev/test fallback: `src/utils/chrome.ts` via `localStorage`.
-- IndexedDB: `src/utils/db.ts`. Locked-profile encryption: `packages/shared/src/utils/crypto.ts`.
-- AI: Ollama, LM Studio, custom OpenAI-compatible. Live scripts read `.env` via Bun; see `.env.example`.
-- Tag `v*` triggers `.github/workflows/release.yml`: zip, CRX signed from the `SIGNING_KEY` Actions secret, checksums.
+- Bun workspace: root = Chrome extension; `packages/shared` = the record envelope and key wrapping, schedule rules, and shared types, enums and constants.
+- Storage is format v1 (decision 0010): one Dexie database, `little`, defined in `src/storage/schema.ts`. Each record's content is encrypted under its profile's key (`packages/shared/src/utils/envelope.ts`, `src/storage/keys.ts`).
+- The service worker is the only writer (decision 0012). Pages and AI tools call `send()` (`src/utils/send.ts`) with a command from `src/background/commands/`. Outside production, `send()` runs the same handlers in the page.
+- Times are epoch milliseconds, and recurrence is an anchored rule computed with Temporal (decision 0011, `packages/shared/src/utils/schedule.ts`).
+- The unlocked profile's keys live in `chrome.storage.session` (`src/storage/session.ts`). `chrome.storage.local` keeps only the first-run guide flag and toasts. Dev/test fallback: `src/utils/chrome.ts` via `localStorage`.
+- AI: Ollama, LM Studio, custom OpenAI-compatible. Tool schemas are in `src/services/ai/tools/`, their handlers in `src/services/ai/toolCalls/`. The live smoke script reads `.env` via Bun; see `.env.example`.
+- Tag `v*` triggers `.github/workflows/release.yml`: zip, CRX signed with `SIGNING_KEY` from the `release` environment, SBOM, checksums and provenance.
 
 ## Authority
 
 - Level 0 (not facts): `PLAN.md`, chat
 - Level 1 (draft): `proposed` files in `docs/decisions/`
 - Level 2 (constraints): accepted files in `docs/decisions/`
-- Level 3 (prefer over prose): `src/utils/db.ts`, `packages/shared/src`, generated `packages/shared/dist`
+- Level 3 (prefer over prose): `src/storage/schema.ts`, `src/background/commands/`, `packages/shared/src`, generated `packages/shared/dist`
 - Level 4 (do not edit unless asked): this file, `README.md` identity, `LICENSE.md`
 
 ## Write permissions
@@ -80,8 +81,9 @@
 | What we are doing now       | docs/now.md                   |
 | Why a choice was made       | docs/decisions/               |
 | Events git will not explain | docs/log.md                   |
-| Dexie schema                | src/utils/db.ts               |
-| Domain types                | packages/shared/src/types.ts  |
+| Database schema             | src/storage/schema.ts         |
+| Commands (all writes)       | src/background/commands/      |
+| Shared types                | packages/shared/src/types.ts  |
 | Service worker              | src/background/background.ts  |
 | Popup routes                | src/popup/App.tsx             |
 | Feature logic               | src/services/                 |

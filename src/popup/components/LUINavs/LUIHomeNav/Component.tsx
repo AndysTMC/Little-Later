@@ -112,7 +112,7 @@ const Component = ({ className }: { className?: string }) => {
 				</div>
 			</button>
 
-			{/* New LTask Button */}
+			{/* New task button */}
 			<button
 				type="button"
 				aria-label="New task"
@@ -175,7 +175,7 @@ const Component = ({ className }: { className?: string }) => {
 				</div>
 			</button>
 
-			{/* New LReminder Button */}
+			{/* New reminder button */}
 			<button
 				type="button"
 				aria-label="New reminder"

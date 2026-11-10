@@ -280,7 +280,11 @@ const createMockProviderServer = async (): Promise<MockServerState> => {
 						assistantMessage.tool_calls,
 					)
 						? assistantMessage.tool_calls
-								.map((toolCall) => toolCall?.function?.name)
+								.map((toolCall) =>
+									toolCall.type === "function"
+										? toolCall.function.name
+										: undefined,
+								)
 								.filter(
 									(toolName): toolName is string =>
 										typeof toolName === "string" &&

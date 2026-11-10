@@ -90,7 +90,7 @@ jobs:
 
                   if [ -z "${SIGNING_KEY:-}" ]; then
                     echo "SIGNING_KEY secret is missing."
-                    echo "Add an RSA private key PEM as the SIGNING_KEY Actions secret."
+                    echo "Add an RSA private key PEM as the SIGNING_KEY secret of the release environment."
                     exit 1
                   fi
 
