@@ -19,7 +19,7 @@ The rest of this guide is for the team. To build Little Later from source for yo
 
 ## Set up
 
-You need [Bun](https://bun.sh) 1.3 or later, and Node.js 22 or later for the test runner.
+You need [Bun](https://bun.sh) 1.3.11 or later, and Node.js 22 or later for the test runner.
 
 ```sh
 bun install

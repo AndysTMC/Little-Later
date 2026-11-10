@@ -33,7 +33,7 @@ import {
 
 // What the chat shows for a prompt: the shared output shape, with the
 // records tools found.
-export type AIOutput = Omit<LAIOutput, "content"> & {
+export type AIOutput = LAIOutput & {
 	content?: AIOutputContent;
 };
 

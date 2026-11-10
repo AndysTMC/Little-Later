@@ -165,7 +165,7 @@ describe("leftover staged files", () => {
 		const old = await files.put(new Uint8Array([1]));
 		clock = STAGED_FILE_MAX_AGE + 1;
 		const fresh = await files.put(new Uint8Array([2]));
-		await send("profile.lock", {});
+		await send("profile.lock", null);
 		expect(
 			await send("profile.unlock", { profileId, password: null }),
 		).toMatchObject({ ok: true });

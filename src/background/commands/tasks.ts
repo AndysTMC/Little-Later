@@ -264,34 +264,39 @@ const getOwnTask = async (
 	return row;
 };
 
-const asContentFields = (record: Record<string, unknown>) => ({
-	information: boundedText(
-		record.information,
-		"information",
-		LMAX_TASK_INFORMATION_LENGTH,
-	),
-	label:
-		record.label === undefined
-			? ""
-			: boundedText(record.label, "label", LMAX_TASK_LABEL_LENGTH, true),
-	priority:
-		record.priority === undefined ? "medium" : asPriority(record.priority),
-});
-
 export const taskCreate = defineCommand({
 	name: "task.create",
+	// Optional fields stay undefined here and get their defaults in `run`,
+	// so the caller type derived from this parser keeps them optional.
 	parse: (input) => {
 		const record = asRecord(input);
 		const schedule = asSchedule(record.schedule);
 		const reminder =
 			record.reminder === undefined
-				? null
+				? undefined
 				: asReminderKind(record.reminder);
-		if (reminder !== null && schedule.kind === "anytime") {
+		if (reminder && schedule.kind === "anytime") {
 			fail(NO_DEADLINE_REMINDER);
 		}
 		return {
-			...asContentFields(record),
+			information: boundedText(
+				record.information,
+				"information",
+				LMAX_TASK_INFORMATION_LENGTH,
+			),
+			label:
+				record.label === undefined
+					? undefined
+					: boundedText(
+							record.label,
+							"label",
+							LMAX_TASK_LABEL_LENGTH,
+							true,
+						),
+			priority:
+				record.priority === undefined
+					? undefined
+					: asPriority(record.priority),
 			schedule,
 			reminder,
 			saveId: optionalSaveId(record.saveId),
@@ -304,8 +309,8 @@ export const taskCreate = defineCommand({
 		const now = ctx.now();
 		const sealed = await sealBody<TaskContent>(keys, "tasks", id, {
 			information: input.information,
-			label: input.label,
-			priority: input.priority,
+			label: input.label ?? "",
+			priority: input.priority ?? "medium",
 		});
 		const task: TaskRow = {
 			id,
@@ -323,7 +328,7 @@ export const taskCreate = defineCommand({
 			ctx,
 			keys,
 			task,
-			input.reminder,
+			input.reminder ?? null,
 			input.information,
 		);
 		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {

@@ -73,7 +73,7 @@ export const reminderCreate = defineCommand({
 				LMAX_REMINDER_MESSAGE_LENGTH,
 			),
 			target: asInstant(record.target, "target"),
-			escalate: optionalBoolean(record.escalate, "escalate") ?? false,
+			escalate: optionalBoolean(record.escalate, "escalate"),
 			saveId: optionalSaveId(record.saveId),
 		};
 	},

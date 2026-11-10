@@ -106,23 +106,6 @@ export const setChromeStorageRecords = (
 	});
 };
 
-export const getActiveWebDetails = async (): Promise<{
-	url: string | undefined;
-	title: string | undefined;
-}> => {
-	let url: string | undefined;
-	let title: string | undefined;
-	try {
-		const tab = await getActiveTab();
-		url = tab?.url;
-		title = tab?.title;
-	} catch {
-		url = window.location.href;
-		title = window.document.title;
-	}
-	return { url, title };
-};
-
 export const getActiveTab = (): Promise<chrome.tabs.Tab | undefined> => {
 	return new Promise((resolve) => {
 		chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {

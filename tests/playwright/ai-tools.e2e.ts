@@ -1,6 +1,7 @@
 import { test, expect, Page } from "@playwright/test";
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { AddressInfo } from "node:net";
+import type { LAI_PROVIDERS } from "little-shared/enums";
 
 type MockProviderServer = {
 	baseUrl: string;
@@ -524,7 +525,8 @@ const seedAIState = async (page: Page, providerBaseUrl: string) => {
 			await send("profile.update", { theme: "dark" });
 			await send("settings.update", {
 				ai: {
-					provider: "Custom",
+					// The enum cannot be imported inside the page.
+					provider: "Custom" as LAI_PROVIDERS.CUSTOM,
 					baseUrl: `${providerBaseUrl}/v1`,
 					apiKey: "",
 					model: "mock-model",

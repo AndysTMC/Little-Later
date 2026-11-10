@@ -227,12 +227,12 @@ describe("backups", { timeout: 30_000 }, () => {
 
 		const lockWhenNotesAreRead = () => {
 			const bulkGet = littleDB.notes.bulkGet.bind(littleDB.notes);
-			vi.spyOn(littleDB.notes, "bulkGet").mockImplementation(
-				async (keys) => {
-					await send("profile.lock", {});
-					return bulkGet(keys);
-				},
-			);
+			vi.spyOn(littleDB.notes, "bulkGet").mockImplementation(((
+				keys: string[],
+			) =>
+				send("profile.lock", null).then(() =>
+					bulkGet(keys),
+				)) as typeof littleDB.notes.bulkGet);
 		};
 
 		it("stops the readable export", async () => {
