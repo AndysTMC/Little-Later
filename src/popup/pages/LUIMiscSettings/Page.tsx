@@ -24,13 +24,17 @@ import { attempt } from "../../attempt";
 
 // Auto-lock after this many idle minutes (0010, Locking), up to the four
 // hours Chrome's idle detection allows.
-const AUTO_LOCK_CHOICES = [5, 15, 30, 60, 240].map((minutes) => ({
-	value: minutes,
-	label:
-		minutes < 60
-			? `${minutes} minutes`
-			: `${minutes / 60} hour${minutes === 60 ? "" : "s"}`,
-}));
+const AUTO_LOCK_MINUTES = [1, 2, 5, 10, 15, 30, 45, 60, 120, 180, 240];
+const lockLabel = (minutes: number) =>
+	minutes < 60 || minutes % 60 !== 0
+		? `${minutes} minute${minutes === 1 ? "" : "s"}`
+		: `${minutes / 60} hour${minutes === 60 ? "" : "s"}`;
+// The standard choices, and the profile's own if it is another (an older
+// setting, or one from a backup), so the dropdown always shows it.
+const autoLockChoices = (current: number) =>
+	[...new Set([...AUTO_LOCK_MINUTES, current])]
+		.sort((a, b) => a - b)
+		.map((minutes) => ({ value: minutes, label: lockLabel(minutes) }));
 
 type Misc = { VBMLimit: number; VBMSameOriginLimit: number };
 const sameMisc = (a: Misc, b: Misc) =>
@@ -123,7 +127,7 @@ const Page = () => {
 						<LUISettingSelect
 							label="Lock after idle"
 							value={profile.autoLockMinutes}
-							options={AUTO_LOCK_CHOICES}
+							options={autoLockChoices(profile.autoLockMinutes)}
 							onChange={(minutes) => {
 								void attempt(
 									() =>

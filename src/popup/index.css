@@ -103,8 +103,11 @@ body,
 	stroke: var(--color-black);
 }
 
-/* Native controls, selected text and the text caret follow the accent too. */
-:root {
+/* Native controls, selected text and the text caret follow the accent too.
+   Set on #root, where the theme paints --ll-accent: on :root it resolved
+   to the page's default ink, which is dark, so the caret vanished in every
+   dark theme. */
+#root {
 	accent-color: var(--ll-accent);
 	caret-color: var(--ll-accent);
 }

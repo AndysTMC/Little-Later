@@ -3,6 +3,9 @@ import { createProfile, expect, test } from "./fixtures";
 import { accentColorOf, accentPalette } from "../../src/appearance";
 import { button, choose, command, dropdown, rows } from "./support";
 
+const rgbOf = (hex: string) =>
+	`rgb(${[1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16)).join(", ")})`;
+
 test("a profile name typed just before leaving is saved", async ({
 	openPopup,
 }) => {
@@ -179,8 +182,7 @@ test("an accent chosen in Appearance colours the whole popup and stays after reo
 	await button(page, "Appearance").click();
 	const greenColor = accentColorOf("green", null)!;
 	const palette = accentPalette(greenColor, false)!;
-	const rgb = (hex: string) =>
-		`rgb(${[1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16)).join(", ")})`;
+	const rgb = rgbOf;
 	const look = (target: typeof page) =>
 		target.evaluate(() => {
 			const root = document.getElementById("root")!;
@@ -215,4 +217,31 @@ test("an accent chosen in Appearance colours the whole popup and stays after reo
 	await expect
 		.poll(() => look(reopened))
 		.toMatchObject({ page: "rgb(255, 255, 255)", text: "rgb(0, 0, 0)" });
+});
+
+// The caret was drawn in the page's default ink, set on <html>, so in a
+// dark theme it was dark on a dark field and could not be seen.
+test("the text caret is drawn in the accent, in a dark theme too", async ({
+	openPopup,
+}) => {
+	const page = await createProfile(openPopup);
+	await button(page, "Switch to dark theme").click();
+	await page.goto(page.url().replace(/#.*$/, "#/settings/appearance"));
+	await page.getByTitle("Purple").click();
+	const accent = rgbOf(accentColorOf("purple", null)!);
+	const caret = () =>
+		page.evaluate(
+			() => getComputedStyle(document.activeElement!).caretColor,
+		);
+	// A form field, the note editor and the AI box.
+	await page.goto(page.url().replace(/#.*$/, "#/profile"));
+	await page.getByLabel("Name").focus();
+	await expect.poll(caret).toBe(accent);
+	await page.goto(page.url().replace(/#.*$/, "#/note/new"));
+	await page.getByRole("button", { name: "Edit" }).click();
+	await page.locator("textarea").first().focus();
+	await expect.poll(caret).toBe(accent);
+	await page.goto(page.url().replace(/#.*$/, "#/ai"));
+	await page.locator("textarea").first().focus();
+	await expect.poll(caret).toBe(accent);
 });

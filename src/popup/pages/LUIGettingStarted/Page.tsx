@@ -34,6 +34,8 @@ const DefaultGuide = ({
 }) => {
 	const { theme } = useTheme();
 	const illustrationsRef = useRef<HTMLDivElement>(null);
+	// Only the strip moves: its pause button sits outside it.
+	const stripRef = useRef<HTMLDivElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const startTimeRef = useRef<number | null>(null);
 	const currentPositionRef = useRef<number>(0);
@@ -44,7 +46,7 @@ const DefaultGuide = ({
 	const moving = !reduceMotion && !paused;
 
 	useEffect(() => {
-		const element = illustrationsRef.current;
+		const element = stripRef.current;
 		if (!element || illustrations.length === 0 || !moving) return;
 
 		const itemWidth = 336;
@@ -193,6 +195,8 @@ const DefaultGuide = ({
 					) : null}
 					{continuousIllustrations.length > 0 ? (
 						<div
+							ref={stripRef}
+							data-testid="illustration-strip"
 							className={`flex gap-8 p-4 ${reduceMotion ? "overflow-x-auto" : ""}`}
 						>
 							{continuousIllustrations.map(

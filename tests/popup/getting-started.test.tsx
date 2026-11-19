@@ -64,8 +64,22 @@ const openStrip = async () => {
 	await vi.waitFor(() =>
 		expect(container.querySelector("img[alt^='Keep']")).not.toBeNull(),
 	);
-	const image = container.querySelector("img[alt^='Keep']")!;
-	return image.closest<HTMLElement>(".shrink-0.w-full")!;
+	return container.querySelector<HTMLElement>(
+		"[data-testid='illustration-strip']",
+	)!;
+};
+
+// Whether the pause button is inside what the strip's scrolling moves.
+const pauseMoved = () => {
+	const button = container.querySelector(
+		"[aria-label$='the illustrations']",
+	)!;
+	return [...container.querySelectorAll<HTMLElement>("*")].some(
+		(element) =>
+			// The strip scrolls in pixels; a page sliding in moves by percent.
+			/translateX\(-[\d.]+px\)/.test(element.style.transform) &&
+			element.contains(button),
+	);
 };
 
 const offset = (strip: HTMLElement) => strip.style.transform;
@@ -87,6 +101,8 @@ describe("the Getting Started illustrations", () => {
 		const strip = await openStrip();
 		await frames(5);
 		expect(offset(strip)).toContain("translateX");
+		// The strip moves; its pause button stays where it is.
+		expect(pauseMoved()).toBe(false);
 
 		const pause = container.querySelector<HTMLButtonElement>(
 			"[aria-label='Pause the illustrations']",
