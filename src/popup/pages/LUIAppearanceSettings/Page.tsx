@@ -5,6 +5,7 @@ import { useId, useState } from "react";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
 import { LUISettingSelect } from "../../components/LUISettingRow/Component";
+import { LUINote } from "../../components/LUINote/Component";
 import { usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
 import {
@@ -234,13 +235,11 @@ const Page = () => {
 								/>
 							))}
 						</div>
-						<p
-							className={`text-xs ${isDark ? "text-neutral-400" : "text-neutral-500"}`}
-						>
+						<LUINote className="w-full">
 							Colours the whole popup: its background, text and
 							icons. Chrome doesn't let extensions read its own
 							colour, so pick the nearest one or set your own.
-						</p>
+						</LUINote>
 						{accent === "custom" ? (
 							<CustomColor isDark={isDark} />
 						) : null}

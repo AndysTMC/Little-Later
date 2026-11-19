@@ -8,18 +8,28 @@ import { useTheme } from "../../hooks/useTheme";
 
 const SLOW_MS = 150;
 
+// The app's one action button (docs/design.md, Buttons).
+// - primary: the caret block in the accent, then the label. One per view.
+// - secondary: outlined, label only: the other ways out (Cancel, Delete
+//   on the lock screen, a recovery code instead of the key).
+// - danger: red, label only: the second press of something that can't be
+//   undone, such as "Confirm delete".
+export type ButtonVariant = "primary" | "secondary" | "danger";
+
 const Component = ({
 	className,
 	name,
 	onClick,
 	passedTheme,
 	disabled = false,
+	variant = "primary",
 }: {
 	className?: string;
 	name: string;
-	onClick: () => Promise<void>;
-	passedTheme: LTHEME;
+	onClick: () => Promise<void> | void;
+	passedTheme?: LTHEME;
 	disabled?: boolean;
+	variant?: ButtonVariant;
 }) => {
 	const { theme: profileTheme } = useTheme();
 	const theme = passedTheme ?? profileTheme;
@@ -48,6 +58,44 @@ const Component = ({
 		}
 	};
 	const isDark = theme === LTHEME.DARK;
+	const cursor = isPending
+		? "cursor-progress"
+		: disabled
+			? "cursor-not-allowed opacity-60"
+			: "cursor-pointer";
+
+	if (variant !== "primary") {
+		return (
+			<motion.button
+				type="button"
+				disabled={disabled || isPending}
+				aria-busy={isPending}
+				className={twMerge(
+					`flex h-12 w-72 shrink-0 items-center justify-center rounded-lg border text-base transition-colors ${cursor} ${
+						variant === "danger"
+							? "border-red-600 bg-red-600 text-white hover:bg-red-700"
+							: isDark
+								? "border-neutral-700 text-white hover:bg-neutral-900"
+								: "border-neutral-300 text-black hover:bg-neutral-100"
+					}`,
+					className,
+				)}
+				whileTap={disabled || isPending ? undefined : { scale: 0.97 }}
+				transition={{ duration: 0.1 }}
+				onClick={!isPending && !disabled ? handleClick : undefined}
+			>
+				{isExpanded ? (
+					<LUIThemedIcon
+						Icon={CircleNotchIcon}
+						className="size-6 animate-spin"
+						color="currentColor"
+					/>
+				) : (
+					name
+				)}
+			</motion.button>
+		);
+	}
 
 	return (
 		<motion.button
@@ -55,15 +103,9 @@ const Component = ({
 			disabled={disabled || isPending}
 			aria-busy={isPending}
 			className={twMerge(
-				`group flex h-12 w-72 overflow-hidden rounded-lg border ${
+				`group flex h-12 w-72 shrink-0 overflow-hidden rounded-lg border ${
 					isDark ? "border-white bg-black" : "border-black bg-white"
-				} ${
-					isPending
-						? "cursor-progress"
-						: disabled
-							? "cursor-not-allowed opacity-60"
-							: "cursor-pointer"
-				}`,
+				} ${cursor}`,
 				className,
 			)}
 			whileTap={disabled || isPending ? undefined : { scale: 0.97 }}

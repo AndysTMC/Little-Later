@@ -87,6 +87,7 @@
 | Shared types                | packages/shared/src/types.ts  |
 | Service worker              | src/background/background.ts  |
 | Popup routes                | src/popup/App.tsx             |
+| Design rules (UI)           | docs/design.md                |
 | Feature logic               | src/services/                 |
 | Tests                       | tests/                        |
 | Release packaging           | .github/workflows/release.yml |

@@ -1,10 +1,10 @@
-import { InfoIcon, PasswordIcon } from "@phosphor-icons/react";
+import { PasswordIcon } from "@phosphor-icons/react";
 import { LTHEME } from "little-shared/enums";
 import { useState } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import { LUICUButton } from "../LUICUButton/Component";
 import { LUIIconField } from "../LUIIconField/Component";
-import { LUIThemedIcon } from "../LUIThemedIcon/Component";
+import { LUINote } from "../LUINote/Component";
 import { NO_PASSWORD_NOTE, passwordProblem } from "../../passwords";
 
 const Component = ({
@@ -147,27 +147,14 @@ const Component = ({
 				/>
 			) : null}
 			{message !== "" ? (
-				<div
-					className="flex h-max w-72 gap-x-1 opacity-75"
-					role="status"
-				>
-					<LUIThemedIcon
-						Icon={InfoIcon}
-						weight="fill"
-						className="h-5 w-5 shrink-0"
-						passedTheme={theme}
-					/>
-					<div
-						className={`text-sm italic ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
-					>
-						{message}
-					</div>
-				</div>
+				<LUINote passedTheme={theme}>{message}</LUINote>
 			) : null}
 			<LUICUButton
 				name={action}
 				onClick={handleSubmit}
 				passedTheme={theme}
+				// The second press removes the password: the danger button.
+				variant={removing && confirmingRemove ? "danger" : "primary"}
 				disabled={!hasPassword && next === ""}
 			/>
 		</form>

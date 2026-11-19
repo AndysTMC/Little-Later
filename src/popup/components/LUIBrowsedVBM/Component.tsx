@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { twMerge } from "tailwind-merge";
 import { LTHEME } from "little-shared/enums";
-import { CircleNotchIcon, TrashIcon } from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
+import { LUIDeleteButton } from "../LUIDeleteButton/Component";
 import { useMoveNavigate } from "../../hooks/usePageMove";
 import { LReminderIcon, LVBMIcon, LTaskIcon } from "../LUIIcons";
 import { useTheme } from "../../hooks/useTheme";
@@ -47,12 +48,6 @@ const Component = ({
 			state: { passedWebDataUrl: webDataUrl, passedSaveId: visualBM.id },
 		});
 	};
-
-	const handleDeleteClick = () =>
-		attempt(
-			() => send("save.update", { id: visualBM.id, browsed: false }),
-			"Couldn't remove this page from history.",
-		);
 
 	const { preview, elementRef } = useLazySavePreview(visualBM.id);
 
@@ -188,27 +183,17 @@ const Component = ({
 									className="size-5"
 								/>
 							</button>
-							<button
-								type="button"
-								aria-label="Remove from history"
-								className={`h-max w-max border ${
-									theme === LTHEME.DARK
-										? "border-white hover:bg-neutral-800"
-										: "border-black hover:bg-neutral-200"
-								} cursor-pointer rounded-lg p-1`}
-								onClick={handleDeleteClick}
-							>
-								<LUIThemedIcon
-									Icon={TrashIcon}
-									color={
-										theme === LTHEME.DARK
-											? "white"
-											: "black"
-									}
-									weight="fill"
-									className="size-5"
-								/>
-							</button>
+							<LUIDeleteButton
+								className="self-center"
+								subject="from history"
+								onDelete={() =>
+									send("save.update", {
+										id: visualBM.id,
+										browsed: false,
+									})
+								}
+								failureMessage="Couldn't remove this page from history."
+							/>
 						</div>
 					</div>
 				</div>

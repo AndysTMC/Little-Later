@@ -106,7 +106,8 @@ const Page = () => {
 			</div>
 			<button
 				type="button"
-				className="mt-8 cursor-pointer text-sm font-semibold text-neutral-500 underline-offset-4 hover:text-black hover:underline"
+				// The same Skip as Getting Started's; the intro is always light.
+				className="mt-8 flex h-max w-max cursor-pointer items-center justify-center rounded-md bg-neutral-200 px-4 py-1 font-semibold text-black transition-all duration-200 active:scale-95"
 				onClick={handleVideoEnd}
 			>
 				Skip intro

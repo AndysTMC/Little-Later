@@ -57,7 +57,7 @@ const Component = ({
 	return (
 		<div
 			className={twMerge(
-				`ll-field flex h-max w-max rounded-full border-1 ${theme === LTHEME.DARK ? "border-neutral-100" : "border-neutral-900"} gap-x-1 p-1`,
+				`ll-field flex h-max w-max rounded-full border-1 ${theme === LTHEME.DARK ? "border-neutral-700" : "border-neutral-300"} gap-x-1 p-1`,
 				className,
 			)}
 		>

@@ -6,7 +6,8 @@ import { twMerge } from "tailwind-merge";
 import { capitalize } from "little-shared/utils/misc";
 import { pressable } from "../../a11y";
 import { attempt } from "../../attempt";
-import { useConfirm } from "../../hooks/useConfirm";
+import { LUIDeleteButton } from "../LUIDeleteButton/Component";
+import { LUIPillButton } from "../LUIPillButton/Component";
 import { useTheme } from "../../hooks/useTheme";
 import { FlagIcon, NotePencilIcon } from "@phosphor-icons/react";
 import { LVBMIcon, LReminderIcon } from "../LUIIcons";
@@ -48,11 +49,6 @@ const Component = ({
 	const handleExpand = () => {
 		setIsExpanded(!isExpanded);
 	};
-
-	const confirmDelete = useConfirm(
-		() => send("task.delete", { id: task.id }),
-		"Couldn't delete this task.",
-	);
 
 	const handleEdit = () => {
 		if (disableNavs) return;
@@ -338,82 +334,37 @@ const Component = ({
 								<div
 									className={`my-1 flex h-max w-full items-end justify-start gap-x-1`}
 								>
-									<div
-										className={`h-7 w-max text-xs ${
-											theme === LTHEME.DARK
-												? "bg-white text-black"
-												: "bg-black text-white"
-										} cursor-pointer rounded-full px-10 py-1 active:scale-95`}
-										{...pressable(handleMark)}
-										aria-label={
+									<LUIPillButton
+										label={
 											task.done
-												? "Mark task as unfinished"
-												: "Mark task as finished"
+												? "Mark unfinished"
+												: "Mark finished"
 										}
-									>
-										<LUIThemedIcon
-											Icon={FlagIcon}
-											weight={
-												task.done ? "fill" : "regular"
-											}
-											color={
-												theme === LTHEME.DARK
-													? "black"
-													: "white"
-											}
-											className={`size-5`}
-										/>
-									</div>
+										onClick={handleMark}
+									/>
 									{!disableNavs ? (
-										<div
-											className={`flex h-7 w-max items-center justify-center text-sm ${
-												theme === LTHEME.DARK
-													? "bg-white text-black"
-													: "bg-black text-white"
-											} cursor-pointer rounded-full px-10 py-1 active:scale-95`}
-											{...pressable(handleEdit)}
-											aria-label="Edit task"
-										>
-											<LUIThemedIcon
-												Icon={NotePencilIcon}
-												weight="regular"
-												color={
-													theme === LTHEME.DARK
-														? "black"
-														: "white"
-												}
-												className={`size-5`}
-											/>
-										</div>
+										<LUIPillButton
+											label="Edit"
+											ariaLabel="Edit task"
+											onClick={handleEdit}
+										/>
 									) : null}
 
 									<div
 										className={`flex h-max grow justify-end gap-x-1`}
 									>
-										<button
-											className={`h-max w-max text-xs ${
-												theme === LTHEME.DARK
-													? "bg-white text-black"
-													: "bg-black text-white"
-											} cursor-pointer rounded-full px-2 py-1 active:scale-95`}
-											type="button"
-											onClick={confirmDelete.press}
-										>
-											{confirmDelete.armed
-												? "Confirm delete"
-												: "Delete"}
-										</button>
-										<button
-											className={`h-max w-max text-xs ${
-												theme === LTHEME.DARK
-													? "bg-white text-black"
-													: "bg-black text-white"
-											} cursor-pointer rounded-full px-2 py-1 active:scale-95`}
-											type="button"
+										<LUIDeleteButton
+											onDelete={() =>
+												send("task.delete", {
+													id: task.id,
+												})
+											}
+											failureMessage="Couldn't delete this task."
+										/>
+										<LUIPillButton
+											label="Collapse"
 											onClick={handleExpand}
-										>
-											Collapse
-										</button>
+										/>
 									</div>
 								</div>
 							) : null}

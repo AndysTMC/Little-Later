@@ -1,20 +1,18 @@
 import { LTHEME } from "little-shared/enums";
 import type { Note } from "../../../storage/repositories";
-import { TrashIcon } from "@phosphor-icons/react";
 import ReactMarkdown from "react-markdown";
 import { safeMarkdownComponents, safeUrlTransform } from "../../markdownSafety";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../hooks/useTheme";
-import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import {
 	getNoteCardTimeLabel,
 	getNoteCardTitleAndSnippet,
 } from "../../../utils/notePreview";
 
 import { pressable } from "../../a11y";
-import { useConfirm } from "../../hooks/useConfirm";
+import { LUIDeleteButton } from "../LUIDeleteButton/Component";
 
 // What shows under the title: the lines after it. A one-line note is all
 // title, so it has none, rather than showing the same line twice.
@@ -47,10 +45,6 @@ const Component = ({
 	const { theme } = useTheme();
 	const preview = getNoteCardTitleAndSnippet(note.content);
 	const previewMarkdown = getCardPreviewMarkdown(note.content);
-	const confirmDelete = useConfirm(
-		() => onDelete?.(note.id),
-		"Couldn't delete this note.",
-	);
 
 	return (
 		<div
@@ -107,33 +101,11 @@ const Component = ({
 					{getNoteCardTimeLabel(note.updatedAt)}
 				</div>
 				{showDelete ? (
-					<button
-						type="button"
-						aria-label={
-							confirmDelete.armed
-								? "Confirm delete note"
-								: "Delete note"
-						}
-						className={`flex h-7 min-w-7 cursor-pointer items-center justify-center gap-x-1 rounded-lg px-1 transition-all active:scale-95 ${
-							theme === LTHEME.DARK
-								? "hover:bg-neutral-700"
-								: "hover:bg-neutral-300"
-						}`}
-						onClick={(event) => {
-							event.stopPropagation();
-							void confirmDelete.press();
-						}}
-					>
-						{confirmDelete.armed ? (
-							<span className="text-xs font-bold">Delete?</span>
-						) : null}
-						<LUIThemedIcon
-							Icon={TrashIcon}
-							color={theme === LTHEME.DARK ? "white" : "black"}
-							weight="bold"
-							className="size-4"
-						/>
-					</button>
+					<LUIDeleteButton
+						subject="note"
+						onDelete={() => onDelete?.(note.id)}
+						failureMessage="Couldn't delete this note."
+					/>
 				) : null}
 			</div>
 		</div>

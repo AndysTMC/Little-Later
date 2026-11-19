@@ -8,6 +8,7 @@ import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
 import { LUISelectT2 } from "../../components/LUISelectT2/Component";
 import { LUITextInputT1 } from "../../components/LUITextInput/Component";
+import { LUICUButton } from "../../components/LUICUButton/Component";
 import { createToast } from "../../../services/toasts";
 
 const Page = () => {
@@ -18,12 +19,8 @@ const Page = () => {
 		LEXPORT_TYPE.IMPORTABLE,
 	);
 	const [backupPassword, setBackupPassword] = useState("");
-	const [isExporting, setIsExporting] = useState(false);
+	// The button blocks a second press while this runs.
 	const handleExport = async () => {
-		if (isExporting) {
-			return;
-		}
-		setIsExporting(true);
 		try {
 			if (exportType === LEXPORT_TYPE.IMPORTABLE) {
 				await exportBackup(backupPassword);
@@ -38,8 +35,6 @@ const Page = () => {
 					: "Couldn't export your data.",
 				LTOAST_TYPE.ERROR,
 			);
-		} finally {
-			setIsExporting(false);
 		}
 	};
 	return (
@@ -111,23 +106,15 @@ const Page = () => {
 							key.
 						</div>
 					)}
-					<div className={`h-max w-full`}>
-						<button
-							type="button"
+					<div className="flex w-full justify-center pt-2">
+						<LUICUButton
+							name="Export"
 							disabled={
-								isExporting ||
-								(exportType === LEXPORT_TYPE.IMPORTABLE &&
-									backupPassword.trim() === "")
+								exportType === LEXPORT_TYPE.IMPORTABLE &&
+								backupPassword.trim() === ""
 							}
-							className={`h-max w-max text-base ${
-								theme === LTHEME.DARK
-									? "bg-white text-black"
-									: "bg-black text-white"
-							} cursor-pointer rounded-full px-6 py-1 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60`}
 							onClick={handleExport}
-						>
-							{isExporting ? "Exporting..." : "Export"}
-						</button>
+						/>
 					</div>
 				</div>
 			</LUISettingsLayout>

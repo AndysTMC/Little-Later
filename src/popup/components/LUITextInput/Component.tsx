@@ -83,7 +83,7 @@ const Component = ({
 					theme === LTHEME.DARK
 						? "border-neutral-700 bg-neutral-950 text-neutral-50 placeholder:text-neutral-500 focus:border-neutral-400"
 						: "border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-700"
-				} z-10 rounded-xl px-4 text-base transition-colors duration-200 ${disabled ? "cursor-not-allowed" : "cursor-text"} `}
+				} z-10 rounded-lg px-4 text-base transition-colors duration-200 ${disabled ? "cursor-not-allowed" : "cursor-text"} `}
 				aria-label={name}
 				placeholder={focused ? "" : name}
 				value={passedValue}

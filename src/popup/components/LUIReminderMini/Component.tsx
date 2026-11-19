@@ -19,7 +19,7 @@ import { linkedFrom, reminderKind } from "../../records";
 import { prettyDate } from "../../../utils/dates";
 import { send } from "../../../utils/send";
 import { pressable } from "../../a11y";
-import { useConfirm } from "../../hooks/useConfirm";
+import { LUIDeleteButton } from "../LUIDeleteButton/Component";
 
 const Component = ({
 	className,
@@ -52,10 +52,6 @@ const Component = ({
 		if (disableNavs) return;
 		go("/reminder/" + reminder.id, "forward");
 	};
-	const confirmDelete = useConfirm(
-		() => send("reminder.delete", { id: reminder.id }),
-		"Couldn't delete this reminder.",
-	);
 	return (
 		<div
 			className={twMerge(
@@ -194,20 +190,14 @@ const Component = ({
 							{reminder.message}
 						</div>
 						<div className={`flex h-max grow justify-end`}>
-							<button
-								className={`h-max w-max text-xs ${
-									theme === LTHEME.DARK
-										? "bg-neutral-800 text-white"
-										: "bg-neutral-200 text-black"
-								} mt-1 cursor-pointer rounded-full px-2 py-1 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50`}
-								type="button"
-								onClick={confirmDelete.press}
+							<LUIDeleteButton
+								className="mt-1"
+								onDelete={() =>
+									send("reminder.delete", { id: reminder.id })
+								}
+								failureMessage="Couldn't delete this reminder."
 								disabled={linkedTask !== undefined}
-							>
-								{confirmDelete.armed
-									? "Confirm delete"
-									: "Delete"}
-							</button>
+							/>
 						</div>
 					</motion.div>
 				) : null}

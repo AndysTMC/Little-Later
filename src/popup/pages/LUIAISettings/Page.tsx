@@ -7,6 +7,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
 import { LUISelectT2 } from "../../components/LUISelectT2/Component";
+import { LUINote } from "../../components/LUINote/Component";
 import { LUITextInputT1 } from "../../components/LUITextInput/Component";
 import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
 import { LAISettings } from "little-shared/types";
@@ -435,17 +436,10 @@ const Page = () => {
 							</div>
 						</div>
 						{aiSettings ? (
-							<p
-								role="note"
-								className={`px-1 pt-3 text-sm ${
-									theme === LTHEME.DARK
-										? "text-neutral-300"
-										: "text-neutral-600"
-								}`}
-							>
+							<LUINote className="w-full pt-3">
 								{describeProcessing(aiSettings)} The right-click
 								AI actions send only the text you selected.
-							</p>
+							</LUINote>
 						) : null}
 						<div className="h-20 w-full"></div>
 					</LUISettingsLayout>

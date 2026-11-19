@@ -50,7 +50,7 @@ const Component = <T extends string>({
 			ref={rootRef}
 			// Open, it draws over the rows below it.
 			className={twMerge(
-				`group relative h-8 w-40 rounded-sm ${isMenuOpen ? "z-50" : ""}`,
+				`group relative h-8 w-40 rounded-lg ${isMenuOpen ? "z-50" : ""}`,
 				className,
 			)}
 			data-testid={testId}
@@ -88,11 +88,11 @@ const Component = <T extends string>({
 			}}
 		>
 			<div
-				className={`flex h-8 w-full rounded-md border ${
+				className={`flex h-8 w-full rounded-lg border ${
 					theme === LTHEME.DARK
-						? "border-neutral-300"
-						: "border-neutral-700"
-				} rounded-sm`}
+						? "border-neutral-700"
+						: "border-neutral-300"
+				}`}
 				onClick={() => setIsMenuOpen(!isMenuOpen)}
 			>
 				<div
@@ -114,9 +114,9 @@ const Component = <T extends string>({
 					role="listbox"
 					className={`relative right-0 mt-1 max-h-40 w-40 border ${
 						theme === LTHEME.DARK
-							? "border-neutral-100 bg-black"
-							: "border-neutral-900 bg-white"
-					} overflow-y-auto rounded-sm shadow-lg ${theme}-scrollbar `}
+							? "border-neutral-700 bg-black"
+							: "border-neutral-300 bg-white"
+					} overflow-y-auto rounded-lg shadow-lg ${theme}-scrollbar `}
 				>
 					{options.map((option, index) => (
 						<button

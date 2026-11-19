@@ -18,7 +18,8 @@ import { useTheme } from "../../hooks/useTheme";
 import { useLazySavePreview } from "../../hooks/useSavePreview";
 import { send } from "../../../utils/send";
 import { pressable } from "../../a11y";
-import { useConfirm } from "../../hooks/useConfirm";
+import { LUIDeleteButton } from "../LUIDeleteButton/Component";
+import { LUIPillButton } from "../LUIPillButton/Component";
 
 const Component = ({
 	className,
@@ -48,10 +49,6 @@ const Component = ({
 		setIsExpanded(!isExpanded);
 	};
 	// Unsaving detaches the page's notes, tasks and reminders.
-	const confirmDelete = useConfirm(
-		() => send("save.update", { id: save.id, saved: false }),
-		"Couldn't remove this save.",
-	);
 	const handleEdit = () => {
 		if (disableNavs) return;
 		go("/vbm/" + save.id, "forward");
@@ -233,20 +230,19 @@ const Component = ({
 					) : null}
 					{isExpanded ? (
 						<div className={`flex w-full justify-end gap-x-1`}>
-							<div
-								className={`h-max w-max text-xs ${theme === LTHEME.DARK ? "bg-white text-black" : "bg-black text-white"} cursor-pointer rounded-full px-2 py-1 active:scale-95`}
-								{...pressable(() => void confirmDelete.press())}
-							>
-								{confirmDelete.armed
-									? "Confirm delete"
-									: "Delete"}
-							</div>
-							<div
-								className={`h-max w-max text-xs ${theme === LTHEME.DARK ? "bg-white text-black" : "bg-black text-white"} cursor-pointer rounded-full px-2 py-1 active:scale-95`}
-								{...pressable(handleExpand)}
-							>
-								Collapse
-							</div>
+							<LUIDeleteButton
+								onDelete={() =>
+									send("save.update", {
+										id: save.id,
+										saved: false,
+									})
+								}
+								failureMessage="Couldn't remove this save."
+							/>
+							<LUIPillButton
+								label="Collapse"
+								onClick={handleExpand}
+							/>
 						</div>
 					) : null}
 				</div>
