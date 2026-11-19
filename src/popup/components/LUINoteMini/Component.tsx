@@ -13,6 +13,11 @@ import {
 	getNoteCardTitleAndSnippet,
 } from "../../../utils/notePreview";
 
+import { pressable } from "../../a11y";
+import { useConfirm } from "../../hooks/useConfirm";
+
+// What shows under the title: the lines after it. A one-line note is all
+// title, so it has none, rather than showing the same line twice.
 const getCardPreviewMarkdown = (content: string): string => {
 	const lines = content.split(/\r?\n/);
 	const firstNonEmptyLine = lines.findIndex((line) => line.trim() !== "");
@@ -23,10 +28,7 @@ const getCardPreviewMarkdown = (content: string): string => {
 		.slice(firstNonEmptyLine + 1)
 		.join("\n")
 		.trim();
-	if (remainder !== "") {
-		return remainder;
-	}
-	return lines[firstNonEmptyLine];
+	return remainder;
 };
 
 const Component = ({
@@ -45,6 +47,10 @@ const Component = ({
 	const { theme } = useTheme();
 	const preview = getNoteCardTitleAndSnippet(note.content);
 	const previewMarkdown = getCardPreviewMarkdown(note.content);
+	const confirmDelete = useConfirm(
+		() => onDelete?.(note.id),
+		"Couldn't delete this note.",
+	);
 
 	return (
 		<div
@@ -56,35 +62,40 @@ const Component = ({
 				}`,
 				className,
 			)}
-			onClick={() => onOpen(note)}
+			{...pressable(() => onOpen(note))}
+			aria-label={`Open note: ${preview.title}`}
 		>
 			<div className="text-lg leading-tight font-extrabold">
 				{preview.title}
 			</div>
-			<div
-				className={`mt-2 max-h-28 overflow-hidden text-sm leading-relaxed ${
-					theme === LTHEME.DARK
-						? "text-neutral-300"
-						: "text-neutral-700"
-				}`}
-			>
-				<ReactMarkdown
-					remarkPlugins={[remarkGfm, remarkBreaks]}
-					urlTransform={safeUrlTransform}
-					components={{
-						...safeMarkdownComponents,
-						p: ({ ...props }) => <p {...props} className="mb-1" />,
-						ul: ({ ...props }) => (
-							<ul {...props} className="list-disc pl-4" />
-						),
-						ol: ({ ...props }) => (
-							<ol {...props} className="list-decimal pl-4" />
-						),
-					}}
+			{previewMarkdown !== "" ? (
+				<div
+					className={`mt-2 max-h-28 overflow-hidden text-sm leading-relaxed ${
+						theme === LTHEME.DARK
+							? "text-neutral-300"
+							: "text-neutral-700"
+					}`}
 				>
-					{previewMarkdown}
-				</ReactMarkdown>
-			</div>
+					<ReactMarkdown
+						remarkPlugins={[remarkGfm, remarkBreaks]}
+						urlTransform={safeUrlTransform}
+						components={{
+							...safeMarkdownComponents,
+							p: ({ ...props }) => (
+								<p {...props} className="mb-1" />
+							),
+							ul: ({ ...props }) => (
+								<ul {...props} className="list-disc pl-4" />
+							),
+							ol: ({ ...props }) => (
+								<ol {...props} className="list-decimal pl-4" />
+							),
+						}}
+					>
+						{previewMarkdown}
+					</ReactMarkdown>
+				</div>
+			) : null}
 			<div className="mt-4 flex w-full items-center justify-between">
 				<div
 					className={`text-sm ${
@@ -98,17 +109,24 @@ const Component = ({
 				{showDelete ? (
 					<button
 						type="button"
-						aria-label="Delete note"
-						className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-all active:scale-95 ${
+						aria-label={
+							confirmDelete.armed
+								? "Confirm delete note"
+								: "Delete note"
+						}
+						className={`flex h-7 min-w-7 cursor-pointer items-center justify-center gap-x-1 rounded-lg px-1 transition-all active:scale-95 ${
 							theme === LTHEME.DARK
 								? "hover:bg-neutral-700"
 								: "hover:bg-neutral-300"
 						}`}
-						onClick={async (event) => {
+						onClick={(event) => {
 							event.stopPropagation();
-							await onDelete?.(note.id);
+							void confirmDelete.press();
 						}}
 					>
+						{confirmDelete.armed ? (
+							<span className="text-xs font-bold">Delete?</span>
+						) : null}
 						<LUIThemedIcon
 							Icon={TrashIcon}
 							color={theme === LTHEME.DARK ? "white" : "black"}

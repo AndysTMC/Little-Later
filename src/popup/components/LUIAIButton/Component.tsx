@@ -4,7 +4,8 @@ import { StarFourIcon } from "@phosphor-icons/react";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
 import { useState } from "react";
-import { fakeWait } from "little-shared/utils/misc";
+
+import { attempt } from "../../attempt";
 
 const Component = ({
 	className,
@@ -20,12 +21,8 @@ const Component = ({
 	const handleClick = async () => {
 		if (isLoading) return;
 		setIsLoading(true);
-		try {
-			await fakeWait();
-			await onClick();
-		} finally {
-			setIsLoading(false);
-		}
+		await attempt(onClick, "The AI couldn't do that.");
+		setIsLoading(false);
 	};
 	return (
 		<button

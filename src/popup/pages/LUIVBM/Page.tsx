@@ -1,5 +1,4 @@
-import { useLittleTransition } from "../../hooks/useLittleTransition";
-import { exitTransitions } from "../../../route-transitions";
+import { usePageMotion } from "../../hooks/usePageMove";
 import { LTHEME } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { useTheme } from "../../hooks/useTheme";
@@ -19,9 +18,7 @@ import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
 
 const Page = () => {
 	const { theme } = useTheme();
-	const { entry, exit } = useLittleTransition({
-		defaultExit: exitTransitions.slideRight,
-	});
+	const pageMotion = usePageMotion();
 
 	const { id } = useParams();
 	const links = useLinks();
@@ -35,8 +32,7 @@ const Page = () => {
 	return (
 		<motion.div
 			className={`h-full w-full select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} `}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			{loading ? (
 				<LUILoading />

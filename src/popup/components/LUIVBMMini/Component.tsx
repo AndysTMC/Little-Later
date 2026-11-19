@@ -3,8 +3,8 @@ import type { Note, Reminder, Save, Task } from "../../../storage/repositories";
 import type { LinkRow } from "../../../storage/schema";
 import { linkedTo } from "../../records";
 import { ArrowSquareRightIcon } from "@phosphor-icons/react";
-import { useContext, useState } from "react";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
+import { useState } from "react";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import Markdown from "react-markdown";
 import { safeMarkdownComponents, safeUrlTransform } from "../../markdownSafety";
 import { twMerge } from "tailwind-merge";
@@ -14,10 +14,11 @@ import { LReminderIcon, LTaskIcon } from "../LUIIcons";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LUIGroup } from "../LUIGroup/Component";
 import { LUILink } from "../LUILink/Component";
-import { HomeContext } from "../../contexts/Home";
 import { useTheme } from "../../hooks/useTheme";
 import { useLazySavePreview } from "../../hooks/useSavePreview";
 import { send } from "../../../utils/send";
+import { pressable } from "../../a11y";
+import { useConfirm } from "../../hooks/useConfirm";
 
 const Component = ({
 	className,
@@ -37,8 +38,7 @@ const Component = ({
 	disableNavs?: boolean;
 }) => {
 	const { theme } = useTheme();
-	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
-		useContext(HomeContext);
+	const go = useMoveNavigate();
 	const [isExpanded, setIsExpanded] = useState(false);
 	const linkedTasks = linkedTo(links, save.id, tasks);
 	const linkedReminders = linkedTo(links, save.id, reminders);
@@ -47,22 +47,14 @@ const Component = ({
 	const handleExpand = () => {
 		setIsExpanded(!isExpanded);
 	};
-	const handleDelete = async () => {
-		await send("save.update", { id: save.id, saved: false });
-	};
+	// Unsaving detaches the page's notes, tasks and reminders.
+	const confirmDelete = useConfirm(
+		() => send("save.update", { id: save.id, saved: false }),
+		"Couldn't remove this save.",
+	);
 	const handleEdit = () => {
 		if (disableNavs) return;
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.slideLeft,
-			navigateTo: "/vbm/" + save.id,
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.slideLeft },
-			},
-		});
-		setShouldHomeNavigate(true);
+		go("/vbm/" + save.id, "forward");
 	};
 
 	const { preview, elementRef } = useLazySavePreview(save.id);
@@ -88,7 +80,7 @@ const Component = ({
 								? "active:bg-neutral-800"
 								: "active:bg-neutral-200"
 					} `}
-					onClick={!isExpanded ? handleExpand : undefined}
+					{...(!isExpanded ? pressable(handleExpand) : {})}
 				>
 					<div
 						className={`h-max w-full shrink-0 text-base font-semibold ${
@@ -240,18 +232,18 @@ const Component = ({
 						<LUIWebPreview previewBlob={preview} url={save.url} />
 					) : null}
 					{isExpanded ? (
-						<div
-							className={`max-h flex w-full justify-end gap-x-1`}
-						>
+						<div className={`flex w-full justify-end gap-x-1`}>
 							<div
 								className={`h-max w-max text-xs ${theme === LTHEME.DARK ? "bg-white text-black" : "bg-black text-white"} cursor-pointer rounded-full px-2 py-1 active:scale-95`}
-								onClick={handleDelete}
+								{...pressable(() => void confirmDelete.press())}
 							>
-								Delete
+								{confirmDelete.armed
+									? "Confirm delete"
+									: "Delete"}
 							</div>
 							<div
 								className={`h-max w-max text-xs ${theme === LTHEME.DARK ? "bg-white text-black" : "bg-black text-white"} cursor-pointer rounded-full px-2 py-1 active:scale-95`}
-								onClick={handleExpand}
+								{...pressable(handleExpand)}
 							>
 								Collapse
 							</div>
@@ -263,8 +255,9 @@ const Component = ({
 						className={`flex h-20 w-max shrink-0 items-center justify-center`}
 					>
 						<div
-							className={`h-max w-max cursor-pointer opacity-15 transition-all duration-100 hover:opacity-100`}
-							onClick={handleEdit}
+							className={`h-max w-max cursor-pointer opacity-60 transition-all duration-100 hover:opacity-100 focus-visible:opacity-100`}
+							{...pressable(handleEdit)}
+							aria-label="Edit save"
 						>
 							<LUIThemedIcon
 								Icon={ArrowSquareRightIcon}

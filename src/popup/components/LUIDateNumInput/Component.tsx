@@ -29,14 +29,12 @@ const Component = ({
 	const { theme } = useTheme();
 	const [hovered, setHovered] = useState(false);
 	const [focused, setFocused] = useState(false);
-	const padding = "0".repeat(maxLength - passedValue.toString().length);
-	const [tempValue, setTempValue] = useState(
-		padding + passedValue.toString(),
-	);
+	const padded = String(passedValue).padStart(maxLength, "0");
+	const [tempValue, setTempValue] = useState(padded);
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	const handleInputFocus = () => {
-		setTempValue(padding + passedValue.toString());
+		setTempValue(padded);
 		setFocused(true);
 	};
 
@@ -53,8 +51,12 @@ const Component = ({
 	};
 
 	useEffect(() => {
-		setTempValue(passedValue.toString());
-	}, [passedValue]);
+		// Not while it is being typed in: the value just typed comes back
+		// here, and replacing the text would move the caret.
+		if (!focused) {
+			setTempValue(passedValue.toString());
+		}
+	}, [passedValue, focused]);
 
 	return (
 		<div
@@ -112,14 +114,27 @@ const Component = ({
 					theme === LTHEME.DARK
 						? "border-neutral-700 bg-black text-white focus:border-neutral-300"
 						: "border-neutral-300 bg-white text-black focus:border-neutral-700"
-				} z-20 text-base transition-all duration-300 outline-none`}
+				} z-20 text-base transition-all duration-300`}
 				placeholder={name}
-				value={focused ? tempValue : padding + passedValue}
+				aria-label={name}
+				inputMode="numeric"
+				value={focused ? tempValue : padded}
 				onChange={(event) => {
 					if (isNaN(Number(event.target.value.toString()))) return;
-					return focused
-						? setTempValue(event.target.value)
-						: onChange(Number(event.target.value));
+					const typed = Number(event.target.value);
+					if (!focused) {
+						return onChange(typed);
+					}
+					setTempValue(event.target.value);
+					// Committed as it is typed, not only on blur: the popup
+					// closing while the field still has focus lost the edit.
+					if (
+						event.target.value !== "" &&
+						typed >= minValue &&
+						typed <= maxValue
+					) {
+						onChange(typed);
+					}
 				}}
 				onFocus={handleInputFocus}
 				onBlur={handleInputBlur}
@@ -128,6 +143,13 @@ const Component = ({
 					if (event.key === "Enter") {
 						handleInputBlur();
 						inputRef.current?.blur();
+					}
+					// The arrows on screen appear on hover; these do the
+					// same from the keyboard.
+					if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+						event.preventDefault();
+						handleInputBlur();
+						onShift(event.key === "ArrowUp" ? 1 : -1);
 					}
 				}}
 			/>

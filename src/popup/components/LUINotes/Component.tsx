@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { send } from "../../../utils/send";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { NoteBlankIcon } from "@phosphor-icons/react";
-import { useNavigate } from "react-router";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { LUINoteMini } from "../LUINoteMini/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
 
@@ -23,7 +23,7 @@ const Component = ({
 	emptyMessage?: string;
 }) => {
 	const { theme } = useTheme();
-	const navigate = useNavigate();
+	const go = useMoveNavigate();
 	const sortedNotes = useMemo(
 		() => [...notes].sort((a, b) => b.updatedAt - a.updatedAt),
 		[notes],
@@ -31,7 +31,7 @@ const Component = ({
 
 	// A note is stored once it has content, from its page.
 	const createNewNote = () => {
-		navigate("/note/new");
+		go("/note/new", "forward");
 	};
 
 	return (
@@ -76,7 +76,7 @@ const Component = ({
 								key={note.id}
 								note={note}
 								onOpen={(selectedNote) =>
-									navigate(`/note/${selectedNote.id}`)
+									go(`/note/${selectedNote.id}`, "forward")
 								}
 								onDelete={(id) => send("note.delete", { id })}
 							/>

@@ -1,22 +1,15 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
+// True until every dependency has a value. Once a page has loaded it stays
+// loaded: a value that is briefly missing while it refreshes must not swap
+// the page for the loading screen and drop what the user was doing.
 const useLoading = (deps: ReadonlyArray<unknown>) => {
+	const [hasLoaded, setHasLoaded] = useState(false);
 	const isReady = deps.every((dep) => dep !== undefined);
-	const [isLoading, setIsLoading] = useState(!isReady);
-	useEffect(() => {
-		if (!isReady) {
-			setIsLoading(true);
-			return;
-		}
-		const timeout = window.setTimeout(() => {
-			setIsLoading(false);
-		}, 300);
-		return () => {
-			window.clearTimeout(timeout);
-		};
-	}, [isReady]);
-
-	return isLoading;
+	if (isReady && !hasLoaded) {
+		setHasLoaded(true);
+	}
+	return !(hasLoaded || isReady);
 };
 
 export { useLoading };

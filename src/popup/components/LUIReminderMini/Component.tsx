@@ -5,9 +5,8 @@ import {
 	CaretUpIcon,
 	NotePencilIcon,
 } from "@phosphor-icons/react";
-import { useContext, useState } from "react";
-import { HomeContext } from "../../contexts/Home";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
+import { useState } from "react";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { AnimatePresence, motion } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
@@ -19,6 +18,8 @@ import type { LinkRow } from "../../../storage/schema";
 import { linkedFrom, reminderKind } from "../../records";
 import { prettyDate } from "../../../utils/dates";
 import { send } from "../../../utils/send";
+import { pressable } from "../../a11y";
+import { useConfirm } from "../../hooks/useConfirm";
 
 const Component = ({
 	className,
@@ -36,8 +37,7 @@ const Component = ({
 	disableNavs?: boolean;
 }) => {
 	const { theme } = useTheme();
-	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
-		useContext(HomeContext);
+	const go = useMoveNavigate();
 	const [showDetails, setShowDetails] = useState(false);
 	const linkedSaves = linkedFrom(links, reminder.id, saves);
 	// A task's own reminder is changed and removed through the task.
@@ -50,21 +50,12 @@ const Component = ({
 			: 0;
 	const handleEdit = () => {
 		if (disableNavs) return;
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.slideLeft,
-			navigateTo: "/reminder/" + reminder.id,
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.slideLeft },
-			},
-		});
-		setShouldHomeNavigate(true);
+		go("/reminder/" + reminder.id, "forward");
 	};
-	const handleDelete = async () => {
-		await send("reminder.delete", { id: reminder.id });
-	};
+	const confirmDelete = useConfirm(
+		() => send("reminder.delete", { id: reminder.id }),
+		"Couldn't delete this reminder.",
+	);
 	return (
 		<div
 			className={twMerge(
@@ -113,7 +104,8 @@ const Component = ({
 				>
 					<div
 						className={`flex h-max w-max cursor-pointer items-center justify-center gap-x-1`}
-						onClick={() => setShowDetails(!showDetails)}
+						{...pressable(() => setShowDetails(!showDetails))}
+						aria-expanded={showDetails}
 					>
 						<div
 							className={`text-base font-medium ${
@@ -135,6 +127,12 @@ const Component = ({
 				{!disableNavs ? (
 					<button
 						className={`h-10 w-10 ${theme === LTHEME.DARK ? "bg-white" : "bg-black"} flex cursor-pointer items-center justify-center disabled:cursor-not-allowed disabled:opacity-50`}
+						type="button"
+						aria-label={
+							linkedTask
+								? "Edit this reminder on its task"
+								: "Edit reminder"
+						}
 						onClick={handleEdit}
 						disabled={linkedTask !== undefined}
 					>
@@ -172,7 +170,7 @@ const Component = ({
 					>
 						{linkedSaves.length > 0 ? (
 							<LUIGroup
-								title={linkedSaves.length + " Saves(s)"}
+								title={linkedSaves.length + " Save(s)"}
 								headerTextSize="sm"
 							>
 								{linkedSaves.map((save) => (
@@ -202,10 +200,13 @@ const Component = ({
 										? "bg-neutral-800 text-white"
 										: "bg-neutral-200 text-black"
 								} mt-1 cursor-pointer rounded-full px-2 py-1 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50`}
-								onClick={handleDelete}
+								type="button"
+								onClick={confirmDelete.press}
 								disabled={linkedTask !== undefined}
 							>
-								Delete
+								{confirmDelete.armed
+									? "Confirm delete"
+									: "Delete"}
 							</button>
 						</div>
 					</motion.div>

@@ -76,9 +76,16 @@ const Component = ({
 					theme === LTHEME.DARK
 						? "border-neutral-700 bg-black text-white focus:border-neutral-300"
 						: "border-neutral-300 bg-white text-black focus:border-neutral-700"
-				} z-20 text-base transition-all duration-300 outline-none`}
+				} z-20 text-base transition-all duration-300`}
 				placeholder={"A"}
+				aria-label="AM or PM. Use the arrow keys to change it."
 				value={passedValue}
+				onKeyDown={(event) => {
+					if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+						event.preventDefault();
+						onShift(event.key === "ArrowUp" ? 1 : -1);
+					}
+				}}
 				onFocus={() => setFocused(true)}
 				onBlur={() => setFocused(false)}
 				maxLength={2}

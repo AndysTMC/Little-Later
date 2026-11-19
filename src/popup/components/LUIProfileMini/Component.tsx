@@ -1,11 +1,8 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { UserCircleIcon } from "@phosphor-icons/react";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
-import { MotionProps } from "framer-motion";
 import { twMerge } from "tailwind-merge";
-import { fakeWait } from "little-shared/utils/misc";
 import { isFirstTimeUser } from "../../../services/settings";
 import { createToast } from "../../../services/toasts";
 import { LTOAST_TYPE } from "little-shared/enums";
@@ -18,14 +15,12 @@ const Component = ({
 	className,
 	userProfile,
 	name,
-	changeExit = () => {},
 }: {
 	className?: string;
 	userProfile: UserProfile;
 	name: string;
-	changeExit: (exit: MotionProps) => void;
 }) => {
-	const navigate = useNavigate();
+	const go = useMoveNavigate();
 
 	const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -35,29 +30,19 @@ const Component = ({
 	const handleClick = async () => {
 		setIsAuthenticating(true);
 		try {
-			await fakeWait();
 			if (userProfile.hasPassword) {
-				changeExit(exitTransitions.zoomIn);
-				navigate("/unlock/" + userProfile.id, {
-					state: { entryTransition: entryTransitions.zoomIn },
-				});
+				go("/unlock/" + userProfile.id, "into");
 				return;
 			}
 			await send("profile.unlock", {
 				profileId: userProfile.id,
 				password: null,
 			});
-			if (await isFirstTimeUser()) {
-				changeExit(exitTransitions.slideLeft);
-				navigate("/getting-started", {
-					state: { entryTransition: entryTransitions.slideLeft },
-				});
-				return;
-			}
-			changeExit(exitTransitions.zoomIn);
-			navigate("/home", {
-				state: { entryTransition: entryTransitions.zoomIn },
-			});
+			// Opening a profile always zooms into it, as unlocking does.
+			go(
+				(await isFirstTimeUser()) ? "/getting-started" : "/home",
+				"into",
+			);
 		} catch (error) {
 			console.error("Failed to open profile.", error);
 			await createToast(

@@ -6,12 +6,12 @@ import {
 	useLocation,
 	useNavigate,
 } from "react-router";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, MotionConfig } from "framer-motion";
 import "./App.css";
-import { useTheme } from "./hooks/useTheme";
-import { LTHEME } from "little-shared/enums";
 import { ThemeContextProvider } from "./contexts/Theme";
-import { HomeContextProvider } from "./contexts/Home";
+import { RecordsProvider } from "./contexts/Records";
+import { UIStateProvider } from "./contexts/UIState";
+import { LUIErrorBoundary } from "./components/LUIErrorBoundary/Component";
 import { LUIIntro } from "./pages/LUIIntro/Page";
 import { LUIGettingStarted } from "./pages/LUIGettingStarted/Page";
 import { LUIProfileMenu } from "./pages/LUIProfileMenu/Page";
@@ -34,7 +34,14 @@ import { LUIReminder } from "./pages/LUIReminder/Page";
 import { LUINote } from "./pages/LUINote/Page";
 import { LUIToasts } from "./components/LUIToasts/Component";
 import { LUIMiscSettings } from "./pages/LUIMiscSettings/Page";
+import { LUISecuritySettings } from "./pages/LUISecuritySettings/Page";
+import { LUIPasswordSettings } from "./pages/LUIPasswordSettings/Page";
+import { LUIAppearanceSettings } from "./pages/LUIAppearanceSettings/Page";
+import { LUIFileInput } from "./pages/LUIFileInput/Page";
+import { LUIImportProfile } from "./pages/LUIImportProfile/Page";
 import { useResolvedCurrentUser } from "./hooks/useCurrentUserProfile";
+import { readMove } from "../route-transitions";
+import { useMoveNavigate } from "./hooks/usePageMove";
 
 const requiresUnlockedProfile = (pathname: string): boolean =>
 	pathname === "/home" ||
@@ -49,9 +56,12 @@ const requiresUnlockedProfile = (pathname: string): boolean =>
 	pathname.startsWith("/reminder/") ||
 	pathname.startsWith("/note/");
 
+// A page that needs an unlocked profile goes to the profile picker as soon
+// as no profile is unlocked: locking, auto-lock, deleting the profile. That
+// is leaving the profile, so it zooms out like the Lock button does.
 function SessionRedirect() {
 	const location = useLocation();
-	const navigate = useNavigate();
+	const go = useMoveNavigate();
 	const { isResolved, profile } = useResolvedCurrentUser();
 
 	useEffect(() => {
@@ -59,17 +69,20 @@ function SessionRedirect() {
 			return;
 		}
 		if (requiresUnlockedProfile(location.pathname)) {
-			navigate("/browse-profiles", { replace: true });
+			go("/browse-profiles", "outOf", { replace: true });
 		}
-	}, [isResolved, profile, location.pathname, navigate]);
+	}, [isResolved, profile, location.pathname, go]);
 
 	return null;
 }
 
+// Home and its panels are one page; Home animates its panels itself.
+const pageKey = (pathname: string): string =>
+	pathname === "/home" || pathname.startsWith("/home/") ? "/home" : pathname;
+
 function AnimatedRoutes() {
 	const location = useLocation();
 	const navigate = useNavigate();
-	const { theme, toggleTheme } = useTheme();
 
 	useEffect(() => {
 		const handleBeforeUnload = () => {
@@ -83,20 +96,10 @@ function AnimatedRoutes() {
 		};
 	}, [location, navigate]);
 
-	useEffect(() => {
-		const rootElement = document.getElementById("root");
-		if (theme === LTHEME.DARK) {
-			rootElement?.classList.add("bg-black");
-			rootElement?.classList.remove("bg-white");
-		} else {
-			rootElement?.classList.add("bg-white");
-			rootElement?.classList.remove("bg-black");
-		}
-	}, [theme, toggleTheme]);
-
 	return (
-		<AnimatePresence mode="wait">
-			<Routes location={location} key={location.pathname}>
+		// The navigation's move also animates the page being left.
+		<AnimatePresence mode="wait" custom={readMove(location.state)}>
+			<Routes location={location} key={pageKey(location.pathname)}>
 				<Route path="/" element={<LUIIntro />} />
 				<Route
 					path="/getting-started"
@@ -119,12 +122,26 @@ function AnimatedRoutes() {
 				<Route path="/settings" element={<LUISettings />} />
 				<Route path="/settings/ai" element={<LUIAISettings />} />
 				<Route path="/settings/misc" element={<LUIMiscSettings />} />
+				<Route
+					path="/settings/security"
+					element={<LUISecuritySettings />}
+				/>
+				<Route
+					path="/settings/security/password"
+					element={<LUIPasswordSettings />}
+				/>
+				<Route
+					path="/settings/appearance"
+					element={<LUIAppearanceSettings />}
+				/>
 				<Route path="/export" element={<LUIExport />} />
 				<Route path="/lock" element={<LUILock />} />
 				<Route path="/vbm/:id" element={<LUIVBM />} />
 				<Route path="/task/:id" element={<LUITask />} />
 				<Route path="/reminder/:id" element={<LUIReminder />} />
 				<Route path="/note/:id" element={<LUINote />} />
+				<Route path="/pick-file" element={<LUIFileInput />} />
+				<Route path="/import-profile" element={<LUIImportProfile />} />
 			</Routes>
 		</AnimatePresence>
 	);
@@ -132,15 +149,23 @@ function AnimatedRoutes() {
 
 function App() {
 	return (
-		<HashRouter>
-			<ThemeContextProvider>
-				<HomeContextProvider>
-					<SessionRedirect />
-					<AnimatedRoutes />
-					<LUIToasts />
-				</HomeContextProvider>
-			</ThemeContextProvider>
-		</HashRouter>
+		<LUIErrorBoundary>
+			{/* Honours the system's reduced-motion setting for every
+			    framer-motion animation; index.css covers CSS ones. */}
+			<MotionConfig reducedMotion="user">
+				<HashRouter>
+					<UIStateProvider>
+						<ThemeContextProvider>
+							<RecordsProvider>
+								<SessionRedirect />
+								<AnimatedRoutes />
+								<LUIToasts />
+							</RecordsProvider>
+						</ThemeContextProvider>
+					</UIStateProvider>
+				</HashRouter>
+			</MotionConfig>
+		</LUIErrorBoundary>
 	);
 }
 

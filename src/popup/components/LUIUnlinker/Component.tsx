@@ -4,6 +4,8 @@ import { useTheme } from "../../hooks/useTheme";
 import { TrashIcon } from "@phosphor-icons/react";
 import { twMerge } from "tailwind-merge";
 
+import { pressable } from "../../a11y";
+
 const Component = ({
 	className,
 	content,
@@ -29,7 +31,8 @@ const Component = ({
 						? "hover:bg-neutral-900"
 						: "hover:bg-neutral-100"
 				} cursor-pointer rounded-lg px-2`}
-				onClick={() => handleUnlink(id)}
+				{...pressable(() => handleUnlink(id))}
+				aria-label={`Unlink: ${content}`}
 			>
 				<LUIThemedIcon
 					Icon={TrashIcon}
@@ -42,11 +45,6 @@ const Component = ({
 				className={`line-clamp-1 h-max grow text-sm ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
 			>
 				{content}
-			</div>
-			<div
-				className={`flex h-full w-max shrink-0 items-center text-xs text-neutral-500`}
-			>
-				#{id}
 			</div>
 		</div>
 	);

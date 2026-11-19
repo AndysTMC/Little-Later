@@ -1,4 +1,4 @@
-import { useContext, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	LHOME_MAIN_CONTENT,
 	LHOME_SEARCH_RESULT_TYPE,
@@ -14,8 +14,8 @@ import {
 } from "../../records";
 import { useTheme } from "../../hooks/useTheme";
 import { AnimatePresence, motion } from "framer-motion";
-import { HomeContext } from "../../contexts/Home";
-import { useLocation, useNavigate, useOutletContext } from "react-router";
+import { useOutletContext } from "react-router";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { LUISearchBar } from "../LUISearchBar/Component";
 import { LUIHomeMainNav } from "../LUINavs/LUIHomeMainNav/Component";
 import { LUIVBMMini } from "../LUIVBMMini/Component";
@@ -26,12 +26,13 @@ import { LUIVBMs } from "../LUIVBMs/Component";
 import { LUITasks } from "../LUITasks/Component";
 import { LUIReminders } from "../LUIReminders/Component";
 import { twMerge } from "tailwind-merge";
-import { entryTransitions } from "../../../route-transitions";
 import { usePagination } from "../../hooks/usePagination";
 import { LUIPagination } from "../LUIPagination/Component";
 import { LUINotes } from "../LUINotes/Component";
 import { LUINoteMini } from "../LUINoteMini/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
+
+import { useDraft } from "../../hooks/useDraft";
 
 type SearchResult = {
 	noOfMatches: number;
@@ -52,6 +53,7 @@ const Component = ({ className }: { className?: string }) => {
 		reminders,
 		tasks,
 		pages,
+		ready: isReady,
 	} = useOutletContext<HomeData>();
 
 	const saves = useMemo(() => pages.filter((page) => page.saved), [pages]);
@@ -60,16 +62,12 @@ const Component = ({ className }: { className?: string }) => {
 		const attached = new Set(links.map((link) => link.fromId));
 		return notes.filter((note) => !attached.has(note.id));
 	}, [links, notes]);
-	const location = useLocation();
-	const navigate = useNavigate();
-
-	const [subEntryTransition] = useState(location.state?.subEntryTransition);
+	const go = useMoveNavigate();
 
 	const { theme } = useTheme();
 
-	const { homeSubNavigation } = useContext(HomeContext);
-
-	const [currentContent, setCurrentContent] = useState<LHOME_MAIN_CONTENT>(
+	const [currentContent, setCurrentContent] = useDraft<LHOME_MAIN_CONTENT>(
+		"home.tab",
 		LHOME_MAIN_CONTENT.SAVES,
 	);
 
@@ -78,8 +76,6 @@ const Component = ({ className }: { className?: string }) => {
 	const [searchQuery, setSearchQuery] = useState("");
 
 	const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
-
-	const [isReady, setIsReady] = useState<boolean>(false);
 
 	const { startIndex, endIndex, currentBatch, batchCount, onBatchChange } =
 		usePagination(searchResults.length, 5);
@@ -182,14 +178,11 @@ const Component = ({ className }: { className?: string }) => {
 	);
 
 	return (
-		<motion.div
+		<div
 			className={twMerge(
 				`relative flex h-full w-full flex-col select-none`,
 				className,
 			)}
-			{...(subEntryTransition ?? entryTransitions.fade)}
-			{...homeSubNavigation.exit}
-			onAnimationComplete={() => setIsReady(true)}
 		>
 			<LUIHomeMainNav
 				currentUserProfile={currentUserProfile}
@@ -283,8 +276,9 @@ const Component = ({ className }: { className?: string }) => {
 													className="break-inside-auto"
 													note={result.data}
 													onOpen={(note) =>
-														navigate(
+														go(
 															`/note/${note.id}`,
+															"forward",
 														)
 													}
 													showDelete={false}
@@ -405,7 +399,7 @@ const Component = ({ className }: { className?: string }) => {
 					</motion.div>
 				)}
 			</AnimatePresence>
-		</motion.div>
+		</div>
 	);
 };
 

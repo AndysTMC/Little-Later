@@ -38,7 +38,11 @@ const useProfileKeys = (): ProfileKeys | null | undefined => {
 		keys: ProfileKeys;
 	} | null>(null);
 	useEffect(() => {
-		if (!session) return;
+		if (!session) {
+			// Locked: the imported keys go with the session (0010).
+			setImported(null);
+			return;
+		}
 		let active = true;
 		void importProfileKeys(session).then((keys) => {
 			if (active) setImported({ session, keys });

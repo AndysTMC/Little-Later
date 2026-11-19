@@ -14,7 +14,6 @@ import {
 	SparkleIcon,
 } from "@phosphor-icons/react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { fakeWait } from "little-shared/utils/misc";
 import ReactMarkdown from "react-markdown";
 import {
 	isInlineImageAllowed,
@@ -99,7 +98,7 @@ const QUICK_PROMPT_POOL = [
 	"Do I have overdue tasks?",
 	"Show reminders for tomorrow.",
 	"What did I browse recently about AI?",
-	"Find saves from Hotstar.",
+	"Find saves from GitHub.",
 	"Summarize my pending tasks.",
 ];
 
@@ -155,11 +154,11 @@ const IntialInterface = ({ className }: { className?: string }) => {
 					<span className={`font-bold opacity-50`}>{"Hi, I'm "}</span>
 					<span className={`font-black opacity-75`}>LittleAI</span>
 				</div>
-				<div
+				<h1
 					className={`text-3xl font-bold italic ${theme === LTHEME.DARK ? "text-white" : "text-black"} text-center opacity-25`}
 				>
 					How can I help you?
-				</div>
+				</h1>
 			</div>
 		</motion.div>
 	);
@@ -613,7 +612,7 @@ const AICellBase = ({
 												);
 											}
 										}}
-										className={`h-9 w-full rounded-lg border px-3 text-sm outline-none ${
+										className={`h-9 w-full rounded-lg border px-3 text-sm ${
 											theme === LTHEME.DARK
 												? "border-neutral-700 bg-neutral-900 text-white"
 												: "border-neutral-300 bg-neutral-100 text-black"
@@ -787,13 +786,32 @@ const Component = ({ className }: { className?: string }) => {
 		}
 	}, [cells, currentLAIOutput, isScrolledUp]);
 
+	// One client for the page. A message sent before it has loaded waits
+	// for it; it used to be dropped without a word.
+	const assistLoading = useRef<Promise<LittleAI> | null>(null);
+	// A load that failed is forgotten, so the next message tries again
+	// rather than failing the same way until the page is reopened.
+	const loadAssist = () =>
+		(assistLoading.current ??= LittleAI.getLAIAssistInstance().catch(
+			(error: unknown) => {
+				assistLoading.current = null;
+				throw error;
+			},
+		));
+
 	useEffect(() => {
-		if (!aiAssist) {
-			LittleAI.getLAIAssistInstance().then((instance) => {
+		let active = true;
+		loadAssist().then(
+			(instance) => {
+				if (!active) return;
 				setAIAsist(instance);
 				setCanUndo(instance.hasUndoAction());
-			});
-		}
+			},
+			(error: unknown) => console.warn("AI is unavailable here.", error),
+		);
+		return () => {
+			active = false;
+		};
 	}, []);
 
 	const resolveConfirmation = async (
@@ -826,11 +844,26 @@ const Component = ({ className }: { className?: string }) => {
 	};
 
 	const askAI = async (nextInput?: string) => {
-		if (!aiAssist || isAsking || requestLockRef.current) return;
-		if (aiAssist.hasPendingConfirmation()) return;
+		if (isAsking || requestLockRef.current) return;
 		const input = (nextInput ?? userInput).trim();
 		if (input === "") return;
 		requestLockRef.current = true;
+		let assist: LittleAI;
+		try {
+			assist = aiAssist ?? (await loadAssist());
+		} catch {
+			requestLockRef.current = false;
+			setCurrentLAIOutput({
+				message: "Unlock a profile to use the assistant.",
+				actions: [],
+				expression: LFACE_EXPRESSION.FROWNING,
+			});
+			return;
+		}
+		if (assist.hasPendingConfirmation()) {
+			requestLockRef.current = false;
+			return;
+		}
 		setIsAsking(true);
 
 		if (currentLAIOutput) {
@@ -862,8 +895,7 @@ const Component = ({ className }: { className?: string }) => {
 		});
 
 		try {
-			await fakeWait();
-			const aiOutput = await aiAssist.prompt(input, {
+			const aiOutput = await assist.prompt(input, {
 				onProgress: (progress) => {
 					setCurrentLAIOutput((previous) => ({
 						message: progress.message,
@@ -873,7 +905,7 @@ const Component = ({ className }: { className?: string }) => {
 				},
 			});
 			setCurrentLAIOutput(aiOutput);
-			setCanUndo(aiAssist.hasUndoAction());
+			setCanUndo(assist.hasUndoAction());
 		} catch {
 			setCurrentLAIOutput({
 				message:
@@ -1181,12 +1213,12 @@ const Component = ({ className }: { className?: string }) => {
 					>
 						<div className={`flex h-max w-full items-end gap-x-1`}>
 							<div
-								className={`h-max grow rounded-xl p-2 focus-within:border-neutral-500`}
+								className={`ll-field h-max grow rounded-xl p-2 focus-within:border-neutral-500`}
 							>
 								<textarea
 									data-testid="ai-assist-input"
 									ref={textareaRef}
-									className={`h-12 max-h-24 w-full resize-none overflow-auto rounded-xl p-2 text-wrap outline-none ${theme === LTHEME.DARK ? "text-white" : "text-black"} ${theme}-scrollbar`}
+									className={`h-12 max-h-24 w-full resize-none overflow-auto rounded-xl p-2 text-wrap ${theme === LTHEME.DARK ? "text-white" : "text-black"} ${theme}-scrollbar`}
 									name="message"
 									value={userInput}
 									onChange={(e) =>
@@ -1214,6 +1246,8 @@ const Component = ({ className }: { className?: string }) => {
 									className={`flex h-12 w-12 items-center justify-center`}
 								>
 									<button
+										type="button"
+										aria-label="Send message"
 										className={`flex h-9 w-9 cursor-pointer items-center justify-center rounded-full transition-all duration-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${theme === LTHEME.DARK ? "bg-white" : "bg-black"}`}
 										onClick={() => {
 											void askAI();

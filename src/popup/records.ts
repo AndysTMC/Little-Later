@@ -13,6 +13,8 @@ export type HomeData = {
 	tasks: Array<Task>;
 	// Every page: saved ones and browsing history.
 	pages: Array<Save>;
+	// The panel has finished moving in; heavy lists wait for it.
+	ready: boolean;
 };
 
 // Records among `candidates` that link to `targetId`, such as the tasks

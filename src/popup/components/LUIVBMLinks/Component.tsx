@@ -13,6 +13,8 @@ import { useTheme } from "../../hooks/useTheme";
 import { getDomainFromUrl } from "little-shared/utils/misc";
 import type { Save } from "../../../storage/repositories";
 
+import { pressable } from "../../a11y";
+
 const Component = ({
 	className,
 	saves,
@@ -53,7 +55,11 @@ const Component = ({
 				</div>
 				<div
 					className={`h-max w-max cursor-pointer`}
-					onClick={() => setShowSaves(!showSaves)}
+					{...pressable(() => setShowSaves(!showSaves))}
+					aria-label={
+						showSaves ? "Close the save picker" : "Link a save"
+					}
+					aria-expanded={showSaves}
 				>
 					<LUIThemedIcon
 						Icon={showSaves ? XCircleIcon : PlusCircleIcon}
@@ -80,7 +86,7 @@ const Component = ({
 									theme === LTHEME.DARK
 										? "border-neutral-700 bg-black text-white focus:border-neutral-300"
 										: "border-neutral-300 bg-white text-black focus:border-neutral-700"
-								} rounded-lg px-2 text-base outline-none`}
+								} rounded-lg px-2 text-base`}
 								placeholder="Search"
 								value={searchQuery}
 								onChange={(e) => setSearchQuery(e.target.value)}
@@ -114,9 +120,9 @@ const Component = ({
 												: "bg-neutral-100 hover:bg-neutral-200"
 										} cursor-pointer`}
 										key={save.id}
-										onClick={() =>
-											handleOnChange(save.id, true)
-										}
+										{...pressable(() =>
+											handleOnChange(save.id, true),
+										)}
 									>
 										<div className={`h-full w-max`}>
 											<LUIThemedIcon
@@ -159,7 +165,8 @@ const Component = ({
 									? "hover:bg-neutral-900"
 									: "hover:bg-neutral-100"
 							} cursor-pointer rounded-lg px-2`}
-							onClick={() => handleOnChange(save.id, false)}
+							{...pressable(() => handleOnChange(save.id, false))}
+							aria-label={`Unlink save: ${save.customName}`}
 						>
 							<LUIThemedIcon
 								Icon={TrashIcon}

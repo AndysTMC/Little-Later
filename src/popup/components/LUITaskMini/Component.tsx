@@ -1,10 +1,12 @@
 import { LTHEME } from "little-shared/enums";
-import { useContext, useEffect, useState } from "react";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
+import { useEffect, useState } from "react";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { AnimatePresence, motion } from "framer-motion";
 import { twMerge } from "tailwind-merge";
-import { fakeWait, capitalize } from "little-shared/utils/misc";
-import { HomeContext } from "../../contexts/Home";
+import { capitalize } from "little-shared/utils/misc";
+import { pressable } from "../../a11y";
+import { attempt } from "../../attempt";
+import { useConfirm } from "../../hooks/useConfirm";
 import { useTheme } from "../../hooks/useTheme";
 import { FlagIcon, NotePencilIcon } from "@phosphor-icons/react";
 import { LVBMIcon, LReminderIcon } from "../LUIIcons";
@@ -33,8 +35,7 @@ const Component = ({
 	disableNavs?: boolean;
 }) => {
 	const { theme } = useTheme();
-	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
-		useContext(HomeContext);
+	const go = useMoveNavigate();
 	const linkedSaves = linkedFrom(links, task.id, saves);
 	const [linkedReminder] = linkedTo(links, task.id, reminders);
 	const linkedReminderKind = linkedReminder
@@ -48,37 +49,28 @@ const Component = ({
 		setIsExpanded(!isExpanded);
 	};
 
-	const handleDelete = async () => {
-		await send("task.delete", { id: task.id });
-	};
+	const confirmDelete = useConfirm(
+		() => send("task.delete", { id: task.id }),
+		"Couldn't delete this task.",
+	);
 
 	const handleEdit = () => {
 		if (disableNavs) return;
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.slideLeft,
-			navigateTo: "/task/" + task.id,
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.slideLeft },
-			},
-		});
-		setShouldHomeNavigate(true);
+		go("/task/" + task.id, "forward");
 	};
 
-	const handleMark = async () => {
-		setIsVisible(false);
-		await fakeWait({ waitPeriod: 200 });
+	const handleMark = () =>
 		// A recurring task never stays done: completing moves it on.
-		await send(task.done ? "task.reopen" : "task.complete", {
-			id: task.id,
-		});
-	};
+		attempt(
+			() =>
+				send(task.done ? "task.reopen" : "task.complete", {
+					id: task.id,
+				}),
+			"Couldn't update this task.",
+		);
 
 	useEffect(() => {
 		const loadAnimation = async () => {
-			await fakeWait({ waitPeriod: 100 });
 			setIsVisible(true);
 		};
 		loadAnimation();
@@ -134,7 +126,7 @@ const Component = ({
 
 						<div
 							className={`flex min-h-22 grow flex-col py-1 ${isExpanded ? "" : "cursor-pointer"} group relative`}
-							onClick={!isExpanded ? handleExpand : undefined}
+							{...(!isExpanded ? pressable(handleExpand) : {})}
 						>
 							<div
 								className={`line-clamp-2 h-max w-full text-sm leading-snug font-medium text-pretty text-ellipsis ${
@@ -148,23 +140,25 @@ const Component = ({
 							<div
 								className={`flex h-max w-full items-center justify-start gap-x-1 ${isExpanded ? "flex-wrap" : ""} `}
 							>
-								<div
-									className={`line-clamp-2 h-max w-max rounded-full border px-2 text-xs leading-snug font-medium text-pretty text-ellipsis ${
-										theme === LTHEME.DARK
-											? `border-white ${
-													!isExpanded
-														? "bg-neutral-100 text-neutral-900"
-														: "text-neutral-100"
-												} `
-											: `border-black ${
-													!isExpanded
-														? "bg-neutral-900 text-neutral-100"
-														: "text-neutral-900"
-												} `
-									} `}
-								>
-									{task.label}
-								</div>
+								{task.label !== "" ? (
+									<div
+										className={`line-clamp-2 h-max w-max rounded-full border px-2 text-xs leading-snug font-medium text-pretty text-ellipsis ${
+											theme === LTHEME.DARK
+												? `border-white ${
+														!isExpanded
+															? "bg-neutral-100 text-neutral-900"
+															: "text-neutral-100"
+													} `
+												: `border-black ${
+														!isExpanded
+															? "bg-neutral-900 text-neutral-100"
+															: "text-neutral-900"
+													} `
+										} `}
+									>
+										{task.label}
+									</div>
+								) : null}
 								{task.schedule.kind === "due" ? (
 									<div
 										className={`line-clamp-2 h-max w-max rounded-full border px-2 text-xs leading-snug font-medium text-pretty text-ellipsis ${
@@ -350,7 +344,12 @@ const Component = ({
 												? "bg-white text-black"
 												: "bg-black text-white"
 										} cursor-pointer rounded-full px-10 py-1 active:scale-95`}
-										onClick={handleMark}
+										{...pressable(handleMark)}
+										aria-label={
+											task.done
+												? "Mark task as unfinished"
+												: "Mark task as finished"
+										}
 									>
 										<LUIThemedIcon
 											Icon={FlagIcon}
@@ -372,7 +371,8 @@ const Component = ({
 													? "bg-white text-black"
 													: "bg-black text-white"
 											} cursor-pointer rounded-full px-10 py-1 active:scale-95`}
-											onClick={handleEdit}
+											{...pressable(handleEdit)}
+											aria-label="Edit task"
 										>
 											<LUIThemedIcon
 												Icon={NotePencilIcon}
@@ -396,9 +396,12 @@ const Component = ({
 													? "bg-white text-black"
 													: "bg-black text-white"
 											} cursor-pointer rounded-full px-2 py-1 active:scale-95`}
-											onClick={handleDelete}
+											type="button"
+											onClick={confirmDelete.press}
 										>
-											Delete
+											{confirmDelete.armed
+												? "Confirm delete"
+												: "Delete"}
 										</button>
 										<button
 											className={`h-max w-max text-xs ${
@@ -406,6 +409,7 @@ const Component = ({
 													? "bg-white text-black"
 													: "bg-black text-white"
 											} cursor-pointer rounded-full px-2 py-1 active:scale-95`}
+											type="button"
 											onClick={handleExpand}
 										>
 											Collapse
@@ -422,7 +426,8 @@ const Component = ({
 										? "border-neutral-100 hover:bg-neutral-100"
 										: "border-neutral-900 hover:bg-neutral-900"
 								}`}
-								onClick={handleEdit}
+								{...pressable(handleEdit)}
+								aria-label="Edit task"
 								onMouseEnter={() => setIsEditHovered(true)}
 								onMouseLeave={() => setIsEditHovered(false)}
 							>

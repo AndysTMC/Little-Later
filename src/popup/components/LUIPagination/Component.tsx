@@ -15,6 +15,7 @@ const PaginationBlock = ({
 	isActive = false,
 	isDisabled = false,
 	onClick = () => {},
+	label,
 }: {
 	children?: React.ReactNode;
 	className?: string;
@@ -22,9 +23,14 @@ const PaginationBlock = ({
 	isActive?: boolean;
 	isDisabled?: boolean;
 	onClick?: () => void;
+	// For blocks whose content is an icon.
+	label?: string;
 }) => {
 	return (
 		<button
+			type="button"
+			aria-label={label}
+			aria-current={isActive ? "page" : undefined}
 			className={twMerge(
 				`${theme === LTHEME.DARK ? (isActive ? "bg-white text-black" : "bg-neutral-800 text-white not-disabled:hover:bg-neutral-700") : isActive ? "bg-black text-white" : "bg-neutral-200 text-black not-disabled:hover:bg-neutral-300"} ${isActive ? "" : "not-disabled:cursor-pointer"} flex h-7 items-center justify-center rounded-md px-3 text-sm disabled:opacity-50`,
 				className,
@@ -54,6 +60,7 @@ const Component = ({
 		<div className={twMerge(`flex h-max w-full gap-x-1`, className)}>
 			<PaginationBlock
 				key={-1}
+				label="Previous page"
 				theme={theme}
 				isDisabled={currentBatch == 1}
 				onClick={() => onBatchChange(currentBatch - 1)}
@@ -167,6 +174,7 @@ const Component = ({
 
 			<PaginationBlock
 				key={-4}
+				label="Next page"
 				theme={theme}
 				isDisabled={currentBatch >= batchCount}
 				onClick={() => onBatchChange(currentBatch + 1)}

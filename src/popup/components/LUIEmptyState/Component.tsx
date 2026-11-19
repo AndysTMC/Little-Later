@@ -21,11 +21,11 @@ const Component = ({
 				className,
 			)}
 		>
-			<p className={`text-2xl font-extrabold ${tone} opacity-40`}>
+			<h2 className={`text-2xl font-extrabold ${tone} opacity-70`}>
 				{title}
-			</p>
+			</h2>
 			{hint ? (
-				<p className={`text-base font-semibold ${tone} opacity-30`}>
+				<p className={`text-base font-semibold ${tone} opacity-70`}>
 					{hint}
 				</p>
 			) : null}

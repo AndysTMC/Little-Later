@@ -57,7 +57,7 @@ const Component = ({
 	return (
 		<div
 			className={twMerge(
-				`flex h-max w-max rounded-full border-1 ${theme === LTHEME.DARK ? "border-neutral-100" : "border-neutral-900"} gap-x-1 p-1`,
+				`ll-field flex h-max w-max rounded-full border-1 ${theme === LTHEME.DARK ? "border-neutral-100" : "border-neutral-900"} gap-x-1 p-1`,
 				className,
 			)}
 		>
@@ -67,7 +67,7 @@ const Component = ({
 						theme === LTHEME.DARK
 							? "text-white focus:bg-neutral-800"
 							: "text-black focus:bg-neutral-200"
-					} outline-none`}
+					}`}
 					aria-label="Numeric value"
 					type="text"
 					style={{ width: `${32 + maxLength * 8}px` }}
@@ -77,7 +77,12 @@ const Component = ({
 					onChange={(event) => {
 						if (isNaN(Number(event.target.value.toString())))
 							return;
-						return setTempValue(Number(event.target.value));
+						const typed = Number(event.target.value);
+						setTempValue(typed);
+						// Committed as soon as it is in range, not only on blur.
+						if (typed >= minValue && typed <= maxValue) {
+							onChange(typed);
+						}
 					}}
 					onFocus={() => setFocused(true)}
 					onBlur={handleBlur}

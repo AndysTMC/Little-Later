@@ -1,18 +1,18 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
 import { twMerge } from "tailwind-merge";
 import { LTHEME } from "little-shared/enums";
 import { CircleNotchIcon, TrashIcon } from "@phosphor-icons/react";
-import { entryTransitions } from "../../../route-transitions";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { LReminderIcon, LVBMIcon, LTaskIcon } from "../LUIIcons";
 import { useTheme } from "../../hooks/useTheme";
 import type { Save } from "../../../storage/repositories";
-import { fakeWait } from "little-shared/utils/misc";
 import { LUIWebPreview } from "../LUIWebPreview/Component";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { useLazySavePreview } from "../../hooks/useSavePreview";
 import { lastSeenInfo, prettyDate } from "../../../utils/dates";
 import { send } from "../../../utils/send";
+
+import { attempt } from "../../attempt";
 
 const Component = ({
 	className,
@@ -21,42 +21,38 @@ const Component = ({
 	className?: string;
 	visualBM: Save;
 }) => {
-	const navigate = useNavigate();
+	const go = useMoveNavigate();
 	const { theme } = useTheme();
 	const [isCreatingSave, setIsCreatingSave] = useState(false);
 
 	const handleSaveClick = async () => {
 		setIsCreatingSave(true);
-		await fakeWait();
-		await send("save.update", { id: visualBM.id, saved: true });
+		await attempt(
+			() => send("save.update", { id: visualBM.id, saved: true }),
+			"Couldn't save this page.",
+		);
 		setIsCreatingSave(false);
 	};
 
 	const handleTaskClick = async (webDataUrl: string) => {
 		await handleSaveClick();
-		navigate("/home/new-task", {
-			state: {
-				passedWebDataUrl: webDataUrl,
-				passedSaveId: visualBM.id,
-				subEntryTransition: entryTransitions.slideUp,
-			},
+		go("/home/new-task", "forward", {
+			state: { passedWebDataUrl: webDataUrl, passedSaveId: visualBM.id },
 		});
 	};
 
 	const handleReminderClick = async (webDataUrl: string) => {
 		await handleSaveClick();
-		navigate("/home/new-reminder", {
-			state: {
-				passedWebDataUrl: webDataUrl,
-				passedSaveId: visualBM.id,
-				subEntryTransition: entryTransitions.slideUp,
-			},
+		go("/home/new-reminder", "forward", {
+			state: { passedWebDataUrl: webDataUrl, passedSaveId: visualBM.id },
 		});
 	};
 
-	const handleDeleteClick = async () => {
-		await send("save.update", { id: visualBM.id, browsed: false });
-	};
+	const handleDeleteClick = () =>
+		attempt(
+			() => send("save.update", { id: visualBM.id, browsed: false }),
+			"Couldn't remove this page from history.",
+		);
 
 	const { preview, elementRef } = useLazySavePreview(visualBM.id);
 
@@ -97,6 +93,10 @@ const Component = ({
 						</div>
 						<div className={`flex h-max w-full gap-x-2 opacity-80`}>
 							<button
+								type="button"
+								aria-label={
+									visualBM.saved ? "Saved" : "Save this page"
+								}
 								className={`h-max w-max border ${theme === LTHEME.DARK ? "border-white" : "border-black"} ${
 									visualBM.saved
 										? theme === LTHEME.DARK
@@ -145,6 +145,8 @@ const Component = ({
 								)}
 							</button>
 							<button
+								type="button"
+								aria-label="New task for this page"
 								className={`h-max w-max border ${
 									theme === LTHEME.DARK
 										? "border-white hover:bg-neutral-800"
@@ -164,6 +166,8 @@ const Component = ({
 								/>
 							</button>
 							<button
+								type="button"
+								aria-label="New reminder for this page"
 								className={`h-max w-max border ${
 									theme === LTHEME.DARK
 										? "border-white hover:bg-neutral-800"
@@ -185,6 +189,8 @@ const Component = ({
 								/>
 							</button>
 							<button
+								type="button"
+								aria-label="Remove from history"
 								className={`h-max w-max border ${
 									theme === LTHEME.DARK
 										? "border-white hover:bg-neutral-800"

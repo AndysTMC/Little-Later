@@ -68,6 +68,13 @@ beforeEach(async () => {
 						theme: LTHEME.LIGHT,
 						toggleTheme: () => {},
 						setTheme: () => {},
+						preference: "light",
+						setPreference: () => {},
+						accent: "mono",
+						setAccent: () => {},
+						accentColor: "#0e7490",
+						setAccentColor: () => {},
+						showLookOf: () => {},
 					}}
 				>
 					<Page />

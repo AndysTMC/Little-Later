@@ -1,11 +1,12 @@
 import { ArrowCircleRightIcon } from "@phosphor-icons/react";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
-import { useContext, useState } from "react";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
-import { HomeContext } from "../../contexts/Home";
+import { useState } from "react";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { twMerge } from "tailwind-merge";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
+
+import { pressable } from "../../a11y";
 
 const Component = ({
 	className,
@@ -21,22 +22,11 @@ const Component = ({
 	disableNavs?: boolean;
 }) => {
 	const { theme } = useTheme();
-	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
-		useContext(HomeContext);
+	const go = useMoveNavigate();
 	const [hovered, setHovered] = useState(false);
 	const handleOnClick = () => {
 		if (disableNavs) return;
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.slideLeft,
-			navigateTo,
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.slideLeft },
-			},
-		});
-		setShouldHomeNavigate(true);
+		go(navigateTo, "forward");
 	};
 	return (
 		<div
@@ -49,7 +39,7 @@ const Component = ({
 				className={`flex h-auto grow cursor-pointer items-center justify-center p-1`}
 				onMouseEnter={() => setHovered(true)}
 				onMouseLeave={() => setHovered(false)}
-				onClick={handleOnClick}
+				{...(disableNavs ? {} : pressable(handleOnClick))}
 			>
 				<div
 					className={`h-max w-full text-xs font-medium ${theme === LTHEME.DARK ? "text-white" : "text-black"} text-wrap`}

@@ -1,6 +1,5 @@
-import { useLittleTransition } from "../../hooks/useLittleTransition";
+import { usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
-import { exitTransitions } from "../../../route-transitions";
 import { LEXPORT_TYPE, LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { useState } from "react";
@@ -13,9 +12,7 @@ import { createToast } from "../../../services/toasts";
 
 const Page = () => {
 	const { theme } = useTheme();
-	const { entry, exit } = useLittleTransition({
-		defaultExit: exitTransitions.slideRight,
-	});
+	const pageMotion = usePageMotion();
 	const ExportTypes = Object.values(LEXPORT_TYPE);
 	const [exportType, setExportType] = useState<LEXPORT_TYPE>(
 		LEXPORT_TYPE.IMPORTABLE,
@@ -48,8 +45,7 @@ const Page = () => {
 	return (
 		<motion.div
 			className={`flex h-full w-full flex-col select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} overflow-y-hidden`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			<LUIBasicNav navigateTo="/settings" />
 			<LUISettingsLayout pageName="Export">

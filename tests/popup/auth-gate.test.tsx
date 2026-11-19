@@ -53,6 +53,8 @@ const profile = (hasPassword: boolean): UserProfile => ({
 	hasPassword,
 	theme: "light",
 	autoLockMinutes: 30,
+	accent: "mono",
+	accentColor: null,
 });
 
 let container: HTMLDivElement;
@@ -67,6 +69,13 @@ const render = async (element: React.ReactNode) => {
 						theme: LTHEME.LIGHT,
 						toggleTheme: () => {},
 						setTheme: () => {},
+						preference: "light",
+						setPreference: () => {},
+						accent: "mono",
+						setAccent: () => {},
+						accentColor: "#0e7490",
+						setAccentColor: () => {},
+						showLookOf: () => {},
 					}}
 				>
 					{element}
@@ -156,11 +165,7 @@ describe("auth gate", () => {
 		);
 		await press(container, "Delete");
 		expect(mocks.send).not.toHaveBeenCalled();
-		await typeInto(
-			container,
-			"Current password to delete this profile",
-			"secret",
-		);
+		await typeInto(container, "Password to delete this profile", "secret");
 		await press(container, "Confirm delete");
 		expect(mocks.send).toHaveBeenCalledWith("profile.delete", {
 			profileId: "p1",

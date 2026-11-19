@@ -8,7 +8,6 @@ import { LUIFeaturePageUD } from "../LUIFeaturePageUD/Component";
 import { LUITextInputT1 } from "../LUITextInput/Component";
 import { LUIWebPreview } from "../LUIWebPreview/Component";
 import { LUICUButton } from "../LUICUButton/Component";
-import { fakeWait } from "little-shared/utils/misc";
 import { LVBMIcon } from "../LUIIcons";
 import { LUIReminderLinks } from "../LUIReminderLinks/Component";
 import { LUITaskLinks } from "../LUITaskLinks/Component";
@@ -87,7 +86,6 @@ const Component = ({
 	};
 
 	const handleUpdateSave = async () => {
-		await fakeWait();
 		const name = customName.trim();
 		if (name !== "" && name !== save.customName) {
 			await send("save.update", { id: save.id, customName: name });
@@ -103,7 +101,7 @@ const Component = ({
 			if (draft.id === null) {
 				const { id } = await send("note.create", {
 					content: draft.content,
-					saveId: save.id,
+					saveIds: [save.id],
 				});
 				// Created once: a later Update edits it.
 				setDraftNotes((current) =>
@@ -159,7 +157,8 @@ const Component = ({
 					passedValue={save.url}
 					onChange={() => {}}
 					validate={() => ({ success: true, error: "" })}
-					lengthLimit={256}
+					lengthLimit={2048}
+					disableLengthCounter
 					disabled
 				/>
 				<LUIWebPreview previewBlob={preview} url={save.url} />
@@ -202,7 +201,7 @@ const Component = ({
 							className={`relative flex h-max w-full items-start gap-x-1`}
 						>
 							<textarea
-								className={`min-h-16 w-full resize-y rounded-lg border p-2 text-sm outline-none ${theme}-thin-scrollbar ${
+								className={`min-h-16 w-full resize-y rounded-lg border p-2 text-sm ${theme}-thin-scrollbar ${
 									theme === LTHEME.DARK
 										? "border-neutral-700 bg-neutral-900 text-white focus:border-neutral-500"
 										: "border-neutral-300 bg-neutral-100 text-black focus:border-neutral-500"

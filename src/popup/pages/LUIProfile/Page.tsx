@@ -1,36 +1,38 @@
 import { motion } from "framer-motion";
-import { exitTransitions } from "../../../route-transitions";
-import { useLittleTransition } from "../../hooks/useLittleTransition";
+import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { LTHEME } from "little-shared/enums";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
 import { LUIAvatarInput } from "../../components/LUIAvatarInput/Component";
 import { LUITextInputT1 } from "../../components/LUITextInput/Component";
-import { LUILabel } from "../../components/LUILabel/Component";
-import { LUISelectT1 } from "../../components/LUISelectT1/Component";
 import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
 import { send } from "../../../utils/send";
 import { sendAvatar } from "../../../utils/avatar";
-import { LUIPasswordForm } from "../../components/LUIPasswordForm/Component";
 import { useUserAvatar } from "../../hooks/useUserAvatar";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LMAX_NAME_LENGTH } from "little-shared/constants";
 
-// Auto-lock after this many idle minutes (0010, Locking).
-const AUTO_LOCK_CHOICES = [5, 15, 30, 60, 240];
-const autoLockLabel = (minutes: number) =>
-	minutes < 60
-		? `${minutes} minutes`
-		: `${minutes / 60} hour${minutes === 60 ? "" : "s"}`;
+import { attempt } from "../../attempt";
+import { useDebouncedSave } from "../../hooks/useDebouncedSave";
 
+import { pickRoute } from "../../filePick";
+import { AVATAR_REQUEST } from "../../components/LUIAvatarInput/request";
+import { usePickedFile } from "../../hooks/usePickedFile";
+
+const AVATAR_SLOT = "profile.avatar";
+
+import { useSettingDraft } from "../../hooks/useSettingDraft";
+
+const sameTrimmed = (a: string, b: string) => a.trim() === b.trim();
+
+// The profile's name and photo. Its password and auto-lock are on the
+// Security page, its theme on Appearance.
 const Page = () => {
-	const { theme, toggleTheme } = useTheme();
-	const { entry, exit } = useLittleTransition({
-		defaultExit: exitTransitions.slideRight,
-	});
+	const { theme } = useTheme();
+	const pageMotion = usePageMotion();
 
 	const currentUserProfile = useCurrentUserProfile();
 
@@ -38,43 +40,59 @@ const Page = () => {
 
 	const currentUserAvatar = useUserAvatar(currentUserProfile?.id);
 
-	const [name, setName] = useState(currentUserProfile?.name ?? "");
+	const [nameDraft, setName] = useSettingDraft(
+		"settings.profile.name",
+		currentUserProfile?.name,
+		sameTrimmed,
+	);
+	const name = nameDraft ?? "";
 
-	const avatarInputRef = useRef<HTMLInputElement>(null);
+	const go = useMoveNavigate();
+	// A photo chosen on the shared input screen is applied on return.
+	const pickedAvatar = usePickedFile(AVATAR_SLOT);
+	const { blob: pickedBlob, clear: clearPicked } = pickedAvatar;
+	const appliedPick = useRef<Blob | null>(null);
 
 	const handleUpdateAvatar = async (avatar: Blob | null) => {
 		if (currentUserProfile === undefined) {
 			return;
 		}
-		await sendAvatar(avatar);
+		await attempt(
+			() => sendAvatar(avatar),
+			"Couldn't update the profile photo.",
+		);
 	};
+
+	useEffect(() => {
+		if (
+			!pickedBlob ||
+			currentUserProfile === undefined ||
+			appliedPick.current === pickedBlob
+		) {
+			return;
+		}
+		appliedPick.current = pickedBlob;
+		void attempt(
+			() => sendAvatar(pickedBlob),
+			"Couldn't update the profile photo.",
+		).then(clearPicked);
+	}, [pickedBlob, currentUserProfile, clearPicked]);
 
 	const handleUpdateName = (name: string) => {
 		setName(name);
 	};
 
-	useEffect(() => {
-		if (currentUserProfile !== undefined) {
-			setName(currentUserProfile.name);
-		}
-	}, [currentUserProfile]);
-
-	useEffect(() => {
-		if (currentUserProfile === undefined) {
-			return;
-		}
-		const timeout = setTimeout(async () => {
-			if (name === currentUserProfile.name) {
-				return;
-			}
-			const trimmed = name.trim();
-			if (trimmed === "" || trimmed.length > LMAX_NAME_LENGTH) {
-				return;
-			}
-			await send("profile.update", { name: trimmed });
-		}, 1000);
-		return () => clearTimeout(timeout);
-	}, [name, currentUserProfile]);
+	const trimmedName = name.trim();
+	useDebouncedSave(
+		currentUserProfile !== undefined &&
+			trimmedName !== currentUserProfile.name &&
+			trimmedName !== "" &&
+			trimmedName.length <= LMAX_NAME_LENGTH
+			? () => send("profile.update", { name: trimmedName })
+			: null,
+		600,
+		trimmedName,
+	);
 
 	const validateName = (name: string) => {
 		if (name.length > LMAX_NAME_LENGTH) {
@@ -83,11 +101,15 @@ const Page = () => {
 		return { success: true, error: "" };
 	};
 
+	// The page moves away and the upload screen comes in, as with Lock.
+	const goToUpload = () => {
+		go(pickRoute(AVATAR_REQUEST, AVATAR_SLOT, "/profile"), "outOf");
+	};
+
 	return (
 		<motion.div
 			className={`h-full w-full select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"}`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			{loading ? (
 				<LUILoading />
@@ -110,8 +132,10 @@ const Page = () => {
 								>
 									<LUIAvatarInput
 										avatar={currentUserAvatar ?? null}
-										setAvatar={handleUpdateAvatar}
-										avatarInputRef={avatarInputRef}
+										onChoose={() => goToUpload()}
+										onRemove={() =>
+											void handleUpdateAvatar(null)
+										}
 										theme={theme}
 									/>
 								</div>
@@ -123,86 +147,6 @@ const Page = () => {
 									validate={validateName}
 								/>
 							</div>
-							<div
-								className={`flex h-full w-full flex-col gap-y-1`}
-							>
-								<div
-									className={`flex h-max w-full items-center justify-center`}
-								>
-									<LUILabel name={"Theme"} />
-								</div>
-								<LUISelectT1
-									passedItem={
-										theme === LTHEME.LIGHT
-											? "Little Light"
-											: "Little Dark"
-									}
-									items={["Little Light", "Little Dark"]}
-									onChange={toggleTheme}
-								/>
-							</div>
-							{currentUserProfile ? (
-								<>
-									<div
-										className={`flex h-full w-full flex-col gap-y-1`}
-									>
-										<div
-											className={`flex h-max w-full items-center justify-center`}
-										>
-											<LUILabel
-												name={"Lock after idle"}
-											/>
-										</div>
-										<LUISelectT1
-											passedItem={autoLockLabel(
-												currentUserProfile.autoLockMinutes,
-											)}
-											items={AUTO_LOCK_CHOICES.map(
-												autoLockLabel,
-											)}
-											onChange={(label) => {
-												const minutes =
-													AUTO_LOCK_CHOICES.find(
-														(choice) =>
-															autoLockLabel(
-																choice,
-															) === label,
-													);
-												if (minutes !== undefined) {
-													void send(
-														"profile.update",
-														{
-															autoLockMinutes:
-																minutes,
-														},
-													);
-												}
-											}}
-										/>
-									</div>
-									<div
-										className={`flex h-max w-full flex-col items-center gap-y-2 pb-4`}
-									>
-										<LUILabel name={"Password"} />
-										<LUIPasswordForm
-											hasPassword={
-												currentUserProfile.hasPassword
-											}
-											onSubmit={(
-												oldPassword,
-												newPassword,
-											) =>
-												send("profile.changePassword", {
-													profileId:
-														currentUserProfile.id,
-													oldPassword,
-													newPassword,
-												}).then(() => undefined)
-											}
-										/>
-									</div>
-								</>
-							) : null}
 						</div>
 					</LUISettingsLayout>
 				</motion.div>

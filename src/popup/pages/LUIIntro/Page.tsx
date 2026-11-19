@@ -1,34 +1,47 @@
-import { useNavigate } from "react-router";
 import { motion } from "framer-motion";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
-import { useLittleTransition } from "../../hooks/useLittleTransition";
-import { useEffect, useState } from "react";
-import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
+import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
+import { useEffect, useRef, useState } from "react";
+import { useResolvedCurrentUser } from "../../hooks/useCurrentUserProfile";
 
 const Page = () => {
-	const navigate = useNavigate();
-	const currentUserProfile = useCurrentUserProfile();
+	const go = useMoveNavigate();
+	const { isResolved, profile: currentUserProfile } =
+		useResolvedCurrentUser();
 
 	const [isVideoEnded, setIsVideoEnded] = useState(false);
 
-	useEffect(() => {
-		if (currentUserProfile) {
-			navigate("/home", {
-				replace: true,
-				state: {
-					entryTransition: entryTransitions.zoomIn,
-				},
-			});
-		} else if (isVideoEnded) {
-			navigate("/browse-profiles", {
-				state: { entryTransition: entryTransitions.slideLeft },
-			});
-		}
-	}, [navigate, currentUserProfile, isVideoEnded]);
+	// The intro leaves once, and only from its own route. It stays mounted
+	// while it animates out, and the profile can arrive after the popup
+	// has already gone somewhere else: redirecting then sent the popup to
+	// Home over whatever had just been opened. The address bar is asked,
+	// because this page's own location is frozen while it animates out.
+	const hasLeft = useRef(false);
 
-	const { entry, exit } = useLittleTransition({
-		defaultExit: exitTransitions.slideLeft,
-	});
+	useEffect(() => {
+		if (hasLeft.current) {
+			return;
+		}
+		if (!["", "#", "#/"].includes(window.location.hash)) {
+			hasLeft.current = true;
+			return;
+		}
+		if (currentUserProfile) {
+			hasLeft.current = true;
+			go("/home", "into", { replace: true });
+		} else if (isVideoEnded) {
+			hasLeft.current = true;
+			go("/browse-profiles", "forward");
+		}
+	}, [go, currentUserProfile, isVideoEnded]);
+
+	const pageMotion = usePageMotion();
+
+	// Nothing is drawn until it is known whether a profile is unlocked:
+	// the popup always opens here, and an unlocked profile goes straight
+	// to Home without the intro showing first.
+	if (!isResolved || currentUserProfile) {
+		return <motion.div className="h-full w-full" {...pageMotion} />;
+	}
 
 	const handleVideoEnd = () => {
 		setIsVideoEnded(true);
@@ -36,8 +49,7 @@ const Page = () => {
 	return (
 		<motion.div
 			className={`flex h-full w-full flex-col items-center justify-center bg-white`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			<motion.div className={`h-max w-max`} exit={{ opacity: 0 }}>
 				<video

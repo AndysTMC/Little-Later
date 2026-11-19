@@ -1,7 +1,5 @@
 import { motion } from "framer-motion";
-import { exitTransitions } from "../../../route-transitions";
 import { LTHEME } from "little-shared/enums";
-import { useLittleTransition } from "../../hooks/useLittleTransition";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../LUINavs/LUIBasicNav/Component";
@@ -11,17 +9,13 @@ import { useOutletContext } from "react-router";
 import { twMerge } from "tailwind-merge";
 import { LUIBrowsedVBM } from "../LUIBrowsedVBM/Component";
 import { usePagination } from "../../hooks/usePagination";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { LUIPagination } from "../LUIPagination/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
 
 const Component = ({ className }: { className?: string }) => {
-	const { pages } = useOutletContext<HomeData>();
+	const { pages, ready: isReady } = useOutletContext<HomeData>();
 	const { theme } = useTheme();
-	const { entry, exit } = useLittleTransition({
-		transitionName: "subEntryTransition",
-		defaultExit: exitTransitions.slideUpToDown,
-	});
 
 	const history = useMemo(
 		() =>
@@ -39,17 +33,12 @@ const Component = ({ className }: { className?: string }) => {
 		[history, startIndex, endIndex],
 	);
 
-	const [isReady, setIsReady] = useState<boolean>(false);
-
 	return (
-		<motion.div
+		<div
 			className={twMerge(
 				`flex h-full w-full flex-col select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} overflow-y-hidden`,
 				className,
 			)}
-			{...entry}
-			{...exit}
-			onAnimationComplete={() => setIsReady(true)}
 		>
 			<LUIBasicNav goBackDisabled />
 			<div
@@ -68,7 +57,10 @@ const Component = ({ className }: { className?: string }) => {
 								exit={{ opacity: 0 }}
 								transition={{ duration: 0.2 }}
 							>
-								<div className="flex h-max w-full shrink-0 px-4 py-1">
+								{/* Room for the page controls even before there is a
+							    second page: appearing later, they pushed the
+							    list down under the reader. */}
+								<div className="flex h-max min-h-9 w-full shrink-0 px-4 py-1">
 									<LUIPagination
 										currentBatch={currentBatch}
 										batchCount={batchCount}
@@ -96,7 +88,7 @@ const Component = ({ className }: { className?: string }) => {
 					/>
 				)}
 			</div>
-		</motion.div>
+		</div>
 	);
 };
 

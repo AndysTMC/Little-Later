@@ -72,6 +72,8 @@ const Component = ({
 						? "border-white hover:bg-neutral-900"
 						: "border-black hover:bg-neutral-100"
 				} rounded-full`}
+				type="button"
+				aria-label="Previous option"
 				onClick={() => handleChange(-1)}
 			>
 				<LUIThemedIcon
@@ -83,6 +85,7 @@ const Component = ({
 			</button>
 			<div
 				className={`relative flex h-full grow items-center justify-center`}
+				aria-live="polite"
 			>
 				<AnimatePresence>
 					{items.map((item, index) =>
@@ -111,6 +114,8 @@ const Component = ({
 						? "border-white hover:bg-neutral-900"
 						: "border-black hover:bg-neutral-100"
 				} rounded-full`}
+				type="button"
+				aria-label="Next option"
 				onClick={() => handleChange(1)}
 			>
 				<LUIThemedIcon

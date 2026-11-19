@@ -9,8 +9,7 @@ import { LUISelectT1 } from "../LUISelectT1/Component";
 import { LUIVBMLinks } from "../LUIVBMLinks/Component";
 import { LUICUButton } from "../LUICUButton/Component";
 import { LUILink } from "../LUILink/Component";
-import { fakeWait } from "little-shared/utils/misc";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { LMAX_REMINDER_MESSAGE_LENGTH } from "little-shared/constants";
 import { LTHEME } from "little-shared/enums";
 import { LUIAIButton } from "../LUIAIButton/Component";
@@ -20,6 +19,9 @@ import type { LinkRow } from "../../../storage/schema";
 import { linkedFrom, reminderKind } from "../../records";
 import { nextHour } from "../../../utils/dates";
 import { send } from "../../../utils/send";
+
+import { UIStateContext } from "../../contexts/UIStateContext";
+import { useDraft } from "../../hooks/useDraft";
 
 type ReminderKind = "normal" | "escalating";
 const REMINDER_KINDS: Array<ReminderKind> = ["normal", "escalating"];
@@ -43,9 +45,19 @@ const Component = ({
 	additionalSubmitCallback?: () => void;
 }) => {
 	const { theme } = useTheme();
-	const [message, setMessage] = useState(reminder?.message ?? "");
-	const [target, setTarget] = useState(() => reminder?.target ?? nextHour());
-	const [kind, setKind] = useState<ReminderKind>(
+	// Remembered until saved, so the popup closing does not lose it.
+	const draftKey = `reminder.${reminder?.id ?? "new"}${prelinkedSaveId ? `@${prelinkedSaveId}` : ""}`;
+	const { clearDrafts } = useContext(UIStateContext);
+	const [message, setMessage] = useDraft(
+		`${draftKey}.message`,
+		reminder?.message ?? "",
+	);
+	const [target, setTarget] = useDraft(
+		`${draftKey}.target`,
+		() => reminder?.target ?? nextHour(),
+	);
+	const [kind, setKind] = useDraft<ReminderKind>(
+		`${draftKey}.kind`,
 		reminder ? reminderKind(reminder) : "normal",
 	);
 	const [warning, setWarning] = useState("");
@@ -57,11 +69,13 @@ const Component = ({
 	const storedSaveIds = reminder
 		? linkedFrom(links, reminder.id, saves).map((save) => save.id)
 		: [];
-	const [linkedSaveIds, setLinkedSaveIds] = useState(() =>
-		prelinkedSaveId !== undefined &&
-		!storedSaveIds.includes(prelinkedSaveId)
-			? [...storedSaveIds, prelinkedSaveId]
-			: storedSaveIds,
+	const [linkedSaveIds, setLinkedSaveIds] = useDraft(
+		`${draftKey}.saves`,
+		() =>
+			prelinkedSaveId !== undefined &&
+			!storedSaveIds.includes(prelinkedSaveId)
+				? [...storedSaveIds, prelinkedSaveId]
+				: storedSaveIds,
 	);
 
 	const [aiRephrase, setAIRephrase] = useState<LittleAI | undefined>();
@@ -88,13 +102,9 @@ const Component = ({
 			return;
 		}
 		setWarning("");
-		await fakeWait();
 		try {
-			let reminderId: string;
-			let alreadyLinked: Array<string>;
+			// One command each way: the reminder and its saves change together.
 			if (reminder) {
-				reminderId = reminder.id;
-				alreadyLinked = storedSaveIds;
 				// The schedule restarts only when it changes, and only a
 				// future time is accepted then.
 				const storedKind = reminderKind(reminder);
@@ -104,33 +114,17 @@ const Component = ({
 					target: target !== reminder.target ? target : undefined,
 					escalate:
 						kind !== storedKind ? kind === "escalating" : undefined,
+					saveIds: linkedSaveIds,
 				});
 			} else {
-				const [firstSaveId] = linkedSaveIds;
-				({ id: reminderId } = await send("reminder.create", {
+				await send("reminder.create", {
 					message,
 					target,
 					escalate: kind === "escalating",
-					saveId: firstSaveId,
-				}));
-				alreadyLinked = firstSaveId === undefined ? [] : [firstSaveId];
+					saveIds: linkedSaveIds,
+				});
 			}
-			for (const saveId of linkedSaveIds) {
-				if (!alreadyLinked.includes(saveId)) {
-					await send("link.create", {
-						fromId: reminderId,
-						toId: saveId,
-					});
-				}
-			}
-			for (const saveId of alreadyLinked) {
-				if (!linkedSaveIds.includes(saveId)) {
-					await send("link.delete", {
-						fromId: reminderId,
-						toId: saveId,
-					});
-				}
-			}
+			clearDrafts(`${draftKey}.`);
 			additionalSubmitCallback();
 		} catch (error) {
 			setWarning(
@@ -143,9 +137,13 @@ const Component = ({
 
 	useEffect(() => {
 		if (!aiRephrase) {
-			LittleAI.getLAIRephraseInstance().then((instance) => {
-				setAIRephrase(instance);
-			});
+			// Without one (locked, or unreadable settings) the AI buttons
+			// stay unavailable rather than failing unseen.
+			LittleAI.getLAIAssistInstance().then(
+				setAIRephrase,
+				(error: unknown) =>
+					console.warn("AI is unavailable here.", error),
+			);
 		}
 	}, []);
 

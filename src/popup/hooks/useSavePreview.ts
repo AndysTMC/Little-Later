@@ -25,21 +25,32 @@ const usePreview = (saveId: string | undefined, enabled: boolean) => {
 		null,
 	);
 	useEffect(() => {
-		if (!keys || !row) return;
+		if (!keys) {
+			setOpened(null);
+			return;
+		}
+		if (!row) return;
 		let active = true;
-		void openAsset(keys, row.id, row.body).then((bytes) => {
-			if (active) {
-				setOpened({
-					row,
-					blob: new Blob([bytes.slice()], { type: PREVIEW_TYPE }),
-				});
-			}
-		});
+		openAsset(keys, row.id, row.body).then(
+			(bytes) => {
+				if (active) {
+					setOpened({
+						row,
+						blob: new Blob([bytes.slice()], { type: PREVIEW_TYPE }),
+					});
+				}
+			},
+			(error: unknown) => {
+				console.warn("Could not open a page preview.", error);
+			},
+		);
 		return () => {
 			active = false;
 		};
 	}, [keys, row]);
-	return row && opened?.row === row ? opened.blob : undefined;
+	// The save's last preview stays while a newer capture is opened, so a
+	// background capture does not flash the placeholder.
+	return row && opened?.row.ownerId === row.ownerId ? opened.blob : undefined;
 };
 
 export const useSavePreview = (saveId: string | undefined) =>

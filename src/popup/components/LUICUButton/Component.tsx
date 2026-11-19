@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LTHEME } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { CaretRightIcon, CircleNotchIcon } from "@phosphor-icons/react";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../hooks/useTheme";
+
+const SLOW_MS = 150;
 
 const Component = ({
 	className,
@@ -21,28 +23,42 @@ const Component = ({
 }) => {
 	const { theme: profileTheme } = useTheme();
 	const theme = passedTheme ?? profileTheme;
+	// Pending blocks a second press at once; the spinner sweep only shows
+	// once the action has taken long enough to need it.
+	const [isPending, setIsPending] = useState(false);
 	const [isExpanded, setIsExpanded] = useState(false);
+	const slowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	useEffect(
+		() => () => {
+			if (slowTimer.current) clearTimeout(slowTimer.current);
+		},
+		[],
+	);
 
 	const handleClick = async () => {
-		setIsExpanded(true);
+		setIsPending(true);
+		slowTimer.current = setTimeout(() => setIsExpanded(true), SLOW_MS);
 		try {
 			await onClick();
 		} finally {
+			if (slowTimer.current) clearTimeout(slowTimer.current);
+			slowTimer.current = null;
+			setIsPending(false);
 			setIsExpanded(false);
 		}
 	};
+	const isDark = theme === LTHEME.DARK;
 
 	return (
-		<button
+		<motion.button
 			type="button"
-			disabled={disabled || isExpanded}
+			disabled={disabled || isPending}
+			aria-busy={isPending}
 			className={twMerge(
-				`h-12 w-72 ${
-					theme === LTHEME.DARK
-						? "border-white bg-black hover:bg-neutral-900"
-						: "border-black bg-white hover:bg-neutral-100"
-				} flex overflow-hidden rounded-lg border ${className} ${
-					isExpanded
+				`group flex h-12 w-72 overflow-hidden rounded-lg border ${
+					isDark ? "border-white bg-black" : "border-black bg-white"
+				} ${
+					isPending
 						? "cursor-progress"
 						: disabled
 							? "cursor-not-allowed opacity-60"
@@ -50,10 +66,12 @@ const Component = ({
 				}`,
 				className,
 			)}
-			onClick={!isExpanded && !disabled ? handleClick : () => {}}
+			whileTap={disabled || isPending ? undefined : { scale: 0.97 }}
+			transition={{ duration: 0.1 }}
+			onClick={!isPending && !disabled ? handleClick : undefined}
 		>
 			<motion.div
-				className={` ${theme === LTHEME.DARK ? "bg-white text-black" : "bg-black text-white"} flex h-full items-center justify-center ${!isExpanded ? "" : "rounded-lg"} `}
+				className={`ll-accent-fill flex h-full items-center justify-center ${!isExpanded ? "" : "rounded-lg"} `}
 				animate={{
 					width: isExpanded ? "100%" : "25%",
 				}}
@@ -63,21 +81,19 @@ const Component = ({
 					<LUIThemedIcon
 						Icon={CircleNotchIcon}
 						className="size-6 animate-spin"
-						invertTheme={true}
-						passedTheme={theme}
+						color="currentColor"
 					/>
 				) : (
 					<LUIThemedIcon
 						Icon={CaretRightIcon}
-						className="size-6"
-						invertTheme={true}
-						passedTheme={theme}
+						className={`size-6 transition-transform duration-150 ${disabled ? "" : "group-hover:translate-x-1"}`}
+						color="currentColor"
 					/>
 				)}
 			</motion.div>
 
 			<motion.div
-				className={`h-full ${theme === LTHEME.DARK ? "bg-black text-white" : "bg-white text-black"} flex items-center justify-center text-base`}
+				className={`h-full ${isDark ? "bg-black text-white" : "bg-white text-black"} ${disabled ? "" : isDark ? "group-hover:bg-neutral-900" : "group-hover:bg-neutral-100"} flex items-center justify-center text-base transition-colors`}
 				animate={{
 					width: isExpanded ? "0%" : "75%",
 					opacity: isExpanded ? 0 : 1,
@@ -86,7 +102,7 @@ const Component = ({
 			>
 				{name}
 			</motion.div>
-		</button>
+		</motion.button>
 	);
 };
 

@@ -68,9 +68,7 @@ const Component = ({
 								isActive ? "min-w-0 grow px-4" : "w-14 shrink-0"
 							} ${
 								isActive
-									? theme === LTHEME.DARK
-										? "bg-white text-black"
-										: "bg-black text-white"
+									? "ll-accent-fill"
 									: theme === LTHEME.DARK
 										? "bg-black text-white hover:bg-neutral-800"
 										: "bg-white text-black hover:bg-neutral-200"
@@ -81,7 +79,7 @@ const Component = ({
 								Icon={tab.icon}
 								weight="fill"
 								className="size-5"
-								invertTheme={isActive}
+								{...(isActive ? { color: "currentColor" } : {})}
 							/>
 							{isActive ? (
 								<span className="text-md truncate font-bold whitespace-nowrap">

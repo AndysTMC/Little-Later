@@ -1,84 +1,34 @@
-import { useNavigate } from "react-router";
-import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
+import { LTHEME } from "little-shared/enums";
 import { motion } from "framer-motion";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
-import { useLittleTransition } from "../../hooks/useLittleTransition";
-import React, { useRef, useState } from "react";
+import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
-import { PasswordIcon, UploadSimpleIcon } from "@phosphor-icons/react";
-import { LUIIconField } from "../../components/LUIIconField/Component";
-import { importBackup } from "../../../services/backup";
+import { UploadSimpleIcon } from "@phosphor-icons/react";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIProfileMini } from "../../components/LUIProfileMini/Component";
 import { useUserProfiles } from "../../hooks/useUserProfiles";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { useLoading } from "../../hooks/useLoading";
-import { createToast } from "../../../services/toasts";
 
 const Page = () => {
-	const { entry, exit, setExit } = useLittleTransition({});
-	const navigate = useNavigate();
+	const pageMotion = usePageMotion();
+	const go = useMoveNavigate();
 
 	const userProfiles = useUserProfiles();
 
 	const loading = useLoading([userProfiles]);
 
-	const fileInputRef = useRef<HTMLInputElement>(null);
-	const [pendingImport, setPendingImport] = useState<Blob | null>(null);
-	const [importPassword, setImportPassword] = useState("");
-	const [isImporting, setIsImporting] = useState(false);
-
 	const handleNewProfile = () => {
-		setExit(exitTransitions.slideLeft);
-		navigate("/new-profile", {
-			state: { entryTransition: entryTransitions.slideLeft },
-		});
+		go("/new-profile", "forward");
 	};
 
 	const handleImportProfile = () => {
-		fileInputRef.current?.click();
-	};
-
-	const handleFileInputChange = async (
-		e: React.ChangeEvent<HTMLInputElement>,
-	) => {
-		if (!e.target.files?.length) return;
-		setPendingImport(e.target.files[0]);
-		setImportPassword("");
-		e.target.value = "";
-	};
-
-	const handleConfirmImport = async () => {
-		if (!pendingImport || isImporting) {
-			return;
-		}
-		setIsImporting(true);
-		try {
-			await importBackup(pendingImport, importPassword);
-			setPendingImport(null);
-			setImportPassword("");
-			await createToast(
-				"Profile imported. Unlock it with the backup's password.",
-				LTOAST_TYPE.SUCCESS,
-			);
-		} catch (error) {
-			console.error("Failed to import profile.", error);
-			await createToast(
-				error instanceof Error
-					? error.message
-					: "Couldn't import that file.",
-				LTOAST_TYPE.ERROR,
-			);
-		} finally {
-			setIsImporting(false);
-		}
+		go("/import-profile", "forward");
 	};
 
 	return (
 		<motion.div
 			className={`flex h-full w-full flex-col bg-white select-none`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			{loading ? (
 				<LUILoading />
@@ -92,11 +42,11 @@ const Page = () => {
 					<div
 						className={`flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-hidden`}
 					>
-						<div
+						<h1
 							className={`mt-5 flex items-center justify-center text-4xl font-semibold text-black`}
 						>
 							Choose Profile
-						</div>
+						</h1>
 						<div className="w-full grow overflow-y-hidden px-10 pt-5 pb-1">
 							<div
 								className={`grid max-h-full w-full grow grid-cols-3 justify-items-center gap-y-5 overflow-y-auto px-6 ${LTHEME.LIGHT}-scrollbar `}
@@ -160,68 +110,11 @@ const Page = () => {
 										key={profile.id}
 										userProfile={profile}
 										name={profile.name}
-										changeExit={(exit) =>
-											setExit(
-												exit ?? exitTransitions.zoomIn,
-											)
-										}
 									/>
 								))}
 							</div>
 						</div>
 					</div>
-
-					{pendingImport ? (
-						<div className="flex w-full flex-col items-center gap-y-2 px-10 pb-4">
-							<LUIIconField
-								id="little-import-password"
-								icon={PasswordIcon}
-								placeholder="Password"
-								ariaLabel="Backup password"
-								type="password"
-								autoComplete="off"
-								value={importPassword}
-								onChange={setImportPassword}
-								onSubmit={() => {
-									void handleConfirmImport();
-								}}
-								passedTheme={LTHEME.LIGHT}
-							/>
-							<div className="flex gap-x-2">
-								<button
-									type="button"
-									disabled={
-										isImporting ||
-										importPassword.trim() === ""
-									}
-									className="flex h-10 cursor-pointer items-center justify-center rounded-lg bg-black px-4 text-white disabled:cursor-not-allowed disabled:opacity-60"
-									onClick={handleConfirmImport}
-								>
-									{isImporting ? "Importing..." : "Import"}
-								</button>
-								<button
-									type="button"
-									disabled={isImporting}
-									className="flex h-10 cursor-pointer items-center justify-center rounded-lg bg-neutral-200 px-4 text-black disabled:cursor-not-allowed disabled:opacity-60"
-									onClick={() => {
-										setPendingImport(null);
-										setImportPassword("");
-									}}
-								>
-									Cancel
-								</button>
-							</div>
-						</div>
-					) : null}
-
-					<input
-						type="file"
-						accept=".lldat,application/octet-stream"
-						aria-label="Import profile file"
-						ref={fileInputRef}
-						style={{ display: "none" }}
-						onChange={handleFileInputChange}
-					/>
 				</motion.div>
 			)}
 		</motion.div>

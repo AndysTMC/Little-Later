@@ -43,6 +43,13 @@ describe("note detail manual save flow", () => {
 						theme: LTHEME.DARK,
 						toggleTheme: () => {},
 						setTheme: () => {},
+						preference: "light",
+						setPreference: () => {},
+						accent: "mono",
+						setAccent: () => {},
+						accentColor: "#0e7490",
+						setAccentColor: () => {},
+						showLookOf: () => {},
 					}}
 				>
 					<LUINoteDetailForm note={note} />

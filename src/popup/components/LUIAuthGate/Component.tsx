@@ -12,11 +12,12 @@ import { useState } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import { AnimatePresence, motion } from "framer-motion";
 import { send } from "../../../utils/send";
-import { fakeWait } from "little-shared/utils/misc";
-import { useNavigate } from "react-router";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { twMerge } from "tailwind-merge";
 import { useUserAvatar } from "../../hooks/useUserAvatar";
 import { useObjectUrl } from "../../hooks/useObjectUrl";
+
+const DELETE_CONFIRM_DELAY_MS = 800;
 
 const Component = ({
 	className,
@@ -30,12 +31,13 @@ const Component = ({
 	handleFunction: (password?: string) => Promise<void>;
 }) => {
 	const { theme } = useTheme();
-	const navigate = useNavigate();
+	const go = useMoveNavigate();
 
 	const [isOperationInProgress, setIsOperationInProgress] = useState(false);
 	// null means no delete is being confirmed.
 	const [deletePassword, setDeletePassword] = useState<string | null>(null);
 	const isConfirmingDelete = deletePassword !== null;
+	const [deleteArmedAt, setDeleteArmedAt] = useState(0);
 
 	const [password, setPassword] = useState("");
 	const [warning, setWarning] = useState("");
@@ -54,7 +56,6 @@ const Component = ({
 		}
 		setIsOperationInProgress(true);
 		try {
-			await fakeWait();
 			await handleFunction(needsPassword ? password : undefined);
 		} catch (error) {
 			setWarning(
@@ -75,11 +76,25 @@ const Component = ({
 	const handleDelete = async () => {
 		if (deletePassword === null) {
 			setDeletePassword("");
+			setDeleteArmedAt(Date.now());
 			setWarning(
 				userProfile.hasPassword
-					? "Deleting erases everything in this profile. Enter its password below, then confirm"
+					? "Deleting erases everything in this profile. Enter its password to confirm"
 					: "Deleting erases everything in this profile. Press again to confirm",
 			);
+			return;
+		}
+		if (userProfile.hasPassword && deletePassword === "") {
+			setWarning("Enter this profile's password to delete it");
+			return;
+		}
+		// Confirm appears where Delete was, so without a password the second
+		// half of a double click must not count as the confirmation. A
+		// protected profile asks for its password first.
+		if (
+			!userProfile.hasPassword &&
+			Date.now() - deleteArmedAt < DELETE_CONFIRM_DELAY_MS
+		) {
 			return;
 		}
 		setIsOperationInProgress(true);
@@ -88,7 +103,8 @@ const Component = ({
 				profileId: userProfile.id,
 				password: userProfile.hasPassword ? deletePassword : null,
 			});
-			navigate("/browse-profiles");
+			// Out of the deleted profile, like locking.
+			go("/browse-profiles", "outOf");
 		} catch (error) {
 			setWarning(
 				error instanceof Error
@@ -100,28 +116,58 @@ const Component = ({
 		}
 	};
 
+	const cancelDelete = () => {
+		setDeletePassword(null);
+		setWarning("");
+	};
+
 	const lockInfo = userProfile.hasPassword
 		? "Locking forgets the key; you'll need the password to open this profile again"
 		: "This profile has no password, so it is not encrypted at rest";
 
+	const isDark = theme === LTHEME.DARK;
+	const text = isDark ? "text-white" : "text-black";
+	const primary = isDark
+		? "bg-white text-black hover:bg-neutral-200"
+		: "bg-black text-white hover:bg-neutral-800";
+	// Deleting is the less common way out of this screen, so it is quieter.
+	const secondary = isDark
+		? "border border-neutral-700 text-white hover:bg-neutral-900"
+		: "border border-neutral-300 text-black hover:bg-neutral-100";
+	const note = (Icon: typeof InfoIcon, message: string, alert = false) => (
+		<div
+			role={alert ? "alert" : undefined}
+			className="flex h-max w-72 shrink-0 gap-x-1 opacity-75"
+		>
+			<LUIThemedIcon
+				Icon={Icon}
+				weight="fill"
+				color={isDark ? "white" : "black"}
+				className="h-5 w-5 shrink-0"
+			/>
+			<div className={`text-sm italic ${text}`}>{message}</div>
+		</div>
+	);
+
 	return (
 		<div
 			className={twMerge(
-				`flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-hidden`,
+				`flex min-h-0 w-full grow flex-col items-center justify-start gap-y-5`,
 				className,
 			)}
 		>
-			<div
-				className={`flex items-center justify-center ${theme === LTHEME.DARK ? "text-white" : "text-black"} mt-5 text-4xl font-semibold`}
+			<h1
+				className={`flex shrink-0 items-center justify-center ${text} mt-5 text-4xl font-semibold`}
 			>
 				{type}
-			</div>
+			</h1>
+			{/* Scrolls rather than squeezing its parts when they do not fit. */}
 			<form
-				className={`flex w-full grow flex-col items-center gap-y-5 overflow-y-hidden px-12 pt-5 pb-1 transition-all delay-600 duration-300`}
+				className="flex min-h-0 w-full grow flex-col items-center gap-y-5 overflow-y-auto px-12 pt-5 pb-4"
 				onSubmit={handleSubmit}
 			>
 				<div
-					className={`flex h-max w-full items-center justify-center ${isOperationInProgress ? "mt-20 animate-bounce" : ""} pt-5 transition-all delay-300 duration-300`}
+					className={`flex h-max w-full shrink-0 items-center justify-center ${isOperationInProgress ? "mt-20 animate-bounce" : ""} pt-5 transition-all delay-300 duration-300`}
 				>
 					{avatarUrl ? (
 						<img
@@ -139,163 +185,106 @@ const Component = ({
 					)}
 				</div>
 				<AnimatePresence>
-					{!isOperationInProgress ? (
+					{isOperationInProgress ? null : (
 						<motion.div
-							className={`flex h-max w-full flex-col items-center justify-center gap-y-1`}
+							// One view at a time, swapped at once: opening or
+							// locking, or deleting, each with its own single
+							// password field.
+							className="flex w-full shrink-0 flex-col items-center gap-y-3"
 							initial={{ opacity: 0 }}
 							animate={{
 								opacity: 1,
-								transition: { duration: 0.3, delay: 0.3 },
+								transition: { duration: 0.2 },
 							}}
-							exit={{
-								opacity: 0,
-								transition: { duration: 0.3, delay: 0.3 },
-							}}
+							exit={{ opacity: 0, transition: { duration: 0.2 } }}
 						>
-							{needsPassword ? (
-								<LUIIconField
-									id="little-auth-password"
-									name="password"
-									icon={PasswordIcon}
-									placeholder="Password"
-									ariaLabel="Password"
-									type="password"
-									autoComplete="current-password"
-									value={password}
-									onChange={(nextPassword) => {
-										setPassword(nextPassword);
-										setWarning("");
-										setDeletePassword(null);
-									}}
-									onSubmit={() => {
-										void handleGo();
-									}}
-								/>
-							) : null}
-							{type === "Lock" && !isOperationInProgress ? (
-								<div
-									className={`flex h-max w-72 gap-x-1 opacity-75`}
-								>
-									<LUIThemedIcon
-										Icon={InfoIcon}
-										weight="fill"
-										color={
-											theme === LTHEME.DARK
-												? "white"
-												: "black"
-										}
-										className="h-5 w-5"
-									/>
-									<div
-										className={`text-sm italic ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
+							{isConfirmingDelete ? (
+								<>
+									{userProfile.hasPassword ? (
+										<LUIIconField
+											id="little-auth-delete-password"
+											name="delete-password"
+											icon={PasswordIcon}
+											placeholder="Password"
+											ariaLabel="Password to delete this profile"
+											type="password"
+											autoComplete="current-password"
+											value={deletePassword}
+											onChange={(nextPassword) => {
+												setDeletePassword(nextPassword);
+												setWarning("");
+											}}
+											onSubmit={() => {
+												void handleDelete();
+											}}
+										/>
+									) : null}
+									{warning !== ""
+										? note(WarningCircleIcon, warning, true)
+										: null}
+									{/* Confirm sits where Delete was, so the second
+									    half of a double click lands on it and the
+									    confirmation guard ignores it. */}
+									<button
+										type="button"
+										className={`flex h-12 w-72 shrink-0 cursor-pointer items-center justify-center rounded-lg ${secondary}`}
+										onClick={cancelDelete}
 									>
-										{lockInfo}
-									</div>
-								</div>
-							) : null}
-							{!isOperationInProgress && warning !== "" ? (
-								<div
-									className={`flex h-max w-72 gap-x-1 opacity-75`}
-								>
-									<LUIThemedIcon
-										Icon={WarningCircleIcon}
-										weight="fill"
-										color={
-											theme === LTHEME.DARK
-												? "white"
-												: "black"
-										}
-										className="h-5 w-5"
-									/>
-									<div
-										className={`text-sm italic ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
+										Cancel
+									</button>
+									<button
+										type="button"
+										className="flex h-12 w-72 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-red-600 text-white hover:bg-red-700"
+										onClick={handleDelete}
 									>
-										{warning}
-									</div>
-								</div>
-							) : null}
+										Confirm delete
+									</button>
+								</>
+							) : (
+								<>
+									{needsPassword ? (
+										<LUIIconField
+											id="little-auth-password"
+											name="password"
+											icon={PasswordIcon}
+											placeholder="Password"
+											ariaLabel="Password"
+											type="password"
+											autoComplete="current-password"
+											value={password}
+											onChange={(nextPassword) => {
+												setPassword(nextPassword);
+												setWarning("");
+											}}
+											onSubmit={() => {
+												void handleGo();
+											}}
+										/>
+									) : null}
+									{type === "Lock"
+										? note(InfoIcon, lockInfo)
+										: null}
+									{warning !== ""
+										? note(WarningCircleIcon, warning, true)
+										: null}
+									<button
+										type="button"
+										className={`flex h-12 w-72 shrink-0 cursor-pointer items-center justify-center rounded-lg ${primary}`}
+										onClick={handleGo}
+									>
+										{type}
+									</button>
+									<button
+										type="button"
+										className={`flex h-12 w-72 shrink-0 cursor-pointer items-center justify-center rounded-lg ${secondary}`}
+										onClick={handleDelete}
+									>
+										Delete
+									</button>
+								</>
+							)}
 						</motion.div>
-					) : null}
-				</AnimatePresence>
-				<AnimatePresence>
-					{!isOperationInProgress ? (
-						<motion.div
-							className={`flex h-12 w-full items-center justify-center`}
-							initial={{ opacity: 0 }}
-							animate={{
-								opacity: 1,
-								transition: { duration: 0.3, delay: 0.3 },
-							}}
-							exit={{
-								opacity: 0,
-								transition: { duration: 0.3, delay: 0.3 },
-							}}
-						>
-							<button
-								className={`h-12 w-72 ${
-									theme === LTHEME.DARK
-										? "border-black bg-white text-black hover:bg-neutral-100"
-										: "border-white bg-black text-white hover:bg-neutral-900"
-								} flex cursor-pointer items-center justify-center rounded-lg`}
-								onClick={handleGo}
-								type="button"
-							>
-								{type}
-							</button>
-						</motion.div>
-					) : null}
-				</AnimatePresence>
-				<AnimatePresence>
-					{!isOperationInProgress ? (
-						<motion.div
-							className={`flex h-max min-h-12 w-full flex-col items-center justify-center gap-y-2`}
-							initial={{ opacity: 0 }}
-							animate={{
-								opacity: 1,
-								transition: { duration: 0.3, delay: 0.3 },
-							}}
-							exit={{
-								opacity: 0,
-								transition: { duration: 0.3, delay: 0.3 },
-							}}
-						>
-							{deletePassword !== null &&
-							userProfile.hasPassword ? (
-								<LUIIconField
-									id="little-auth-delete-password"
-									name="delete-password"
-									icon={PasswordIcon}
-									placeholder="Current password"
-									ariaLabel="Current password to delete this profile"
-									type="password"
-									autoComplete="current-password"
-									value={deletePassword}
-									onChange={(nextPassword) => {
-										setDeletePassword(nextPassword);
-										setWarning("");
-									}}
-									onSubmit={() => {
-										void handleDelete();
-									}}
-								/>
-							) : null}
-							<button
-								className={`h-12 w-72 ${
-									isConfirmingDelete
-										? "bg-red-600 text-white hover:bg-red-700"
-										: theme === LTHEME.DARK
-											? "border-black bg-white text-black hover:bg-neutral-100"
-											: "border-white bg-black text-white hover:bg-neutral-900"
-								} flex cursor-pointer items-center justify-center rounded-lg`}
-								onClick={handleDelete}
-								type="button"
-							>
-								{isConfirmingDelete
-									? "Confirm delete"
-									: "Delete"}
-							</button>
-						</motion.div>
-					) : null}
+					)}
 				</AnimatePresence>
 			</form>
 		</div>

@@ -40,7 +40,7 @@ const Component = ({
 	return (
 		<div
 			className={twMerge(
-				"flex h-12 w-72 items-center rounded-lg border border-solid transition-colors duration-150",
+				"ll-field flex h-12 w-72 items-center rounded-lg border border-solid transition-colors duration-150",
 				isDark
 					? "border-neutral-700 bg-neutral-900 focus-within:border-neutral-400"
 					: "border-neutral-300 bg-neutral-100 focus-within:border-neutral-800",
@@ -74,7 +74,7 @@ const Component = ({
 						onSubmit();
 					}
 				}}
-				className={`h-full min-w-0 grow appearance-none border-0 bg-transparent pr-4 text-xl font-light shadow-none ring-0 outline-none focus:outline-none focus-visible:outline-none ${
+				className={`h-full min-w-0 grow appearance-none border-0 bg-transparent pr-4 text-xl font-light shadow-none ring-0 ${
 					isDark
 						? "text-white placeholder:text-neutral-500"
 						: "text-black placeholder:text-neutral-400"

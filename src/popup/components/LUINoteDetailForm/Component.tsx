@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { twMerge } from "tailwind-merge";
 import { useNavigate } from "react-router";
-import { fakeWait } from "little-shared/utils/misc";
 import { LTHEME } from "little-shared/enums";
 import { useTheme } from "../../hooks/useTheme";
 import { send } from "../../../utils/send";
@@ -27,6 +26,21 @@ import {
 	NoteFormattingResult,
 } from "../../../utils/noteFormatting";
 
+import { LTOAST_TYPE } from "little-shared/enums";
+import { createToast } from "../../../services/toasts";
+
+import { UIStateContext } from "../../contexts/UIStateContext";
+
+import type { Save } from "../../../storage/repositories";
+import type { LinkRow } from "../../../storage/schema";
+import { linkedFrom } from "../../records";
+import { LUIVBMLinks } from "../LUIVBMLinks/Component";
+
+// One array each, so a caller that passes none does not look like a
+// change on every render.
+const NO_LINKS: Array<LinkRow> = [];
+const NO_SAVES: Array<Save> = [];
+
 type ToolbarAction = {
 	id: NoteFormattingAction;
 	label: string;
@@ -35,7 +49,6 @@ type ToolbarAction = {
 const TOOLBAR_ACTIONS: Array<ToolbarAction> = [
 	{ id: "bold", label: "B" },
 	{ id: "italic", label: "I" },
-	{ id: "underline", label: "U" },
 	{ id: "strikethrough", label: "S" },
 	{ id: "h1", label: "H1" },
 	{ id: "h2", label: "H2" },
@@ -51,10 +64,16 @@ const TOOLBAR_ACTIONS: Array<ToolbarAction> = [
 const Component = ({
 	className,
 	note,
+	links = NO_LINKS,
+	saves = NO_SAVES,
 }: {
 	className?: string;
 	// A new note has no id until its first save.
 	note: { id: string | null; content: string };
+	// For attaching a saved note to saved pages; left out, the note
+	// cannot be linked from here.
+	links?: Array<LinkRow>;
+	saves?: Array<Save>;
 }) => {
 	const { theme } = useTheme();
 	const navigate = useNavigate();
@@ -62,14 +81,36 @@ const Component = ({
 	const historyRef = useRef<Array<string>>([note.content]);
 	const historyIndexRef = useRef(0);
 
-	const [draftContent, setDraftContent] = useState(note.content);
+	// Unsaved text is remembered, so the popup closing (it does whenever
+	// it loses focus) does not lose what was being written.
+	const draftKey = `note.${note.id ?? "new"}`;
+	const { getDraft, setDraft, clearDraft } = useContext(UIStateContext);
+	const [remembered] = useState(() => {
+		const draft = getDraft(draftKey);
+		return typeof draft === "string" && draft !== note.content
+			? draft
+			: null;
+	});
+	const keepRemembered = useRef(remembered !== null);
+
+	const [draftContent, setDraftContent] = useState(
+		remembered ?? note.content,
+	);
 	const [baselineContent, setBaselineContent] = useState(note.content);
 	const [canUndo, setCanUndo] = useState(false);
 	const [canRedo, setCanRedo] = useState(false);
 	const [viewMode, setViewMode] = useState<"edit" | "preview">(
-		note.id === null ? "edit" : "preview",
+		note.id === null || remembered !== null ? "edit" : "preview",
 	);
 	const [isSaving, setIsSaving] = useState(false);
+
+	useEffect(() => {
+		if (draftContent === baselineContent || draftContent.trim() === "") {
+			clearDraft(draftKey);
+		} else {
+			setDraft(draftKey, draftContent);
+		}
+	}, [draftContent, baselineContent, draftKey, setDraft, clearDraft]);
 
 	const syncHistoryFlags = () => {
 		setCanUndo(historyIndexRef.current > 0);
@@ -103,6 +144,12 @@ const Component = ({
 	};
 
 	useEffect(() => {
+		// The text remembered from last time stays in the editor when the
+		// page opens; after that the note's own text is followed.
+		if (keepRemembered.current) {
+			keepRemembered.current = false;
+			return;
+		}
 		setDraftContent(note.content);
 		setBaselineContent(note.content);
 		setViewMode(note.id === null ? "edit" : "preview");
@@ -162,10 +209,42 @@ const Component = ({
 		pushHistory(nextContent);
 	};
 
+	// The pages this note is attached to. Changes stay local until Update,
+	// like the text.
+	const noteId = note.id;
+	const storedSaveIds = useMemo(
+		() =>
+			noteId === null
+				? []
+				: linkedFrom(links, noteId, saves).map((save) => save.id),
+		[links, noteId, saves],
+	);
+	const [linkedSaveIds, setLinkedSaveIds] = useState(storedSaveIds);
+	const [linksTouched, setLinksTouched] = useState(false);
+	useEffect(() => {
+		// Follow what is stored until the user changes it here.
+		if (!linksTouched) {
+			setLinkedSaveIds(storedSaveIds);
+		}
+	}, [storedSaveIds, linksTouched]);
+	const linksChanged =
+		linksTouched &&
+		(linkedSaveIds.length !== storedSaveIds.length ||
+			linkedSaveIds.some((id) => !storedSaveIds.includes(id)));
+	const handleSaveLinking = (saveId: string, flag: boolean) => {
+		setLinksTouched(true);
+		setLinkedSaveIds((ids) =>
+			flag
+				? [...ids.filter((id) => id !== saveId), saveId]
+				: ids.filter((id) => id !== saveId),
+		);
+	};
+
 	const handleSave = async () => {
+		const textChanged = draftContent !== baselineContent;
 		if (
 			isSaving ||
-			draftContent === baselineContent ||
+			(!textChanged && !linksChanged) ||
 			draftContent.trim() === ""
 		) {
 			return;
@@ -173,20 +252,31 @@ const Component = ({
 		setIsSaving(true);
 		try {
 			if (note.id === null) {
-				const [{ id }] = await Promise.all([
-					send("note.create", { content: draftContent }),
-					fakeWait({ waitPeriod: 1200 }),
-				]);
+				const { id } = await send("note.create", {
+					content: draftContent,
+					saveIds: linkedSaveIds,
+				});
+				clearDraft(draftKey);
 				navigate(`/note/${id}`, { replace: true });
 				return;
 			}
-			await Promise.all([
-				send("note.update", { id: note.id, content: draftContent }),
-				fakeWait({ waitPeriod: 1200 }),
-			]);
+			// One command: the text and the saves change together.
+			await send("note.update", {
+				id: note.id,
+				content: draftContent,
+				saveIds: linksChanged ? linkedSaveIds : undefined,
+			});
+			setLinksTouched(false);
 			setIsSaving(false);
 			setBaselineContent(draftContent);
 			resetHistory(draftContent);
+		} catch (error) {
+			await createToast(
+				error instanceof Error
+					? error.message
+					: "Couldn't save this note.",
+				LTOAST_TYPE.ERROR,
+			);
 		} finally {
 			setIsSaving(false);
 		}
@@ -302,7 +392,7 @@ const Component = ({
 
 						<textarea
 							ref={textareaRef}
-							className={`w-full grow resize-none overflow-y-auto p-2 text-sm outline-none select-text ${theme}-thin-scrollbar ${
+							className={`w-full grow resize-none overflow-y-auto p-2 text-sm select-text ${theme}-thin-scrollbar ${
 								theme === LTHEME.DARK
 									? "bg-neutral-900 text-white"
 									: "bg-neutral-100 text-black"
@@ -327,10 +417,6 @@ const Component = ({
 								if (key === "i") {
 									event.preventDefault();
 									handleApplyFormatting("italic");
-								}
-								if (key === "u") {
-									event.preventDefault();
-									handleApplyFormatting("underline");
 								}
 								if (event.shiftKey && key === "x") {
 									event.preventDefault();
@@ -449,13 +535,25 @@ const Component = ({
 					</div>
 				)}
 			</div>
+			{viewMode === "edit" && note.id !== null ? (
+				<div className="w-full shrink-0 px-4">
+					<LUIVBMLinks
+						saves={saves}
+						linkedSaveIds={linkedSaveIds}
+						handleSaveLinking={handleSaveLinking}
+					/>
+				</div>
+			) : null}
 			{viewMode === "edit" ? (
 				<div className="flex h-16 w-full items-center justify-center px-4 pt-1 pb-2">
 					<LUICUButton
 						name={isSaving ? "Updating..." : "Update"}
 						onClick={handleSave}
 						passedTheme={theme}
-						disabled={isSaving || draftContent === baselineContent}
+						disabled={
+							isSaving ||
+							(draftContent === baselineContent && !linksChanged)
+						}
 					/>
 				</div>
 			) : null}

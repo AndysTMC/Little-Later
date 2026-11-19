@@ -10,8 +10,7 @@ import { LUIDateNumInput } from "../LUIDateNumInput/Component";
 import { LUIDateTimeInput } from "../LUIDateTimeInput/Component";
 import { LUIVBMLinks } from "../LUIVBMLinks/Component";
 import { LUITimeInput } from "../LUITimeInput/Component";
-import { useEffect, useState } from "react";
-import { fakeWait } from "little-shared/utils/misc";
+import { useContext, useEffect, useState } from "react";
 import {
 	LMAX_TASK_INFORMATION_LENGTH,
 	LMAX_TASK_LABEL_LENGTH,
@@ -32,6 +31,9 @@ import type { LinkRow, TaskSchedule } from "../../../storage/schema";
 import { linkedFrom, linkedTo, reminderKind } from "../../records";
 import { WEEKDAY_NAMES, deviceZone, nextHour } from "../../../utils/dates";
 import { send } from "../../../utils/send";
+
+import { UIStateContext } from "../../contexts/UIStateContext";
+import { useDraft } from "../../hooks/useDraft";
 
 type ScheduleKind = TaskSchedule["kind"];
 type ReminderKind = "normal" | "escalating";
@@ -198,7 +200,11 @@ const Component = ({
 	additionalSubmitCallback?: () => void;
 }) => {
 	const { theme } = useTheme();
-	const [draft, setDraft] = useState<Draft>(() => ({
+	// What is typed here is remembered until it is saved, so the popup
+	// closing (it does whenever it loses focus) does not throw it away.
+	const draftKey = `task.${task?.id ?? "new"}${prelinkedSaveId ? `@${prelinkedSaveId}` : ""}`;
+	const { clearDrafts } = useContext(UIStateContext);
+	const [draft, setDraft] = useDraft<Draft>(`${draftKey}.fields`, () => ({
 		information: task?.information ?? "",
 		label: task?.label ?? "",
 		priority: task?.priority ?? "medium",
@@ -213,13 +219,18 @@ const Component = ({
 	const storedReminder: ReminderKind | null = linkedReminder
 		? reminderKind(linkedReminder)
 		: null;
-	const [linkedSaveIds, setLinkedSaveIds] = useState(() =>
-		prelinkedSaveId !== undefined &&
-		!storedSaveIds.includes(prelinkedSaveId)
-			? [...storedSaveIds, prelinkedSaveId]
-			: storedSaveIds,
+	const [linkedSaveIds, setLinkedSaveIds] = useDraft(
+		`${draftKey}.saves`,
+		() =>
+			prelinkedSaveId !== undefined &&
+			!storedSaveIds.includes(prelinkedSaveId)
+				? [...storedSaveIds, prelinkedSaveId]
+				: storedSaveIds,
 	);
-	const [reminder, setReminder] = useState(storedReminder);
+	const [reminder, setReminder] = useDraft(
+		`${draftKey}.reminder`,
+		storedReminder,
+	);
 	const [warning, setWarning] = useState("");
 	const [aiRephrase, setAIRephrase] = useState<LittleAI | undefined>();
 	const [aiGenerate, setAIGenerate] = useState<LittleAI | undefined>();
@@ -257,9 +268,9 @@ const Component = ({
 			return;
 		}
 		setWarning("");
-		await fakeWait();
 		try {
 			await submit();
+			clearDrafts(`${draftKey}.`);
 			additionalSubmitCallback();
 		} catch (error) {
 			setWarning(
@@ -276,54 +287,44 @@ const Component = ({
 			label: draft.label,
 			priority: draft.priority,
 		};
-		let taskId: string;
-		let alreadyLinked: Array<string>;
+		// One command each way: the task and its saves change together.
 		if (task) {
-			taskId = task.id;
-			alreadyLinked = storedSaveIds;
-			// Sending an unchanged recurring schedule would move an overdue
-			// occurrence on, so only changes go out.
-			const scheduleChanged =
-				JSON.stringify(draft.schedule) !==
-				JSON.stringify(task.schedule);
+			// The command keeps the deadline when the schedule is unchanged.
 			await send("task.update", {
 				id: task.id,
 				...content,
-				schedule: scheduleChanged ? draft.schedule : undefined,
+				schedule: draft.schedule,
 				reminder: reminder !== storedReminder ? reminder : undefined,
+				saveIds: linkedSaveIds,
 			});
 		} else {
-			const [firstSaveId] = linkedSaveIds;
-			({ id: taskId } = await send("task.create", {
+			await send("task.create", {
 				...content,
 				schedule: draft.schedule,
 				reminder,
-				saveId: firstSaveId,
-			}));
-			alreadyLinked = firstSaveId === undefined ? [] : [firstSaveId];
-		}
-		for (const saveId of linkedSaveIds) {
-			if (!alreadyLinked.includes(saveId)) {
-				await send("link.create", { fromId: taskId, toId: saveId });
-			}
-		}
-		for (const saveId of alreadyLinked) {
-			if (!linkedSaveIds.includes(saveId)) {
-				await send("link.delete", { fromId: taskId, toId: saveId });
-			}
+				saveIds: linkedSaveIds,
+			});
 		}
 	};
 
 	useEffect(() => {
 		if (!aiRephrase) {
-			LittleAI.getLAIRephraseInstance().then((instance) => {
-				setAIRephrase(instance);
-			});
+			// Without one (locked, or unreadable settings) the AI buttons
+			// stay unavailable rather than failing unseen.
+			LittleAI.getLAIAssistInstance().then(
+				setAIRephrase,
+				(error: unknown) =>
+					console.warn("AI is unavailable here.", error),
+			);
 		}
 		if (!aiGenerate) {
-			LittleAI.getLAIGenerateInstance().then((instance) => {
-				setAIGenerate(instance);
-			});
+			// Without one (locked, or unreadable settings) the AI buttons
+			// stay unavailable rather than failing unseen.
+			LittleAI.getLAIAssistInstance().then(
+				setAIGenerate,
+				(error: unknown) =>
+					console.warn("AI is unavailable here.", error),
+			);
 		}
 	}, []);
 

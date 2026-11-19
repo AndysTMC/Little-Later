@@ -1,6 +1,5 @@
-import { useLittleTransition } from "../../hooks/useLittleTransition";
+import { usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import { LTHEME } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
@@ -12,9 +11,7 @@ import { useLoading } from "../../hooks/useLoading";
 
 const Page = () => {
 	const { theme } = useTheme();
-	const { entry, exit } = useLittleTransition({
-		defaultExit: exitTransitions.zoomOut,
-	});
+	const pageMotion = usePageMotion();
 
 	const currentUserProfile = useCurrentUserProfile();
 	const userSettings = useCurrentUserSettings();
@@ -27,8 +24,7 @@ const Page = () => {
 	return (
 		<motion.div
 			className={`h-full w-full select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"}`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			{loading ? (
 				<LUILoading />
@@ -38,10 +34,7 @@ const Page = () => {
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
 				>
-					<LUIBasicNav
-						navigateTo="/home"
-						entryTransition={entryTransitions.zoomOut}
-					/>
+					<LUIBasicNav navigateTo="/home" move="outOf" />
 					<div className={`w-full grow overflow-y-hidden`}>
 						<LUIAIAssistMain />
 					</div>

@@ -51,7 +51,7 @@ describe("the unlocked profile", () => {
 	// every render re-ran them on every render: the intro page sent the
 	// popup to /home over and over while it animated out.
 	it("keeps its identity across renders while its row is unchanged", async () => {
-		live.value = row;
+		live.value = { profileId: "p1", row };
 		const seen = await valuesAcrossRenders(useCurrentUserProfile);
 		expect(seen.length).toBeGreaterThan(2);
 		expect(new Set(seen).size).toBe(1);

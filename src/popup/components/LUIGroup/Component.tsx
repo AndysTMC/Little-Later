@@ -28,6 +28,13 @@ const Component = ({
 
 	const [isOpen, setIsOpen] = useState(true);
 
+	// Whole class names, so the stylesheet build can see them.
+	const textSizeMap = {
+		xl: "text-xl",
+		lg: "text-lg",
+		sm: "text-sm",
+	};
+
 	const arrowSizeMap = {
 		xl: "size-5",
 		lg: "size-4",
@@ -52,7 +59,7 @@ const Component = ({
 						onClick={() => setIsOpen(!isOpen)}
 					>
 						<div
-							className={`w-max text-${headerTextSize} font-bold ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
+							className={`w-max ${textSizeMap[headerTextSize]} font-bold ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
 						>
 							{title}
 						</div>

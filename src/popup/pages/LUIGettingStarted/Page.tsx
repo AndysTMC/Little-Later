@@ -1,15 +1,16 @@
-import { useLittleTransition } from "../../hooks/useLittleTransition";
+import { LUILogo } from "../../components/LUILogo/Component";
+import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
 import { LTHEME } from "little-shared/enums";
-import { AnimatePresence, motion } from "framer-motion";
-import { useNavigate } from "react-router";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import {
 	ArrowRightIcon,
 	CaretLeftIcon,
 	CaretRightIcon,
 	MoonIcon,
+	PauseIcon,
+	PlayIcon,
 	SunDimIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
@@ -36,10 +37,15 @@ const DefaultGuide = ({
 	const containerRef = useRef<HTMLDivElement>(null);
 	const startTimeRef = useRef<number | null>(null);
 	const currentPositionRef = useRef<number>(0);
+	// The strip scrolls itself only when motion is welcome, and anyone can
+	// stop it: framer's reduced-motion setting does not reach this loop.
+	const reduceMotion = useReducedMotion() ?? false;
+	const [paused, setPaused] = useState(false);
+	const moving = !reduceMotion && !paused;
 
 	useEffect(() => {
 		const element = illustrationsRef.current;
-		if (!element || illustrations.length === 0) return;
+		if (!element || illustrations.length === 0 || !moving) return;
 
 		const itemWidth = 336;
 		const fullSetWidth = itemWidth * illustrations.length;
@@ -73,9 +79,13 @@ const DefaultGuide = ({
 			cancelAnimationFrame(animationId);
 			startTimeRef.current = null;
 		};
-	}, [illustrations.length, displayStep]);
+	}, [illustrations.length, displayStep, moving]);
+	// Shown twice so the scrolling strip wraps around seamlessly; once, to
+	// scroll by hand, when it does not move by itself.
 	const continuousIllustrations =
-		illustrations.length > 0 ? [...illustrations, ...illustrations] : [];
+		illustrations.length > 0 && !reduceMotion
+			? [...illustrations, ...illustrations]
+			: illustrations;
 
 	const isNumberInSeries = (
 		number: number,
@@ -112,12 +122,12 @@ const DefaultGuide = ({
 				if (container && illustrations) {
 					container.scrollTo({
 						top: illustrations.offsetTop,
-						behavior: "smooth",
+						behavior: reduceMotion ? "auto" : "smooth",
 					});
 				}
 			}, 300);
 		}
-	}, [displayStep]);
+	}, [displayStep, reduceMotion]);
 	return (
 		<motion.div
 			ref={containerRef}
@@ -161,13 +171,35 @@ const DefaultGuide = ({
 					animate={{ opacity: 1, transition: { duration: 0.4 } }}
 					exit={{ opacity: 0, transition: { duration: 0.4 } }}
 				>
+					{continuousIllustrations.length > 0 && !reduceMotion ? (
+						<div className="flex justify-end px-4">
+							<button
+								type="button"
+								className={`cursor-pointer rounded-full p-1 ${theme === LTHEME.DARK ? "hover:bg-neutral-800" : "hover:bg-neutral-200"}`}
+								aria-label={
+									paused
+										? "Play the illustrations"
+										: "Pause the illustrations"
+								}
+								onClick={() => setPaused((value) => !value)}
+							>
+								<LUIThemedIcon
+									Icon={paused ? PlayIcon : PauseIcon}
+									weight="fill"
+									className="size-5"
+								/>
+							</button>
+						</div>
+					) : null}
 					{continuousIllustrations.length > 0 ? (
-						<div className="flex gap-8 p-4">
+						<div
+							className={`flex gap-8 p-4 ${reduceMotion ? "overflow-x-auto" : ""}`}
+						>
 							{continuousIllustrations.map(
 								(illustration, index) => (
 									<div
 										key={index}
-										className="flex w-80 flex-col items-center"
+										className="flex w-80 shrink-0 flex-col items-center"
 									>
 										<div className="relative aspect-video h-44 overflow-hidden rounded-lg border border-neutral-500">
 											<img
@@ -259,15 +291,11 @@ const StartGuide = () => {
 
 const Page = () => {
 	const { theme, toggleTheme } = useTheme();
-	const navigate = useNavigate();
-	const { entry, exit } = useLittleTransition({
-		defaultExit: exitTransitions.slideLeft,
-	});
+	const go = useMoveNavigate();
+	const pageMotion = usePageMotion();
 	const handlePreviousStep = () => {
 		if (displayStep === 0) {
-			navigate("/home", {
-				state: { entryTransition: entryTransitions.slideLeft },
-			});
+			go("/home", "back");
 		} else {
 			setDisplayStep((prev) => prev - 1);
 		}
@@ -276,24 +304,19 @@ const Page = () => {
 	const handleNextStep = async () => {
 		if (displayStep === 24) {
 			await markGettingStarted();
-			navigate("/home", {
-				state: { entryTransition: entryTransitions.slideLeft },
-			});
+			go("/home", "forward");
 		} else {
 			setDisplayStep((prev) => prev + 1);
 		}
 	};
 	const handleSkip = async () => {
 		await markGettingStarted();
-		navigate("/home", {
-			state: { entryTransition: entryTransitions.slideLeft },
-		});
+		go("/home", "forward");
 	};
 	return (
 		<motion.div
 			className={`flex h-full w-full flex-col gap-y-2 select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} overflow-y-hidden pt-2`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			<div
 				className={`flex h-12 w-full shrink-0 items-center justify-end gap-x-4 px-5`}
@@ -304,13 +327,13 @@ const Page = () => {
 							? "hover:bg-neutral-800"
 							: "hover:bg-neutral-200"
 					} cursor-pointer rounded-full p-1`}
+					type="button"
+					aria-label={
+						theme === LTHEME.DARK
+							? "Switch to light theme"
+							: "Switch to dark theme"
+					}
 					onClick={toggleTheme}
-					tabIndex={0}
-					onKeyDown={(e) => {
-						if (e.key === "Enter") {
-							toggleTheme();
-						}
-					}}
 				>
 					<LUIThemedIcon
 						Icon={theme === LTHEME.DARK ? MoonIcon : SunDimIcon}
@@ -550,12 +573,7 @@ const Page = () => {
 					/>
 					<span className={`text-lg font-semibold`}>Previous</span>
 				</button>
-				<img
-					src={`/images/${theme}-icon.png`}
-					alt="Little Later Logo"
-					className={`h-20 opacity-10`}
-					draggable="false"
-				/>
+				<LUILogo className="h-20 opacity-10" />
 				<button
 					className={`h-max w-32 px-2 py-1 ${theme === LTHEME.DARK ? "text-white" : "text-black"} flex cursor-pointer items-center justify-end gap-x-1 opacity-50 transition-all duration-200 hover:gap-x-0.5 hover:opacity-100`}
 					onClick={handleNextStep}
