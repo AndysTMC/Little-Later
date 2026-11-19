@@ -1,3 +1,9 @@
+import {
+	DEFAULT_ACCENT,
+	isAccent,
+	isAccentColor,
+	type Accent,
+} from "../../appearance";
 import { useLiveQuery } from "dexie-react-hooks";
 import { LTHEME } from "little-shared/enums";
 import { littleDB } from "../../storage/pageDB";
@@ -10,6 +16,9 @@ export type UserProfile = {
 	hasPassword: boolean;
 	theme: "system" | "light" | "dark";
 	autoLockMinutes: number;
+	accent: Accent;
+	// The Custom accent's colour, once one was chosen.
+	accentColor: string | null;
 };
 
 export const toUserProfile = (row: ProfileRow): UserProfile => ({
@@ -21,6 +30,10 @@ export const toUserProfile = (row: ProfileRow): UserProfile => ({
 			? row.prefs.theme
 			: "system",
 	autoLockMinutes: row.prefs.autoLockMinutes,
+	accent: isAccent(row.prefs.accent) ? row.prefs.accent : DEFAULT_ACCENT,
+	accentColor: isAccentColor(row.prefs.accentColor)
+		? row.prefs.accentColor
+		: null,
 });
 
 // "system" follows the device's colour scheme.

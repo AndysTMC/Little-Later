@@ -2,37 +2,88 @@ import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { CaretUpDownIcon } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { capitalize } from "little-shared/utils/misc";
 import { twMerge } from "tailwind-merge";
 
+// A dropdown that works from the keyboard: Enter, Space or the arrow keys
+// open it, Tab and the arrow keys move through the choices, Enter picks
+// one and Escape closes it. Focus moving to a choice does not close it;
+// focus leaving the whole control does.
 const Component = <T extends string>({
 	className,
 	testId,
 	options,
 	currentOption,
 	onOptionChange,
+	name,
+	optionLabel = capitalize,
 }: {
 	className?: string;
 	testId?: string;
-	options: Array<T>;
+	options: ReadonlyArray<T>;
 	currentOption: T;
 	onOptionChange: (option: T) => void;
+	// What is being chosen, for its accessible name.
+	name?: string;
+	// How a choice reads; capitalized by default.
+	optionLabel?: (option: T) => string;
 }) => {
 	const { theme } = useTheme();
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
+	const rootRef = useRef<HTMLDivElement>(null);
+	const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+	const focusOption = (index: number) => {
+		const count = options.length;
+		optionRefs.current[((index % count) + count) % count]?.focus();
+	};
+
+	const choose = (option: T) => {
+		onOptionChange(option);
+		setIsMenuOpen(false);
+		rootRef.current?.focus();
+	};
+
 	return (
 		<div
-			className={twMerge(`group relative h-8 w-40 rounded-sm`, className)}
+			ref={rootRef}
+			// Open, it draws over the rows below it.
+			className={twMerge(
+				`group relative h-8 w-40 rounded-sm ${isMenuOpen ? "z-50" : ""}`,
+				className,
+			)}
 			data-testid={testId}
+			role="button"
+			aria-haspopup="listbox"
+			aria-expanded={isMenuOpen}
+			aria-label={`${name ? `${name}: ` : ""}${optionLabel(currentOption)}, change`}
 			tabIndex={0}
-			onBlur={() => setIsMenuOpen(false)}
-			onKeyDown={(e) => {
-				if (e.key === "Enter") {
+			onBlur={(event) => {
+				// Still inside: a choice took focus.
+				if (!event.currentTarget.contains(event.relatedTarget)) {
+					setIsMenuOpen(false);
+				}
+			}}
+			onKeyDown={(event) => {
+				if (event.key === "Escape") {
+					setIsMenuOpen(false);
+					rootRef.current?.focus();
+					return;
+				}
+				if (event.target !== event.currentTarget) {
+					return;
+				}
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
 					setIsMenuOpen(!isMenuOpen);
 				}
-				if (e.key === "Escape") {
-					setIsMenuOpen(false);
+				if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+					event.preventDefault();
+					setIsMenuOpen(true);
+					const current = options.indexOf(currentOption);
+					// After the choices are drawn.
+					requestAnimationFrame(() => focusOption(current));
 				}
 			}}
 		>
@@ -41,13 +92,13 @@ const Component = <T extends string>({
 					theme === LTHEME.DARK
 						? "border-neutral-300"
 						: "border-neutral-700"
-				} rounded-sm group-focus:ring ${theme === LTHEME.DARK ? "ring-white" : "ring-black"} `}
+				} rounded-sm`}
 				onClick={() => setIsMenuOpen(!isMenuOpen)}
 			>
 				<div
 					className={`flex h-full grow items-center justify-center ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
 				>
-					{capitalize(currentOption)}
+					{optionLabel(currentOption)}
 				</div>
 				<div className={`flex h-full items-center justify-center`}>
 					<LUIThemedIcon
@@ -60,6 +111,7 @@ const Component = <T extends string>({
 			</div>
 			{isMenuOpen ? (
 				<div
+					role="listbox"
 					className={`relative right-0 mt-1 max-h-40 w-40 border ${
 						theme === LTHEME.DARK
 							? "border-neutral-100 bg-black"
@@ -67,9 +119,15 @@ const Component = <T extends string>({
 					} overflow-y-auto rounded-sm shadow-lg ${theme}-scrollbar `}
 				>
 					{options.map((option, index) => (
-						<div
-							key={index}
-							className={`z-10 flex h-8 w-full items-center justify-center ${
+						<button
+							type="button"
+							role="option"
+							aria-selected={currentOption === option}
+							key={option}
+							ref={(element) => {
+								optionRefs.current[index] = element;
+							}}
+							className={`z-10 flex h-8 w-full cursor-pointer items-center justify-center ${
 								currentOption === option
 									? theme === LTHEME.DARK
 										? "bg-neutral-700"
@@ -82,13 +140,20 @@ const Component = <T extends string>({
 									? "text-white"
 									: "text-black"
 							} `}
-							onClick={() => {
-								onOptionChange(option);
-								setIsMenuOpen(false);
+							onClick={() => choose(option)}
+							onKeyDown={(event) => {
+								if (event.key === "ArrowDown") {
+									event.preventDefault();
+									focusOption(index + 1);
+								}
+								if (event.key === "ArrowUp") {
+									event.preventDefault();
+									focusOption(index - 1);
+								}
 							}}
 						>
-							{capitalize(option)}
-						</div>
+							{optionLabel(option)}
+						</button>
 					))}
 				</div>
 			) : null}

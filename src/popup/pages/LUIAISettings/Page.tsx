@@ -1,5 +1,4 @@
-import { useLittleTransition } from "../../hooks/useLittleTransition";
-import { exitTransitions } from "../../../route-transitions";
+import { usePageMotion } from "../../hooks/usePageMove";
 import { LAI_PROVIDERS, LTHEME } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
@@ -14,60 +13,58 @@ import { LAISettings } from "little-shared/types";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import {
+	describeProcessing,
 	fetchProviderModels,
 	getDefaultBaseUrl,
+	isCloudModel,
 	getBaseUrlProblem,
 	getResolvedBaseUrl,
 } from "../../../services/ai/config";
 import { CheckCircleIcon, CircleIcon } from "@phosphor-icons/react";
 import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 
+import { useDebouncedSave } from "../../hooks/useDebouncedSave";
+
+import { useSettingDraft } from "../../hooks/useSettingDraft";
+
+const sameAI = (a: LAISettings, b: LAISettings) =>
+	JSON.stringify(a) === JSON.stringify(b);
+
 const Page = () => {
 	const { theme } = useTheme();
-	const { entry, exit } = useLittleTransition({
-		defaultExit: exitTransitions.slideRight,
-	});
+	const pageMotion = usePageMotion();
 	const userSettings = useCurrentUserSettings();
 	const AIProviderList = Object.values(LAI_PROVIDERS) as Array<LAI_PROVIDERS>;
-	const [aiSettings, setAISettings] = useState<LAISettings | undefined>(
+	const [aiSettings, setAISettings] = useSettingDraft<LAISettings>(
+		"settings.ai",
 		userSettings?.ai,
+		sameAI,
 	);
 	const [models, setModels] = useState<Array<string>>([]);
 	const [isFetchingModels, setIsFetchingModels] = useState(false);
 	const loading = useLoading([userSettings]);
-	const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	// A custom server is asked for its models only when the user says
+	// so. Asking while the URL is being typed sent the API key to every
+	// half-typed host.
+	const [loadToken, setLoadToken] = useState(0);
 	const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const latestFetchIdRef = useRef(0);
 
-	useEffect(() => {
-		if (userSettings === undefined || aiSettings === undefined) {
-			return;
-		}
-		if (JSON.stringify(aiSettings) === JSON.stringify(userSettings.ai)) {
-			return;
-		}
-		if (updateTimeoutRef.current) {
-			clearTimeout(updateTimeoutRef.current);
-		}
-		updateTimeoutRef.current = setTimeout(async () => {
-			await send("settings.update", { ai: aiSettings });
-		}, 500);
-		return () => {
-			if (updateTimeoutRef.current) {
-				clearTimeout(updateTimeoutRef.current);
-			}
-		};
-	}, [aiSettings, userSettings]);
+	useDebouncedSave(
+		userSettings !== undefined &&
+			aiSettings !== undefined &&
+			JSON.stringify(aiSettings) !== JSON.stringify(userSettings.ai)
+			? () => send("settings.update", { ai: aiSettings })
+			: null,
+		500,
+		aiSettings,
+	);
 
 	useEffect(() => {
-		if (userSettings === undefined) {
-			return;
-		}
-		setAISettings(userSettings.ai);
-	}, [userSettings]);
-
-	useEffect(() => {
-		if (!aiSettings) {
+		if (
+			!aiSettings ||
+			(aiSettings.provider === LAI_PROVIDERS.CUSTOM && loadToken === 0)
+		) {
 			setModels([]);
 			setIsFetchingModels(false);
 			return;
@@ -114,7 +111,10 @@ const Page = () => {
 				clearTimeout(fetchTimeoutRef.current);
 			}
 		};
-	}, [aiSettings?.provider, aiSettings?.baseUrl, aiSettings?.apiKey]);
+		// The URL and key are read when the list is asked for, not
+		// watched: see loadToken.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [aiSettings?.provider, loadToken]);
 
 	const handleProviderChange = (provider: LAI_PROVIDERS) => {
 		setAISettings((prevSettings) => {
@@ -138,8 +138,7 @@ const Page = () => {
 	return (
 		<motion.div
 			className={`h-full w-full select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"}`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			{loading ? (
 				<LUILoading />
@@ -254,9 +253,67 @@ const Page = () => {
 										aiSettings?.provider !==
 										LAI_PROVIDERS.CUSTOM
 									}
-									lengthLimit={256}
+									lengthLimit={4096}
 									disableLengthCounter
 								/>
+
+								{aiSettings?.provider ===
+								LAI_PROVIDERS.CUSTOM ? (
+									<>
+										<LUITextInputT1
+											name="Model"
+											passedValue={aiSettings.model}
+											onChange={(value) => {
+												setAISettings((prevSettings) =>
+													prevSettings
+														? {
+																...prevSettings,
+																model: value,
+															}
+														: prevSettings,
+												);
+											}}
+											validate={() => ({
+												success: true,
+												error: "",
+											})}
+											lengthLimit={256}
+											disableLengthCounter
+										/>
+										<div className="flex h-max w-full items-center gap-x-2">
+											<button
+												type="button"
+												disabled={
+													getResolvedBaseUrl(
+														aiSettings,
+													) === ""
+												}
+												className={`h-max w-max shrink-0 cursor-pointer rounded-full px-4 py-1 text-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${
+													theme === LTHEME.DARK
+														? "bg-white text-black"
+														: "bg-black text-white"
+												}`}
+												onClick={() =>
+													setLoadToken(
+														(token) => token + 1,
+													)
+												}
+											>
+												Load models
+											</button>
+											<span
+												className={`text-xs ${
+													theme === LTHEME.DARK
+														? "text-neutral-300"
+														: "text-neutral-600"
+												}`}
+											>
+												Sends your API key to the server
+												above. Or type the model's name.
+											</span>
+										</div>
+									</>
+								) : null}
 
 								<div className="mt-1 flex h-max w-full flex-col gap-y-1">
 									<div
@@ -344,6 +401,22 @@ const Page = () => {
 														>
 															{modelName}
 														</span>
+														{aiSettings &&
+														isCloudModel(
+															aiSettings.provider,
+															modelName,
+														) ? (
+															<span
+																className={`mr-2 ml-auto shrink-0 rounded-full border px-2 text-xs ${
+																	theme ===
+																	LTHEME.DARK
+																		? "border-neutral-600 text-neutral-300"
+																		: "border-neutral-400 text-neutral-600"
+																}`}
+															>
+																Cloud
+															</span>
+														) : null}
 														<LUIThemedIcon
 															Icon={
 																isSelected
@@ -361,6 +434,19 @@ const Page = () => {
 								</div>
 							</div>
 						</div>
+						{aiSettings ? (
+							<p
+								role="note"
+								className={`px-1 pt-3 text-sm ${
+									theme === LTHEME.DARK
+										? "text-neutral-300"
+										: "text-neutral-600"
+								}`}
+							>
+								{describeProcessing(aiSettings)} The right-click
+								AI actions send only the text you selected.
+							</p>
+						) : null}
 						<div className="h-20 w-full"></div>
 					</LUISettingsLayout>
 				</motion.div>

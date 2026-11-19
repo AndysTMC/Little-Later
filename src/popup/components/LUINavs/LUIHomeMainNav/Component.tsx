@@ -1,3 +1,4 @@
+import { LUILogo } from "../../LUILogo/Component";
 import { LTHEME } from "little-shared/enums";
 import {
 	GearIcon,
@@ -11,12 +12,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { LUIHMNavMenuOption } from "../../LUIHMNavMenuOption/Component";
 import { LUIThemedIcon } from "../../LUIThemedIcon/Component";
-import {
-	entryTransitions,
-	exitTransitions,
-} from "../../../../route-transitions";
-import { useContext } from "react";
-import { HomeContext } from "../../../contexts/Home";
+import { useMoveNavigate } from "../../../hooks/usePageMove";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../../hooks/useTheme";
 import { LAISettings } from "little-shared/types";
@@ -43,79 +39,26 @@ const Component = ({
 	const userAvatar = useUserAvatar(currentUserProfile.id);
 	const avatarUrl = useObjectUrl(userAvatar);
 
-	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
-		useContext(HomeContext);
+	const go = useMoveNavigate();
 
-	const handleSettings = () => {
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.slideLeft,
-			navigateTo: "/settings",
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.slideLeft },
-			},
-		});
-		setShouldHomeNavigate(true);
-	};
+	const handleSettings = () => go("/settings", "forward");
 
-	const handleProfile = () => {
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.slideLeft,
-			navigateTo: "/profile",
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.slideLeft },
-			},
-		});
-		setShouldHomeNavigate(true);
-	};
+	const handleProfile = () => go("/profile", "forward");
 
-	const handleLock = () => {
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.zoomOut,
-			navigateTo: "/lock",
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.zoomOut },
-			},
-		});
-		setShouldHomeNavigate(true);
-	};
+	// Locking steps out of the profile; AI Assist is a space of its own.
+	const handleLock = () => go("/lock", "outOf");
 
-	const handleAIClick = () => {
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.zoomIn,
-			navigateTo: "/ai",
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.zoomIn },
-			},
-		});
-		setShouldHomeNavigate(true);
-	};
+	const handleAIClick = () => go("/ai", "into");
 
 	return (
 		<div
 			className={twMerge(
-				`${theme === LTHEME.DARK ? "bg-black" : "bg-white"} flex h-16 w-full items-center p-2`,
+				`${theme === LTHEME.DARK ? "bg-black" : "bg-white"} flex h-16 w-full shrink-0 items-center p-2`,
 				className,
 			)}
 		>
 			<div className={`h-full w-max`}>
-				<img
-					src={`/images/${theme}-icon.png`}
-					alt="Little Later Logo"
-					className={`h-12 w-12`}
-					draggable="false"
-				/>
+				<LUILogo className="h-12 w-12" />
 			</div>
 			<div
 				className={`relative flex h-full grow items-center justify-end gap-x-2 pr-2`}

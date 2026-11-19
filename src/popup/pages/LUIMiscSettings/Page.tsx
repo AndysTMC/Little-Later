@@ -10,60 +10,66 @@ import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUINumInput } from "../../components/LUINumInput/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
 import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
-import { useLittleTransition } from "../../hooks/useLittleTransition";
+import { usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
-import { exitTransitions } from "../../../route-transitions";
 import { send } from "../../../utils/send";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+
+import { useDebouncedSave } from "../../hooks/useDebouncedSave";
+
+import { useSettingDraft } from "../../hooks/useSettingDraft";
+import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
+import { LUISettingSelect } from "../../components/LUISettingRow/Component";
+import { attempt } from "../../attempt";
+
+// Auto-lock after this many idle minutes (0010, Locking), up to the four
+// hours Chrome's idle detection allows.
+const AUTO_LOCK_CHOICES = [5, 15, 30, 60, 240].map((minutes) => ({
+	value: minutes,
+	label:
+		minutes < 60
+			? `${minutes} minutes`
+			: `${minutes / 60} hour${minutes === 60 ? "" : "s"}`,
+}));
+
+type Misc = { VBMLimit: number; VBMSameOriginLimit: number };
+const sameMisc = (a: Misc, b: Misc) =>
+	a.VBMLimit === b.VBMLimit && a.VBMSameOriginLimit === b.VBMSameOriginLimit;
 
 const Page = () => {
 	const { theme } = useTheme();
-	const { entry, exit } = useLittleTransition({
-		defaultExit: exitTransitions.slideRight,
-	});
+	const pageMotion = usePageMotion();
 	const userSettings = useCurrentUserSettings();
-	const [miscSettings, setMiscSettings] = useState(
-		LINITIAL_MISC_SETTINGS.value,
+	const profile = useCurrentUserProfile();
+	const [miscDraft, setMiscSettings] = useSettingDraft(
+		"settings.misc",
+		userSettings?.misc,
+		sameMisc,
 	);
+	const miscSettings = miscDraft ?? LINITIAL_MISC_SETTINGS.value;
 
-	useEffect(() => {
-		if (userSettings === undefined) {
-			return;
-		}
-
-		const inRange =
-			miscSettings.VBMLimit >= LMIN_VBM_LIMIT &&
-			miscSettings.VBMLimit <= LMAX_VBM_LIMIT &&
-			miscSettings.VBMSameOriginLimit >= LMIN_VBM_SAME_ORIGIN_LIMIT &&
-			miscSettings.VBMSameOriginLimit <= LMAX_VBM_SAME_ORIGIN_LIMIT;
-		const changed =
-			miscSettings.VBMLimit !== userSettings.misc.VBMLimit ||
+	const inRange =
+		miscSettings.VBMLimit >= LMIN_VBM_LIMIT &&
+		miscSettings.VBMLimit <= LMAX_VBM_LIMIT &&
+		miscSettings.VBMSameOriginLimit >= LMIN_VBM_SAME_ORIGIN_LIMIT &&
+		miscSettings.VBMSameOriginLimit <= LMAX_VBM_SAME_ORIGIN_LIMIT;
+	const changed =
+		userSettings !== undefined &&
+		(miscSettings.VBMLimit !== userSettings.misc.VBMLimit ||
 			miscSettings.VBMSameOriginLimit !==
-				userSettings.misc.VBMSameOriginLimit;
-		if (!inRange || !changed) {
-			return;
-		}
-		const handler = setTimeout(() => {
-			void send("settings.update", { misc: miscSettings });
-		}, 500);
-
-		return () => {
-			clearTimeout(handler);
-		};
-	}, [miscSettings, userSettings]);
-
-	useEffect(() => {
-		if (userSettings) {
-			setMiscSettings(userSettings.misc);
-		}
-	}, [userSettings]);
+				userSettings.misc.VBMSameOriginLimit);
+	useDebouncedSave(
+		inRange && changed
+			? () => send("settings.update", { misc: miscSettings })
+			: null,
+		500,
+		miscSettings,
+	);
 
 	return (
 		<motion.div
 			className={`flex h-full w-full flex-col select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} overflow-y-hidden`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			<LUIBasicNav navigateTo="/settings" />
 			<LUISettingsLayout pageName="Misc Settings">
@@ -75,13 +81,14 @@ const Page = () => {
 							<span
 								className={`text-lg ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
 							>
-								Maximum number of visual bookmarks (History)
+								Pages kept in history
 							</span>
 						</div>
 						<LUINumInput
 							passedValue={miscSettings.VBMLimit}
 							onChange={(value) => {
 								setMiscSettings((prev) => ({
+									...LINITIAL_MISC_SETTINGS.value,
 									...prev,
 									VBMLimit: value,
 								}));
@@ -103,6 +110,7 @@ const Page = () => {
 							passedValue={miscSettings.VBMSameOriginLimit}
 							onChange={(value) => {
 								setMiscSettings((prev) => ({
+									...LINITIAL_MISC_SETTINGS.value,
 									...prev,
 									VBMSameOriginLimit: value,
 								}));
@@ -111,6 +119,22 @@ const Page = () => {
 							maxValue={LMAX_VBM_SAME_ORIGIN_LIMIT}
 						/>
 					</div>
+					{profile ? (
+						<LUISettingSelect
+							label="Lock after idle"
+							value={profile.autoLockMinutes}
+							options={AUTO_LOCK_CHOICES}
+							onChange={(minutes) => {
+								void attempt(
+									() =>
+										send("profile.update", {
+											autoLockMinutes: minutes,
+										}),
+									"Couldn't change when the profile locks.",
+								);
+							}}
+						/>
+					) : null}
 				</div>
 			</LUISettingsLayout>
 		</motion.div>

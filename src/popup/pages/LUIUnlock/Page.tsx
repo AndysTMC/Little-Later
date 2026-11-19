@@ -1,8 +1,7 @@
 import { motion } from "framer-motion";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
-import { useLittleTransition } from "../../hooks/useLittleTransition";
+import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { LTHEME } from "little-shared/enums";
-import { useNavigate, useParams } from "react-router";
+import { useParams } from "react-router";
 import { send } from "../../../utils/send";
 import { isFirstTimeUser } from "../../../services/settings";
 import { useTheme } from "../../hooks/useTheme";
@@ -15,12 +14,10 @@ import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
 
 const Page = () => {
-	const { theme } = useTheme();
-	const navigate = useNavigate();
+	const { theme, showLookOf } = useTheme();
+	const go = useMoveNavigate();
 
-	const { entry, exit, setExit } = useLittleTransition({
-		defaultExit: exitTransitions.zoomOut,
-	});
+	const pageMotion = usePageMotion();
 
 	const { id } = useParams();
 
@@ -40,11 +37,13 @@ const Page = () => {
 			password: password ?? null,
 		});
 		const firstTime = await isFirstTimeUser();
-		setExit(exitTransitions.zoomIn);
-		navigate(firstTime ? "/getting-started" : "/home", {
-			state: { entryTransition: entryTransitions.zoomIn },
-		});
+		go(firstTime ? "/getting-started" : "/home", "into");
 	};
+	// The profile's own theme and accent, which are plain like its photo.
+	useEffect(() => {
+		showLookOf(savedUP ?? null);
+		return () => showLookOf(null);
+	}, [savedUP, showLookOf]);
 	useEffect(() => {
 		if (userProfiles) {
 			const up = userProfiles.find((profile) => profile.id === id);
@@ -57,8 +56,7 @@ const Page = () => {
 	return (
 		<motion.div
 			className={`h-full w-full select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"}`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			{loading ? (
 				<LUILoading />
@@ -68,10 +66,7 @@ const Page = () => {
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
 				>
-					<LUIBasicNav
-						navigateTo="/browse-profiles"
-						entryTransition={entryTransitions.zoomIn}
-					/>
+					<LUIBasicNav navigateTo="/browse-profiles" move="outOf" />
 					{savedUP ? (
 						<LUIAuthGate
 							type="Unlock"

@@ -1,55 +1,51 @@
+import { LUILogo } from "../../LUILogo/Component";
 import { useTheme } from "../../../hooks/useTheme";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation } from "react-router";
 import { LUIThemedIcon } from "../../LUIThemedIcon/Component";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
-import { entryTransitions } from "../../../../route-transitions";
+import type { Move } from "../../../../route-transitions";
+import { useMoveNavigate } from "../../../hooks/usePageMove";
 import { LTHEME } from "little-shared/enums";
-import { MotionProps } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 
 const Component = ({
 	className,
 	navigateTo,
 	goBackDisabled = false,
-	changePreviousExit = () => {},
-	entryTransition = entryTransitions.slideRight,
+	move = "back",
 	goBackCallback = async () => {},
 	passedTheme,
 }: {
 	className?: string;
 	navigateTo?: string;
 	goBackDisabled?: boolean;
-	changePreviousExit?: () => void;
-	entryTransition?: MotionProps;
+	// How going back looks: the reverse of how this page was opened.
+	move?: Move;
 	goBackCallback?: () => Promise<void>;
 	passedTheme?: LTHEME;
 }) => {
 	const { theme: profileTheme } = useTheme();
 	const theme = passedTheme ?? profileTheme;
-	const navigate = useNavigate();
+	const go = useMoveNavigate();
 	const location = useLocation();
 	const { referrer } = location.state || {};
 	const handleGoBack = async () => {
-		changePreviousExit();
 		if (goBackDisabled) return;
 		await goBackCallback();
-		if (referrer) {
-			navigate(referrer, { state: { entryTransition }, replace: true });
-		} else if (navigateTo) {
-			navigate(navigateTo, { state: { entryTransition }, replace: true });
-		}
+		const to = referrer ?? navigateTo;
+		if (to) go(to, move, { replace: true });
 	};
 	return (
 		<div
-			className={twMerge(`flex h-16 w-full items-center p-2`, className)}
+			className={twMerge(
+				// Fixed height: as a flex item it shrank when the page below
+				// filled up, so the logo shrank and the page jumped up.
+				`flex h-16 w-full shrink-0 items-center p-2`,
+				className,
+			)}
 		>
 			<div className={`h-full w-max`}>
-				<img
-					src={`/images/${theme}-icon.png`}
-					alt="Little Later Logo"
-					className={`h-full`}
-					draggable="false"
-				/>
+				<LUILogo className="h-full" />
 			</div>
 			{goBackDisabled ? null : (
 				<div className={`flex h-full grow items-center justify-end`}>

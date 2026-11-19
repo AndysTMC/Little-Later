@@ -18,7 +18,24 @@ const Component = ({
 }) => {
 	const { theme } = useTheme();
 	const previewUrl = useObjectUrl(previewBlob);
-	const imageSrc = previewUrl ?? `/images/web-preview-holder-${theme}.png`;
+	// Without a preview, a plain frame in the palette's colours, so the
+	// accent tints it like the rest of the popup (src/appearance.ts).
+	const picture = previewUrl ? (
+		<img
+			src={previewUrl}
+			alt=""
+			className={`z-0 h-full w-full object-cover`}
+			onContextMenu={(e) => {
+				e.preventDefault();
+			}}
+		/>
+	) : (
+		<div
+			className={`z-0 flex h-full w-full items-center justify-center ${theme === LTHEME.DARK ? "bg-neutral-900 text-neutral-600" : "bg-neutral-100 text-neutral-400"}`}
+		>
+			<ImageIcon weight="light" className="size-10" />
+		</div>
+	);
 	const handleOpenSave = () => {
 		window.open(url, "_blank", "noopener,noreferrer");
 	};
@@ -34,14 +51,7 @@ const Component = ({
 					className,
 				)}
 			>
-				<img
-					src={imageSrc}
-					alt=""
-					className={`z-0 h-full w-full object-cover`}
-					onContextMenu={(e) => {
-						e.preventDefault();
-					}}
-				/>
+				{picture}
 				<button
 					type="button"
 					className={`absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 ${theme === LTHEME.DARK ? "bg-white/50" : "bg-black/50"} z-10 cursor-pointer transition-all duration-100`}
@@ -69,14 +79,7 @@ const Component = ({
 					className,
 				)}
 			>
-				<img
-					src={imageSrc}
-					alt=""
-					className={`z-0 h-full w-full object-cover`}
-					onContextMenu={(e) => {
-						e.preventDefault();
-					}}
-				/>
+				{picture}
 				<button
 					type="button"
 					className={`absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 ${theme === LTHEME.DARK ? "bg-white/50" : "bg-black/50"} z-10 cursor-pointer transition-all duration-100`}
@@ -107,14 +110,7 @@ const Component = ({
 				<div
 					className={`flex aspect-[16/9] w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border-2 ${theme === LTHEME.DARK ? "border-neutral-700" : "border-neutral-300"} group relative`}
 				>
-					<img
-						src={imageSrc}
-						alt=""
-						className={`z-0 h-full w-full object-cover`}
-						onContextMenu={(e) => {
-							e.preventDefault();
-						}}
-					/>
+					{picture}
 					<div
 						className={`absolute inset-0 z-10 flex flex-col items-center justify-start p-2 transition-all duration-100`}
 					>

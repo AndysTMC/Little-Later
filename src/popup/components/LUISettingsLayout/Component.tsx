@@ -22,7 +22,7 @@ const Component = ({
 			<div
 				className={`h-full w-full border ${theme === LTHEME.DARK ? "border-white" : "border-black"} relative rounded-lg pt-5`}
 			>
-				<div
+				<h1
 					className={`h-10 w-max text-4xl font-semibold ${
 						theme === LTHEME.DARK
 							? "bg-black text-white"
@@ -30,7 +30,7 @@ const Component = ({
 					} absolute z-10 translate-x-5 -translate-y-10 px-2`}
 				>
 					{pageName}
-				</div>
+				</h1>
 				<div
 					className={`h-full w-full overflow-y-auto px-5 py-1 ${theme}-scrollbar `}
 				>

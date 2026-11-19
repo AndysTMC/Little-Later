@@ -20,15 +20,24 @@ const Component = ({
 	Partial<LIconProps>) => {
 	const { theme: profileTheme } = useTheme();
 	const theme = passedTheme ?? profileTheme;
+	const color =
+		iconProps.color ??
+		(theme === (invertTheme ? LTHEME.LIGHT : LTHEME.DARK)
+			? "white"
+			: "black");
+	// Plain white and black are the palette's, which the accent redefines
+	// (src/appearance.ts). An SVG fill attribute cannot read a CSS
+	// variable, so the icon fills with its CSS colour instead.
+	const fromPalette = color === "white" || color === "black";
 	return (
 		<Icon
-			color={
-				iconProps.color ??
-				(theme === (invertTheme ? LTHEME.LIGHT : LTHEME.DARK)
-					? "white"
-					: "black")
-			}
 			{...iconProps}
+			color={fromPalette ? "currentColor" : color}
+			style={
+				fromPalette
+					? { color: `var(--color-${color})`, ...iconProps.style }
+					: iconProps.style
+			}
 		/>
 	);
 };
