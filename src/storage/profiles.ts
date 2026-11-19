@@ -1,3 +1,4 @@
+import type { Accent } from "../appearance";
 import Dexie from "dexie";
 import {
 	EnvelopeError,
@@ -130,6 +131,7 @@ const startSession = async (
 			[...roots].map(([id, bytes]) => [String(id), toBase64(bytes)]),
 		),
 		indexKey: toBase64(indexKey),
+		unlockId: crypto.randomUUID(),
 	});
 };
 
@@ -285,7 +287,13 @@ export type ProfileTheme = (typeof PROFILE_THEMES)[number];
 export const updateProfile = async (
 	db: LittleDB,
 	profileId: string,
-	changes: { name?: string; theme?: ProfileTheme; autoLockMinutes?: number },
+	changes: {
+		name?: string;
+		theme?: ProfileTheme;
+		autoLockMinutes?: number;
+		accent?: Accent;
+		accentColor?: string;
+	},
 ): Promise<void> => {
 	await db.transaction("rw", db.profiles, async () => {
 		const profile = await getProfile(db, profileId);
@@ -293,9 +301,14 @@ export const updateProfile = async (
 			...profile,
 			name: changes.name ?? profile.name,
 			prefs: {
+				...profile.prefs,
 				theme: changes.theme ?? profile.prefs.theme,
 				autoLockMinutes:
 					changes.autoLockMinutes ?? profile.prefs.autoLockMinutes,
+				...(changes.accent ? { accent: changes.accent } : {}),
+				...(changes.accentColor
+					? { accentColor: changes.accentColor }
+					: {}),
 			},
 		});
 	});

@@ -1,3 +1,4 @@
+import { ACCENTS, isAccent, isAccentColor } from "../../appearance";
 import {
 	PROFILE_THEMES,
 	changePassword,
@@ -20,7 +21,9 @@ import {
 	fail,
 } from "./registry";
 
-export const MAX_AUTO_LOCK_MINUTES = 24 * 60;
+// Chrome's idle detection goes up to four hours and silently clamps a
+// longer interval, so a longer setting would never be honoured.
+export const MAX_AUTO_LOCK_MINUTES = 4 * 60;
 export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 export const AVATAR_TYPES = [
 	"image/png",
@@ -70,7 +73,10 @@ export const profileUnlock = defineCommand({
 			input.password,
 		);
 		// Unlock is the other moment 0012 sweeps leftovers (Messaging).
-		await ctx.staging.sweep(ctx.now() - STAGED_FILE_MAX_AGE);
+		await ctx.staging.sweep(
+			ctx.now() - STAGED_FILE_MAX_AGE,
+			await ctx.stagedInUse(),
+		);
 		return null;
 	},
 });
@@ -130,7 +136,7 @@ export const profileUpdate = defineCommand({
 	name: "profile.update",
 	parse: (input) => {
 		const record = asRecord(input);
-		const { theme, autoLockMinutes } = record;
+		const { theme, autoLockMinutes, accent, accentColor } = record;
 		return {
 			name:
 				record.name === undefined
@@ -152,6 +158,20 @@ export const profileUpdate = defineCommand({
 						: fail(
 								`autoLockMinutes must be a whole number from 1 to ${MAX_AUTO_LOCK_MINUTES}.`,
 							),
+			accent:
+				accent === undefined
+					? undefined
+					: isAccent(accent)
+						? accent
+						: fail(
+								`accent must be one of ${Object.keys(ACCENTS).join(", ")}.`,
+							),
+			accentColor:
+				accentColor === undefined
+					? undefined
+					: isAccentColor(accentColor)
+						? accentColor
+						: fail("accentColor must be a colour such as #0e7490."),
 		};
 	},
 	run: async (ctx, input) => {

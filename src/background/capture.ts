@@ -1,17 +1,32 @@
+import { urlKeyFor } from "little-shared/utils/envelope";
 import { putPreview } from "../storage/repositories";
 import { importProfileKeys } from "../storage/keys";
 import type { LittleDB } from "../storage/schema";
 import type { SessionStore } from "../storage/session";
 import type { Dispatch, SerialQueue } from "./commands/registry";
 
-// The same tab is captured at most this often.
-export const CAPTURE_THROTTLE_MS = 15_000;
+// A page the user stays on is looked at again at most this often. Its
+// visit is recorded once: rewriting the same record on every tick made
+// every open popup re-read its lists for nothing. Its preview is replaced
+// only when the page looks different, so an unchanged page costs a
+// screenshot and nothing else.
+export const PREVIEW_REFRESH_MS = 15_000;
 
-export type CapturedTab = { url?: string; title?: string; windowId?: number };
+export type CapturedTab = {
+	id?: number;
+	url?: string;
+	title?: string;
+	windowId?: number;
+	incognito?: boolean;
+};
 
-// Only normal web pages can be screenshot reliably from the worker.
+// Only normal web pages can be screenshot reliably from the worker, and a
+// private window is never recorded.
 const webUrl = (tab: CapturedTab): string | null =>
-	tab.url && /^https?:\/\//i.test(tab.url) && tab.windowId !== undefined
+	!tab.incognito &&
+	tab.url &&
+	/^https?:\/\//i.test(tab.url) &&
+	tab.windowId !== undefined
 		? tab.url
 		: null;
 
@@ -25,6 +40,7 @@ export const createPageCapture = ({
 	dispatch,
 	now,
 	screenshot,
+	isShowing = async () => true,
 }: {
 	db: LittleDB;
 	session: SessionStore;
@@ -32,19 +48,65 @@ export const createPageCapture = ({
 	dispatch: Dispatch;
 	now: () => number;
 	screenshot: (windowId: number) => Promise<Uint8Array | undefined>;
+	// Whether the tab is still the one its window shows, at the same page.
+	// A screenshot is of whatever the window shows when it is taken, so a
+	// tab switched to meanwhile would give this page another page's look.
+	isShowing?: (tab: CapturedTab) => Promise<boolean>;
 }) => {
-	let last = { signature: "", at: -Infinity };
+	const screenshotOf = async (
+		tab: CapturedTab,
+	): Promise<Uint8Array | undefined> => {
+		const bytes = await screenshot(tab.windowId!);
+		return bytes && (await isShowing(tab)) ? bytes : undefined;
+	};
+
+	let last = { signature: "", at: -Infinity, look: "" };
+
+	// Tells two screenshots apart without keeping either.
+	const lookOf = async (bytes: Uint8Array | undefined): Promise<string> => {
+		if (!bytes) {
+			return "";
+		}
+		const digest = await crypto.subtle.digest(
+			"SHA-256",
+			bytes.slice().buffer,
+		);
+		return Array.from(new Uint8Array(digest), (byte) =>
+			byte.toString(16).padStart(2, "0"),
+		).join("");
+	};
+
+	// Stores a preview behind the writes queued meanwhile: the profile may
+	// have been locked or the page deleted since the screenshot.
+	const storePreview = (
+		profileId: string,
+		bytes: Uint8Array,
+		findSaveId: (
+			keys: Awaited<ReturnType<typeof importProfileKeys>>,
+		) => Promise<string | undefined>,
+	): Promise<void> =>
+		queue(async () => {
+			const current = await session.get();
+			if (current?.profileId !== profileId) {
+				return;
+			}
+			const keys = await importProfileKeys(current);
+			const saveId = await findSaveId(keys);
+			if (saveId !== undefined) {
+				await putPreview(db, keys, saveId, bytes, now());
+			}
+		});
 
 	const capture = async (
 		tab: CapturedTab,
 		url: string,
 		saved: boolean,
-	): Promise<boolean> => {
+	): Promise<string | null> => {
 		const unlocked = await session.get();
 		if (!unlocked) {
-			return false;
+			return null;
 		}
-		const bytes = await screenshot(tab.windowId!);
+		const bytes = await screenshotOf(tab);
 		// Another profile may have been opened during the screenshot; the
 		// page belongs to the one that was browsing.
 		const result = await dispatch(
@@ -53,26 +115,42 @@ export const createPageCapture = ({
 			{ profileId: unlocked.profileId },
 		);
 		if (!result.ok) {
-			return false;
+			return null;
 		}
 		const { id } = result.value as { id: string };
 		if (bytes) {
-			// Behind the writes queued meanwhile: the profile may have been
-			// locked or the page deleted since.
-			await queue(async () => {
-				const current = await session.get();
-				if (current?.profileId === unlocked.profileId) {
-					await putPreview(
-						db,
-						await importProfileKeys(current),
-						id,
-						bytes,
-						now(),
-					);
-				}
-			});
+			await storePreview(unlocked.profileId, bytes, async () => id);
 		}
-		return true;
+		return lookOf(bytes);
+	};
+
+	// A newer preview for a page already recorded, if it looks different;
+	// its record is untouched. Returns how the page looks now.
+	const refreshPreview = async (
+		tab: CapturedTab,
+		url: string,
+		previousLook: string,
+	): Promise<string | null> => {
+		const unlocked = await session.get();
+		if (!unlocked) {
+			return null;
+		}
+		const bytes = await screenshotOf(tab);
+		if (!bytes) {
+			return null;
+		}
+		const look = await lookOf(bytes);
+		if (look === previousLook) {
+			return look;
+		}
+		await storePreview(unlocked.profileId, bytes, async (keys) => {
+			const row = await db.saves
+				.where("[profileId+urlKey]")
+				.equals([keys.profileId, await urlKeyFor(keys.index, url)])
+				.first();
+			return row?.id;
+		});
+		return look;
 	};
 
 	return {
@@ -81,16 +159,28 @@ export const createPageCapture = ({
 			if (!url) {
 				return;
 			}
-			const signature = `${tab.windowId}:${url}:${tab.title}`;
-			const at = now();
-			if (
-				signature === last.signature &&
-				at - last.at < CAPTURE_THROTTLE_MS
-			) {
+			const unlocked = await session.get();
+			if (!unlocked) {
 				return;
 			}
-			if (await capture(tab, url, false)) {
-				last = { signature, at };
+			// The page is recorded per profile: another profile opened on
+			// it has no record of it yet.
+			const signature = `${unlocked.profileId}:${tab.windowId}:${url}:${tab.title}`;
+			const at = now();
+			if (signature !== last.signature) {
+				const look = await capture(tab, url, false);
+				if (look !== null) {
+					last = { signature, at, look };
+				}
+				return;
+			}
+			// Still on the same page.
+			if (at - last.at < PREVIEW_REFRESH_MS) {
+				return;
+			}
+			const look = await refreshPreview(tab, url, last.look);
+			if (look !== null) {
+				last = { signature, at, look };
 			}
 		},
 		save: async (
@@ -103,7 +193,9 @@ export const createPageCapture = ({
 			if (!(await session.get())) {
 				return "locked";
 			}
-			return (await capture(tab, url, true)) ? "saved" : "failed";
+			return (await capture(tab, url, true)) !== null
+				? "saved"
+				: "failed";
 		},
 	};
 };

@@ -39,15 +39,6 @@ export const getChromeStorageRecords = <
 				}
 			}
 		}
-		if (records.activeUserId !== undefined) {
-			const activeUserIdString = localStorage.getItem(
-				LCHROME_STORAGE_KEYS.ACTIVE_USER_ID,
-			);
-			if (activeUserIdString !== null) {
-				const parsed = Number.parseInt(activeUserIdString, 10);
-				result.activeUserId = Number.isFinite(parsed) ? parsed : null;
-			}
-		}
 		return Promise.resolve(result as T);
 	}
 	return new Promise<T>((resolve, reject) => {
@@ -80,16 +71,6 @@ export const setChromeStorageRecords = (
 				LCHROME_STORAGE_KEYS.TOASTS,
 				JSON.stringify(records.toasts),
 			);
-		}
-		if (records.activeUserId !== undefined) {
-			if (records.activeUserId === null) {
-				localStorage.removeItem(LCHROME_STORAGE_KEYS.ACTIVE_USER_ID);
-			} else {
-				localStorage.setItem(
-					LCHROME_STORAGE_KEYS.ACTIVE_USER_ID,
-					String(records.activeUserId),
-				);
-			}
 		}
 		window.dispatchEvent(new Event("little-storage-change"));
 

@@ -5,6 +5,7 @@ import { ProfileError } from "../../storage/profiles";
 import type { LittleDB } from "../../storage/schema";
 import type { SessionStore } from "../../storage/session";
 import { StagingError, staging, type Staging } from "../../storage/staging";
+import { rememberedStagedFiles } from "../../popup/uiState";
 
 // The service worker is the only writer (decision 0012). Each write is a
 // command: a name, an input parser and a handler. Pages and AI tools send
@@ -31,6 +32,8 @@ export type CommandContext = {
 	zone: () => string;
 	// Where pages leave binary input for a command (0012, Messaging).
 	staging: Staging;
+	// Staged files a page still holds, which a sweep must keep.
+	stagedInUse: () => Promise<ReadonlySet<string>>;
 	// The unlocked profile's keys; fails with "locked" when none is unlocked.
 	keys: () => Promise<ProfileKeys>;
 };
@@ -62,12 +65,14 @@ export const createCommandContext = (
 	now: () => number = () => Date.now(),
 	zone: () => string = () => Intl.DateTimeFormat().resolvedOptions().timeZone,
 	stagingStore: Staging = staging,
+	stagedInUse: () => Promise<ReadonlySet<string>> = rememberedStagedFiles,
 ): CommandContext => ({
 	db,
 	session,
 	now,
 	zone,
 	staging: stagingStore,
+	stagedInUse,
 	keys: async () => {
 		const unlocked = await session.get();
 		if (!unlocked) {
@@ -111,6 +116,9 @@ export type DispatchOptions = {
 	// its turn comes. For work that waited on something else first, such as
 	// a screenshot, while another profile could be opened.
 	profileId?: string;
+	// Runs it only if that profile has not locked since this unlock, for
+	// work that must end with it, such as an AI request.
+	unlockId?: string;
 };
 
 export type Dispatch = (
@@ -151,9 +159,16 @@ export const createDispatcher = (
 					),
 				);
 			}
+			const session =
+				options?.profileId !== undefined ||
+				options?.unlockId !== undefined
+					? await ctx.session.get()
+					: null;
 			if (
-				options?.profileId !== undefined &&
-				(await ctx.session.get())?.profileId !== options.profileId
+				(options?.profileId !== undefined &&
+					session?.profileId !== options.profileId) ||
+				(options?.unlockId !== undefined &&
+					session?.unlockId !== options.unlockId)
 			) {
 				return toFailure(
 					new CommandError(

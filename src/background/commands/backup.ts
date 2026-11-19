@@ -1,3 +1,4 @@
+import { isAccent, isAccentColor } from "../../appearance";
 import {
 	LMAX_REMINDER_MESSAGE_LENGTH,
 	LMAX_TASK_INFORMATION_LENGTH,
@@ -66,6 +67,8 @@ type ImportJob = {
 	avatar: Blob | null;
 	sawProfile: boolean;
 	next: number;
+	// Links left out because the file has no record at one end.
+	skippedLinks: number;
 };
 
 const imports = new Map<string, ImportJob>();
@@ -192,11 +195,19 @@ const addEntry = async (
 						prefs.theme === "light" || prefs.theme === "dark"
 							? prefs.theme
 							: "system",
+					...(isAccent(prefs.accent) ? { accent: prefs.accent } : {}),
+					...(isAccentColor(prefs.accentColor)
+						? { accentColor: prefs.accentColor }
+						: {}),
+					// Older backups allowed longer; they get the longest
+					// Chrome honours.
 					autoLockMinutes:
 						Number.isInteger(autoLockMinutes) &&
-						(autoLockMinutes as number) >= 1 &&
-						(autoLockMinutes as number) <= MAX_AUTO_LOCK_MINUTES
-							? (autoLockMinutes as number)
+						(autoLockMinutes as number) >= 1
+							? Math.min(
+									autoLockMinutes as number,
+									MAX_AUTO_LOCK_MINUTES,
+								)
 							: job.profile.prefs.autoLockMinutes,
 				},
 			};
@@ -226,6 +237,9 @@ const addEntry = async (
 					url,
 					title: text(content.title),
 					customName: text(content.customName),
+					...(content.provisional === true
+						? { provisional: true as const }
+						: {}),
 				})),
 				urlKey: await urlKeyFor(keys.index, url),
 				originKey: await originKeyFor(keys.index, url),
@@ -380,6 +394,7 @@ export const backupImportBegin = defineCommand({
 			avatar: null,
 			sawProfile: false,
 			next: 0,
+			skippedLinks: 0,
 		});
 		return { jobId };
 	},
@@ -399,7 +414,7 @@ export const backupImportChunk = defineCommand({
 	run: async (ctx, input) => {
 		const job = imports.get(input.jobId);
 		if (!job || !(await ctx.db.jobs.get(input.jobId))) {
-			await ctx.staging.take(input.chunk).catch(() => undefined);
+			await ctx.staging.discard(input.chunk);
 			throw new BackupError("The import was interrupted. Try again.");
 		}
 		const { last, entries } = await openChunk(
@@ -452,8 +467,28 @@ export const backupImportChunk = defineCommand({
 				await db.notes.bulkAdd(rows.notes);
 				await db.tasks.bulkAdd(rows.tasks);
 				await db.reminders.bulkAdd(rows.reminders);
-				await db.links.bulkAdd(rows.links);
-				await db.assets.bulkAdd(rows.assets);
+				// Records come before links and assets in a backup, so both
+				// ends of a link are already stored. A backup can still name
+				// a record it does not hold (one made while the profile was
+				// being edited, before exports read a consistent snapshot):
+				// such links and assets are left out, never stored dangling.
+				const held = async (id: string) =>
+					(await db.saves.get(id)) !== undefined ||
+					(await db.notes.get(id)) !== undefined ||
+					(await db.tasks.get(id)) !== undefined ||
+					(await db.reminders.get(id)) !== undefined;
+				for (const link of rows.links) {
+					if ((await held(link.fromId)) && (await held(link.toId))) {
+						await db.links.add(link);
+					} else {
+						job.skippedLinks += 1;
+					}
+				}
+				for (const asset of rows.assets) {
+					if (await held(asset.ownerId)) {
+						await db.assets.add(asset);
+					}
+				}
 				for (const sealed of settings) {
 					const now = ctx.now();
 					await db.settings.put({
@@ -480,7 +515,11 @@ export const backupImportChunk = defineCommand({
 		if (last) {
 			imports.delete(input.jobId);
 		}
-		return { done: last, profileId: job.profileId };
+		return {
+			done: last,
+			profileId: job.profileId,
+			skippedLinks: job.skippedLinks,
+		};
 	},
 });
 

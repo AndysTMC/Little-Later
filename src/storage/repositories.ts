@@ -13,8 +13,37 @@ import type {
 // Decrypting reads (decision 0012, Reads). Any context holding the profile's
 // keys can use these; writes go through worker commands.
 
-// What a save's sealed body holds.
-export type SaveContent = { url: string; title: string; customName: string };
+// Opens each row of a list. A row that cannot be opened (damaged, or sealed
+// under a key this profile no longer has) is skipped and reported, so one
+// bad record does not hide the rest; the popup's lists do the same.
+export const openEach = async <R extends { id: string }, T>(
+	table: string,
+	rows: ReadonlyArray<R>,
+	open: (row: R) => Promise<T>,
+): Promise<Array<T>> => {
+	const opened: Array<T> = [];
+	for (const row of rows) {
+		try {
+			opened.push(await open(row));
+		} catch (error) {
+			console.warn(
+				`Skipping an unreadable row in ${table}: ${row.id}`,
+				error,
+			);
+		}
+	}
+	return opened;
+};
+
+// What a save's sealed body holds. `provisional` marks a name that only
+// stands in for a title the page did not have yet (its host name); the
+// first real title replaces it. A name the user gives is never provisional.
+export type SaveContent = {
+	url: string;
+	title: string;
+	customName: string;
+	provisional?: true;
+};
 export type NoteContent = { content: string };
 
 export type Save = SaveContent & {
@@ -83,7 +112,38 @@ export const listSaves = async (
 		)
 		.reverse()
 		.toArray();
-	return Promise.all(rows.map((row) => openSave(keys, row)));
+	return openEach("saves", rows, (row) => openSave(keys, row));
+};
+
+// The most recently visited pages, newest first. Only that many are opened:
+// the visit index is walked from the newest, so a long history costs no
+// more than a short one.
+export const listRecentHistory = async (
+	db: LittleDB,
+	keys: ProfileKeys,
+	limit: number,
+): Promise<Array<Save>> => {
+	const opened: Array<Save> = [];
+	let offset = 0;
+	while (opened.length < limit) {
+		const rows = await db.saves
+			.where("[profileId+browsed+browsedAt]")
+			.between(
+				[keys.profileId, 1, Dexie.minKey],
+				[keys.profileId, 1, Dexie.maxKey],
+			)
+			.reverse()
+			.offset(offset)
+			.limit(limit - opened.length)
+			.toArray();
+		if (rows.length === 0) break;
+		offset += rows.length;
+		// An unreadable row is skipped, and the next one read in its place.
+		opened.push(
+			...(await openEach("saves", rows, (row) => openSave(keys, row))),
+		);
+	}
+	return opened;
 };
 
 // A save's page preview: a sealed JPEG asset the worker captures (0010).
@@ -145,7 +205,7 @@ export const listNotes = async (
 		.between(from, to)
 		.reverse()
 		.toArray();
-	return Promise.all(rows.map((row) => openNote(keys, row)));
+	return openEach("notes", rows, (row) => openNote(keys, row));
 };
 
 // Notes linked to a record, such as a save.
@@ -159,10 +219,10 @@ export const listNotesFor = async (
 		.equals([keys.profileId, recordId])
 		.toArray();
 	const rows = await db.notes.bulkGet(links.map((link) => link.fromId));
-	return Promise.all(
-		rows
-			.filter((row): row is NoteRow => row !== undefined)
-			.map((row) => openNote(keys, row)),
+	return openEach(
+		"notes",
+		rows.filter((row): row is NoteRow => row !== undefined),
+		(row) => openNote(keys, row),
 	);
 };
 
@@ -257,7 +317,7 @@ export const listTasks = async (
 		...rows.filter((row) => row.dueAt !== 0),
 		...rows.filter((row) => row.dueAt === 0),
 	];
-	return Promise.all(ordered.map((row) => openTask(keys, row)));
+	return openEach("tasks", ordered, (row) => openTask(keys, row));
 };
 
 // Reminders that will still fire, soonest first.
@@ -269,5 +329,5 @@ export const listReminders = async (
 		.where("[profileId+nextFireAt]")
 		.between([keys.profileId, 1], [keys.profileId, Dexie.maxKey])
 		.toArray();
-	return Promise.all(rows.map((row) => openReminder(keys, row)));
+	return openEach("reminders", rows, (row) => openReminder(keys, row));
 };

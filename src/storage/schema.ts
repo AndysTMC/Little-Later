@@ -38,7 +38,14 @@ export type ProfileRow = {
 	// The index key, sealed under the root key it names in its header.
 	indexKey: Uint8Array;
 	// Plain: the locked worker and lock screen need them.
-	prefs: { theme: string; autoLockMinutes: number };
+	// accent and accentColor (the Custom accent, #rrggbb) came after format
+	// v1; rows without them use the defaults (src/appearance.ts).
+	prefs: {
+		theme: string;
+		autoLockMinutes: number;
+		accent?: string;
+		accentColor?: string;
+	};
 };
 
 export type AvatarRow = { profileId: string; image: Blob };

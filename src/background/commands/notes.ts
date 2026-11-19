@@ -2,6 +2,7 @@ import { sealBody, type ProfileKeys } from "../../storage/keys";
 import type { NoteContent } from "../../storage/repositories";
 import type { LittleDB, NoteRow } from "../../storage/schema";
 import { cascadeTables, removeRecords } from "./cascade";
+import { assertOwnSaves, optionalSaveIds, setSaveLinks } from "./records";
 import {
 	CommandError,
 	asRecord,
@@ -38,20 +39,12 @@ export const noteCreate = defineCommand({
 		const record = asRecord(input);
 		return {
 			content: asContent(record.content),
-			saveId:
-				record.saveId === undefined
-					? undefined
-					: asString(record.saveId, "saveId"),
+			saveIds: optionalSaveIds(record.saveIds),
 		};
 	},
 	run: async (ctx, input) => {
 		const keys = await ctx.keys();
-		if (input.saveId !== undefined) {
-			const save = await ctx.db.saves.get(input.saveId);
-			if (!save || save.profileId !== keys.profileId) {
-				throw new CommandError("rejected", "Save not found.");
-			}
-		}
+		await assertOwnSaves(ctx.db, keys, input.saveIds);
 		const id = crypto.randomUUID();
 		const now = ctx.now();
 		const sealed = await sealBody<NoteContent>(keys, "notes", id, {
@@ -59,7 +52,7 @@ export const noteCreate = defineCommand({
 		});
 		await ctx.db.transaction(
 			"rw",
-			[ctx.db.notes, ctx.db.links],
+			[ctx.db.notes, ctx.db.links, ctx.db.saves],
 			async () => {
 				await ctx.db.notes.add({
 					id,
@@ -69,15 +62,13 @@ export const noteCreate = defineCommand({
 					updatedAt: now,
 					privacy: "private",
 				});
-				if (input.saveId !== undefined) {
-					await ctx.db.links.add({
-						id: crypto.randomUUID(),
-						profileId: keys.profileId,
-						fromId: id,
-						toId: input.saveId,
-						createdAt: now,
-					});
-				}
+				await setSaveLinks(
+					ctx.db,
+					keys.profileId,
+					id,
+					input.saveIds ?? [],
+					now,
+				);
 			},
 		);
 		return { id };
@@ -91,15 +82,34 @@ export const noteUpdate = defineCommand({
 		return {
 			id: asString(record.id, "id"),
 			content: asContent(record.content),
+			// Given, the exact saves the note is attached to afterwards.
+			saveIds: optionalSaveIds(record.saveIds),
 		};
 	},
 	run: async (ctx, input) => {
 		const keys = await ctx.keys();
 		const row = await getOwnNote(ctx.db, keys, input.id);
+		await assertOwnSaves(ctx.db, keys, input.saveIds);
 		const sealed = await sealBody<NoteContent>(keys, "notes", row.id, {
 			content: input.content,
 		});
-		await ctx.db.notes.put({ ...row, ...sealed, updatedAt: ctx.now() });
+		const now = ctx.now();
+		await ctx.db.transaction(
+			"rw",
+			[ctx.db.notes, ctx.db.links, ctx.db.saves],
+			async () => {
+				await ctx.db.notes.put({ ...row, ...sealed, updatedAt: now });
+				if (input.saveIds) {
+					await setSaveLinks(
+						ctx.db,
+						keys.profileId,
+						row.id,
+						input.saveIds,
+						now,
+					);
+				}
+			},
+		);
 		return null;
 	},
 });
