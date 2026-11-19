@@ -106,6 +106,7 @@ test("rendered buttons on the exercised popup routes have accessible names", asy
 		["/settings/misc", "Increase value"],
 		["/settings/security", "Set a password"],
 		["/settings/security/password", "Set password"],
+		["/settings/security/two-factor", "Go back"],
 		["/settings/appearance", "Go back"],
 		["/export", "Export"],
 		["/ai", "Send message"],

@@ -13,7 +13,19 @@ import {
 	type KdfParams,
 } from "little-shared/utils/envelope";
 import type { LittleDB, ProfileKeyEntry, ProfileRow } from "./schema";
-import { toBase64, type SessionStore } from "./session";
+import {
+	authenticatorSeals,
+	newRecoveryCode,
+	newSalt,
+	newSecondKey,
+	openSecondKey,
+	openWithFactor,
+	recoverySeals,
+	sealSecondKey,
+	type Factor,
+	type SecondFactor,
+} from "./secondFactor";
+import { fromBase64, toBase64, type SessionStore } from "./session";
 
 // Profiles and their keys (decision 0010, Keys). A profile has a random root
 // key and a random index key; a password, when set, only wraps the root key.
@@ -74,17 +86,40 @@ const protect = async (
 				),
 			};
 
+// A profile whose keys were shredded by an interrupted delete has nothing
+// to unlock and nothing a password could verify.
+const hasKeys = (profile: ProfileRow) =>
+	profile.keys.length > 0 || profile.secondFactor !== undefined;
+
+export const NEEDS_SECOND_FACTOR =
+	"This profile also needs its security key or recovery code.";
+
 const readRootKeys = async (
 	profile: ProfileRow,
 	password: string | null,
+	factor?: Factor,
 ): Promise<Map<number, Uint8Array>> => {
-	// A profile whose keys were shredded by an interrupted delete has nothing
-	// to unlock and nothing a password could verify.
-	if (profile.keys.length === 0) {
+	if (!hasKeys(profile)) {
 		throw new ProfileError("This profile has no keys.");
 	}
 	if (profile.protection === "password" && password === null) {
 		throw new ProfileError("This profile needs its password.");
+	}
+	if (profile.secondFactor) {
+		const secondKey = await openSecondKey(
+			profile.secondFactor,
+			password ?? "",
+			profile.id,
+		);
+		if (!factor) {
+			throw new ProfileError(NEEDS_SECOND_FACTOR);
+		}
+		return openWithFactor(
+			profile.secondFactor,
+			secondKey,
+			factor,
+			profile.id,
+		);
 	}
 	const roots = new Map<number, Uint8Array>();
 	for (const entry of profile.keys) {
@@ -185,9 +220,14 @@ export const unlockProfile = async (
 	session: SessionStore,
 	profileId: string,
 	password: string | null,
+	factor?: Factor,
 ): Promise<void> => {
 	const profile = await getProfile(db, profileId);
-	await startSession(session, profile, await readRootKeys(profile, password));
+	await startSession(
+		session,
+		profile,
+		await readRootKeys(profile, password, factor),
+	);
 };
 
 export const lockProfile = (session: SessionStore): Promise<void> =>
@@ -204,6 +244,32 @@ export const changePassword = async (
 ): Promise<void> => {
 	assertNewPassword(newPassword);
 	const profile = await getProfile(db, profileId);
+	// With two-factor unlock on, the password wraps only W: re-wrapping it
+	// keeps every factor working, and needs no factor.
+	if (profile.secondFactor) {
+		if (newPassword === null) {
+			throw new ProfileError(
+				"Turn off two-factor unlock before removing the password.",
+			);
+		}
+		const secondKey = await openSecondKey(
+			profile.secondFactor,
+			oldPassword ?? "",
+			profileId,
+		);
+		await db.profiles.update(profileId, {
+			secondFactor: {
+				...profile.secondFactor,
+				passwordKey: await sealSecondKey(
+					secondKey,
+					newPassword,
+					profileId,
+					(options.kdf ?? newKdfParams)(),
+				),
+			},
+		});
+		return;
+	}
 	const roots = await readRootKeys(profile, oldPassword);
 	const keys: Array<ProfileKeyEntry> = [];
 	for (const [keyId, root] of roots) {
@@ -226,13 +292,17 @@ export const deleteProfile = async (
 	password: string | null,
 ): Promise<void> => {
 	const profile = await db.profiles.get(profileId);
-	if (profile && profile.keys.length > 0) {
+	if (profile?.secondFactor) {
+		// The password alone: someone who lost every factor can still
+		// remove the profile, which reveals nothing.
+		await openSecondKey(profile.secondFactor, password ?? "", profileId);
+	} else if (profile && hasKeys(profile)) {
 		await readRootKeys(profile, password);
 	}
 	if ((await session.get())?.profileId === profileId) {
 		await session.clear();
 	}
-	await db.profiles.update(profileId, { keys: [] });
+	await db.profiles.update(profileId, { keys: [], secondFactor: undefined });
 	await removeProfileRows(db, profileId);
 };
 
@@ -326,4 +396,196 @@ export const setAvatar = async (
 	} else {
 		await db.avatars.put({ profileId, image });
 	}
+};
+
+// Two-factor unlock (decision 0015, src/storage/secondFactor.ts). Every
+// change needs the profile unlocked, whose root keys the session holds, and
+// its password.
+
+export type NewAuthenticator = {
+	credentialId: Uint8Array;
+	prfSalt: Uint8Array;
+	// The authenticator's PRF output for prfSalt.
+	secret: Uint8Array;
+	name: string;
+};
+
+const sessionRoots = async (
+	session: SessionStore,
+	profileId: string,
+): Promise<Map<number, Uint8Array>> => {
+	const unlocked = await session.get();
+	if (unlocked?.profileId !== profileId) {
+		throw new ProfileError("Unlock this profile first.");
+	}
+	return new Map(
+		Object.entries(unlocked.rootKeys).map(([keyId, root]) => [
+			Number(keyId),
+			fromBase64(root),
+		]),
+	);
+};
+
+const assertName = (name: string) => {
+	if (name.trim() === "" || name.length > 40) {
+		throw new ProfileError("Name the key in 1 to 40 characters.");
+	}
+};
+
+// Adds an authenticator. The first one turns two-factor unlock on: the
+// password-only wraps go, and a recovery code is made, returned once.
+export const addAuthenticator = async (
+	db: LittleDB,
+	session: SessionStore,
+	profileId: string,
+	password: string,
+	authenticator: NewAuthenticator,
+	now: number,
+	options: KeyOptions = {},
+): Promise<{ recoveryCode: string | null }> => {
+	assertName(authenticator.name);
+	const profile = await getProfile(db, profileId);
+	if (profile.protection !== "password") {
+		throw new ProfileError("Set a password first.");
+	}
+	const roots = await sessionRoots(session, profileId);
+	const entry = async (secondKey: Uint8Array) => ({
+		credentialId: authenticator.credentialId,
+		name: authenticator.name.trim(),
+		addedAt: now,
+		prfSalt: authenticator.prfSalt,
+		keys: await authenticatorSeals(
+			roots,
+			secondKey,
+			authenticator.credentialId,
+			authenticator.prfSalt,
+			authenticator.secret,
+			profileId,
+		),
+	});
+	if (profile.secondFactor) {
+		const secondKey = await openSecondKey(
+			profile.secondFactor,
+			password,
+			profileId,
+		);
+		await db.profiles.update(profileId, {
+			secondFactor: {
+				...profile.secondFactor,
+				authenticators: [
+					...profile.secondFactor.authenticators,
+					await entry(secondKey),
+				],
+			},
+		});
+		return { recoveryCode: null };
+	}
+	// Checks the password against the wraps it is about to replace.
+	await readRootKeys(profile, password);
+	const secondKey = newSecondKey();
+	const recoveryCode = newRecoveryCode();
+	const salt = newSalt();
+	const secondFactor: SecondFactor = {
+		passwordKey: await sealSecondKey(
+			secondKey,
+			password,
+			profileId,
+			(options.kdf ?? newKdfParams)(),
+		),
+		authenticators: [await entry(secondKey)],
+		recovery: {
+			salt,
+			keys: await recoverySeals(
+				roots,
+				secondKey,
+				recoveryCode,
+				salt,
+				profileId,
+			),
+		},
+	};
+	await db.profiles.update(profileId, { keys: [], secondFactor });
+	return { recoveryCode };
+};
+
+// Turns two-factor unlock off: the root keys go back under the password
+// alone.
+export const disableSecondFactor = async (
+	db: LittleDB,
+	session: SessionStore,
+	profileId: string,
+	password: string,
+	options: KeyOptions = {},
+): Promise<void> => {
+	const profile = await getProfile(db, profileId);
+	if (!profile.secondFactor) return;
+	await openSecondKey(profile.secondFactor, password, profileId);
+	const roots = await sessionRoots(session, profileId);
+	const keys: Array<ProfileKeyEntry> = [];
+	for (const [keyId, root] of roots) {
+		keys.push(await protect(root, password, profileId, keyId, options));
+	}
+	await db.profiles.update(profileId, { keys, secondFactor: undefined });
+};
+
+// Removes one authenticator; removing the last turns two-factor unlock off.
+export const removeAuthenticator = async (
+	db: LittleDB,
+	session: SessionStore,
+	profileId: string,
+	password: string,
+	credentialId: Uint8Array,
+	options: KeyOptions = {},
+): Promise<void> => {
+	const profile = await getProfile(db, profileId);
+	if (!profile.secondFactor) return;
+	await openSecondKey(profile.secondFactor, password, profileId);
+	const left = profile.secondFactor.authenticators.filter(
+		(entry) => toBase64(entry.credentialId) !== toBase64(credentialId),
+	);
+	if (left.length === 0) {
+		await disableSecondFactor(db, session, profileId, password, options);
+		return;
+	}
+	await sessionRoots(session, profileId);
+	await db.profiles.update(profileId, {
+		secondFactor: { ...profile.secondFactor, authenticators: left },
+	});
+};
+
+// Replaces the recovery code; the old one stops working. Returned once.
+export const replaceRecoveryCode = async (
+	db: LittleDB,
+	session: SessionStore,
+	profileId: string,
+	password: string,
+): Promise<string> => {
+	const profile = await getProfile(db, profileId);
+	if (!profile.secondFactor) {
+		throw new ProfileError("Two-factor unlock is off.");
+	}
+	const secondKey = await openSecondKey(
+		profile.secondFactor,
+		password,
+		profileId,
+	);
+	const roots = await sessionRoots(session, profileId);
+	const recoveryCode = newRecoveryCode();
+	const salt = newSalt();
+	await db.profiles.update(profileId, {
+		secondFactor: {
+			...profile.secondFactor,
+			recovery: {
+				salt,
+				keys: await recoverySeals(
+					roots,
+					secondKey,
+					recoveryCode,
+					salt,
+					profileId,
+				),
+			},
+		},
+	});
+	return recoveryCode;
 };

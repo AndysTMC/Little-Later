@@ -262,6 +262,12 @@ test("capture every popup screen and edge state", async ({ page }) => {
 		"34b-settings-password",
 		page.getByRole("button", { name: "Set password" }),
 	);
+	await page.goto("/#/settings/security/two-factor");
+	await capture(
+		page,
+		"34d-settings-two-factor",
+		page.getByText("Set a password first"),
+	);
 	await page.goto("/#/settings/appearance");
 	await capture(page, "34c-settings-appearance", page.getByTitle("Green"));
 	await page.goto("/#/settings/misc");

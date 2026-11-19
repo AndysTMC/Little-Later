@@ -2,6 +2,7 @@ import { EnvelopeError } from "little-shared/utils/envelope";
 import { BackupError } from "../../storage/backup";
 import { importProfileKeys, type ProfileKeys } from "../../storage/keys";
 import { ProfileError } from "../../storage/profiles";
+import { SecondFactorError } from "../../storage/secondFactor";
 import type { LittleDB } from "../../storage/schema";
 import type { SessionStore } from "../../storage/session";
 import { StagingError, staging, type Staging } from "../../storage/staging";
@@ -95,6 +96,7 @@ const toFailure = (
 	// profile state. Anything else is a bug and is reported as internal.
 	if (
 		error instanceof ProfileError ||
+		error instanceof SecondFactorError ||
 		error instanceof EnvelopeError ||
 		error instanceof StagingError ||
 		error instanceof BackupError

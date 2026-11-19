@@ -1,18 +1,17 @@
 import { motion } from "framer-motion";
-import { InfoIcon } from "@phosphor-icons/react";
 import { LTHEME } from "little-shared/enums";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
 import { LUISettingLink } from "../../components/LUISettingRow/Component";
-import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
+import { LUINote } from "../../components/LUINote/Component";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
 import { useLoading } from "../../hooks/useLoading";
 import { usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
 
-// How the profile is protected. The password is changed on its own page;
-// when the profile locks itself is under Misc.
+// How the profile is protected. The password and two-factor unlock each
+// have a page of their own; when the profile locks itself is under Misc.
 const Page = () => {
 	const { theme } = useTheme();
 	const pageMotion = usePageMotion();
@@ -40,20 +39,18 @@ const Page = () => {
 							to="/settings/security/password"
 							referrer="/settings/security"
 						/>
-						<div
-							className={`flex w-full gap-x-2 text-sm italic ${isDark ? "text-neutral-300" : "text-neutral-600"}`}
-						>
-							<LUIThemedIcon
-								Icon={InfoIcon}
-								weight="fill"
-								className="h-5 w-5 shrink-0"
+						{profile.hasPassword ? (
+							<LUISettingLink
+								label="Two-factor unlock"
+								to="/settings/security/two-factor"
+								referrer="/settings/security"
 							/>
-							<p>
-								{profile.hasPassword
-									? "Your password protects what you save. Your profile name, photo and reminder times stay readable while locked, so reminders can still fire. The profile also locks when the browser starts or your screen locks."
-									: "Without a password, this profile is not encrypted at rest: anyone using this browser profile can open it."}
-							</p>
-						</div>
+						) : null}
+						<LUINote className="w-full">
+							{profile.hasPassword
+								? "Your password protects what you save. Your profile name, photo and reminder times stay readable while locked, so reminders can still fire. The profile also locks when the browser starts or your screen locks."
+								: "Without a password, this profile is not encrypted at rest: anyone using this browser profile can open it."}
+						</LUINote>
 					</div>
 				</LUISettingsLayout>
 			)}

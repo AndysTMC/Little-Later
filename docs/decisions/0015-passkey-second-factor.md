@@ -39,11 +39,14 @@ Option C.
 - **Usability:** each unlock needs a tap or a fingerprint as well as the password.
 - **Complexity:** a new kind of wrapped key and a WebAuthn flow, all in `src/storage/keys.ts`, `src/storage/profiles.ts` and the profile commands.
 
-## Open questions to settle before building
+## Settled while building (2026-11-19)
 
-- **Extension origin:** whether WebAuthn works from the extension's `chrome-extension://` origin, and which relying-party ID it accepts there.
-- **Popup closing:** the system's passkey dialog takes focus, and the toolbar popup closes when it loses focus, as with file windows. Unlocking may have to finish in a tab or a separate window; which one needs trying.
-- **PRF support:** which authenticators the user has return a PRF secret (security keys with `hmac-secret`, platform passkeys), and on which Chrome versions.
+- **Key model:** a random key W is wrapped by the password, and each root key is sealed under `HKDF-SHA-256(W ‖ secret)` per factor (an authenticator's PRF output, or the recovery code). The password alone opens only W. Changing the password re-wraps W, so every factor keeps working, which a direct `password ‖ PRF` wrap could not do without every authenticator present (`src/storage/secondFactor.ts`).
+- **Extension origin:** an extension page can use WebAuthn, and leaving `rp.id` out makes the extension's own id the relying party (Chrome 122 and later). A passkey made here works only for Little Later.
+- **Popup closing:** the key prompt takes focus, which closes the toolbar popup. From the toolbar popup, unlocking and adding a key continue in a small window of the same page (`src/popup/ceremonyWindow.ts`); a tab or that window runs the prompt in place.
+- **PRF support:** security keys with `hmac-secret` and passkeys in Google Password Manager provide it; Chrome's local-profile passkeys do not. A key without PRF is refused with that explanation.
+- **Delete:** needs the password only (W unwraps), so someone who lost every factor can still remove the profile, which reveals nothing.
+- **Testing:** Chrome's virtual authenticator supports PRF, so `tests/extension/two-factor.ext.ts` runs the whole flow in the built extension.
 
 ## Rollback
 

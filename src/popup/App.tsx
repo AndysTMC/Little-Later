@@ -36,6 +36,8 @@ import { LUIToasts } from "./components/LUIToasts/Component";
 import { LUIMiscSettings } from "./pages/LUIMiscSettings/Page";
 import { LUISecuritySettings } from "./pages/LUISecuritySettings/Page";
 import { LUIPasswordSettings } from "./pages/LUIPasswordSettings/Page";
+import { LUITwoFactorSettings } from "./pages/LUITwoFactorSettings/Page";
+import { LUITwoFactorAction } from "./pages/LUITwoFactorAction/Page";
 import { LUIAppearanceSettings } from "./pages/LUIAppearanceSettings/Page";
 import { LUIFileInput } from "./pages/LUIFileInput/Page";
 import { LUIImportProfile } from "./pages/LUIImportProfile/Page";
@@ -129,6 +131,14 @@ function AnimatedRoutes() {
 				<Route
 					path="/settings/security/password"
 					element={<LUIPasswordSettings />}
+				/>
+				<Route
+					path="/settings/security/two-factor"
+					element={<LUITwoFactorSettings />}
+				/>
+				<Route
+					path="/settings/security/two-factor/:action/:credential?"
+					element={<LUITwoFactorAction />}
 				/>
 				<Route
 					path="/settings/appearance"

@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from "dexie";
 import type { WrappedKey } from "little-shared/utils/envelope";
 import type { Escalation, RecurrenceRule } from "little-shared/utils/schedule";
+import type { SecondFactor } from "./secondFactor";
 
 // Storage format v1 (decision 0010). Each table lists which fields are
 // plain and why; everything else lives in the encrypted `body`.
@@ -32,8 +33,11 @@ export type ProfileRow = {
 	name: string;
 	createdAt: number;
 	protection: "password" | "none";
-	// Root keys, newest last. Two entries only while a re-key runs.
+	// Root keys, newest last. Two entries only while a re-key runs. Empty
+	// while two-factor unlock is on: the root keys are then sealed per
+	// factor in secondFactor instead (decision 0015).
 	keys: Array<ProfileKeyEntry>;
+	secondFactor?: SecondFactor;
 	currentKeyId: number;
 	// The index key, sealed under the root key it names in its header.
 	indexKey: Uint8Array;

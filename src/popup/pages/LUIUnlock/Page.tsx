@@ -6,7 +6,11 @@ import { send } from "../../../utils/send";
 import { isFirstTimeUser } from "../../../services/settings";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
-import { LUIAuthGate } from "../../components/LUIAuthGate/Component";
+import {
+	LUIAuthGate,
+	type UnlockFactor,
+} from "../../components/LUIAuthGate/Component";
+import { finishCeremonyWindow } from "../../ceremonyWindow";
 import { useUserProfiles, type UserProfile } from "../../hooks/useUserProfiles";
 import { useEffect, useState } from "react";
 import { useLoading } from "../../hooks/useLoading";
@@ -28,14 +32,17 @@ const Page = () => {
 	const loading = useLoading([userProfiles]);
 
 	// Errors reach the gate, which shows them by the password field.
-	const handleUnlock = async (password?: string) => {
+	const handleUnlock = async (password?: string, factor?: UnlockFactor) => {
 		if (savedUP === undefined) {
 			return;
 		}
 		await send("profile.unlock", {
 			profileId: savedUP.id,
 			password: password ?? null,
+			factor,
 		});
+		// Unlocked in the security key's own window: back to the toolbar.
+		if (await finishCeremonyWindow()) return;
 		const firstTime = await isFirstTimeUser();
 		go(firstTime ? "/getting-started" : "/home", "into");
 	};

@@ -55,6 +55,7 @@ const profile = (hasPassword: boolean): UserProfile => ({
 	autoLockMinutes: 30,
 	accent: "mono",
 	accentColor: null,
+	authenticators: null,
 });
 
 let container: HTMLDivElement;
@@ -117,7 +118,7 @@ describe("auth gate", () => {
 		);
 		await typeInto(container, "Password", "secret");
 		await press(container, "Unlock");
-		expect(handle).toHaveBeenCalledWith("secret");
+		expect(handle).toHaveBeenCalledWith("secret", undefined);
 	});
 
 	it("shows why an unlock failed", async () => {
@@ -152,7 +153,7 @@ describe("auth gate", () => {
 		).toBeNull();
 		expect(container.textContent).toContain("not encrypted at rest");
 		await press(container, "Lock");
-		expect(handle).toHaveBeenCalledWith(undefined);
+		expect(handle).toHaveBeenCalledWith(undefined, undefined);
 	});
 
 	it("deletes a protected profile only with its password, after confirming", async () => {
