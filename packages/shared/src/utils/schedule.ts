@@ -257,27 +257,6 @@ export const nextOccurrence = (
 	throw new ScheduleError("The rule has no upcoming occurrence.");
 };
 
-// How many occurrences fell in (from, to]: missed fires while the browser
-// was closed, shown as one catch-up notification.
-export const countOccurrences = (
-	rule: RecurrenceRule,
-	from: number,
-	to: number,
-	deviceZone: string,
-	limit = 100,
-): number => {
-	let count = 0;
-	let cursor = from;
-	while (count < limit) {
-		cursor = nextOccurrence(rule, cursor, deviceZone);
-		if (cursor > to) {
-			break;
-		}
-		count++;
-	}
-	return count;
-};
-
 export type Escalation = { escalate: true; stopBefore: number };
 
 const MINUTE = 60_000;

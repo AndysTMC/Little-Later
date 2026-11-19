@@ -55,7 +55,6 @@ export enum LTASK_PRIORITY {
 export enum LCHROME_STORAGE_KEYS {
 	USER_SETTINGS = "userSettings",
 	TOASTS = "toasts",
-	ACTIVE_USER_ID = "activeUserId",
 }
 
 export enum LTOAST_TYPE {

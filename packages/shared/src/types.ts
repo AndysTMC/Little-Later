@@ -47,10 +47,9 @@ export type LUserSettings = {
 export type LChromeStorageRecords = {
 	userSettings: LUserSettings;
 	toasts: Array<LToast>;
-	activeUserId: number | null;
 };
 
 // The date format the AI tools exchange with the model: a wall-clock time
 // with its UTC offset, such as 2026-10-28T09:00:00+05:30.
 export type LDate =
-	`${number}-${number}-${number}T${number}:${number}:${number}+${number}:${number}`;
+	`${number}-${number}-${number}T${number}:${number}:${number}${"+" | "-"}${number}:${number}`;

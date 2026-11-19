@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	ScheduleError,
-	countOccurrences,
 	nextEscalationFire,
 	nextOccurrence,
 	parseRule,
@@ -172,14 +171,6 @@ describe("monthly and yearly rules", () => {
 			"2026-11-30T09:00",
 			"2026-12-31T09:00",
 		]);
-		expect(
-			countOccurrences(
-				r,
-				at(`2026-10-15T00:00[${NY}]`),
-				at(`2026-12-31T12:00[${NY}]`),
-				NY,
-			),
-		).toBe(3);
 	});
 
 	// Years of 365 days drift the same way, only far more slowly.
@@ -258,20 +249,6 @@ describe("properties", () => {
 				}
 			}
 		}
-	});
-});
-
-describe("catch-up", () => {
-	it("counts occurrences missed while the browser was closed", () => {
-		const r = rule({ anchor: "2026-01-01" });
-		expect(
-			countOccurrences(
-				r,
-				at(`2026-01-05T12:00[${NY}]`),
-				at(`2026-01-09T12:00[${NY}]`),
-				NY,
-			),
-		).toBe(4);
 	});
 });
 
