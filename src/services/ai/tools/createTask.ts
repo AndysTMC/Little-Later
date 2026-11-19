@@ -1,6 +1,6 @@
 import { LDATE_FORMAT } from "little-shared/constants";
 import { LTASK_PRIORITY } from "little-shared/enums";
-import OpenAI from "openai";
+import type OpenAI from "openai";
 
 const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	type: "function",
@@ -35,7 +35,6 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 			required: ["information"],
 			additionalProperties: false,
 		},
-		strict: true,
 	},
 };
 

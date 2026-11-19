@@ -2,18 +2,20 @@ import { LTASK_PRIORITY } from "little-shared/enums";
 import { LDate } from "little-shared/types";
 import type { Task } from "../../../storage/repositories";
 import type { TaskSchedule } from "../../../storage/schema";
-import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
+import { IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
 import { searchTasks } from "../../../popup/records";
-import { readTasks, unlockedKeys } from "../records";
+import { readTasks } from "../records";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
 	pickSemanticCandidates,
 	quoteForPrompt,
 } from "./_utils/semanticSearch";
 import { dateMatchesCriteria, LDateMatchCriteria } from "./_utils/dateFilters";
+import type { AIOwner } from "../owner";
 
 const toolCall = async (
+	owner: AIOwner,
 	ai: Pick<LittleAI, "getStructuredResponse">,
 	{
 		deadlineDate,
@@ -33,7 +35,7 @@ const toolCall = async (
 		scheduleType?: TaskSchedule["kind"];
 	},
 ): Promise<Array<Task>> => {
-	const tasks = await readTasks(await unlockedKeys());
+	const tasks = await readTasks(await owner.keys());
 	let resultTasks = tasks.slice();
 	if (query) {
 		const queryTasks = new Set<Task>(searchTasks(tasks, query));
@@ -54,7 +56,6 @@ const toolCall = async (
 
                 Find all relevant ids of tasks where the information matches or relates to the query.
             `,
-			IDJSONSchema,
 			IDJSONObjectInstruction,
 		);
 		const semanticTaskIds = extractSemanticIds(response);

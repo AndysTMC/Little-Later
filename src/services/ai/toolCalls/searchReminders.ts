@@ -1,10 +1,10 @@
 import { LREMINDER_TYPE } from "little-shared/enums";
 import { LDate } from "little-shared/types";
 import type { Reminder } from "../../../storage/repositories";
-import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
+import { IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
 import { reminderKind, searchReminders } from "../../../popup/records";
-import { readReminders, unlockedKeys } from "../records";
+import { readReminders } from "../records";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
 	pickSemanticCandidates,
@@ -15,8 +15,10 @@ import {
 	toModelDate,
 	LDateMatchCriteria,
 } from "./_utils/dateFilters";
+import type { AIOwner } from "../owner";
 
 const toolCall = async (
+	owner: AIOwner,
 	ai: Pick<LittleAI, "getStructuredResponse">,
 	{
 		query,
@@ -30,7 +32,7 @@ const toolCall = async (
 		targetDateCriteria?: LDateMatchCriteria;
 	},
 ): Promise<Array<Reminder>> => {
-	const reminders = await readReminders(await unlockedKeys());
+	const reminders = await readReminders(await owner.keys());
 	if (!query && !type && !targetDate) {
 		return reminders;
 	}
@@ -57,7 +59,6 @@ const toolCall = async (
 
                 Find all relevant ids of reminders where the message matches or relates to the query.
             `,
-			IDJSONSchema,
 			IDJSONObjectInstruction,
 		);
 		const semanticReminderIds = extractSemanticIds(response);

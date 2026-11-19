@@ -1,5 +1,5 @@
 import { LTHEME } from "little-shared/enums";
-import OpenAI from "openai";
+import type OpenAI from "openai";
 
 const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	type: "function",
@@ -18,7 +18,6 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 			required: ["theme"],
 			additionalProperties: false,
 		},
-		strict: true,
 	},
 };
 export { tool as setUserAppThemePrefTool };

@@ -1,4 +1,5 @@
-import OpenAI from "openai";
+import type { AIOwner } from "./owner";
+import type OpenAI from "openai";
 import {
 	LEXPORT_TYPE,
 	LFACE_EXPRESSION,
@@ -16,16 +17,13 @@ import type { Note, Reminder, Save, Task } from "../../storage/repositories";
 import type { LinkRow, TaskSchedule } from "../../storage/schema";
 import { linkedTo, reminderKind } from "../../popup/records";
 import { prettyRule } from "../../utils/dates";
-import { send } from "../../utils/send";
 import {
 	readLinks,
 	readNotes,
 	readReminders,
 	readSaves,
 	readTasks,
-	unlockedKeys,
 } from "./records";
-import { ResponseFormatJSONSchema } from "openai/resources.mjs";
 import toolCalls from "./toolCalls";
 import {
 	isValidLDateString,
@@ -64,7 +62,6 @@ import tools, {
 type StructuredResponseProvider = {
 	getStructuredResponse(
 		prompt: string,
-		jsonSchema?: ResponseFormatJSONSchema.JSONSchema,
 		jsonObjectSchema?: string,
 	): Promise<unknown>;
 };
@@ -79,6 +76,9 @@ type AIOutputContent = {
 
 type ToolExecutionContext = {
 	ai: StructuredResponseProvider;
+	// The profile the request belongs to; every read and write goes
+	// through it (owner.ts).
+	owner: AIOwner;
 };
 
 type ToolUndoAction = {
@@ -190,16 +190,17 @@ const asScheduleKind = (value: unknown): TaskSchedule["kind"] | undefined =>
 // with a new id, and with its links.
 
 const relink = async (
+	owner: AIOwner,
 	fromId: string,
 	targetIds: ReadonlyArray<string>,
 ): Promise<void> => {
 	for (const toId of targetIds) {
-		await send("link.create", { fromId, toId });
+		await owner.send("link.create", { fromId, toId });
 	}
 };
 
-const snapshot = async () => {
-	const keys = await unlockedKeys();
+const snapshot = async (owner: AIOwner) => {
+	const keys = await owner.keys();
 	const [links, notes, reminders, saves, tasks] = await Promise.all([
 		readLinks(keys),
 		readNotes(keys),
@@ -214,44 +215,47 @@ const targetsOf = (links: ReadonlyArray<LinkRow>, id: string) =>
 	links.filter((link) => link.fromId === id).map((link) => link.toId);
 
 const captureDeleteNoteUndo = async (
+	owner: AIOwner,
 	id: string,
 ): Promise<ToolUndoAction | undefined> => {
-	const { links, notes } = await snapshot();
+	const { links, notes } = await snapshot(owner);
 	const note = notes.find((item) => item.id === id);
 	if (!note) {
 		return undefined;
 	}
-	const [saveId, ...otherSaveIds] = targetsOf(links, id);
+	// A note links only to saves; they come back with it in one command.
+	const saveIds = targetsOf(links, id);
 	return {
 		label: "Delete note",
 		run: async () => {
-			const created = await send("note.create", {
-				content: note.content,
-				saveId,
-			});
-			await relink(created.id, otherSaveIds);
+			await owner.send("note.create", { content: note.content, saveIds });
 		},
 	};
 };
 
 const captureDeleteReminderUndo = async (
+	owner: AIOwner,
 	id: string,
 ): Promise<ToolUndoAction | undefined> => {
-	const { links, reminders } = await snapshot();
+	const { links, reminders, saves } = await snapshot(owner);
 	const reminder = reminders.find((item) => item.id === id);
 	if (!reminder) {
 		return undefined;
 	}
+	const isSave = new Set(saves.map((save) => save.id));
 	const targetIds = targetsOf(links, id);
+	const saveIds = targetIds.filter((toId) => isSave.has(toId));
+	const otherIds = targetIds.filter((toId) => !isSave.has(toId));
 	return {
 		label: "Delete reminder",
 		run: async () => {
-			const created = await send("reminder.create", {
+			const created = await owner.send("reminder.create", {
 				message: reminder.message,
 				target: reminder.target,
 				escalate: reminder.escalation !== null,
+				saveIds,
 			});
-			await relink(created.id, targetIds);
+			await relink(owner, created.id, otherIds);
 		},
 	};
 };
@@ -259,9 +263,10 @@ const captureDeleteReminderUndo = async (
 // Deleting a save unsaves it, which detaches its notes, tasks and
 // reminders; undo saves it again and reattaches them.
 const captureDeleteSaveUndo = async (
+	owner: AIOwner,
 	id: string,
 ): Promise<ToolUndoAction | undefined> => {
-	const { links, saves } = await snapshot();
+	const { links, saves } = await snapshot(owner);
 	if (!saves.some((save) => save.id === id && save.saved)) {
 		return undefined;
 	}
@@ -271,9 +276,9 @@ const captureDeleteSaveUndo = async (
 	return {
 		label: "Delete save",
 		run: async () => {
-			await send("save.update", { id, saved: true });
+			await owner.send("save.update", { id, saved: true });
 			for (const fromId of sourceIds) {
-				await send("link.create", { fromId, toId: id });
+				await owner.send("link.create", { fromId, toId: id });
 			}
 		},
 	};
@@ -281,9 +286,10 @@ const captureDeleteSaveUndo = async (
 
 // A task's own reminder is deleted with it and comes back with it.
 const captureDeleteTaskUndo = async (
+	owner: AIOwner,
 	id: string,
 ): Promise<ToolUndoAction | undefined> => {
-	const { links, reminders, tasks } = await snapshot();
+	const { links, reminders, tasks } = await snapshot(owner);
 	const task = tasks.find((item) => item.id === id);
 	if (!task) {
 		return undefined;
@@ -293,7 +299,7 @@ const captureDeleteTaskUndo = async (
 	return {
 		label: "Delete task",
 		run: async () => {
-			const created = await send("task.create", {
+			const created = await owner.send("task.create", {
 				information: task.information,
 				label: task.label,
 				priority: task.priority,
@@ -302,10 +308,10 @@ const captureDeleteTaskUndo = async (
 					reminder && task.schedule.kind !== "anytime"
 						? reminderKind(reminder)
 						: null,
+				saveIds,
 			});
-			await relink(created.id, saveIds);
 			if (task.done) {
-				await send("task.complete", { id: created.id });
+				await owner.send("task.complete", { id: created.id });
 			}
 		},
 	};
@@ -363,24 +369,44 @@ const deriveNoteLabel = (content: string): string => {
 	return summarizeInlineText(firstNonEmptyLine, 64);
 };
 
+// Models often repeat the schedule inside the reminder's text ("Submit
+// report on April 7 2026 at 9:30 AM") although the time has its own
+// field. A trailing phrase is dropped only when it is clearly a date: a
+// month followed by a day number, a numeric date, or a whole day word.
+// Matching any word that merely starts like a month cut real text
+// ("slides for Mayfield" lost everything after "for"). The confirmation
+// shows the text after this step, so what is approved is what is stored.
 const temporalSuffixPattern =
-	/\s+(?:for|on)\s+(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|\d{4}-\d{2}-\d{2}|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday).*/i;
+	/\s+(?:for|on)\s+(?:(?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)\.?\s+\d{1,2}\b|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b|\d{4}-\d{2}-\d{2}\b|(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b).*/i;
 
 const sanitizeReminderMessage = (value: string, targetDate?: LDate): string => {
 	const normalized = value.replace(/\s+/g, " ").trim();
 	if (normalized === "" || !targetDate) {
 		return normalized;
 	}
-	if (!temporalSuffixPattern.test(normalized)) {
-		return normalized;
-	}
 	const stripped = normalized.replace(temporalSuffixPattern, "").trim();
 	return stripped.length >= 3 ? stripped : normalized;
 };
 
+// What one search hands the model. The chat still receives every record
+// through `content`; the model gets a bounded page, so one question never
+// sends a whole notebook to the provider or overflows its context.
+const MODEL_RESULT_LIMIT = 25;
+const MODEL_TEXT_LIMIT = 2_000;
+const forModel = <T, M>(records: Array<T>, toModel: (record: T) => M) => ({
+	total: records.length,
+	results: records.slice(0, MODEL_RESULT_LIMIT).map(toModel),
+	...(records.length > MODEL_RESULT_LIMIT
+		? {
+				note: `Only the first ${MODEL_RESULT_LIMIT} are listed. Search with a narrower query to see others.`,
+			}
+		: {}),
+});
+
 const toModelNote = (note: Note) => ({
 	id: note.id,
-	content: note.content,
+	content: note.content.slice(0, MODEL_TEXT_LIMIT),
+	...(note.content.length > MODEL_TEXT_LIMIT ? { truncated: true } : {}),
 	lastModificationDate: toModelDate(note.updatedAt),
 });
 
@@ -400,6 +426,8 @@ const toModelReminder = (reminder: Reminder) => ({
 	type: reminderKind(reminder),
 	lastNotificationDate:
 		reminder.lastFiredAt === 0 ? null : toModelDate(reminder.lastFiredAt),
+	// False once it has fired for the last time.
+	pending: reminder.nextFireAt !== 0,
 });
 
 const toModelSchedule = (schedule: TaskSchedule) => {
@@ -453,9 +481,9 @@ const toolDefinitions: Array<ToolDefinition> = [
 				asTrimmedString(args.message) ??
 				asTrimmedString(args.text),
 		}),
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			const content = requireString(args.content, "content");
-			const action = await toolCalls.createNote({ content });
+			const action = await toolCalls.createNote(owner, { content });
 			await action();
 			const noteLabel = deriveNoteLabel(content);
 			return {
@@ -490,7 +518,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 					]) ?? LREMINDER_TYPE.NORMAL,
 			};
 		},
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			if (args.targetDateInvalid === true) {
 				throw new Error(
 					"targetDate must be in YYYY-MM-DDTHH:mm:ssZ format.",
@@ -512,7 +540,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 					LREMINDER_TYPE.NORMAL,
 					LREMINDER_TYPE.ESCALATING,
 				]) ?? LREMINDER_TYPE.NORMAL;
-			const action = await toolCalls.createReminder({
+			const action = await toolCalls.createReminder(owner, {
 				message,
 				targetDate,
 				type,
@@ -552,7 +580,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 					deadlineDate === undefined,
 			};
 		},
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			if (args.deadlineDateInvalid === true) {
 				throw new Error(
 					"deadlineDate must be in YYYY-MM-DDTHH:mm:ssZ format.",
@@ -562,14 +590,14 @@ const toolDefinitions: Array<ToolDefinition> = [
 			const label =
 				asTrimmedString(args.label) ??
 				summarizeInlineText(information, 20);
-			const priority =
-				asEnum(args.priority, [
-					LTASK_PRIORITY.LOW,
-					LTASK_PRIORITY.MEDIUM,
-					LTASK_PRIORITY.HIGH,
-				]) ?? LTASK_PRIORITY.LOW;
+			// Unset, the task gets the same default as one made in the popup.
+			const priority = asEnum(args.priority, [
+				LTASK_PRIORITY.LOW,
+				LTASK_PRIORITY.MEDIUM,
+				LTASK_PRIORITY.HIGH,
+			]);
 			const deadlineDate = asDateString(args.deadlineDate);
-			const action = await toolCalls.createTask({
+			const action = await toolCalls.createTask(owner, {
 				information,
 				label,
 				priority,
@@ -588,10 +616,10 @@ const toolDefinitions: Array<ToolDefinition> = [
 		normalizeArgs: (args) => ({
 			id: asId(args.id),
 		}),
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			const id = requireId(args.id);
-			const undoAction = await captureDeleteNoteUndo(id);
-			const action = await toolCalls.deleteNote({ id });
+			const undoAction = await captureDeleteNoteUndo(owner, id);
+			const action = await toolCalls.deleteNote(owner, { id });
 			await action();
 			return {
 				message: "Deleted the note.",
@@ -606,10 +634,10 @@ const toolDefinitions: Array<ToolDefinition> = [
 		normalizeArgs: (args) => ({
 			id: asId(args.id),
 		}),
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			const id = requireId(args.id);
-			const undoAction = await captureDeleteReminderUndo(id);
-			const action = await toolCalls.deleteReminder({ id });
+			const undoAction = await captureDeleteReminderUndo(owner, id);
+			const action = await toolCalls.deleteReminder(owner, { id });
 			await action();
 			return {
 				message: "Deleted the reminder.",
@@ -624,10 +652,10 @@ const toolDefinitions: Array<ToolDefinition> = [
 		normalizeArgs: (args) => ({
 			id: asId(args.id),
 		}),
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			const id = requireId(args.id);
-			const undoAction = await captureDeleteSaveUndo(id);
-			const action = await toolCalls.deleteSave({ id });
+			const undoAction = await captureDeleteSaveUndo(owner, id);
+			const action = await toolCalls.deleteSave(owner, { id });
 			await action();
 			return {
 				message: "Deleted the save.",
@@ -642,10 +670,10 @@ const toolDefinitions: Array<ToolDefinition> = [
 		normalizeArgs: (args) => ({
 			id: asId(args.id),
 		}),
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			const id = requireId(args.id);
-			const undoAction = await captureDeleteTaskUndo(id);
-			const action = await toolCalls.deleteTask({ id });
+			const undoAction = await captureDeleteTaskUndo(owner, id);
+			const action = await toolCalls.deleteTask(owner, { id });
 			await action();
 			return {
 				message: "Deleted the task.",
@@ -664,14 +692,21 @@ const toolDefinitions: Array<ToolDefinition> = [
 					LEXPORT_TYPE.IMPORTABLE,
 				]) ?? LEXPORT_TYPE.READABLE,
 		}),
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			const type =
 				asEnum(args.type, [
 					LEXPORT_TYPE.READABLE,
 					LEXPORT_TYPE.IMPORTABLE,
 				]) ?? LEXPORT_TYPE.READABLE;
-			const password = asTrimmedString(args.password);
-			const action = await toolCalls.exportData({ type, password });
+			// Passed as typed: the backup refuses outer spaces itself, as it
+			// does on the Export page, rather than protecting the file with
+			// a password other than the one the user chose.
+			const password =
+				typeof args.password === "string" ? args.password : undefined;
+			const action = await toolCalls.exportData(owner, {
+				type,
+				password,
+			});
 			await action();
 			return {
 				message: "Export completed.",
@@ -735,9 +770,9 @@ const toolDefinitions: Array<ToolDefinition> = [
 		normalizeArgs: (args) => ({
 			limit: asInteger(args.limit),
 		}),
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			const limit = asInteger(args.limit) ?? 10;
-			const history = await toolCalls.getRecentHistory(limit);
+			const history = await toolCalls.getRecentHistory(owner, limit);
 			if (history.length === 0) {
 				return {
 					message: "No recent history found.",
@@ -750,10 +785,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 			}
 			return {
 				message: `Found ${history.length} recent history item${history.length === 1 ? "" : "s"}.`,
-				modelPayload: {
-					total: history.length,
-					results: history.map(toModelSave),
-				},
+				modelPayload: forModel(history, toModelSave),
 				content: {
 					...createEmptyOutputContent(),
 					saves: history,
@@ -766,8 +798,8 @@ const toolDefinitions: Array<ToolDefinition> = [
 		tool: getProductivityOverviewTool,
 		safety: SAFETY.read,
 		normalizeArgs: () => ({}),
-		execute: async () => {
-			const overview = await toolCalls.getProductivityOverview();
+		execute: async (_args, { owner }) => {
+			const overview = await toolCalls.getProductivityOverview(owner);
 			return {
 				message: `Overview: ${overview.tasks.pending} pending tasks, ${overview.reminders.upcoming} upcoming reminders, ${overview.saves.total} saves, ${overview.notes.total} notes.`,
 				modelPayload: overview,
@@ -783,8 +815,8 @@ const toolDefinitions: Array<ToolDefinition> = [
 			url: asTrimmedString(args.url),
 			query: asTrimmedString(args.query),
 		}),
-		execute: async (args) => {
-			const preview = await toolCalls.getSavePreviewImage({
+		execute: async (args, { owner }) => {
+			const preview = await toolCalls.getSavePreviewImage(owner, {
 				id: asId(args.id),
 				url: asTrimmedString(args.url),
 				query: asTrimmedString(args.query),
@@ -811,8 +843,8 @@ const toolDefinitions: Array<ToolDefinition> = [
 		tool: getUserAppThemePrefTool,
 		safety: SAFETY.read,
 		normalizeArgs: () => ({}),
-		execute: async () => {
-			const theme = await toolCalls.getUserAppThemePref();
+		execute: async (_args, { owner }) => {
+			const theme = await toolCalls.getUserAppThemePref(owner);
 			return {
 				message: `Your app theme is ${theme}.`,
 				expression: LFACE_EXPRESSION.SLIGHTLY_SMILING,
@@ -823,8 +855,8 @@ const toolDefinitions: Array<ToolDefinition> = [
 		tool: getUserNameTool,
 		safety: SAFETY.read,
 		normalizeArgs: () => ({}),
-		execute: async () => {
-			const userName = await toolCalls.getUserName();
+		execute: async (_args, { owner }) => {
+			const userName = await toolCalls.getUserName(owner);
 			return {
 				message: `Your name is ${userName}.`,
 				expression: LFACE_EXPRESSION.SLIGHTLY_SMILING,
@@ -841,9 +873,9 @@ const toolDefinitions: Array<ToolDefinition> = [
 				asTrimmedString(args.content) ??
 				"",
 		}),
-		execute: async (args, context) => {
+		execute: async (args, { ai, owner }) => {
 			const query = asString(args.query) ?? "";
-			const notes = await toolCalls.searchNotes(context.ai, query);
+			const notes = await toolCalls.searchNotes(owner, ai, query);
 			if (notes.length === 0) {
 				return {
 					message: "No notes found.",
@@ -855,10 +887,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 			}
 			return {
 				message: `Found ${notes.length} note${notes.length === 1 ? "" : "s"}.`,
-				modelPayload: {
-					total: notes.length,
-					results: notes.map(toModelNote),
-				},
+				modelPayload: forModel(notes, toModelNote),
 				content: {
 					...createEmptyOutputContent(),
 					notes,
@@ -882,8 +911,8 @@ const toolDefinitions: Array<ToolDefinition> = [
 			targetDate: asDateString(args.targetDate),
 			targetDateCriteria: asDateCriteria(args.targetDateCriteria),
 		}),
-		execute: async (args, context) => {
-			const reminders = await toolCalls.searchReminders(context.ai, {
+		execute: async (args, { ai, owner }) => {
+			const reminders = await toolCalls.searchReminders(owner, ai, {
 				query: asString(args.query),
 				type: asEnum(args.type, [
 					LREMINDER_TYPE.NORMAL,
@@ -903,10 +932,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 			}
 			return {
 				message: `Found ${reminders.length} reminder${reminders.length === 1 ? "" : "s"}.`,
-				modelPayload: {
-					total: reminders.length,
-					results: reminders.map(toModelReminder),
-				},
+				modelPayload: forModel(reminders, toModelReminder),
 				content: {
 					...createEmptyOutputContent(),
 					reminders,
@@ -926,8 +952,8 @@ const toolDefinitions: Array<ToolDefinition> = [
 			domain: asTrimmedString(args.domain),
 			url: asTrimmedString(args.url),
 		}),
-		execute: async (args, context) => {
-			const saves = await toolCalls.searchSaves(context.ai, {
+		execute: async (args, { ai, owner }) => {
+			const saves = await toolCalls.searchSaves(owner, ai, {
 				query: asString(args.query),
 				domain: asString(args.domain),
 				url: asString(args.url),
@@ -943,10 +969,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 			}
 			return {
 				message: `Found ${saves.length} save${saves.length === 1 ? "" : "s"}.`,
-				modelPayload: {
-					total: saves.length,
-					results: saves.map(toModelSave),
-				},
+				modelPayload: forModel(saves, toModelSave),
 				content: {
 					...createEmptyOutputContent(),
 					saves,
@@ -974,8 +997,8 @@ const toolDefinitions: Array<ToolDefinition> = [
 			finishDate: asDateString(args.finishDate),
 			finishDateCriteria: asDateCriteria(args.finishDateCriteria),
 		}),
-		execute: async (args, context) => {
-			const tasks = await toolCalls.searchTasks(context.ai, {
+		execute: async (args, { ai, owner }) => {
+			const tasks = await toolCalls.searchTasks(owner, ai, {
 				query: asString(args.query),
 				priority: asEnum(args.priority, [
 					LTASK_PRIORITY.LOW,
@@ -999,10 +1022,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 			}
 			return {
 				message: `Found ${tasks.length} task${tasks.length === 1 ? "" : "s"}.`,
-				modelPayload: {
-					total: tasks.length,
-					results: tasks.map(toModelTask),
-				},
+				modelPayload: forModel(tasks, toModelTask),
 				content: {
 					...createEmptyOutputContent(),
 					tasks,
@@ -1017,12 +1037,14 @@ const toolDefinitions: Array<ToolDefinition> = [
 		normalizeArgs: (args) => ({
 			theme: asEnum(args.theme, [LTHEME.LIGHT, LTHEME.DARK]),
 		}),
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			const theme = asEnum(args.theme, [LTHEME.LIGHT, LTHEME.DARK]);
 			if (!theme) {
 				throw new Error("theme is required.");
 			}
-			const action = await toolCalls.setUserAppThemePref({ theme });
+			const action = await toolCalls.setUserAppThemePref(owner, {
+				theme,
+			});
 			await action();
 			return {
 				message: `Theme updated to ${theme}.`,
@@ -1040,10 +1062,10 @@ const toolDefinitions: Array<ToolDefinition> = [
 				asTrimmedString(args.message) ??
 				asTrimmedString(args.text),
 		}),
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			const id = requireId(args.id);
 			const content = requireString(args.content, "content");
-			const action = await toolCalls.updateNote(id, content);
+			const action = await toolCalls.updateNote(owner, id, content);
 			await action();
 			const noteLabel = deriveNoteLabel(content);
 			return {
@@ -1082,10 +1104,10 @@ const toolDefinitions: Array<ToolDefinition> = [
 					targetDateInput !== undefined && targetDate === undefined,
 			};
 		},
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			const id = requireId(args.id);
 			const existingReminder = (
-				await readReminders(await unlockedKeys())
+				await readReminders(await owner.keys())
 			).find((reminder) => reminder.id === id);
 			if (!existingReminder) {
 				throw new Error("Reminder not found.");
@@ -1095,20 +1117,25 @@ const toolDefinitions: Array<ToolDefinition> = [
 					"targetDate must be in YYYY-MM-DDTHH:mm:ssZ format.",
 				);
 			}
+			// Only a date the model sent is a change. Sending the stored
+			// time back through its text form drops the milliseconds, which
+			// the worker would read as a new time and restart the schedule.
+			const requestedTargetDate = asDateString(args.targetDate);
 			const nextTargetDate =
-				asDateString(args.targetDate) ??
-				toModelDate(existingReminder.target);
+				requestedTargetDate ?? toModelDate(existingReminder.target);
+			const requestedMessage = asString(args.message);
 			const nextMessage = sanitizeReminderMessage(
-				asString(args.message) ?? existingReminder.message,
+				requestedMessage ?? existingReminder.message,
 				nextTargetDate,
 			);
-			const action = await toolCalls.updateReminder(id, {
-				message: nextMessage,
+			const action = await toolCalls.updateReminder(owner, id, {
+				message:
+					requestedMessage === undefined ? undefined : nextMessage,
 				type: asEnum(args.type, [
 					LREMINDER_TYPE.NORMAL,
 					LREMINDER_TYPE.ESCALATING,
 				]),
-				targetDate: nextTargetDate,
+				targetDate: requestedTargetDate,
 			});
 			await action();
 			return {
@@ -1144,14 +1171,14 @@ const toolDefinitions: Array<ToolDefinition> = [
 					deadlineDate === undefined,
 			};
 		},
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			if (args.deadlineDateInvalid === true) {
 				throw new Error(
 					"deadlineDate must be in YYYY-MM-DDTHH:mm:ssZ format.",
 				);
 			}
 			const id = requireId(args.id);
-			const action = await toolCalls.updateTask({
+			const action = await toolCalls.updateTask(owner, {
 				id,
 				information: asTrimmedString(args.information),
 				label: asTrimmedString(args.label),
@@ -1164,7 +1191,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 			});
 			await action();
 			return {
-				message: `Updated task ${id}.`,
+				message: "Updated the task.",
 				expression: LFACE_EXPRESSION.SLIGHTLY_SMILING,
 			};
 		},
@@ -1173,8 +1200,8 @@ const toolDefinitions: Array<ToolDefinition> = [
 		tool: saveActiveWebPageTool,
 		safety: SAFETY.mutate,
 		normalizeArgs: () => ({}),
-		execute: async () => {
-			const action = await toolCalls.saveActiveWebPage();
+		execute: async (_args, { owner }) => {
+			const action = await toolCalls.saveActiveWebPage(owner);
 			await action();
 			return {
 				message: "Saved the current page.",
@@ -1194,10 +1221,13 @@ const toolDefinitions: Array<ToolDefinition> = [
 				LMAX_TASK_INFORMATION_LENGTH,
 			),
 		}),
-		execute: async (args) => {
+		execute: async (args, { owner }) => {
 			const id = requireId(args.id);
 			const customName = requireString(args.customName, "customName");
-			const action = await toolCalls.updateSave({ id, customName });
+			const action = await toolCalls.updateSave(owner, {
+				id,
+				customName,
+			});
 			await action();
 			return {
 				message: `Updated save "${customName}".`,

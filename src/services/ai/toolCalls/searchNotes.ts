@@ -1,19 +1,21 @@
 import type { Note } from "../../../storage/repositories";
-import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
+import { IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
 import { searchNotes } from "../../../popup/records";
-import { readNotes, unlockedKeys } from "../records";
+import { readNotes } from "../records";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
 	pickSemanticCandidates,
 	quoteForPrompt,
 } from "./_utils/semanticSearch";
+import type { AIOwner } from "../owner";
 
 const toolCall = async (
+	owner: AIOwner,
 	ai: Pick<LittleAI, "getStructuredResponse">,
 	query: string,
 ): Promise<Array<Note>> => {
-	const notes = await readNotes(await unlockedKeys());
+	const notes = await readNotes(await owner.keys());
 	if (query.trim() === "") {
 		return notes;
 	}
@@ -34,7 +36,6 @@ const toolCall = async (
 
             Find all relevant ids of notes where the content matches or relates to the query.
         `,
-		IDJSONSchema,
 		IDJSONObjectInstruction,
 	);
 	const semanticNoteIds = extractSemanticIds(response);

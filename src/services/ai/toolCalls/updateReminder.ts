@@ -1,11 +1,12 @@
 import { LREMINDER_TYPE } from "little-shared/enums";
 import { LDate } from "little-shared/types";
-import { send } from "../../../utils/send";
-import { readReminders, unlockedKeys } from "../records";
+import { readReminders } from "../records";
 import { fromModelDate } from "./_utils/dateFilters";
+import type { AIOwner } from "../owner";
 
 // Only what changes goes out: a new time or type restarts the schedule.
 const toolCall = async (
+	owner: AIOwner,
 	id: string,
 	{
 		message,
@@ -17,7 +18,7 @@ const toolCall = async (
 		targetDate?: LDate;
 	},
 ): Promise<() => Promise<void>> => {
-	const reminder = (await readReminders(await unlockedKeys())).find(
+	const reminder = (await readReminders(await owner.keys())).find(
 		(item) => item.id === id,
 	);
 	if (reminder === undefined) {
@@ -28,7 +29,7 @@ const toolCall = async (
 	const escalate =
 		type === undefined ? undefined : type === LREMINDER_TYPE.ESCALATING;
 	return async () => {
-		await send("reminder.update", {
+		await owner.send("reminder.update", {
 			id,
 			message,
 			target: target !== reminder.target ? target : undefined,

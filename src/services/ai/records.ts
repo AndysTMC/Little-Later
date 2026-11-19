@@ -9,6 +9,7 @@ import {
 	PREVIEW_KIND,
 	PREVIEW_TYPE,
 	getSettings,
+	openEach,
 	openNote,
 	openReminder,
 	openSave,
@@ -42,47 +43,47 @@ const owned = (profileId: string) =>
 
 // Saved pages and browsing history alike.
 export const readSaves = async (keys: ProfileKeys): Promise<Array<Save>> =>
-	Promise.all(
-		(
-			await littleDB.saves
-				.where("[profileId+keyId]")
-				.between(...owned(keys.profileId))
-				.toArray()
-		).map((row) => openSave(keys, row)),
+	openEach(
+		"saves",
+		await littleDB.saves
+			.where("[profileId+keyId]")
+			.between(...owned(keys.profileId))
+			.toArray(),
+		(row) => openSave(keys, row),
 	);
 
 export const readNotes = async (keys: ProfileKeys): Promise<Array<Note>> =>
-	Promise.all(
-		(
-			await littleDB.notes
-				.where("[profileId+updatedAt]")
-				.between(...owned(keys.profileId))
-				.reverse()
-				.toArray()
-		).map((row) => openNote(keys, row)),
+	openEach(
+		"notes",
+		await littleDB.notes
+			.where("[profileId+updatedAt]")
+			.between(...owned(keys.profileId))
+			.reverse()
+			.toArray(),
+		(row) => openNote(keys, row),
 	);
 
 export const readTasks = async (keys: ProfileKeys): Promise<Array<Task>> =>
-	Promise.all(
-		(
-			await littleDB.tasks
-				.where("[profileId+keyId]")
-				.between(...owned(keys.profileId))
-				.toArray()
-		).map((row) => openTask(keys, row)),
+	openEach(
+		"tasks",
+		await littleDB.tasks
+			.where("[profileId+keyId]")
+			.between(...owned(keys.profileId))
+			.toArray(),
+		(row) => openTask(keys, row),
 	);
 
 // Fired ones too.
 export const readReminders = async (
 	keys: ProfileKeys,
 ): Promise<Array<Reminder>> =>
-	Promise.all(
-		(
-			await littleDB.reminders
-				.where("[profileId+keyId]")
-				.between(...owned(keys.profileId))
-				.toArray()
-		).map((row) => openReminder(keys, row)),
+	openEach(
+		"reminders",
+		await littleDB.reminders
+			.where("[profileId+keyId]")
+			.between(...owned(keys.profileId))
+			.toArray(),
+		(row) => openReminder(keys, row),
 	);
 
 export const readLinks = (keys: ProfileKeys): Promise<Array<LinkRow>> =>

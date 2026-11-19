@@ -1,4 +1,5 @@
-import OpenAI from "openai";
+import { currentOwner, type AIOwner } from "./owner";
+import type OpenAI from "openai";
 import {
 	LAI_PROVIDERS,
 	LEXPORT_TYPE,
@@ -13,12 +14,16 @@ import {
 	getResolvedBaseUrl,
 	isLocalOllamaUrl,
 	isAISettingsConfigured,
-	responseFormats,
 	script,
 } from "./config";
 import { LRewriteOptions, LSummarizeOptions, LWriteOptions } from "../../types";
-import { ResponseFormatJSONSchema } from "openai/resources.mjs";
-import { readNotes, readSettings, unlockedKeys } from "./records";
+import {
+	readNotes,
+	readReminders,
+	readSaves,
+	readSettings,
+	readTasks,
+} from "./records";
 import { toModelDate } from "./toolCalls/_utils/dateFilters";
 import {
 	AIOutputContent,
@@ -249,50 +254,110 @@ type PendingMutation = {
 	call: OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall;
 	definition: ToolDefinition;
 	args: Record<string, unknown>;
+	// What the user is asked to approve, built from the record the call
+	// names and the values that will be stored.
+	summary: string;
 };
 
-const describePendingAction = (
+const quoted = (value: unknown, maxLength = 60): string =>
+	typeof value === "string" && value.trim() !== ""
+		? ` "${summarizeText(value, maxLength)}"`
+		: "";
+
+// Says what a pending call will do in the user's terms. It reads the
+// record the call names, so the user approves "Delete note "Sprint
+// goals"", never a bare "Delete note" for an id the model chose. `args`
+// are the normalised arguments, the values that will actually be stored.
+// A record that cannot be found is said to be missing; the call then
+// fails when it runs.
+const describePendingAction = async (
+	owner: AIOwner,
 	toolName: string,
 	args: Record<string, unknown>,
-): string => {
-	const label =
-		typeof args.label === "string"
-			? args.label
-			: typeof args.customName === "string"
-				? args.customName
-				: typeof args.message === "string"
-					? args.message
-					: typeof args.information === "string"
-						? args.information
-						: typeof args.content === "string"
-							? args.content
-							: undefined;
-	const id = typeof args.id === "number" ? args.id : undefined;
+): Promise<string> => {
+	const id = typeof args.id === "string" ? args.id : undefined;
+	const find = async <T extends { id: string }>(
+		read: (keys: Awaited<ReturnType<AIOwner["keys"]>>) => Promise<T[]>,
+	): Promise<T | undefined> => {
+		if (id === undefined) {
+			return undefined;
+		}
+		try {
+			return (await read(await owner.keys())).find(
+				(record) => record.id === id,
+			);
+		} catch {
+			return undefined;
+		}
+	};
+	const missing = (kind: string) => `a ${kind} that no longer exists`;
+	const noteName = async () => {
+		const note = await find(readNotes);
+		return note
+			? `note${quoted(deriveNoteTitle(note.content))}`
+			: missing("note");
+	};
+	const taskName = async () => {
+		const task = await find(readTasks);
+		return task
+			? `task${quoted(task.label || task.information)}`
+			: missing("task");
+	};
+	const reminderName = async () => {
+		const reminder = await find(readReminders);
+		return reminder
+			? `reminder${quoted(reminder.message)} (${toModelDate(reminder.target)})`
+			: missing("reminder");
+	};
+	const saveName = async () => {
+		const save = await find(readSaves);
+		return save
+			? `save${quoted(save.customName || save.title || save.url)}`
+			: missing("save");
+	};
+	const changes = (fields: Array<[string, unknown]>): string => {
+		const parts = fields
+			.filter(([, value]) => typeof value === "string" && value !== "")
+			.map(([name, value]) => `${name}:${quoted(value, 40)}`);
+		return parts.length > 0 ? ` → ${parts.join(", ")}` : "";
+	};
 	switch (toolName) {
 		case "create_task":
-			return `Create task${label ? ` "${label}"` : ""}`;
+			return `Create task${quoted(args.label ?? args.information)}${changes([["due", args.deadlineDate]])}`;
 		case "update_task":
-			return `Update task${id !== undefined ? ` #${id}` : ""}`;
+			return `Update ${await taskName()}${changes([
+				["text", args.information],
+				["label", args.label],
+				["priority", args.priority],
+				["due", args.deadlineDate],
+			])}`;
 		case "save_active_web_page":
 			return "Save the current page";
 		case "update_save":
-			return `Rename save${label ? ` to "${label}"` : ""}`;
+			return `Rename ${await saveName()}${changes([["to", args.customName]])}`;
 		case "create_note":
-			return "Create a note";
+			return `Create note${quoted(args.content)}`;
 		case "update_note":
-			return `Update note${id !== undefined ? ` #${id}` : ""}`;
+			return `Replace the text of ${await noteName()}${changes([["with", args.content]])}`;
 		case "create_reminder":
-			return `Create reminder${label ? ` "${label}"` : ""}`;
+			return `Create reminder${quoted(args.message)}${changes([
+				["at", args.targetDate],
+				["type", args.type],
+			])}`;
 		case "update_reminder":
-			return `Update reminder${id !== undefined ? ` #${id}` : ""}`;
+			return `Update ${await reminderName()}${changes([
+				["text", args.message],
+				["at", args.targetDate],
+				["type", args.type],
+			])}`;
 		case "delete_note":
-			return `Delete note${id !== undefined ? ` #${id}` : ""}`;
+			return `Delete ${await noteName()}`;
 		case "delete_reminder":
-			return `Delete reminder${id !== undefined ? ` #${id}` : ""}`;
+			return `Delete ${await reminderName()}`;
 		case "delete_task":
-			return `Delete task${id !== undefined ? ` #${id}` : ""}`;
+			return `Delete ${await taskName()}`;
 		case "delete_save":
-			return `Unsave bookmark${id !== undefined ? ` #${id}` : ""}`;
+			return `Unsave ${await saveName()}`;
 		case "export_data":
 			return args.type === LEXPORT_TYPE.IMPORTABLE
 				? "Export an importable backup"
@@ -303,6 +368,15 @@ const describePendingAction = (
 			return `Run ${toolName}`;
 	}
 };
+
+// The helpers below (rewrite, write, summarize) fail with this instead of
+// handing back their input, so a caller can tell the AI did not run.
+export class AIUnavailableError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "AIUnavailableError";
+	}
+}
 
 const confirmationKindFor = (
 	kind: ToolDefinition["safety"],
@@ -327,18 +401,23 @@ export abstract class LittleAI {
 		expiresAt: number;
 	} | null;
 	protected pendingMutations: Array<PendingMutation> | null;
+	// The profile this client belongs to (owner.ts).
+	protected owner: AIOwner;
 
 	constructor({
 		model,
 		provider,
 		apiKey,
 		baseUrl,
+		owner,
 	}: {
 		model: string;
 		provider: LAI_PROVIDERS;
 		apiKey: string;
 		baseUrl: string;
+		owner: AIOwner;
 	}) {
+		this.owner = owner;
 		this.model = model;
 		this.provider = provider;
 		this.apiKey = apiKey;
@@ -366,7 +445,6 @@ export abstract class LittleAI {
 
 	abstract getStructuredResponse(
 		prompt: string,
-		jsonSchema?: ResponseFormatJSONSchema.JSONSchema,
 		jsonObjectSchema?: string,
 	): Promise<unknown>;
 
@@ -515,7 +593,7 @@ export abstract class LittleAI {
 			try {
 				const result = await searchNotesDefinition.execute(
 					searchNotesDefinition.normalizeArgs({ query: input }),
-					{ ai: this },
+					{ ai: this, owner: this.owner },
 				);
 				contextualNotes = (result.content?.notes ?? []).map((note) => ({
 					id: note.id,
@@ -530,7 +608,7 @@ export abstract class LittleAI {
 		if (contextualNotes.length === 0) {
 			try {
 				// Most recently changed first.
-				contextualNotes = (await readNotes(await unlockedKeys()))
+				contextualNotes = (await readNotes(await this.owner.keys()))
 					.slice(0, 5)
 					.map((note) => ({
 						id: note.id,
@@ -567,7 +645,7 @@ export abstract class LittleAI {
 				try {
 					const result = await currentDateTimeDefinition.execute(
 						currentDateTimeDefinition.normalizeArgs({}),
-						{ ai: this },
+						{ ai: this, owner: this.owner },
 					);
 					if (result.message) {
 						contextMessages.push({
@@ -591,7 +669,7 @@ export abstract class LittleAI {
 						formatDateTimeDefinition.normalizeArgs(
 							explicitDateParts,
 						),
-						{ ai: this },
+						{ ai: this, owner: this.owner },
 					);
 					const dateTime = asRecord(result.modelPayload).dateTime;
 					if (
@@ -612,18 +690,19 @@ export abstract class LittleAI {
 		return contextMessages;
 	}
 
+	// Keeps the most recent turns. The cut always lands on a user message:
+	// a tool result without the assistant call it answers is an invalid
+	// conversation, which providers reject on every later request.
 	private trimMessageHistory(maxMessages = 40): void {
 		if (this.messages.length <= maxMessages + 1) {
 			return;
 		}
 		const [systemMessage, ...rest] = this.messages;
-		this.messages = [systemMessage, ...rest.slice(-maxMessages)];
-	}
-
-	protected get shouldUseHeaderlessFetch(): boolean {
-		return (
-			this.provider !== LAI_PROVIDERS.CUSTOM || this.apiKey.trim() === ""
-		);
+		let start = rest.length - maxMessages;
+		while (start < rest.length && rest[start].role !== "user") {
+			start++;
+		}
+		this.messages = [systemMessage, ...rest.slice(start)];
 	}
 
 	protected get effectiveApiKey(): string {
@@ -672,6 +751,9 @@ export abstract class LittleAI {
 		const maxAttempts = 3;
 
 		for (let attempt = 0; attempt < maxAttempts; attempt++) {
+			// Nothing goes to this profile's provider once it is no longer
+			// the unlocked one.
+			await this.owner.assertCurrent();
 			try {
 				return await this.createChatCompletionOnce(params);
 			} catch (error: unknown) {
@@ -723,19 +805,6 @@ export abstract class LittleAI {
 	private async createChatCompletionOnce(
 		params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
 	): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-		if (!this.shouldUseHeaderlessFetch) {
-			const api = new OpenAI({
-				apiKey: this.effectiveApiKey,
-				baseURL: this.baseUrl,
-				dangerouslyAllowBrowser: true,
-			});
-			try {
-				return await api.chat.completions.create(params);
-			} catch (error: unknown) {
-				throw this.toLLMRequestError(error);
-			}
-		}
-
 		const controller = new AbortController();
 		const timeoutId = setTimeout(() => controller.abort(), 60000);
 		const normalizedBaseUrl = this.baseUrl.replace(/\/+$/, "");
@@ -747,6 +816,10 @@ export abstract class LittleAI {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
+					// Only a custom provider has a key (effectiveApiKey).
+					...(this.effectiveApiKey !== ""
+						? { Authorization: `Bearer ${this.effectiveApiKey}` }
+						: {}),
 				},
 				body: JSON.stringify(params),
 				signal: controller.signal,
@@ -840,38 +913,23 @@ export abstract class LittleAI {
 		};
 	}
 
-	static getLAIAssistInstance = async (): Promise<LittleAI> => {
-		const { ai: aiSettings } = await readSettings(await unlockedKeys());
+	// The unlocked profile's AI client: chat, rephrasing and summaries all
+	// use the same provider. It belongs to that profile for its whole life.
+	// Rejects while no profile is unlocked.
+	static getLAIAssistInstance = async (
+		owner?: AIOwner,
+	): Promise<LittleAI> => {
+		const ownedBy = owner ?? (await currentOwner());
+		const { ai: aiSettings } = await readSettings(await ownedBy.keys());
 		const { provider, model, apiKey } = aiSettings;
-		const normalizedBaseUrl = getResolvedBaseUrl(aiSettings);
-		const normalizedApiKey =
-			provider === LAI_PROVIDERS.CUSTOM ? apiKey.trim() : "";
-
-		if (!isAISettingsConfigured(aiSettings)) {
-			return new OpenAICompatibleAI({
-				model: "",
-				provider,
-				apiKey: normalizedApiKey,
-				baseUrl: normalizedBaseUrl,
-			});
-		}
-
 		return new OpenAICompatibleAI({
-			model,
+			owner: ownedBy,
+			// Without a configured provider there is no model to ask.
+			model: isAISettingsConfigured(aiSettings) ? model : "",
 			provider,
-			apiKey: normalizedApiKey,
-			baseUrl: normalizedBaseUrl,
+			apiKey: provider === LAI_PROVIDERS.CUSTOM ? apiKey.trim() : "",
+			baseUrl: getResolvedBaseUrl(aiSettings),
 		});
-	};
-
-	static getLAIRephraseInstance = async (): Promise<LittleAI> => {
-		return LittleAI.getLAIAssistInstance();
-	};
-	static getLAIGenerateInstance = async (): Promise<LittleAI> => {
-		return LittleAI.getLAIAssistInstance();
-	};
-	static getLAISummarizeInstance = async (): Promise<LittleAI> => {
-		return LittleAI.getLAIAssistInstance();
 	};
 }
 
@@ -881,13 +939,15 @@ export class OpenAICompatibleAI extends LittleAI {
 		apiKey,
 		provider,
 		baseUrl,
+		owner,
 	}: {
 		model: string;
 		apiKey: string;
 		provider: LAI_PROVIDERS;
 		baseUrl: string;
+		owner: AIOwner;
 	}) {
-		super({ model, provider, apiKey, baseUrl });
+		super({ model, provider, apiKey, baseUrl, owner });
 	}
 
 	private buildConfirmation(
@@ -901,10 +961,7 @@ export class OpenAICompatibleAI extends LittleAI {
 			),
 			items: pending.map((item) => ({
 				toolName: item.call.function.name,
-				summary: describePendingAction(
-					item.call.function.name,
-					item.args,
-				),
+				summary: item.summary,
 				kind: confirmationKindFor(item.definition.safety),
 			})),
 		};
@@ -936,9 +993,10 @@ export class OpenAICompatibleAI extends LittleAI {
 		}
 		const confirmation = this.buildConfirmation(pending);
 		if (confirmation.requiresPassword) {
-			const password = options?.password?.trim() ?? "";
 			// The backup's own password, chosen at export (0010, Backups).
-			if (password === "") {
+			// Only an empty one is asked for again here; the backup itself
+			// refuses one with outer spaces.
+			if ((options?.password ?? "") === "") {
 				return {
 					message:
 						"Choose a password to protect the importable backup.",
@@ -964,6 +1022,7 @@ export class OpenAICompatibleAI extends LittleAI {
 			try {
 				const result = await item.definition.execute(args, {
 					ai: this,
+					owner: this.owner,
 				});
 				if (result.message) {
 					messages.push(result.message);
@@ -1047,7 +1106,10 @@ export class OpenAICompatibleAI extends LittleAI {
 		const normalizedArgs = definition.normalizeArgs(parsedArgs);
 
 		try {
-			return await definition.execute(normalizedArgs, { ai: this });
+			return await definition.execute(normalizedArgs, {
+				ai: this,
+				owner: this.owner,
+			});
 		} catch (error: unknown) {
 			const message =
 				error instanceof Error
@@ -1219,10 +1281,16 @@ export class OpenAICompatibleAI extends LittleAI {
 					definition &&
 					toolRequiresConfirmation(call.function.name)
 				) {
+					const args = this.parseToolArgs(call.function.arguments);
 					pendingThisRound.push({
 						call,
 						definition,
-						args: this.parseToolArgs(call.function.arguments),
+						args,
+						summary: await describePendingAction(
+							this.owner,
+							call.function.name,
+							definition.normalizeArgs(args),
+						),
 					});
 					continue;
 				}
@@ -1310,89 +1378,76 @@ export class OpenAICompatibleAI extends LittleAI {
 		};
 	}
 
-	async rewrite(input: string, options?: LRewriteOptions): Promise<string> {
+	// One system instruction and the user's text in, the model's text out.
+	// Throws when the AI is not set up, the request fails or nothing comes
+	// back: the caller decides what to do, and never mistakes its own input
+	// for a result.
+	private async completeText(
+		instruction: string,
+		input: string,
+	): Promise<string> {
 		if (this.model.trim() === "" || this.baseUrl.trim() === "") {
-			return input;
+			throw new AIUnavailableError(
+				"AI is not set up yet. Choose a provider and model in AI Settings.",
+			);
 		}
-		const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-			{
-				role: "system",
-				content: `
-					You are an expert rewriter. Rewrite the user's input based on the following options:
-					Tone: ${options?.tone || "as-is"}
-					Format: ${options?.format || "as-is"}
-					Length: ${options?.length || "as-is"}
-					${options?.sharedContext ? `Context: ${options.sharedContext}` : ""}
-				`,
-			},
-			{
-				role: "user",
-				content: input,
-			},
-		];
+		const completion = await this.createChatCompletion({
+			model: this.model,
+			messages: [
+				{ role: "system", content: instruction },
+				{ role: "user", content: input },
+			],
+			n: 1,
+		});
+		const text = sanitizeAssistantContent(
+			completion.choices?.[0]?.message?.content ?? "",
+		);
+		if (text === "") {
+			throw new AIUnavailableError("The AI returned nothing.");
+		}
+		return text;
+	}
 
-		try {
-			const completion = await this.createChatCompletion({
-				model: this.model,
-				messages,
-				n: 1,
-			});
-			return completion.choices[0].message.content || input;
-		} catch {
-			return input;
-		}
+	async rewrite(input: string, options?: LRewriteOptions): Promise<string> {
+		return this.completeText(
+			`
+				You are an expert rewriter. Rewrite the user's input based on the following options:
+				Tone: ${options?.tone || "as-is"}
+				Format: ${options?.format || "as-is"}
+				Length: ${options?.length || "as-is"}
+				${options?.sharedContext ? `Context: ${options.sharedContext}` : ""}
+			`,
+			input,
+		);
 	}
 
 	async write(input: string, options?: LWriteOptions): Promise<string> {
-		if (this.model.trim() === "" || this.baseUrl.trim() === "") {
-			return "";
-		}
-		const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-			{
-				role: "system",
-				content: `
-					You are an expert AI Content Generator. Generate the content based on user's input with the following requirements:
-					Tone: ${options?.tone || "as-is"}
-					Format: ${options?.format || "as-is"}
-					Length: ${options?.length || "as-is"}
-					${options?.sharedContext ? `Context: ${options.sharedContext}` : ""}
-				`,
-			},
-			{
-				role: "user",
-				content: input,
-			},
-		];
-
-		try {
-			const completion = await this.createChatCompletion({
-				model: this.model,
-				messages,
-				n: 1,
-			});
-			return completion.choices[0].message.content || "";
-		} catch {
-			return "";
-		}
+		return this.completeText(
+			`
+				You are an expert AI Content Generator. Generate the content based on user's input with the following requirements:
+				Tone: ${options?.tone || "as-is"}
+				Format: ${options?.format || "as-is"}
+				Length: ${options?.length || "as-is"}
+				${options?.sharedContext ? `Context: ${options.sharedContext}` : ""}
+			`,
+			input,
+		);
 	}
 
 	async getStructuredResponse(
 		prompt: string,
-		jsonSchema?: ResponseFormatJSONSchema.JSONSchema,
 		jsonObjectInstruction?: string,
 	): Promise<unknown> {
 		if (this.model.trim() === "" || this.baseUrl.trim() === "") {
 			return {};
 		}
 
-		const useJSONSchema =
-			responseFormats.get(this.provider) === "json_schema";
+		// Every provider is asked for a JSON object, with the shape described
+		// in the prompt; a JSON schema is not supported by all of them.
 		const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
 			{
 				role: "user",
-				content: useJSONSchema
-					? prompt
-					: `${prompt}\n\n${jsonObjectInstruction ?? ""}`,
+				content: `${prompt}\n\n${jsonObjectInstruction ?? ""}`,
 			},
 		];
 
@@ -1401,14 +1456,7 @@ export class OpenAICompatibleAI extends LittleAI {
 				model: this.model,
 				messages,
 				n: 1,
-				response_format: useJSONSchema
-					? {
-							type: "json_schema",
-							json_schema: jsonSchema!,
-						}
-					: {
-							type: "json_object",
-						},
+				response_format: { type: "json_object" },
 			});
 			const rawContent = completion.choices[0].message.content || "{}";
 			return safeJSONParse(rawContent, {});
@@ -1421,34 +1469,15 @@ export class OpenAICompatibleAI extends LittleAI {
 		input: string,
 		options?: LSummarizeOptions,
 	): Promise<string> {
-		if (this.model.trim() === "" || this.baseUrl.trim() === "") {
-			return input;
-		}
-		const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-			{
-				role: "system",
-				content: `
-					You are an expert summarizer. Summarize the user's input based on the following options:
-					Type: ${options?.type || "tldr"}
-					Format: ${options?.format || "as-is"}
-					Length: ${options?.length || "as-is"}
-					${options?.sharedContext ? `Context: ${options.sharedContext}` : ""}
-				`,
-			},
-			{
-				role: "user",
-				content: input,
-			},
-		];
-		try {
-			const completion = await this.createChatCompletion({
-				model: this.model,
-				messages,
-				n: 1,
-			});
-			return completion.choices[0].message.content || input;
-		} catch {
-			return input;
-		}
+		return this.completeText(
+			`
+				You are an expert summarizer. Summarize the user's input based on the following options:
+				Type: ${options?.type || "tldr"}
+				Format: ${options?.format || "as-is"}
+				Length: ${options?.length || "as-is"}
+				${options?.sharedContext ? `Context: ${options.sharedContext}` : ""}
+			`,
+			input,
+		);
 	}
 }

@@ -1,4 +1,8 @@
 /* @vitest-environment node */
+// The client checks its profile before each request (owner.ts).
+import "fake-indexeddb/auto";
+import { currentOwner } from "../../src/services/ai/owner";
+import { freshProfile } from "./profile";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { AddressInfo } from "node:net";
@@ -219,7 +223,9 @@ describe("OpenAICompatibleAI integration", () => {
 
 	beforeEach(async () => {
 		server = await createMockServer();
+		await freshProfile();
 		ai = new OpenAICompatibleAI({
+			owner: await currentOwner(),
 			model: "test-model",
 			provider: LAI_PROVIDERS.CUSTOM,
 			apiKey: "",
@@ -306,7 +312,6 @@ describe("OpenAICompatibleAI integration", () => {
 	it("returns empty object on invalid structured JSON", async () => {
 		const output = await ai.getStructuredResponse(
 			"structured_invalid",
-			undefined,
 			"Return JSON",
 		);
 		expect(output).toEqual({});

@@ -1,4 +1,5 @@
 /* @vitest-environment node */
+import { currentOwner } from "../../src/services/ai/owner";
 import "fake-indexeddb/auto";
 import {
 	afterAll,
@@ -454,8 +455,9 @@ const seedTestData = async (): Promise<Seeded> => {
 	};
 };
 
-const createAI = (baseUrl: string): OpenAICompatibleAIClass =>
+const createAI = async (baseUrl: string): Promise<OpenAICompatibleAIClass> =>
 	new OpenAICompatibleAI({
+		owner: await currentOwner(),
 		model: "mock-model",
 		provider: LAI_PROVIDERS.CUSTOM,
 		apiKey: "",
@@ -734,7 +736,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 			{
 				prompt: "Update task one label.",
 				expectedTool: "update_task",
-				expectedMessage: "Updated task",
+				expectedMessage: "Updated the task",
 				scenario: {
 					toolCalls: [
 						{
@@ -936,7 +938,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 			),
 		);
 
-		const ai = createAI(mockServer.baseUrl);
+		const ai = await createAI(mockServer.baseUrl);
 		const toolExecutionSpy = instrumentToolExecutions();
 
 		try {
@@ -1031,7 +1033,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 				},
 			]),
 		);
-		const ai = createAI(mockServer.baseUrl);
+		const ai = await createAI(mockServer.baseUrl);
 		const output = await ai.prompt("Create a cancelled note.");
 		expect(output.confirmation).toBeDefined();
 		expect(ai.hasPendingConfirmation()).toBe(true);
@@ -1163,7 +1165,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 			),
 		);
 
-		const ai = createAI(mockServer.baseUrl);
+		const ai = await createAI(mockServer.baseUrl);
 
 		for (const item of edgePromptMatrix) {
 			const output = await ai.prompt(item.prompt);

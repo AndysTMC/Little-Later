@@ -1,10 +1,11 @@
 import type { Save } from "../../../storage/repositories";
 import { searchSaves } from "../../../popup/records";
-import { readPreview, readSaves, unlockedKeys } from "../records";
+import { readPreview, readSaves } from "../records";
 import {
 	isRenderableImageType,
 	toSafeImageBlob,
 } from "../../../utils/safeImageBlob";
+import type { AIOwner } from "../owner";
 
 const blobToDataUrl = async (blob: Blob): Promise<string> => {
 	if (typeof FileReader !== "undefined") {
@@ -39,20 +40,11 @@ const blobToDataUrl = async (blob: Blob): Promise<string> => {
 	throw new Error("Could not convert preview image.");
 };
 
-const toRenderableImageUrl = async (preview: Blob): Promise<string> => {
-	const blob = toSafeImageBlob(preview);
-	if (
-		typeof URL !== "undefined" &&
-		typeof URL.createObjectURL === "function"
-	) {
-		try {
-			return URL.createObjectURL(blob);
-		} catch {
-			// Fallback to data URL below.
-		}
-	}
-	return blobToDataUrl(blob);
-};
+// A data URL rather than an object URL: the chat keeps it for as long as
+// the conversation lasts, so there is no moment to revoke one, and a data
+// URL still works in a tab opened from the popup after the popup closes.
+const toRenderableImageUrl = (preview: Blob): Promise<string> =>
+	blobToDataUrl(toSafeImageBlob(preview));
 
 const resolveSave = async (
 	saves: Array<Save>,
@@ -93,19 +85,22 @@ const resolveSave = async (
 	throw new Error("Provide id, url, or query to fetch a preview image.");
 };
 
-const toolCall = async ({
-	id,
-	query,
-	url,
-}: {
-	id?: string;
-	url?: string;
-	query?: string;
-}): Promise<{
+const toolCall = async (
+	owner: AIOwner,
+	{
+		id,
+		query,
+		url,
+	}: {
+		id?: string;
+		url?: string;
+		query?: string;
+	},
+): Promise<{
 	save: Save;
 	previewUrl: string;
 }> => {
-	const keys = await unlockedKeys();
+	const keys = await owner.keys();
 	const save = await resolveSave(await readSaves(keys), { id, query, url });
 	const previewBlob = await readPreview(keys, save.id);
 	if (!previewBlob) {

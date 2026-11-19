@@ -1,17 +1,10 @@
+import { LLOCAL_AI_BASE_URLS } from "little-shared/constants";
 import { LAI_PROVIDERS } from "little-shared/enums";
 import { LAISettings } from "little-shared/types";
-import { ResponseFormatJSONSchema } from "openai/resources.mjs";
 
 export const baseUrls = new Map<string, string>([
-	[LAI_PROVIDERS.OLLAMA, "http://127.0.0.1:11434/v1"],
-	[LAI_PROVIDERS.LM_STUDIO, "http://127.0.0.1:1234/v1"],
+	...Object.entries(LLOCAL_AI_BASE_URLS),
 	[LAI_PROVIDERS.CUSTOM, ""],
-]);
-
-export const responseFormats = new Map<string, string>([
-	[LAI_PROVIDERS.OLLAMA, "json_object"],
-	[LAI_PROVIDERS.LM_STUDIO, "json_object"],
-	[LAI_PROVIDERS.CUSTOM, "json_object"],
 ]);
 
 export const getDefaultBaseUrl = (provider: LAI_PROVIDERS): string =>
@@ -157,6 +150,37 @@ const extractModelNames = (payload: unknown): Array<string> => {
 	return result;
 };
 
+// Ollama serves some models from its own cloud through the same local
+// address; they are named with a "-cloud" tag, such as "gpt-oss:120b-cloud".
+export const isCloudModel = (provider: LAI_PROVIDERS, model: string): boolean =>
+	provider === LAI_PROVIDERS.OLLAMA && /[-:]cloud$/i.test(model);
+
+// Where the selected model runs, and so where the assistant's messages and
+// the records it reads go. A custom server is described by its address: a
+// URL alone does not say where the model behind it runs.
+export const describeProcessing = (
+	settings: Pick<LAISettings, "provider" | "baseUrl" | "model">,
+): string => {
+	if (settings.provider === LAI_PROVIDERS.CUSTOM) {
+		let host = "the server above";
+		try {
+			host = new URL(settings.baseUrl).host || host;
+		} catch {
+			// Not a URL yet.
+		}
+		return `Your messages and the records the assistant reads to answer them are sent to ${host}, under that service's terms.`;
+	}
+	if (isCloudModel(settings.provider, settings.model)) {
+		return "This model runs in Ollama's cloud: your messages and the records the assistant reads to answer them are sent to Ollama's servers.";
+	}
+	// LM Studio can answer a request on this computer with a model on a
+	// machine linked to it (LM Link), so only its setup says where.
+	if (settings.provider === LAI_PROVIDERS.LM_STUDIO) {
+		return "Your messages and the records the assistant reads go to LM Studio on this computer. Where the model runs depends on your LM Studio setup: a model on a linked machine receives them too.";
+	}
+	return "This model runs in Ollama on this computer, so your messages and records stay here. Models marked Cloud would send them to Ollama's servers.";
+};
+
 export const fetchProviderModels = async (
 	aiSettings: Pick<LAISettings, "provider" | "baseUrl" | "apiKey">,
 ): Promise<Array<string>> => {
@@ -196,24 +220,6 @@ export const fetchProviderModels = async (
 	return [];
 };
 
-export const IDJSONSchema: ResponseFormatJSONSchema.JSONSchema = {
-	name: "IDs",
-	strict: true,
-	schema: {
-		type: "object",
-		properties: {
-			ids: {
-				type: "array",
-				items: {
-					type: "string",
-				},
-			},
-		},
-		required: ["ids"],
-		additionalProperties: false,
-	},
-};
-
 export const IDJSONObjectInstruction = `
     Respond using the following JSON format:
     {"ids":["<id>","<id>"]}
@@ -234,11 +240,8 @@ export const script = `
 	Detailed information of each and everything:
 		Theme:
 			- A theme is the color scheme of the extension.
-			- It holds one of the following values:
-				- Little Light
-					- stored as little-light
-				- Little Dark
-					- stored as little-dark
+			- A profile's preference is system, light or dark.
+			- To change it, use little-light or little-dark.
 		Time:
 			- Time is the current time.
 			- It is stored in the following format:
@@ -252,7 +255,6 @@ export const script = `
 			- It contains the following information:
 				- ID: A unique identifier for the profile.
 				- Name: The name of the user.
-				- Email: The email of the user.
 				- Theme: The theme preference of the user.
 		Visual Bookmark:
 			- A Visual Bookmark is a kind of bookmark that are temporarily stored for later use and has a preview image.
@@ -297,6 +299,8 @@ export const script = `
 						- Escalating: Notifies at progressively shorter intervals as the target time approaches, ensuring timely and increasing urgency.
 				- TargetDate: The date at which the reminder is triggered.
 				- LastNotificationDate: The date when the user was last notified about the reminder.
+				- Pending: False once the reminder has fired for the last time; such a reminder is history, not overdue.
+			- A reminder that belongs to a task follows the task: change or remove it by updating the task.
 		
 	Response Guidelines:
 		Always respond in clear, user-understandable English.
@@ -325,7 +329,6 @@ export const script = `
 			- "reminders in April 2026" -> set targetDateCriteria with year/month=true only.
 			- Only set date criteria fields that the user actually asked for.
 		- create_task, update_task, save_active_web_page, and update_save are available. The user must confirm any create, update, delete, theme change, or export before it is applied.
-		- create_note_on_active_webpage and link_note_to_active_webpage remain disabled.
 		- For personal, project-context, or memory-like questions (and whenever uncertain), call search_notes before saying you do not know.
 		- Questions like "what am I working on", "what was I planning", "what did I note", or "what do you remember about X" must start with search_notes. Only use get_productivity_overview or search_tasks after checking notes when they add something the notes do not cover.
 		- Reminder message fields must contain only the reminder text. Never include dates, times, or scheduling phrases inside reminder.message.

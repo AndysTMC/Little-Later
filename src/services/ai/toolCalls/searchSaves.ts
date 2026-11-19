@@ -1,15 +1,17 @@
 import type { Save } from "../../../storage/repositories";
-import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
+import { IDJSONObjectInstruction } from "../config";
 import { LittleAI } from "../../../services/ai";
 import { searchSaves } from "../../../popup/records";
-import { readSaves, unlockedKeys } from "../records";
+import { readSaves } from "../records";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
 	pickSemanticCandidates,
 	quoteForPrompt,
 } from "./_utils/semanticSearch";
+import type { AIOwner } from "../owner";
 
 const toolCall = async (
+	owner: AIOwner,
 	ai: Pick<LittleAI, "getStructuredResponse">,
 	{
 		query,
@@ -21,7 +23,7 @@ const toolCall = async (
 		url?: string;
 	},
 ): Promise<Array<Save>> => {
-	const saves = (await readSaves(await unlockedKeys())).filter(
+	const saves = (await readSaves(await owner.keys())).filter(
 		(save) => save.saved,
 	);
 	let resultSaves = saves.slice();
@@ -44,7 +46,6 @@ const toolCall = async (
 
                 Find all relevant ids of saves where the name, domain, or notes (if present) match or relate to the query.
             `,
-			IDJSONSchema,
 			IDJSONObjectInstruction,
 		);
 		const semanticSaveIds = extractSemanticIds(response);

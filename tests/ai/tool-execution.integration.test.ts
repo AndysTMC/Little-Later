@@ -6,6 +6,7 @@ import {
 	LMAX_TASK_INFORMATION_LENGTH,
 	LMAX_TASK_LABEL_LENGTH,
 } from "little-shared/constants";
+import { currentOwner, type AIOwner } from "../../src/services/ai/owner";
 import { toolRegistry } from "../../src/services/ai/toolRegistry";
 import {
 	readLinks,
@@ -20,10 +21,12 @@ import { putPreview } from "../../src/storage/repositories";
 import { send } from "../../src/utils/send";
 import { freshProfile, localDate } from "./profile";
 
+// Each test's profile owns the AI work in it (owner.ts).
 const aiContext = {
 	ai: {
 		getStructuredResponse: async () => ({ ids: [] }),
 	},
+	owner: undefined as unknown as AIOwner,
 };
 
 const getTool = (name: string) => {
@@ -46,6 +49,7 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 		vi.useFakeTimers({ toFake: ["Date"] });
 		vi.setSystemTime(new Date("2026-03-01T12:00:00Z"));
 		await freshProfile();
+		aiContext.owner = await currentOwner();
 	});
 
 	afterEach(() => {
@@ -104,7 +108,10 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 			title: "Example",
 			saved: true,
 		});
-		await send("note.create", { content: "About example", saveId });
+		await send("note.create", {
+			content: "About example",
+			saveIds: [saveId],
+		});
 		const [note] = await notes();
 
 		const deleteNote = getTool("delete_note");
@@ -244,6 +251,86 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 				(item) => item.message === "Submit weekly report",
 			),
 		).toBe(true);
+	});
+
+	// What the confirmation shows is a new due date, so that is all that
+	// may change: not the reminder's kind, and not a repeat.
+	it("changes only a task's date when the AI moves it", async () => {
+		const updateTask = getTool("update_task");
+		const due = localDate("2026-04-08T08:00:00");
+		const later = localDate("2026-04-09T08:00:00");
+		const { id: escalating } = await send("task.create", {
+			information: "File the report",
+			schedule: { kind: "due", at: Date.parse(due) },
+			reminder: "escalating",
+		});
+		await updateTask.execute(
+			updateTask.normalizeArgs({ id: escalating, deadlineDate: later }),
+			aiContext,
+		);
+		expect(
+			(await tasks()).find((task) => task.id === escalating),
+		).toMatchObject({ schedule: { kind: "due", at: Date.parse(later) } });
+		expect(
+			(await reminders()).find(
+				(reminder) => reminder.message === "File the report",
+			),
+		).toMatchObject({
+			target: Date.parse(later),
+			escalation: { escalate: true },
+		});
+
+		const { id: weekly } = await send("task.create", {
+			information: "Stand-up",
+			schedule: {
+				kind: "recurring",
+				rule: {
+					freq: "weekly",
+					interval: 1,
+					byWeekday: [1],
+					time: "09:00",
+					anchor: "2026-04-06",
+					zone: "UTC",
+				},
+			},
+		});
+		await expect(
+			updateTask.execute(
+				updateTask.normalizeArgs({ id: weekly, deadlineDate: later }),
+				aiContext,
+			),
+		).rejects.toThrow(/repeats/i);
+		expect(
+			(await tasks()).find((task) => task.id === weekly),
+		).toMatchObject({ schedule: { kind: "recurring" } });
+	});
+
+	// The password is used as typed, as on the Export page: trimming it
+	// protected the backup with a password other than the one chosen.
+	it("refuses a backup password with outer spaces instead of trimming it", async () => {
+		const exportData = getTool("export_data");
+		await expect(
+			exportData.execute(
+				exportData.normalizeArgs({
+					type: "importable",
+					password: " my password ",
+				}),
+				aiContext,
+			),
+		).rejects.toThrow("doesn't start or end with a space");
+	});
+
+	it("gives an AI task the popup's default priority", async () => {
+		const createTask = getTool("create_task");
+		await createTask.execute(
+			createTask.normalizeArgs({ information: "Water the plants" }),
+			aiContext,
+		);
+		expect(
+			(await tasks()).find(
+				(task) => task.information === "Water the plants",
+			),
+		).toMatchObject({ priority: "medium" });
 	});
 
 	it("creates and updates tasks, and rejects invalid or missing records", async () => {
@@ -472,7 +559,7 @@ describe("ai tool execution coverage", { concurrent: false }, () => {
 			information: "Read example",
 			schedule: { kind: "anytime" },
 			reminder: null,
-			saveId,
+			saveIds: [saveId],
 		});
 		await putPreview(
 			littleDB,

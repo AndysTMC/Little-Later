@@ -1,6 +1,6 @@
 import { LDATE_FORMAT } from "little-shared/constants";
 import { LREMINDER_TYPE } from "little-shared/enums";
-import OpenAI from "openai";
+import type OpenAI from "openai";
 
 const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	type: "function",
@@ -43,7 +43,6 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 			required: [],
 			additionalProperties: false,
 		},
-		strict: true,
 	},
 };
 export { tool as searchRemindersTool };

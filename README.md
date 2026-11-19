@@ -119,7 +119,7 @@ The assistant is off until you configure it in **Settings → AI**. It works wit
 
 Start the local server, load a model, then pick the provider and model in settings. Local servers reject requests from extension pages by default, so Little Later sends its own requests to them with a `127.0.0.1` origin; websites you visit do not get that header.
 
-When you use the assistant, your messages and the records it reads to answer them are sent to the provider you chose. With Ollama or LM Studio that stays on your machine; with a custom provider it goes to that service under its terms. The assistant can read freely, but creating, changing, deleting or exporting anything needs your confirmation in the chat ([decision 0003](./docs/decisions/0003-ai-writes-need-confirmation.md)). The right-click actions **Note quick summary (AI)** and **Note keypoints (AI)** send only the selected text.
+When you use the assistant, your messages and the records it reads to answer them are sent to the model you chose, wherever that model runs. A model that runs in Ollama or LM Studio on your computer keeps them there. Ollama can also serve cloud models through the same local address (their names end in `-cloud`); with one of those they go to [Ollama's servers](https://docs.ollama.com/cloud). With a custom provider they go to that service under its terms. **Settings → AI** says which of these applies to the selected model and marks cloud models. The assistant can read freely, but creating, changing, deleting or exporting anything needs your confirmation in the chat ([decision 0003](./docs/decisions/0003-ai-writes-need-confirmation.md)). The right-click actions **Note quick summary (AI)** and **Note keypoints (AI)** send only the selected text.
 
 ## Development
 

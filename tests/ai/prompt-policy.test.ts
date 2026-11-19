@@ -22,8 +22,7 @@ describe("ai prompt policy", () => {
 		expect(script).toContain(
 			"create_task, update_task, save_active_web_page, and update_save are available. The user must confirm any create, update, delete, theme change, or export before it is applied.",
 		);
-		expect(script).toContain(
-			"create_note_on_active_webpage and link_note_to_active_webpage remain disabled.",
-		);
+		// The prompt names only tools that exist.
+		expect(script).not.toContain("create_note_on_active_webpage");
 	});
 });

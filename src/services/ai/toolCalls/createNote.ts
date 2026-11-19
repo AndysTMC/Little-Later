@@ -1,12 +1,15 @@
-import { send } from "../../../utils/send";
+import type { AIOwner } from "../owner";
 
-const toolCall = async ({
-	content,
-}: {
-	content: string;
-}): Promise<() => Promise<void>> => {
+const toolCall = async (
+	owner: AIOwner,
+	{
+		content,
+	}: {
+		content: string;
+	},
+): Promise<() => Promise<void>> => {
 	return async () => {
-		await send("note.create", { content });
+		await owner.send("note.create", { content });
 	};
 };
 

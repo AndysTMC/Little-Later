@@ -660,7 +660,8 @@ test.describe("AI Assist Playwright scenarios", () => {
 		const input = page.getByTestId("ai-assist-input");
 		await input.fill("add grocery note");
 		await input.press("Enter");
-		await expect(page.getByText("Create a note").first()).toBeVisible();
+		// The confirmation names what will be created.
+		await expect(page.getByText(/Create note "/).first()).toBeVisible();
 		await page.getByRole("button", { name: "Confirm change" }).click();
 		await expect(
 			page.getByText(/Created note|Created the note\./),

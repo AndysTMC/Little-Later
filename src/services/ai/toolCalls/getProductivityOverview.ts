@@ -1,19 +1,21 @@
 import { taskStatus } from "../../../popup/records";
-import {
-	readNotes,
-	readReminders,
-	readSaves,
-	readTasks,
-	unlockedKeys,
-} from "../records";
+import { readNotes, readReminders, readSaves, readTasks } from "../records";
 import { toModelDate } from "./_utils/dateFilters";
+import type { AIOwner } from "../owner";
 
-const toolCall = async (): Promise<{
+const toolCall = async (
+	owner: AIOwner,
+): Promise<{
 	generatedAt: string;
 	notes: { total: number };
 	saves: { total: number };
 	history: { total: number };
-	reminders: { total: number; upcoming: number; overdue: number };
+	reminders: {
+		total: number;
+		upcoming: number;
+		overdue: number;
+		fired: number;
+	};
 	tasks: {
 		total: number;
 		pending: number;
@@ -22,7 +24,7 @@ const toolCall = async (): Promise<{
 		overdueDueTasks: number;
 	};
 }> => {
-	const keys = await unlockedKeys();
+	const keys = await owner.keys();
 	const [notes, saves, reminders, tasks] = await Promise.all([
 		readNotes(keys),
 		readSaves(keys),
@@ -44,9 +46,17 @@ const toolCall = async (): Promise<{
 		},
 		reminders: {
 			total: reminders.length,
-			upcoming: reminders.filter((reminder) => reminder.target >= now)
-				.length,
-			overdue: reminders.filter((reminder) => reminder.target < now)
+			// A reminder that has fired for the last time (nextFireAt 0) is
+			// history, neither upcoming nor overdue.
+			upcoming: reminders.filter(
+				(reminder) =>
+					reminder.nextFireAt !== 0 && reminder.target >= now,
+			).length,
+			overdue: reminders.filter(
+				(reminder) =>
+					reminder.nextFireAt !== 0 && reminder.target < now,
+			).length,
+			fired: reminders.filter((reminder) => reminder.nextFireAt === 0)
 				.length,
 		},
 		tasks: {

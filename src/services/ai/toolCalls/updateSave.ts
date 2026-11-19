@@ -1,21 +1,24 @@
-import { send } from "../../../utils/send";
-import { readSaves, unlockedKeys } from "../records";
+import { readSaves } from "../records";
+import type { AIOwner } from "../owner";
 
-const toolCall = async ({
-	id,
-	customName,
-}: {
-	id: string;
-	customName: string;
-}): Promise<() => Promise<void>> => {
-	const save = (await readSaves(await unlockedKeys())).find(
+const toolCall = async (
+	owner: AIOwner,
+	{
+		id,
+		customName,
+	}: {
+		id: string;
+		customName: string;
+	},
+): Promise<() => Promise<void>> => {
+	const save = (await readSaves(await owner.keys())).find(
 		(item) => item.id === id,
 	);
 	if (save === undefined) {
 		throw new Error("Save not found.");
 	}
 	return async () => {
-		await send("save.update", { id, customName });
+		await owner.send("save.update", { id, customName });
 	};
 };
 
