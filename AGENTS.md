@@ -11,7 +11,8 @@
 - Format: `bun run format` / `bun run format:check`
 - Knowledge lint: `python3 scripts/lint_knowledge.py --strict`
 - Build: `bun run build`
-- Playwright: `bun run test:e2e`
+- Playwright (popup on the dev server): `bun run test:e2e`
+- Playwright (built extension, real service worker): `bun run test:ext`; see `tests/extension/README.md`
 - Screenshots: `bun run screenshots` (writes `artifacts/screenshots/`)
 - Live AI smoke: `bun run test:ai:live`
 

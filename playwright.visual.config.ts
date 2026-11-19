@@ -7,16 +7,18 @@ export default defineConfig({
 	workers: 1,
 	timeout: 180_000,
 	use: {
-		baseURL: "http://127.0.0.1:4173",
+		// Its own port, never shared: a server already on it (the e2e
+		// suite's, another project's) would be photographed instead.
+		baseURL: "http://127.0.0.1:4174",
 		channel: "chrome",
 		headless: true,
 		viewport: { width: 500, height: 600 },
 		deviceScaleFactor: 1,
 	},
 	webServer: {
-		command: "bun run dev --host 127.0.0.1 --port 4173",
-		url: "http://127.0.0.1:4173",
-		reuseExistingServer: true,
+		command: "bun run dev --host 127.0.0.1 --port 4174 --strictPort",
+		url: "http://127.0.0.1:4174",
+		reuseExistingServer: false,
 		timeout: 120_000,
 	},
 });
