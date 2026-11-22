@@ -20,6 +20,9 @@ export class ProfileChangedError extends Error {
 
 export type AIOwner = {
 	profileId: string;
+	// The unlock it belongs to: a lock ends it, even if the same profile
+	// is opened again.
+	unlockId: string;
 	// Fails once the profile has locked, or another profile is open.
 	assertCurrent: () => Promise<void>;
 	keys: () => Promise<ProfileKeys>;
@@ -39,6 +42,7 @@ export const ownerOf = ({
 	};
 	return {
 		profileId,
+		unlockId,
 		assertCurrent: async () => {
 			await unlocked();
 		},

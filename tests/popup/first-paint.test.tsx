@@ -2,10 +2,8 @@ import { act, useContext } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-	ThemeContext,
-	ThemeContextProvider,
-} from "../../src/popup/contexts/Theme";
+import { ThemeContextProvider } from "../../src/popup/contexts/Theme";
+import { ThemeContext } from "../../src/popup/contexts/ThemeContext";
 import { LUIIntro } from "../../src/popup/pages/LUIIntro/Page";
 import { writeLookHint } from "../../src/popup/themeHint";
 

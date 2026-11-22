@@ -42,13 +42,12 @@ test("an unsaved note edit is still there after the popup closes and reopens", a
 	openPopup,
 }) => {
 	const first = await createProfile(openPopup);
-	await first.getByRole("tab", { name: "Notes" }).click();
-	await first.getByRole("button", { name: "Create note" }).click();
+	await first.getByRole("button", { name: "New note" }).click();
 	await first.getByLabel("Note content").fill("Ideas for the trip");
 	await first.close();
 
 	const second = await openPopup("/");
-	await expect(second).toHaveURL(/#\/note\/new$/);
+	await expect(second).toHaveURL(/#\/home\/new-note$/);
 	await expect(second.getByLabel("Note content")).toHaveValue(
 		"Ideas for the trip",
 	);
@@ -136,12 +135,12 @@ test("a new task restores label, priority, due date and reminder, and starts emp
 		.getByPlaceholder("Information")
 		.fill("Create the release checklist");
 	await page.getByPlaceholder("Label").fill("Release");
-	await option(page, "Priority").click();
-	await option(page, "Type").click();
+	await option(page, "Priority", "High").click();
+	await option(page, "Type", "Due").click();
 	await expect(page.getByText("Deadline", { exact: true })).toBeVisible();
 	await page.getByLabel("YYYY", { exact: true }).press("ArrowUp");
-	await option(page, "Reminder").click();
-	await expect(page.getByText("Normal", { exact: true })).toBeVisible();
+	await option(page, "Reminder", "Normal").click();
+	await expect(option(page, "Reminder", "Normal")).toBeChecked();
 	const when = await dateInputs(page);
 	await page.close();
 
@@ -151,9 +150,9 @@ test("a new task restores label, priority, due date and reminder, and starts emp
 		"Create the release checklist",
 	);
 	await expect(restored.getByPlaceholder("Label")).toHaveValue("Release");
-	await expect(restored.getByText("High", { exact: true })).toBeVisible();
-	await expect(restored.getByText("Due", { exact: true })).toBeVisible();
-	await expect(restored.getByText("Normal", { exact: true })).toBeVisible();
+	await expect(option(restored, "Priority", "High")).toBeChecked();
+	await expect(option(restored, "Type", "Due")).toBeChecked();
+	await expect(option(restored, "Reminder", "Normal")).toBeChecked();
 	expect(await dateInputs(restored)).toEqual(when);
 	await button(restored, "Create").click();
 	await expect(restored).toHaveURL(/#\/home$/);
@@ -191,7 +190,7 @@ test("a new reminder restores text, type, date and its linked save", async ({
 	await seedSave(page, "Watched page");
 	await button(page, "New reminder").click();
 	await page.getByPlaceholder("Message").fill("Bring the forms");
-	await option(page, "Type").click();
+	await option(page, "Type", "Escalating").click();
 	await page.getByLabel("YYYY", { exact: true }).press("ArrowUp");
 	await button(page, "Link a save").click();
 	await button(page, /Watched page/).click();
@@ -204,9 +203,7 @@ test("a new reminder restores text, type, date and its linked save", async ({
 	await expect(restored.getByPlaceholder("Message")).toHaveValue(
 		"Bring the forms",
 	);
-	await expect(
-		restored.getByText("Escalating", { exact: true }),
-	).toBeVisible();
+	await expect(option(restored, "Type", "Escalating")).toBeChecked();
 	await expect(button(restored, "Unlink save: Watched page")).toBeVisible();
 	expect(await dateInputs(restored)).toEqual(when);
 });
@@ -239,10 +236,8 @@ test("editing an existing task and reminder restores both routes and their edits
 		new RegExp("#/reminder/" + reminder.id + "$"),
 	);
 	await restoredTask.getByPlaceholder("Message").fill("Changed message");
-	await option(restoredTask, "Type").click();
-	await expect(
-		restoredTask.getByText("Escalating", { exact: true }),
-	).toBeVisible();
+	await option(restoredTask, "Type", "Escalating").click();
+	await expect(option(restoredTask, "Type", "Escalating")).toBeChecked();
 	await restoredTask.close();
 
 	const restoredReminder = await openPopup("/");
@@ -252,9 +247,7 @@ test("editing an existing task and reminder restores both routes and their edits
 	await expect(restoredReminder.getByPlaceholder("Message")).toHaveValue(
 		"Changed message",
 	);
-	await expect(
-		restoredReminder.getByText("Escalating", { exact: true }),
-	).toBeVisible();
+	await expect(option(restoredReminder, "Type", "Escalating")).toBeChecked();
 });
 
 test("an existing note reopens in Edit and Home remembers its selected tab", async ({
@@ -325,7 +318,7 @@ test("a minute typed just before the popup closes is kept", async ({
 }) => {
 	const page = await createProfile(openPopup);
 	await button(page, "New task").click();
-	await option(page, "Type").click();
+	await option(page, "Type", "Due").click();
 	const minute = page.getByLabel("mm", { exact: true });
 	const desired = (await minute.inputValue()) === "37" ? "43" : "37";
 	await minute.fill(desired);

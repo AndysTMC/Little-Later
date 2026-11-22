@@ -19,6 +19,8 @@ export const Component = ({ className }: { className?: string }) => {
 
 	return (
 		<div
+			role="status"
+			aria-label="Loading"
 			className={twMerge(
 				"flex h-full w-full items-center justify-center",
 				className,

@@ -1,4 +1,11 @@
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { twMerge } from "tailwind-merge";
 import { useNavigate } from "react-router";
 import { LTHEME } from "little-shared/enums";
@@ -10,14 +17,13 @@ import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import {
 	ArrowCounterClockwiseIcon,
 	ArrowClockwiseIcon,
+	LockIcon,
+	LockOpenIcon,
 	NotebookIcon,
 } from "@phosphor-icons/react";
 import ReactMarkdown from "react-markdown";
-import {
-	SafeMarkdownImage,
-	SafeMarkdownLink,
-	safeUrlTransform,
-} from "../../markdownSafety";
+import { SafeMarkdownImage, SafeMarkdownLink } from "../../markdownSafety";
+import { safeUrlTransform } from "../../markdownUrl";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import {
@@ -35,30 +41,39 @@ import type { Save } from "../../../storage/repositories";
 import type { LinkRow } from "../../../storage/schema";
 import { linkedFrom } from "../../records";
 import { LUIVBMLinks } from "../LUIVBMLinks/Component";
+import { LUITagInput } from "../LUITagInput/Component";
+import { LUITagChips } from "../LUITagChips/Component";
+import { LUINote } from "../LUINote/Component";
+import { LUIPillButton } from "../LUIPillButton/Component";
 
 // One array each, so a caller that passes none does not look like a
 // change on every render.
 const NO_LINKS: Array<LinkRow> = [];
 const NO_SAVES: Array<Save> = [];
+const NO_TAGS: Array<string> = [];
+
+const sameTags = (a: ReadonlyArray<string>, b: ReadonlyArray<string>) =>
+	a.length === b.length && a.every((tag, index) => tag === b[index]);
 
 type ToolbarAction = {
 	id: NoteFormattingAction;
 	label: string;
+	title: string;
 };
 
 const TOOLBAR_ACTIONS: Array<ToolbarAction> = [
-	{ id: "bold", label: "B" },
-	{ id: "italic", label: "I" },
-	{ id: "strikethrough", label: "S" },
-	{ id: "h1", label: "H1" },
-	{ id: "h2", label: "H2" },
-	{ id: "bullet", label: "• List" },
-	{ id: "numbered", label: "1. List" },
-	{ id: "checklist", label: "Checklist" },
-	{ id: "quote", label: "Quote" },
-	{ id: "inlineCode", label: "`Code`" },
-	{ id: "codeBlock", label: "{ }" },
-	{ id: "link", label: "Link" },
+	{ id: "bold", label: "B", title: "Bold" },
+	{ id: "italic", label: "I", title: "Italic" },
+	{ id: "strikethrough", label: "S", title: "Strikethrough" },
+	{ id: "h1", label: "H1", title: "Heading 1" },
+	{ id: "h2", label: "H2", title: "Heading 2" },
+	{ id: "bullet", label: "• List", title: "Bulleted list" },
+	{ id: "numbered", label: "1. List", title: "Numbered list" },
+	{ id: "checklist", label: "Checklist", title: "Checklist" },
+	{ id: "quote", label: "Quote", title: "Blockquote" },
+	{ id: "inlineCode", label: "`Code`", title: "Inline code" },
+	{ id: "codeBlock", label: "{ }", title: "Code block" },
+	{ id: "link", label: "Link", title: "Insert link" },
 ];
 
 const Component = ({
@@ -66,62 +81,95 @@ const Component = ({
 	note,
 	links = NO_LINKS,
 	saves = NO_SAVES,
+	tagSuggestions = NO_TAGS,
+	canLock = false,
+	onLockNow,
 }: {
 	className?: string;
 	// A new note has no id until its first save.
-	note: { id: string | null; content: string };
+	note: {
+		id: string | null;
+		content: string;
+		locked?: boolean;
+		title?: string;
+		tags?: Array<string>;
+	};
 	// For attaching a saved note to saved pages; left out, the note
 	// cannot be linked from here.
 	links?: Array<LinkRow>;
 	saves?: Array<Save>;
+	tagSuggestions?: ReadonlyArray<string>;
+	canLock?: boolean;
+	onLockNow?: () => void;
 }) => {
 	const { theme } = useTheme();
+	const isDark = theme === LTHEME.DARK;
 	const navigate = useNavigate();
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
-	const historyRef = useRef<Array<string>>([note.content]);
-	const historyIndexRef = useRef(0);
 
-	// Unsaved text is remembered, so the popup closing (it does whenever
-	// it loses focus) does not lose what was being written.
+	const storedLocked = Boolean(note.locked);
+	const storedTitle = note.title ?? "";
+	const storedTags = note.tags ?? NO_TAGS;
+
+	// Unsaved text is remembered for normal notes, so the popup closing does
+	// not lose what was being written. Locked notes never persist drafts.
 	const draftKey = `note.${note.id ?? "new"}`;
 	const { getDraft, setDraft, clearDraft } = useContext(UIStateContext);
 	const [remembered] = useState(() => {
+		if (storedLocked) return null;
 		const draft = getDraft(draftKey);
 		return typeof draft === "string" && draft !== note.content
 			? draft
 			: null;
 	});
+	const initialContent = remembered ?? note.content;
+	const historyRef = useRef<Array<string>>([initialContent]);
+	const historyIndexRef = useRef(0);
 	const keepRemembered = useRef(remembered !== null);
 
-	const [draftContent, setDraftContent] = useState(
-		remembered ?? note.content,
-	);
+	const [draftContent, setDraftContent] = useState(initialContent);
 	const [baselineContent, setBaselineContent] = useState(note.content);
+	const [locked, setLocked] = useState(storedLocked);
+	const [baselineLocked, setBaselineLocked] = useState(storedLocked);
+	const [title, setTitle] = useState(storedTitle);
+	const [baselineTitle, setBaselineTitle] = useState(storedTitle);
+	const [tags, setTags] = useState<Array<string>>([...storedTags]);
+	const [baselineTags, setBaselineTags] = useState<Array<string>>([
+		...storedTags,
+	]);
+	const [showPasswordHint, setShowPasswordHint] = useState(false);
 	const [canUndo, setCanUndo] = useState(false);
 	const [canRedo, setCanRedo] = useState(false);
 	const [viewMode, setViewMode] = useState<"edit" | "preview">(
 		note.id === null || remembered !== null ? "edit" : "preview",
 	);
-	const [isSaving, setIsSaving] = useState(false);
+	const savingRef = useRef(false);
 
 	useEffect(() => {
-		if (draftContent === baselineContent || draftContent.trim() === "") {
+		if (
+			locked ||
+			draftContent === baselineContent ||
+			draftContent.trim() === ""
+		) {
 			clearDraft(draftKey);
 		} else {
 			setDraft(draftKey, draftContent);
 		}
-	}, [draftContent, baselineContent, draftKey, setDraft, clearDraft]);
+	}, [locked, draftContent, baselineContent, draftKey, setDraft, clearDraft]);
 
-	const syncHistoryFlags = () => {
+	const syncHistoryFlags = useCallback(() => {
 		setCanUndo(historyIndexRef.current > 0);
 		setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
-	};
+	}, []);
 
-	const resetHistory = (content: string) => {
-		historyRef.current = [content];
-		historyIndexRef.current = 0;
-		syncHistoryFlags();
-	};
+	const resetHistory = useCallback(
+		(content: string) => {
+			historyRef.current = [content];
+			historyIndexRef.current = 0;
+			syncHistoryFlags();
+		},
+		[syncHistoryFlags],
+	);
 
 	const pushHistory = (content: string) => {
 		const current = historyRef.current[historyIndexRef.current];
@@ -143,18 +191,44 @@ const Component = ({
 		syncHistoryFlags();
 	};
 
+	const [syncedNote, setSyncedNote] = useState({
+		id: note.id,
+		content: note.content,
+		locked: storedLocked,
+		title: storedTitle,
+		tags: storedTags,
+	});
+	if (
+		syncedNote.id !== note.id ||
+		syncedNote.content !== note.content ||
+		syncedNote.locked !== storedLocked ||
+		syncedNote.title !== storedTitle ||
+		!sameTags(syncedNote.tags, storedTags)
+	) {
+		setSyncedNote({
+			id: note.id,
+			content: note.content,
+			locked: storedLocked,
+			title: storedTitle,
+			tags: storedTags,
+		});
+		setBaselineContent(note.content);
+		setDraftContent(note.content);
+		setBaselineLocked(storedLocked);
+		setLocked(storedLocked);
+		setBaselineTitle(storedTitle);
+		setTitle(storedTitle);
+		setBaselineTags([...storedTags]);
+		setTags([...storedTags]);
+		setViewMode(note.id === null ? "edit" : "preview");
+	}
 	useEffect(() => {
-		// The text remembered from last time stays in the editor when the
-		// page opens; after that the note's own text is followed.
 		if (keepRemembered.current) {
 			keepRemembered.current = false;
 			return;
 		}
-		setDraftContent(note.content);
-		setBaselineContent(note.content);
-		setViewMode(note.id === null ? "edit" : "preview");
 		resetHistory(note.content);
-	}, [note.id, note.content]);
+	}, [note.id, note.content, resetHistory]);
 
 	const applyFormattingResult = (result: NoteFormattingResult) => {
 		setDraftContent(result.content);
@@ -219,56 +293,92 @@ const Component = ({
 				: linkedFrom(links, noteId, saves).map((save) => save.id),
 		[links, noteId, saves],
 	);
-	const [linkedSaveIds, setLinkedSaveIds] = useState(storedSaveIds);
-	const [linksTouched, setLinksTouched] = useState(false);
-	useEffect(() => {
-		// Follow what is stored until the user changes it here.
-		if (!linksTouched) {
-			setLinkedSaveIds(storedSaveIds);
-		}
-	}, [storedSaveIds, linksTouched]);
+	const [editedSaveIds, setEditedSaveIds] = useState<Array<string> | null>(
+		null,
+	);
+	const linkedSaveIds = editedSaveIds ?? storedSaveIds;
 	const linksChanged =
-		linksTouched &&
-		(linkedSaveIds.length !== storedSaveIds.length ||
-			linkedSaveIds.some((id) => !storedSaveIds.includes(id)));
+		editedSaveIds !== null &&
+		(editedSaveIds.length !== storedSaveIds.length ||
+			editedSaveIds.some((id) => !storedSaveIds.includes(id)));
 	const handleSaveLinking = (saveId: string, flag: boolean) => {
-		setLinksTouched(true);
-		setLinkedSaveIds((ids) =>
-			flag
+		setEditedSaveIds((prev) => {
+			const ids = prev ?? storedSaveIds;
+			return flag
 				? [...ids.filter((id) => id !== saveId), saveId]
-				: ids.filter((id) => id !== saveId),
-		);
+				: ids.filter((id) => id !== saveId);
+		});
+	};
+
+	const tagsChanged = !sameTags(tags, baselineTags);
+	const lockedChanged = locked !== baselineLocked;
+	const titleChanged = title.trim() !== baselineTitle.trim();
+	const hasChanges =
+		draftContent !== baselineContent ||
+		linksChanged ||
+		tagsChanged ||
+		lockedChanged ||
+		titleChanged;
+
+	const handleToggleLocked = () => {
+		if (!locked && !canLock) {
+			setShowPasswordHint(true);
+			return;
+		}
+		setShowPasswordHint(false);
+		setLocked((was) => !was);
 	};
 
 	const handleSave = async () => {
-		const textChanged = draftContent !== baselineContent;
-		if (
-			isSaving ||
-			(!textChanged && !linksChanged) ||
-			draftContent.trim() === ""
-		) {
+		if (savingRef.current || !hasChanges || draftContent.trim() === "") {
 			return;
 		}
-		setIsSaving(true);
+		savingRef.current = true;
 		try {
+			const trimmedTitle = title.trim();
 			if (note.id === null) {
 				const { id } = await send("note.create", {
 					content: draftContent,
 					saveIds: linkedSaveIds,
+					...(tags.length > 0 ? { tags } : {}),
+					...(locked ? { locked: true } : {}),
+					...(locked && trimmedTitle !== ""
+						? { title: trimmedTitle }
+						: {}),
 				});
 				clearDraft(draftKey);
-				navigate(`/note/${id}`, { replace: true });
+				if (locked) {
+					navigate("/home", { replace: true });
+				} else {
+					navigate(`/note/${id}`, { replace: true });
+				}
 				return;
 			}
-			// One command: the text and the saves change together.
-			await send("note.update", {
+			// One command: the text, metadata and saves change together.
+			const updatePayload: {
+				id: string;
+				content: string;
+				saveIds?: Array<string>;
+				tags?: Array<string>;
+				locked?: boolean;
+				title?: string;
+			} = {
 				id: note.id,
 				content: draftContent,
-				saveIds: linksChanged ? linkedSaveIds : undefined,
-			});
-			setLinksTouched(false);
-			setIsSaving(false);
+			};
+			if (linksChanged) updatePayload.saveIds = linkedSaveIds;
+			if (tagsChanged) updatePayload.tags = tags;
+			if (lockedChanged) updatePayload.locked = locked;
+			if (titleChanged || lockedChanged) {
+				updatePayload.title = locked ? trimmedTitle : "";
+			}
+			await send("note.update", updatePayload);
+			setEditedSaveIds(null);
 			setBaselineContent(draftContent);
+			setBaselineLocked(locked);
+			setBaselineTitle(locked ? trimmedTitle : "");
+			setTitle(locked ? trimmedTitle : "");
+			setBaselineTags([...tags]);
 			resetHistory(draftContent);
 		} catch (error) {
 			await createToast(
@@ -278,7 +388,7 @@ const Component = ({
 				LTOAST_TYPE.ERROR,
 			);
 		} finally {
-			setIsSaving(false);
+			savingRef.current = false;
 		}
 	};
 
@@ -289,94 +399,143 @@ const Component = ({
 				className,
 			)}
 		>
-			<LUIFeaturePageUD Icon={NotebookIcon} />
+			<LUIFeaturePageUD
+				Icon={NotebookIcon}
+				title={note.id === null ? "New note" : "Note"}
+			/>
 			<div
-				className={`flex min-h-0 w-full grow flex-col overflow-y-auto ${theme}-scrollbar `}
+				className={`mx-auto flex min-h-0 w-full max-w-3xl grow flex-col overflow-y-auto ${theme}-scrollbar`}
 			>
-				<div className="flex w-full items-center justify-between px-4 py-1">
-					<div className="flex items-center gap-x-3">
+				<div className="flex w-full items-center justify-between gap-x-2 px-4 py-1.5">
+					<div
+						className={`flex items-center gap-x-0.5 rounded-xl border p-0.5 ${
+							theme === LTHEME.DARK
+								? "border-neutral-800 bg-neutral-900"
+								: "border-neutral-200 bg-neutral-100"
+						}`}
+					>
 						<button
 							type="button"
+							aria-pressed={viewMode === "preview"}
 							onClick={() => setViewMode("preview")}
-							className={`h-7 cursor-pointer text-xs font-bold transition-opacity active:scale-95 ${
+							className={`h-7 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-colors ${
 								viewMode === "preview"
-									? "underline underline-offset-4 opacity-100"
-									: "opacity-55 hover:opacity-85"
-							} ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
+									? "ll-accent-fill"
+									: theme === LTHEME.DARK
+										? "text-neutral-400 hover:text-neutral-100"
+										: "text-neutral-600 hover:text-neutral-900"
+							}`}
 						>
 							Preview
 						</button>
 						<button
 							type="button"
+							aria-pressed={viewMode === "edit"}
 							onClick={() => setViewMode("edit")}
-							className={`h-7 cursor-pointer text-xs font-bold transition-opacity active:scale-95 ${
+							className={`h-7 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-colors ${
 								viewMode === "edit"
-									? "underline underline-offset-4 opacity-100"
-									: "opacity-55 hover:opacity-85"
-							} ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
+									? "ll-accent-fill"
+									: theme === LTHEME.DARK
+										? "text-neutral-400 hover:text-neutral-100"
+										: "text-neutral-600 hover:text-neutral-900"
+							}`}
 						>
 							Edit
 						</button>
 					</div>
-					{viewMode === "edit" ? (
-						<div className="flex items-center gap-x-3">
+					<div className="flex items-center gap-x-1">
+						{onLockNow ? (
 							<button
 								type="button"
-								className={`flex h-7 items-center gap-x-1 text-xs font-bold transition-opacity active:scale-95 ${
-									canUndo
-										? "cursor-pointer opacity-85 hover:opacity-100"
-										: "cursor-not-allowed opacity-35"
-								} ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
-								onMouseDown={(event) => event.preventDefault()}
-								onClick={handleUndo}
-								disabled={!canUndo}
+								aria-label="Lock note now"
+								onClick={onLockNow}
+								className={`flex h-7 cursor-pointer items-center gap-x-1 rounded-lg px-2 text-xs font-medium transition-colors ${
+									isDark
+										? "text-neutral-300 hover:bg-neutral-800 hover:text-white"
+										: "text-neutral-700 hover:bg-neutral-200 hover:text-black"
+								}`}
 							>
 								<LUIThemedIcon
-									Icon={ArrowCounterClockwiseIcon}
-									weight="bold"
-									className="size-4"
+									Icon={LockIcon}
+									color="currentColor"
+									weight="fill"
+									className="size-3.5 text-[var(--ll-accent)]"
 								/>
-								Undo
+								<span>Lock</span>
 							</button>
-							<button
-								type="button"
-								className={`flex h-7 items-center gap-x-1 text-xs font-bold transition-opacity active:scale-95 ${
-									canRedo
-										? "cursor-pointer opacity-85 hover:opacity-100"
-										: "cursor-not-allowed opacity-35"
-								} ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
-								onMouseDown={(event) => event.preventDefault()}
-								onClick={handleRedo}
-								disabled={!canRedo}
-							>
-								<LUIThemedIcon
-									Icon={ArrowClockwiseIcon}
-									weight="bold"
-									className="size-4"
-								/>
-								Redo
-							</button>
-						</div>
-					) : null}
+						) : null}
+						{viewMode === "edit" ? (
+							<>
+								<button
+									type="button"
+									className={`flex h-7 items-center gap-x-1 rounded-lg px-2 text-xs font-medium transition-colors ${
+										canUndo
+											? theme === LTHEME.DARK
+												? "cursor-pointer text-neutral-300 hover:bg-neutral-800 hover:text-white"
+												: "cursor-pointer text-neutral-700 hover:bg-neutral-200 hover:text-black"
+											: "cursor-not-allowed opacity-35"
+									}`}
+									onMouseDown={(event) =>
+										event.preventDefault()
+									}
+									onClick={handleUndo}
+									disabled={!canUndo}
+								>
+									<LUIThemedIcon
+										Icon={ArrowCounterClockwiseIcon}
+										color="currentColor"
+										weight="regular"
+										className="size-3.5"
+									/>
+									Undo
+								</button>
+								<button
+									type="button"
+									className={`flex h-7 items-center gap-x-1 rounded-lg px-2 text-xs font-medium transition-colors ${
+										canRedo
+											? theme === LTHEME.DARK
+												? "cursor-pointer text-neutral-300 hover:bg-neutral-800 hover:text-white"
+												: "cursor-pointer text-neutral-700 hover:bg-neutral-200 hover:text-black"
+											: "cursor-not-allowed opacity-35"
+									}`}
+									onMouseDown={(event) =>
+										event.preventDefault()
+									}
+									onClick={handleRedo}
+									disabled={!canRedo}
+								>
+									<LUIThemedIcon
+										Icon={ArrowClockwiseIcon}
+										color="currentColor"
+										weight="regular"
+										className="size-3.5"
+									/>
+									Redo
+								</button>
+							</>
+						) : null}
+					</div>
 				</div>
 
 				{viewMode === "edit" ? (
-					<div className={`flex grow flex-col px-4 py-2`}>
+					<div className="flex grow flex-col gap-y-2 px-4 py-1.5">
 						<div
-							className={`mb-2 flex w-full flex-wrap gap-2 rounded-xl border p-2 ${
+							className={`flex w-full flex-wrap gap-1 rounded-xl border p-1.5 ${
 								theme === LTHEME.DARK
-									? "border-neutral-700 bg-neutral-900"
-									: "border-neutral-300 bg-neutral-100"
+									? "border-neutral-800 bg-neutral-900"
+									: "border-neutral-200 bg-neutral-100"
 							}`}
 						>
 							{TOOLBAR_ACTIONS.map((action) => (
 								<button
 									key={action.id}
 									type="button"
-									className={`h-8 cursor-pointer rounded-md px-2 text-xs font-bold transition-all active:scale-95 ${
+									title={action.title}
+									aria-label={action.title}
+									className={`h-7 cursor-pointer rounded-lg px-2 text-xs font-medium transition-colors active:scale-95 ${
 										theme === LTHEME.DARK
-											? "bg-black text-white hover:bg-neutral-800"
-											: "bg-white text-black hover:bg-neutral-200"
+											? "bg-neutral-950 text-neutral-200 hover:bg-neutral-800 hover:text-white"
+											: "bg-white text-neutral-800 hover:bg-neutral-200 hover:text-black"
 									}`}
 									onMouseDown={(event) =>
 										event.preventDefault()
@@ -392,10 +551,10 @@ const Component = ({
 
 						<textarea
 							ref={textareaRef}
-							className={`w-full grow resize-none overflow-y-auto p-2 text-sm select-text ${theme}-thin-scrollbar ${
+							className={`min-h-40 w-full grow resize-none overflow-y-auto rounded-xl border px-3 py-2.5 text-sm leading-relaxed transition-colors select-text ${theme}-thin-scrollbar ${
 								theme === LTHEME.DARK
-									? "bg-neutral-900 text-white"
-									: "bg-neutral-100 text-black"
+									? "border-neutral-700 bg-neutral-900 text-neutral-100 focus:border-neutral-400"
+									: "border-neutral-300 bg-white text-neutral-900 focus:border-neutral-600"
 							}`}
 							value={draftContent}
 							aria-label="Note content"
@@ -410,6 +569,7 @@ const Component = ({
 								}
 
 								const key = event.key.toLowerCase();
+								const code = event.code;
 								if (key === "b") {
 									event.preventDefault();
 									handleApplyFormatting("bold");
@@ -422,27 +582,47 @@ const Component = ({
 									event.preventDefault();
 									handleApplyFormatting("strikethrough");
 								}
-								if (event.shiftKey && key === "1") {
+								if (
+									event.shiftKey &&
+									(code === "Digit1" || key === "1")
+								) {
 									event.preventDefault();
 									handleApplyFormatting("h1");
 								}
-								if (event.shiftKey && key === "2") {
+								if (
+									event.shiftKey &&
+									(code === "Digit2" || key === "2")
+								) {
 									event.preventDefault();
 									handleApplyFormatting("h2");
 								}
-								if (event.shiftKey && key === "8") {
+								if (
+									event.shiftKey &&
+									(code === "Digit8" || key === "8")
+								) {
 									event.preventDefault();
 									handleApplyFormatting("bullet");
 								}
-								if (event.shiftKey && key === "7") {
+								if (
+									event.shiftKey &&
+									(code === "Digit7" || key === "7")
+								) {
 									event.preventDefault();
 									handleApplyFormatting("numbered");
 								}
-								if (event.shiftKey && key === "9") {
+								if (
+									event.shiftKey &&
+									(code === "Digit9" || key === "9")
+								) {
 									event.preventDefault();
 									handleApplyFormatting("checklist");
 								}
-								if (event.shiftKey && key === ".") {
+								if (
+									event.shiftKey &&
+									(code === "Period" ||
+										key === "." ||
+										key === ">")
+								) {
 									event.preventDefault();
 									handleApplyFormatting("quote");
 								}
@@ -471,11 +651,116 @@ const Component = ({
 								}
 							}}
 						/>
+						<LUITagInput
+							tags={tags}
+							onChange={setTags}
+							suggestions={tagSuggestions}
+						/>
+						<div
+							className={`flex flex-col gap-y-2 rounded-xl border px-3 py-2 ${
+								isDark
+									? "border-neutral-800 bg-neutral-900/70"
+									: "border-neutral-200 bg-neutral-100/70"
+							}`}
+						>
+							<div className="flex items-center justify-between gap-x-2">
+								<div className="flex min-w-0 flex-col">
+									<span
+										className={`text-xs font-medium ${
+											isDark
+												? "text-neutral-200"
+												: "text-neutral-800"
+										}`}
+									>
+										Lock with password
+									</span>
+									<span
+										className={`text-[11px] ${
+											isDark
+												? "text-neutral-400"
+												: "text-neutral-500"
+										}`}
+									>
+										Requires your profile password to open
+										and stays hidden from LittleAI.
+									</span>
+								</div>
+								<button
+									type="button"
+									role="switch"
+									aria-checked={locked}
+									aria-label="Lock with password"
+									onClick={handleToggleLocked}
+									className={`flex h-8 shrink-0 cursor-pointer items-center gap-x-1.5 rounded-xl border px-2.5 text-xs font-medium transition-colors ${
+										locked
+											? "ll-accent-fill border-transparent"
+											: isDark
+												? "border-neutral-700 bg-neutral-950 text-neutral-300 hover:bg-neutral-800"
+												: "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-200"
+									}`}
+								>
+									<LUIThemedIcon
+										Icon={locked ? LockIcon : LockOpenIcon}
+										color="currentColor"
+										weight={locked ? "fill" : "regular"}
+										className="size-3.5"
+									/>
+									<span>{locked ? "Locked" : "Off"}</span>
+								</button>
+							</div>
+							{showPasswordHint && !canLock ? (
+								<div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+									<LUINote warning className="min-w-0 grow">
+										Set a profile password first to lock
+										notes.
+									</LUINote>
+									<LUIPillButton
+										label="Set password"
+										onClick={() =>
+											navigate(
+												"/settings/security/password",
+											)
+										}
+									/>
+								</div>
+							) : null}
+							{locked ? (
+								<input
+									type="text"
+									value={title}
+									maxLength={100}
+									aria-label="Visible title for locked note"
+									placeholder="Visible title (optional, defaults to Locked note)"
+									onChange={(event) =>
+										setTitle(event.target.value)
+									}
+									className={`h-9 w-full rounded-xl border px-3 text-xs transition-colors outline-none ${
+										isDark
+											? "border-neutral-700 bg-neutral-950 text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-400"
+											: "border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-600"
+									}`}
+								/>
+							) : null}
+						</div>
+						{note.id !== null ? (
+							<LUIVBMLinks
+								saves={saves}
+								linkedSaveIds={linkedSaveIds}
+								handleSaveLinking={handleSaveLinking}
+							/>
+						) : null}
 					</div>
 				) : (
 					<div
-						className={`w-full grow overflow-y-auto px-4 py-2 text-sm select-text ${theme}-thin-scrollbar ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
+						className={`w-full grow overflow-y-auto px-4 py-2 text-sm leading-relaxed select-text ${theme}-thin-scrollbar ${theme === LTHEME.DARK ? "text-neutral-100" : "text-neutral-900"}`}
 					>
+						{tags.length > 0 ? (
+							<LUITagChips
+								tags={tags}
+								maxVisible={15}
+								className="mb-2.5"
+							/>
+						) : null}
 						<ReactMarkdown
 							remarkPlugins={[remarkGfm, remarkBreaks]}
 							urlTransform={safeUrlTransform}
@@ -485,13 +770,13 @@ const Component = ({
 								h1: ({ ...props }) => (
 									<h1
 										{...props}
-										className="mb-2 text-2xl font-black"
+										className="mb-2 text-xl font-semibold tracking-tight"
 									/>
 								),
 								h2: ({ ...props }) => (
 									<h2
 										{...props}
-										className="mb-2 text-xl font-extrabold"
+										className="mb-2 text-lg font-semibold tracking-tight"
 									/>
 								),
 								ul: ({ ...props }) => (
@@ -511,15 +796,15 @@ const Component = ({
 										{...props}
 										className={`my-2 border-l-2 pl-3 italic ${
 											theme === LTHEME.DARK
-												? "border-neutral-400"
-												: "border-neutral-600"
+												? "border-neutral-600 text-neutral-400"
+												: "border-neutral-400 text-neutral-600"
 										}`}
 									/>
 								),
 								code: ({ ...props }) => (
 									<code
 										{...props}
-										className={`rounded px-1 ${
+										className={`rounded-md px-1.5 py-0.5 text-xs ${
 											theme === LTHEME.DARK
 												? "bg-neutral-900"
 												: "bg-neutral-200"
@@ -535,25 +820,13 @@ const Component = ({
 					</div>
 				)}
 			</div>
-			{viewMode === "edit" && note.id !== null ? (
-				<div className="w-full shrink-0 px-4">
-					<LUIVBMLinks
-						saves={saves}
-						linkedSaveIds={linkedSaveIds}
-						handleSaveLinking={handleSaveLinking}
-					/>
-				</div>
-			) : null}
 			{viewMode === "edit" ? (
-				<div className="flex h-16 w-full items-center justify-center px-4 pt-1 pb-2">
+				<div className="mx-auto flex h-16 w-full max-w-3xl shrink-0 items-center justify-center px-4 pt-1 pb-2">
 					<LUICUButton
-						name={isSaving ? "Updating..." : "Update"}
+						name={note.id === null ? "Create" : "Update"}
 						onClick={handleSave}
 						passedTheme={theme}
-						disabled={
-							isSaving ||
-							(draftContent === baselineContent && !linksChanged)
-						}
+						disabled={draftContent.trim() === "" || !hasChanges}
 					/>
 				</div>
 			) : null}

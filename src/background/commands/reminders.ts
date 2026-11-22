@@ -11,8 +11,9 @@ import {
 	assertOwnSaves,
 	asInstant,
 	boundedText,
-	setSaveLinks,
 	optionalSaveIds,
+	optionalTags,
+	setSaveLinks,
 } from "./records";
 import {
 	CommandError,
@@ -94,6 +95,7 @@ export const reminderCreate = defineCommand({
 			target: asInstant(record.target, "target"),
 			escalate: optionalBoolean(record.escalate, "escalate"),
 			saveIds: optionalSaveIds(record.saveIds),
+			tags: optionalTags(record.tags),
 		};
 	},
 	run: async (ctx, input) => {
@@ -103,8 +105,10 @@ export const reminderCreate = defineCommand({
 		await assertOwnSaves(ctx.db, keys, input.saveIds);
 		const id = crypto.randomUUID();
 		const escalation = input.escalate ? ESCALATION : null;
+		const tags = input.tags ?? [];
 		const sealed = await sealBody<ReminderContent>(keys, "reminders", id, {
 			message: input.message,
+			...(tags.length > 0 ? { tags } : {}),
 		});
 		await ctx.db.transaction(
 			"rw",
@@ -157,6 +161,7 @@ export const reminderUpdate = defineCommand({
 			escalate: optionalBoolean(record.escalate, "escalate"),
 			// Given, the exact saves the reminder is attached to afterwards.
 			saveIds: optionalSaveIds(record.saveIds),
+			tags: optionalTags(record.tags),
 		};
 	},
 	run: async (ctx, input) => {
@@ -183,12 +188,14 @@ export const reminderUpdate = defineCommand({
 			assertFuture(target, now);
 		}
 		const content = await openReminder(keys, row);
+		const tags = input.tags ?? content.tags ?? [];
 		const sealed = await sealBody<ReminderContent>(
 			keys,
 			"reminders",
 			row.id,
 			{
 				message: input.message ?? content.message,
+				...(tags.length > 0 ? { tags } : {}),
 			},
 		);
 		await ctx.db.transaction(

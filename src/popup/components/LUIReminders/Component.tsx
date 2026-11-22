@@ -16,12 +16,16 @@ const Component = ({
 	reminders,
 	saves,
 	tasks,
+	activeTag = null,
+	onSelectTag,
 }: {
 	className?: string;
 	links: Array<LinkRow>;
 	reminders: Array<Reminder>;
 	saves: Array<Save>;
 	tasks: Array<Task>;
+	activeTag?: string | null;
+	onSelectTag?: (tag: string) => void;
 }) => {
 	const { theme } = useTheme();
 
@@ -57,6 +61,8 @@ const Component = ({
 			tasks={tasks}
 			key={reminder.id}
 			reminder={reminder}
+			activeTag={activeTag}
+			onSelectTag={onSelectTag}
 		/>
 	);
 
@@ -67,29 +73,39 @@ const Component = ({
 				className,
 			)}
 		>
-			{upcoming.length > 0 ? (
-				<LUIGroup title="Upcoming">
-					<div className="flex w-full flex-col gap-y-1 pb-2">
-						{upcoming.map(mini)}
+			<div className="mx-auto flex w-full max-w-3xl grow flex-col">
+				{reminders.length > 0 ? (
+					<div className="flex h-8 w-full shrink-0 items-center justify-between">
+						<span
+							className={`text-xs font-medium ${
+								theme === LTHEME.DARK
+									? "text-neutral-400"
+									: "text-neutral-500"
+							}`}
+						>
+							{reminders.length} reminder
+							{reminders.length === 1 ? "" : "s"}
+						</span>
 					</div>
-				</LUIGroup>
-			) : null}
-			{past.length > 0 ? (
-				<LUIGroup
-					title="Past"
-					pagination={{ currentBatch, batchCount, onBatchChange }}
-				>
-					<div className="flex w-full flex-col gap-y-1 pb-2">
+				) : null}
+				{upcoming.length > 0 ? (
+					<LUIGroup title="Upcoming">{upcoming.map(mini)}</LUIGroup>
+				) : null}
+				{past.length > 0 ? (
+					<LUIGroup
+						title="Past"
+						pagination={{ currentBatch, batchCount, onBatchChange }}
+					>
 						{paginationPast.map(mini)}
-					</div>
-				</LUIGroup>
-			) : null}
-			{reminders.length === 0 ? (
-				<LUIEmptyState
-					title="No reminders yet?"
-					hint="Tap New Reminder."
-				/>
-			) : null}
+					</LUIGroup>
+				) : null}
+				{reminders.length === 0 ? (
+					<LUIEmptyState
+						title="No reminders yet?"
+						hint="Tap New reminder."
+					/>
+				) : null}
+			</div>
 		</motion.div>
 	);
 };

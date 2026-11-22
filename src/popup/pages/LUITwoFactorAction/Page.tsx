@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { PasswordIcon } from "@phosphor-icons/react";
 import { LTOAST_TYPE, LTHEME } from "little-shared/enums";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams } from "react-router";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUICUButton } from "../../components/LUICUButton/Component";
@@ -52,12 +52,15 @@ const Page = () => {
 	const [password, setPassword] = useState("");
 	const [warning, setWarning] = useState("");
 	const [busy, setBusy] = useState(false);
+	const busyRef = useRef(false);
+	const [finished, setFinished] = useState(false);
 	const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
 	const [copied, setCopied] = useState(false);
 	const [inPopup] = useState(inToolbarPopup);
 
 	// Back to the list, or, in a key's own window, back to the toolbar.
 	const done = async () => {
+		setFinished(true);
 		if (await finishCeremonyWindow()) return;
 		go(TWO_FACTOR_ROUTE, "back", { replace: true });
 	};
@@ -72,7 +75,7 @@ const Page = () => {
 		</motion.div>
 	);
 
-	if (loading || !profile) return page(null);
+	if (loading || !profile || finished) return page(null);
 	const key = profile.authenticators?.find(
 		(entry) => entry.credentialId === credential,
 	);
@@ -86,14 +89,20 @@ const Page = () => {
 	}
 
 	const run = async () => {
+		if (busyRef.current) return;
+		if (action === "add" && !webAuthnAvailable()) return;
 		setWarning("");
 		if (password === "") {
 			setWarning("Enter this profile's password.");
 			return;
 		}
+		busyRef.current = true;
 		setBusy(true);
 		try {
 			if (action === "add") {
+				// Confirm the password before opening the hardware-key prompt
+				// so a wrong password never registers an unused credential.
+				await send("profile.verifyPassword", { password });
 				const factor = await registerFactor(
 					{ id: profile.id, name: profile.name },
 					profile.authenticators ?? [],
@@ -134,6 +143,7 @@ const Page = () => {
 					: "That didn't work. Try again.",
 			);
 		} finally {
+			busyRef.current = false;
 			setBusy(false);
 		}
 	};
@@ -174,10 +184,17 @@ const Page = () => {
 					variant="secondary"
 					name={copied ? "Copied" : "Copy"}
 					onClick={async () => {
-						await navigator.clipboard.writeText(recoveryCode);
-						setCopied(true);
+						try {
+							await navigator.clipboard.writeText(recoveryCode);
+							setCopied(true);
+						} catch {
+							setWarning(
+								"Couldn't copy the code. Select it to copy manually.",
+							);
+						}
 					}}
 				/>
+				{warning !== "" ? <LUINote warning>{warning}</LUINote> : null}
 			</LUIIdentityPage>,
 		);
 	}
@@ -192,7 +209,7 @@ const Page = () => {
 					in a small window.
 				</LUINote>
 				<LUICUButton
-					name="Continue in a new window"
+					name="Continue"
 					onClick={() =>
 						openCeremonyWindow(`${TWO_FACTOR_ROUTE}/add`)
 					}
@@ -234,6 +251,11 @@ const Page = () => {
 			) : null}
 			{warning !== "" ? <LUINote warning>{warning}</LUINote> : null}
 			<LUICUButton
+				variant={
+					action === "off" || action === "remove"
+						? "danger"
+						: undefined
+				}
 				name={actionName[action]}
 				onClick={run}
 				disabled={action === "add" && !webAuthnAvailable()}

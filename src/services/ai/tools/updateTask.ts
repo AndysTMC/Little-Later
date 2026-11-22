@@ -34,6 +34,11 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 					type: "string",
 					description: `Updated due date (${LDATE_FORMAT})`,
 				},
+				tags: {
+					type: "array",
+					items: { type: "string" },
+					description: "Updated tags for the task.",
+				},
 			},
 			required: ["id"],
 			additionalProperties: false,

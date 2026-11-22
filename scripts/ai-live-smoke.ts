@@ -105,8 +105,9 @@ const getHeaders = (apiKey: string): Record<string, string> => {
 const fetchModels = async (
 	baseUrl: string,
 	apiKey: string,
-): Promise<Array<string>> => {
+): Promise<{ models: Array<string>; apiBaseUrl: string }> => {
 	const headers = getHeaders(apiKey);
+	const normalized = baseUrl.replace(/\/+$/, "");
 	for (const endpoint of modelEndpoints(baseUrl)) {
 		try {
 			const response = await timeoutFetch(endpoint, {
@@ -119,13 +120,18 @@ const fetchModels = async (
 			const payload = (await response.json()) as unknown;
 			const models = extractModels(payload);
 			if (models.length > 0) {
-				return models;
+				const apiBaseUrl = endpoint.endsWith("/v1/models")
+					? endpoint.slice(0, -"/models".length)
+					: endpoint.endsWith("/api/tags")
+						? `${endpoint.slice(0, -"/api/tags".length)}/v1`
+						: normalized;
+				return { models, apiBaseUrl };
 			}
 		} catch {
 			// Try the next endpoint.
 		}
 	}
-	return [];
+	return { models: [], apiBaseUrl: normalized };
 };
 
 const runCompletionSmoke = async (
@@ -222,11 +228,21 @@ const run = async () => {
 		const providerTag = `[${provider.name}]`;
 		console.log(`${providerTag} checking ${provider.baseUrl}`);
 
-		const models = await fetchModels(provider.baseUrl, provider.apiKey);
+		const { models, apiBaseUrl } = await fetchModels(
+			provider.baseUrl,
+			provider.apiKey,
+		);
 		if (models.length === 0) {
-			console.log(
-				`${providerTag} skipped (no models available / provider offline).`,
-			);
+			if (provider.name === "custom") {
+				failed = true;
+				console.error(
+					`${providerTag} failed (explicitly configured custom provider returned no models / was unreachable).`,
+				);
+			} else {
+				console.log(
+					`${providerTag} skipped (no models available / provider offline).`,
+				);
+			}
 			continue;
 		}
 
@@ -241,7 +257,7 @@ const run = async () => {
 
 		try {
 			const completionOk = await runCompletionSmoke(
-				provider.baseUrl,
+				apiBaseUrl,
 				provider.apiKey,
 				model,
 			);
@@ -255,7 +271,7 @@ const run = async () => {
 			console.log(`${providerTag} completion smoke passed.`);
 
 			const toolStatus = await runToolSmoke(
-				provider.baseUrl,
+				apiBaseUrl,
 				provider.apiKey,
 				model,
 			);
@@ -272,16 +288,16 @@ const run = async () => {
 		}
 	}
 
+	if (failed) {
+		process.exitCode = 1;
+		console.error("AI live smoke finished with failures.");
+		return;
+	}
+
 	if (checked === 0) {
 		console.log(
 			"No live AI providers were reachable. This is optional, so exiting without failure.",
 		);
-		return;
-	}
-
-	if (failed) {
-		process.exitCode = 1;
-		console.error("AI live smoke finished with failures.");
 		return;
 	}
 

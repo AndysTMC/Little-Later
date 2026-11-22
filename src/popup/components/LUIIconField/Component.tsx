@@ -40,21 +40,24 @@ const Component = ({
 	return (
 		<div
 			className={twMerge(
-				"ll-field flex h-12 w-72 items-center rounded-lg border border-solid transition-colors duration-150",
+				"ll-field flex h-11 w-full max-w-72 items-center rounded-xl border border-solid transition-colors duration-150",
 				isDark
 					? "border-neutral-700 bg-neutral-900 focus-within:border-neutral-400"
-					: "border-neutral-300 bg-neutral-100 focus-within:border-neutral-800",
+					: "border-neutral-300 bg-white focus-within:border-neutral-700",
 				className,
 			)}
 		>
 			<div
-				className="flex h-12 w-16 shrink-0 items-center justify-center"
+				className={`flex h-full w-11 shrink-0 items-center justify-center ${
+					isDark ? "text-neutral-400" : "text-neutral-500"
+				}`}
 				aria-hidden
 			>
 				<LUIThemedIcon
 					Icon={icon}
-					weight="fill"
-					className="h-7 w-7"
+					weight="regular"
+					color="currentColor"
+					className="size-5"
 					passedTheme={theme}
 				/>
 			</div>
@@ -69,15 +72,19 @@ const Component = ({
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
 				onKeyDown={(event) => {
-					if (event.key === "Enter" && onSubmit) {
+					if (
+						event.key === "Enter" &&
+						!event.nativeEvent.isComposing &&
+						onSubmit
+					) {
 						event.preventDefault();
 						onSubmit();
 					}
 				}}
-				className={`h-full min-w-0 grow appearance-none border-0 bg-transparent pr-4 text-xl font-light shadow-none ring-0 ${
+				className={`h-full min-w-0 grow appearance-none border-0 bg-transparent pr-3.5 text-sm font-normal shadow-none ring-0 ${
 					isDark
-						? "text-white placeholder:text-neutral-500"
-						: "text-black placeholder:text-neutral-400"
+						? "text-neutral-100 placeholder:text-neutral-500"
+						: "text-neutral-900 placeholder:text-neutral-400"
 				}`}
 			/>
 		</div>

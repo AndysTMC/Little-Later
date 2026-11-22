@@ -18,7 +18,12 @@ const useSettingDraft = <T>(
 	const [draft, setDraftState] = useState<T | undefined>(
 		() => getDraft(key) as T | undefined,
 	);
-	const value = draft !== undefined ? draft : stored;
+	const caughtUp =
+		draft !== undefined && stored !== undefined && isSame(draft, stored);
+	if (caughtUp) {
+		setDraftState(undefined);
+	}
+	const value = draft !== undefined && !caughtUp ? draft : stored;
 	const latest = useRef(value);
 	useEffect(() => {
 		latest.current = value;
@@ -43,15 +48,10 @@ const useSettingDraft = <T>(
 	);
 
 	useEffect(() => {
-		if (
-			draft !== undefined &&
-			stored !== undefined &&
-			isSame(draft, stored)
-		) {
-			setDraftState(undefined);
+		if (caughtUp) {
 			clearDraft(key);
 		}
-	}, [draft, stored, isSame, key, clearDraft]);
+	}, [caughtUp, key, clearDraft]);
 
 	return [value, set];
 };

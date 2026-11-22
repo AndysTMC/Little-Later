@@ -10,8 +10,8 @@ import { useLoading } from "../../hooks/useLoading";
 import { usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
 
-// How the profile is protected. The password and two-factor unlock each
-// have a page of their own; when the profile locks itself is under Misc.
+// How the profile is protected: password and two-factor unlock. Retention,
+// ignored sites and external MCP live under Data & Privacy.
 const Page = () => {
 	const { theme } = useTheme();
 	const pageMotion = usePageMotion();
@@ -29,7 +29,7 @@ const Page = () => {
 				<LUILoading />
 			) : (
 				<LUISettingsLayout pageName="Security">
-					<div className="flex w-full flex-col gap-y-3 pt-1 pb-4">
+					<div className="flex w-full flex-col gap-y-2.5 pt-1 pb-4">
 						<LUISettingLink
 							label={
 								profile.hasPassword

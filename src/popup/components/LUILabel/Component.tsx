@@ -5,7 +5,6 @@ import { twMerge } from "tailwind-merge";
 const Component = ({
 	className,
 	name,
-	atBottom = false,
 	htmlFor,
 }: {
 	className?: string;
@@ -15,11 +14,9 @@ const Component = ({
 }) => {
 	const { theme } = useTheme();
 	const classNames = twMerge(
-		`flex h-max w-full items-center justify-center text-xs font-semibold ${
-			theme === LTHEME.DARK
-				? "bg-white text-black"
-				: "bg-black text-white"
-		} ${atBottom ? "rounded-b-md pb-1" : "rounded-t-md pt-1"} `,
+		`flex h-max w-full items-center text-xs font-medium ${
+			theme === LTHEME.DARK ? "text-neutral-400" : "text-neutral-600"
+		}`,
 		className,
 	);
 	if (htmlFor) {

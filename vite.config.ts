@@ -1,7 +1,6 @@
-/// <reference types="vitest/config" />
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { configDefaults, defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
 import { ManifestV3Export, crx } from "@crxjs/vite-plugin";
@@ -13,7 +12,7 @@ const manifest = manifestJson as ManifestV3Export;
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const sharedSrc = path.resolve(projectRoot, "packages/shared/src");
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
 	plugins: [
 		react(),
 		tailwindcss(),
@@ -43,11 +42,18 @@ export default defineConfig({
 		],
 	},
 	build: {
+		// The dev server writes its own unpacked extension, so it never
+		// replaces the production build in dist/ that the extension tests
+		// and hand testing load.
+		outDir: command === "serve" ? "dist-dev" : "dist",
 		target: "es2022",
 		chunkSizeWarningLimit: 1500,
 	},
 	test: {
+		// artifacts/ holds local scratch work, such as a reviewer's copy
+		// of the tests.
+		exclude: [...configDefaults.exclude, "artifacts/**"],
 		environment: "jsdom",
 		setupFiles: ["./tests/setup.ts"],
 	},
-});
+}));

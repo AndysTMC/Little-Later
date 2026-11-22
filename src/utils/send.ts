@@ -39,8 +39,18 @@ const getDevDispatch = () => {
 				session.sessionStore,
 			),
 		);
-	})();
+	})().catch((error: unknown) => {
+		devDispatch = null;
+		throw error;
+	});
 	return devDispatch;
+};
+
+// In the service worker, its own dispatcher: a worker cannot message
+// itself, and work it runs (an AI run, decision 0017) writes like a page.
+let localDispatch: Dispatch | null = null;
+export const setLocalDispatch = (dispatch: Dispatch): void => {
+	localDispatch = dispatch;
 };
 
 const transport = async (
@@ -48,6 +58,9 @@ const transport = async (
 	input: unknown,
 	options: SendOptions,
 ): Promise<CommandResult<unknown>> => {
+	if (localDispatch) {
+		return localDispatch(name, input, options);
+	}
 	if (import.meta.env.MODE !== "production") {
 		return (await getDevDispatch())(name, input, options);
 	}
@@ -75,6 +88,12 @@ export const send = async <N extends CommandName>(
 	options: SendOptions = {},
 ): Promise<Commands[N]["output"]> => {
 	const result = await transport(name, input, options);
+	if (!result || typeof result !== "object") {
+		throw new CommandFailure(
+			"internal",
+			"Background worker did not respond.",
+		);
+	}
 	if (!result.ok) {
 		throw new CommandFailure(result.error.code, result.error.message);
 	}

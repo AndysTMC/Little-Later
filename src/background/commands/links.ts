@@ -72,6 +72,19 @@ export const linkCreate = defineCommand({
 			) {
 				return;
 			}
+			// A task has at most one reminder (scheduler / task form invariant).
+			if (from === "reminder" && to === "task") {
+				const existing = await ctx.db.links
+					.where("[profileId+toId]")
+					.equals([keys.profileId, input.toId])
+					.first();
+				if (existing) {
+					throw new CommandError(
+						"rejected",
+						"This task already has a reminder.",
+					);
+				}
+			}
 			await ctx.db.links.add({
 				id: crypto.randomUUID(),
 				profileId: keys.profileId,

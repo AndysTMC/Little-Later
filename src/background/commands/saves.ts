@@ -8,6 +8,7 @@ import {
 } from "../../storage/repositories";
 import type { LittleDB, SaveRow } from "../../storage/schema";
 import { cascadeTables, removeRecords } from "./cascade";
+import { optionalTags } from "./records";
 import {
 	CommandError,
 	asRecord,
@@ -115,6 +116,11 @@ export const saveCapture = defineCommand({
 
 		if (existing) {
 			const content = await openSave(keys, existing);
+			const existingTags = content.tags ?? [];
+			const preservedMeta = {
+				...(content.archived ? { archived: true } : {}),
+				...(existingTags.length > 0 ? { tags: existingTags } : {}),
+			};
 			const sealed = await sealBody<SaveContent>(
 				keys,
 				"saves",
@@ -124,8 +130,21 @@ export const saveCapture = defineCommand({
 				// first real title replaces it; any other name, the first
 				// real title or one the user chose, is kept.
 				content.provisional && !untitled
-					? { url: content.url, title, customName: title }
-					: { ...content, title },
+					? {
+							url: content.url,
+							title,
+							customName: title,
+							...preservedMeta,
+						}
+					: {
+							url: content.url,
+							title,
+							customName: content.customName,
+							...(content.provisional
+								? { provisional: true as const }
+								: {}),
+							...preservedMeta,
+						},
 			);
 			await ctx.db.saves.put({
 				...existing,
@@ -179,6 +198,8 @@ export const saveUpdate = defineCommand({
 			id: asString(record.id, "id"),
 			saved: optionalBoolean(record.saved, "saved"),
 			browsed: optionalBoolean(record.browsed, "browsed"),
+			archived: optionalBoolean(record.archived, "archived"),
+			tags: optionalTags(record.tags),
 			customName:
 				record.customName === undefined
 					? undefined
@@ -202,6 +223,8 @@ export const saveUpdate = defineCommand({
 		}
 
 		const content = await openSave(keys, row);
+		const archived = input.archived ?? Boolean(content.archived);
+		const tags = input.tags ?? content.tags ?? [];
 		const sealed = await sealBody<SaveContent>(keys, "saves", row.id, {
 			url: content.url,
 			title: content.title,
@@ -214,6 +237,8 @@ export const saveUpdate = defineCommand({
 							: {}),
 					}
 				: { customName: input.customName }),
+			...(archived ? { archived: true } : {}),
+			...(tags.length > 0 ? { tags } : {}),
 		});
 		const now = ctx.now();
 		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {

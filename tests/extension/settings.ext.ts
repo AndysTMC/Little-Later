@@ -131,7 +131,7 @@ test("typing a custom URL sends nothing until Load models is pressed", async ({
 		await button(page, "Settings").click();
 		await button(page, "AI").click();
 		await page.clock.install();
-		const base = page.locator("input[type=url]");
+		const base = page.getByLabel("Base URL");
 		await base.fill(provider.url);
 		await page.clock.runFor(1000);
 		expect(provider.requests).toHaveLength(0);
@@ -223,6 +223,7 @@ test("an accent chosen in Appearance colours the whole popup and stays after reo
 // dark theme it was dark on a dark field and could not be seen.
 test("the text caret is drawn in the accent, in a dark theme too", async ({
 	openPopup,
+	openPanel,
 }) => {
 	const page = await createProfile(openPopup);
 	await button(page, "Switch to dark theme").click();
@@ -241,7 +242,49 @@ test("the text caret is drawn in the accent, in a dark theme too", async ({
 	await page.getByRole("button", { name: "Edit" }).click();
 	await page.locator("textarea").first().focus();
 	await expect.poll(caret).toBe(accent);
-	await page.goto(page.url().replace(/#.*$/, "#/ai"));
-	await page.locator("textarea").first().focus();
-	await expect.poll(caret).toBe(accent);
+	// The AI box is in LittleAI's side panel.
+	const panel = await openPanel();
+	await panel.getByRole("textbox", { name: "Ask LittleAI" }).focus();
+	await expect
+		.poll(() =>
+			panel.evaluate(
+				() => getComputedStyle(document.activeElement!).caretColor,
+			),
+		)
+		.toBe(accent);
+});
+
+test("Side panel setting switches between Everything, AI only, and None and opens LittleAI inline when None", async ({
+	openPopup,
+}) => {
+	const provider = await startProvider();
+	try {
+		const page = await createProfile(openPopup);
+		await command(page, "settings.update", {
+			ai: {
+				provider: "Custom",
+				baseUrl: provider.url + "/v1",
+				apiKey: "",
+				model: "fixture-model",
+			},
+		});
+		await button(page, "Open profile menu").click();
+		await button(page, "Settings").click();
+		await button(page, "Misc").click();
+		await expect(dropdown(page, "Side panel")).toHaveAccessibleName(
+			"Side panel: AI only, change",
+		);
+		await choose(page, "Side panel", "Everything");
+		await choose(page, "Side panel", "None");
+		await button(page, "Go back").click();
+		await button(page, "Go back").click();
+		await expect(page).toHaveURL(/#\/home$/);
+		await button(page, "Open LittleAI").click();
+		await expect(page).toHaveURL(/#\/ai$/);
+		await expect(page.getByTestId("ai-assist-input")).toBeVisible();
+		await button(page, "Go back").click();
+		await expect(page).toHaveURL(/#\/home$/);
+	} finally {
+		await provider.close();
+	}
 });

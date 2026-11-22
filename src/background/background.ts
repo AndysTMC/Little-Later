@@ -1,9 +1,17 @@
 import { currentOwner } from "../services/ai/owner";
+import { recoverInterrupted } from "../services/ai/runs";
+import { setLocalDispatch } from "../utils/send";
 import Dexie from "dexie";
 import { LAI_PROVIDERS } from "little-shared/enums";
 import { createChromeNativeNotification } from "./notify";
 import { recordRefused } from "../services/refusedNotices";
 import { dropPreV1Settings } from "../services/settings";
+import {
+	SIDE_PANEL_STORAGE_KEY,
+	applySidePanelMode,
+	getSidePanelMode,
+	isSidePanelMode,
+} from "../services/sidePanel";
 import { LittleAI } from "../services/ai";
 import { importProfileKeys } from "../storage/keys";
 import { getSettings } from "../storage/repositories";
@@ -33,8 +41,10 @@ import {
 } from "./scheduler";
 import { createAutoLock } from "./autoLock";
 import { createPageCapture } from "./capture";
+import { createNativeMcpBridge } from "./mcpBridge";
 import { openLittleDB } from "../storage/schema";
-import { sessionStore } from "../storage/session";
+import { sessionStore, toBase64 } from "../storage/session";
+import { ALLOWED_IMAGE_MIME_TYPES, MAX_IMAGE_BYTES } from "./commands/images";
 import { STAGED_FILE_MAX_AGE, staging } from "../storage/staging";
 import { rememberedStagedFiles } from "../popup/uiState";
 
@@ -77,6 +87,13 @@ const dispatchCommand = rearmAfterCommands(
 	runReminderScheduler,
 	scheduleTables.takeChanged,
 );
+// Work the worker runs itself, such as LittleAI's runs, writes through the
+// same dispatcher (decision 0017).
+setLocalDispatch(dispatchCommand);
+// A run cannot outlive the worker: one left from before it started is
+// stored as interrupted, so the chat says so.
+void recoverInterrupted();
+
 const autoLock = createAutoLock({
 	db: littleDB,
 	session: sessionStore,
@@ -85,13 +102,23 @@ const autoLock = createAutoLock({
 });
 autoLock.start();
 
-listenForCommands(async (name, input) => {
-	const result = await dispatchCommand(name, input);
+const mcpBridge = createNativeMcpBridge({
+	db: littleDB,
+	session: sessionStore,
+	dispatch: dispatchCommand,
+});
+void mcpBridge.sync();
+
+// The options carry a write's binding to a profile and unlock (registry.ts,
+// DispatchOptions); dropping them let a write outlive its unlock.
+listenForCommands(async (name, input, options) => {
+	const result = await dispatchCommand(name, input, options);
 	if (result.ok && name === "profile.update") {
 		void autoLock.configure();
 	}
 	if (result.ok && name === "settings.update") {
-		void configureLocalAIRequestHeaders();
+		await configureLocalAIRequestHeaders();
+		void mcpBridge.sync();
 	}
 	return result;
 });
@@ -99,6 +126,18 @@ listenForCommands(async (name, input) => {
 // Every worker start: browser start, extension update, and waking after
 // suspension. Fires what was missed and re-arms the alarm.
 runReminderScheduler();
+
+// Keep Chrome's side panel behaviour synced with the browser-level setting.
+void getSidePanelMode().then(applySidePanelMode);
+if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
+	chrome.storage.onChanged.addListener((changes, areaName) => {
+		if (areaName !== "local") return;
+		const change = changes[SIDE_PANEL_STORAGE_KEY];
+		if (change && isSidePanelMode(change.newValue)) {
+			void applySidePanelMode(change.newValue);
+		}
+	});
+}
 
 // A device that wakes may be in another zone, which moves floating
 // deadlines (0011).
@@ -153,23 +192,25 @@ const previewBytes = async (dataUrl: string): Promise<Uint8Array> => {
 	const original = await (await fetch(dataUrl)).blob();
 	try {
 		const bitmap = await createImageBitmap(original);
-		const scale = Math.min(1, PREVIEW_MAX_WIDTH / bitmap.width);
-		if (scale < 1) {
-			const canvas = new OffscreenCanvas(
-				Math.round(bitmap.width * scale),
-				Math.round(bitmap.height * scale),
-			);
-			canvas
-				.getContext("2d")
-				?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+		try {
+			const scale = Math.min(1, PREVIEW_MAX_WIDTH / bitmap.width);
+			if (scale < 1) {
+				const canvas = new OffscreenCanvas(
+					Math.round(bitmap.width * scale),
+					Math.round(bitmap.height * scale),
+				);
+				canvas
+					.getContext("2d")
+					?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+				const resized = await canvas.convertToBlob({
+					type: "image/jpeg",
+					quality: 0.8,
+				});
+				return new Uint8Array(await resized.arrayBuffer());
+			}
+		} finally {
 			bitmap.close();
-			const resized = await canvas.convertToBlob({
-				type: "image/jpeg",
-				quality: 0.8,
-			});
-			return new Uint8Array(await resized.arrayBuffer());
 		}
-		bitmap.close();
 	} catch (error) {
 		console.debug("Keeping the preview at full size.", error);
 	}
@@ -219,27 +260,36 @@ const collectLocalAIEndpoints = async (): Promise<Array<URL>> => {
 		.filter(isLoopbackUrl);
 };
 
-const configureLocalAIRequestHeaders = async (): Promise<void> => {
-	const rules = [
-		buildLocalAIOriginRule(
-			await collectLocalAIEndpoints(),
-			chrome.runtime.id,
-		),
-	];
-	try {
-		await chrome.declarativeNetRequest.updateDynamicRules({
-			removeRuleIds: [LOCAL_AI_ORIGIN_RULE_ID],
-			addRules: rules,
-		});
-	} catch (error) {
-		console.warn("Unable to configure local AI request headers.", error);
-	}
+let headerRuleChain: Promise<void> = Promise.resolve();
+const configureLocalAIRequestHeaders = (): Promise<void> => {
+	const next = headerRuleChain.then(async () => {
+		const rules = [
+			buildLocalAIOriginRule(
+				await collectLocalAIEndpoints(),
+				chrome.runtime.id,
+			),
+		];
+		try {
+			await chrome.declarativeNetRequest.updateDynamicRules({
+				removeRuleIds: [LOCAL_AI_ORIGIN_RULE_ID],
+				addRules: rules,
+			});
+		} catch (error) {
+			console.warn(
+				"Unable to configure local AI request headers.",
+				error,
+			);
+		}
+	});
+	headerRuleChain = next.catch(() => undefined);
+	return next;
 };
 
 void configureLocalAIRequestHeaders();
 
 sessionStore.subscribe(() => {
 	void configureLocalAIRequestHeaders();
+	void mcpBridge.sync();
 });
 
 // Format v1 replaces the pre-v1 database, its notification alarm, and the
@@ -265,6 +315,16 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 			id: "convertPageToSave",
 			title: "Save page",
 			contexts: ["page"],
+		});
+		chrome.contextMenus.create({
+			id: "saveImageToLittleLater",
+			title: "Save image to Little Later",
+			contexts: ["image"],
+		});
+		chrome.contextMenus.create({
+			id: "saveQuoteToLittleLater",
+			title: "Save quote to Little Later",
+			contexts: ["selection"],
 		});
 		chrome.contextMenus.create({
 			id: "noteThis",
@@ -325,12 +385,122 @@ const SAVE_PAGE_NOTICES = {
 	failed: "Couldn't save this page.",
 };
 
+const inferImageTitle = (srcUrl: string, tabTitle?: string): string => {
+	try {
+		const parsed = new URL(srcUrl);
+		if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+			const segment = decodeURIComponent(
+				parsed.pathname.split("/").pop() ?? "",
+			)
+				.replace(/\.[a-z0-9]{2,5}$/i, "")
+				.replace(/[-_]+/g, " ")
+				.trim();
+			if (segment.length >= 2) {
+				return segment.slice(0, 100);
+			}
+		}
+	} catch {
+		// Fall through to tab title or generic label.
+	}
+	return (tabTitle?.trim() || "Saved image").slice(0, 100);
+};
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 	if (!(await sessionStore.get())) {
 		await notifyContextAction("Unlock a profile first.");
 		return;
 	}
-	if (info.menuItemId === "convertPageToSave") {
+	if (info.menuItemId === "saveImageToLittleLater") {
+		const srcUrl = info.srcUrl;
+		if (!srcUrl) {
+			await notifyContextAction("Couldn't find that image.");
+			return;
+		}
+		try {
+			const response = await fetch(srcUrl);
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+			const blob = await response.blob();
+			const rawType = (blob.type || "").toLowerCase().split(";")[0];
+			const mimeType = rawType === "image/jpg" ? "image/jpeg" : rawType;
+			if (!ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) {
+				await notifyContextAction(
+					"Only PNG, JPEG, WebP, GIF, and AVIF images can be saved.",
+				);
+				return;
+			}
+			const bytes = new Uint8Array(await blob.arrayBuffer());
+			if (bytes.byteLength === 0 || bytes.byteLength > MAX_IMAGE_BYTES) {
+				await notifyContextAction("Image is empty or over 10 MB.");
+				return;
+			}
+			const sourceUrl =
+				tab?.url && /^https?:\/\//i.test(tab.url) ? tab.url : undefined;
+			const result = await dispatchCommand("image.create", {
+				bytesBase64: toBase64(bytes),
+				mimeType,
+				title: inferImageTitle(srcUrl, tab?.title),
+				sourceUrl,
+			});
+			if (!result.ok) {
+				throw new Error(result.error.message);
+			}
+			await notifyContextAction("Image saved to Little Later.");
+		} catch (error) {
+			console.error("Failed to save image from context menu.", error);
+			await notifyContextAction("Couldn't save that image.");
+		}
+		return;
+	} else if (info.menuItemId === "saveQuoteToLittleLater") {
+		if (info.selectionText) {
+			try {
+				const quote = info.selectionText
+					.trim()
+					.split(/\r?\n/)
+					.map((line) => `> ${line}`)
+					.join("\n");
+				const pageUrl =
+					tab?.url && /^https?:\/\//i.test(tab.url)
+						? tab.url
+						: undefined;
+				const pageTitle = tab?.title?.trim() || pageUrl || "Source";
+				const content = pageUrl
+					? `${quote}\n\n— [${pageTitle}](${pageUrl})`
+					: quote;
+				let saveIds: Array<string> | undefined;
+				if (pageUrl) {
+					const captured = await dispatchCommand("save.capture", {
+						url: pageUrl,
+						title: tab?.title,
+						saved: true,
+					});
+					if (
+						captured.ok &&
+						captured.value &&
+						typeof captured.value === "object" &&
+						"id" in captured.value &&
+						typeof captured.value.id === "string"
+					) {
+						saveIds = [captured.value.id];
+					}
+				}
+				const created = await dispatchCommand("note.create", {
+					content,
+					tags: ["highlight"],
+					saveIds,
+				});
+				if (!created.ok) {
+					throw new Error(created.error.message);
+				}
+				await notifyContextAction("Quote saved to Little Later.");
+			} catch (error) {
+				console.error("Failed to save quote from context menu.", error);
+				await notifyContextAction("Couldn't save that quote.");
+			}
+		}
+		return;
+	} else if (info.menuItemId === "convertPageToSave") {
 		if (tab?.id !== undefined) {
 			try {
 				await notifyContextAction(
@@ -368,7 +538,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 						format: "plain-text",
 					},
 				);
-				await createNote(summary, owner.profileId);
+				await owner.send("note.create", { content: summary });
 				await notifyContextAction("Quick summary saved as a note.");
 			} catch (error) {
 				console.error("Failed to summarize selection.", error);
@@ -390,7 +560,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 						format: "plain-text",
 					},
 				);
-				await createNote(keypoints, owner.profileId);
+				await owner.send("note.create", { content: keypoints });
 				await notifyContextAction("Key points saved as a note.");
 			} catch (error) {
 				console.error("Failed to extract key points.", error);
@@ -485,11 +655,16 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 // often not the case when a notification is clicked.
 const openLittleLater = async (): Promise<void> => {
 	try {
+		const mode = await getSidePanelMode();
 		const window = await chrome.windows.getLastFocused({
 			windowTypes: ["normal"],
 		});
 		if (window.id !== undefined) {
 			await chrome.windows.update(window.id, { focused: true });
+			if (mode === "everything" && chrome.sidePanel?.open) {
+				await chrome.sidePanel.open({ windowId: window.id });
+				return;
+			}
 		}
 		await chrome.action.openPopup();
 	} catch (error) {

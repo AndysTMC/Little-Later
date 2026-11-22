@@ -68,6 +68,10 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 						"The type of the task schedule: anytime (no deadline), due (one deadline) or recurring",
 					enum: ["anytime", "due", "recurring"],
 				},
+				tag: {
+					type: "string",
+					description: "Optional tag filter (with or without #)",
+				},
 			},
 			required: [],
 			additionalProperties: false,

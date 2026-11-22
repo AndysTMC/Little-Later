@@ -25,7 +25,7 @@ const Component = ({
 		<LUIPillButton
 			label={label}
 			ariaLabel={subject ? `${label} ${subject}` : undefined}
-			tone={armed ? "danger" : "default"}
+			tone={armed ? "danger" : "ghostDanger"}
 			disabled={disabled}
 			className={className}
 			onClick={() => void press()}

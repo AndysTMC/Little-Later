@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot, Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LTHEME } from "little-shared/enums";
-import { ThemeContext } from "../../src/popup/contexts/Theme";
+import { ThemeContext } from "../../src/popup/contexts/ThemeContext";
 import { LUINoteDetailForm } from "../../src/popup/components/LUINoteDetailForm/Component";
 
 const mocks = vi.hoisted(() => ({

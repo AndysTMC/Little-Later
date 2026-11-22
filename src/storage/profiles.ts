@@ -196,7 +196,7 @@ export const newProfile = async (
 			indexKeyLocation(id),
 			indexKey,
 		),
-		prefs: DEFAULT_PREFS,
+		prefs: { ...DEFAULT_PREFS },
 	};
 	return { row, root, indexKey };
 };
@@ -252,9 +252,12 @@ export const changePassword = async (
 				"Turn off two-factor unlock before removing the password.",
 			);
 		}
+		if (oldPassword === null) {
+			throw new ProfileError("This profile needs its password.");
+		}
 		const secondKey = await openSecondKey(
 			profile.secondFactor,
-			oldPassword ?? "",
+			oldPassword,
 			profileId,
 		);
 		await db.profiles.update(profileId, {
@@ -293,9 +296,12 @@ export const deleteProfile = async (
 ): Promise<void> => {
 	const profile = await db.profiles.get(profileId);
 	if (profile?.secondFactor) {
+		if (password === null) {
+			throw new ProfileError("This profile needs its password.");
+		}
 		// The password alone: someone who lost every factor can still
 		// remove the profile, which reveals nothing.
-		await openSecondKey(profile.secondFactor, password ?? "", profileId);
+		await openSecondKey(profile.secondFactor, password, profileId);
 	} else if (profile && hasKeys(profile)) {
 		await readRootKeys(profile, password);
 	}
@@ -318,6 +324,7 @@ export const removeProfileRows = async (
 		[
 			db.saves,
 			db.notes,
+			db.images,
 			db.tasks,
 			db.reminders,
 			db.assets,
@@ -325,15 +332,20 @@ export const removeProfileRows = async (
 			db.links,
 			db.avatars,
 			db.profiles,
+			db.chats,
+			db.chatMessages,
 		],
 		async () => {
 			for (const table of [
 				db.saves,
 				db.notes,
+				db.images,
 				db.tasks,
 				db.reminders,
 				db.assets,
 				db.settings,
+				db.chats,
+				db.chatMessages,
 			]) {
 				await table
 					.where("[profileId+keyId]")
@@ -432,6 +444,24 @@ const assertName = (name: string) => {
 	}
 };
 
+// Checks that `password` opens the profile's password wrap (1FA or 2FA),
+// without exposing key bytes or changing state.
+export const verifyPassword = async (
+	db: LittleDB,
+	profileId: string,
+	password: string,
+): Promise<void> => {
+	const profile = await getProfile(db, profileId);
+	if (profile.protection !== "password") {
+		throw new ProfileError("Set a password first.");
+	}
+	if (profile.secondFactor) {
+		await openSecondKey(profile.secondFactor, password, profileId);
+		return;
+	}
+	await readRootKeys(profile, password);
+};
+
 // Adds an authenticator. The first one turns two-factor unlock on: the
 // password-only wraps go, and a recovery code is made, returned once.
 export const addAuthenticator = async (
@@ -464,6 +494,16 @@ export const addAuthenticator = async (
 		),
 	});
 	if (profile.secondFactor) {
+		const idB64 = toBase64(authenticator.credentialId);
+		if (
+			profile.secondFactor.authenticators.some(
+				(existing) => toBase64(existing.credentialId) === idB64,
+			)
+		) {
+			throw new ProfileError(
+				"That key is already set up for this profile.",
+			);
+		}
 		const secondKey = await openSecondKey(
 			profile.secondFactor,
 			password,
@@ -508,6 +548,20 @@ export const addAuthenticator = async (
 	return { recoveryCode };
 };
 
+const restorePasswordWraps = async (
+	db: LittleDB,
+	profileId: string,
+	password: string,
+	roots: Map<number, Uint8Array>,
+	options: KeyOptions,
+): Promise<void> => {
+	const keys: Array<ProfileKeyEntry> = [];
+	for (const [keyId, root] of roots) {
+		keys.push(await protect(root, password, profileId, keyId, options));
+	}
+	await db.profiles.update(profileId, { keys, secondFactor: undefined });
+};
+
 // Turns two-factor unlock off: the root keys go back under the password
 // alone.
 export const disableSecondFactor = async (
@@ -519,13 +573,9 @@ export const disableSecondFactor = async (
 ): Promise<void> => {
 	const profile = await getProfile(db, profileId);
 	if (!profile.secondFactor) return;
-	await openSecondKey(profile.secondFactor, password, profileId);
 	const roots = await sessionRoots(session, profileId);
-	const keys: Array<ProfileKeyEntry> = [];
-	for (const [keyId, root] of roots) {
-		keys.push(await protect(root, password, profileId, keyId, options));
-	}
-	await db.profiles.update(profileId, { keys, secondFactor: undefined });
+	await openSecondKey(profile.secondFactor, password, profileId);
+	await restorePasswordWraps(db, profileId, password, roots, options);
 };
 
 // Removes one authenticator; removing the last turns two-factor unlock off.
@@ -539,15 +589,15 @@ export const removeAuthenticator = async (
 ): Promise<void> => {
 	const profile = await getProfile(db, profileId);
 	if (!profile.secondFactor) return;
+	const roots = await sessionRoots(session, profileId);
 	await openSecondKey(profile.secondFactor, password, profileId);
 	const left = profile.secondFactor.authenticators.filter(
 		(entry) => toBase64(entry.credentialId) !== toBase64(credentialId),
 	);
 	if (left.length === 0) {
-		await disableSecondFactor(db, session, profileId, password, options);
+		await restorePasswordWraps(db, profileId, password, roots, options);
 		return;
 	}
-	await sessionRoots(session, profileId);
 	await db.profiles.update(profileId, {
 		secondFactor: { ...profile.secondFactor, authenticators: left },
 	});
@@ -564,12 +614,12 @@ export const replaceRecoveryCode = async (
 	if (!profile.secondFactor) {
 		throw new ProfileError("Two-factor unlock is off.");
 	}
+	const roots = await sessionRoots(session, profileId);
 	const secondKey = await openSecondKey(
 		profile.secondFactor,
 		password,
 		profileId,
 	);
-	const roots = await sessionRoots(session, profileId);
 	const recoveryCode = newRecoveryCode();
 	const salt = newSalt();
 	await db.profiles.update(profileId, {

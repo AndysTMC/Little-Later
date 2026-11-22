@@ -12,12 +12,14 @@ import {
 	setAvatar,
 	unlockProfile,
 	updateProfile,
+	verifyPassword,
 	type ProfileTheme,
 } from "../../storage/profiles";
 import type { Factor } from "../../storage/secondFactor";
 import { fromBase64 } from "../../storage/session";
 import { LMAX_NAME_LENGTH } from "little-shared/constants";
 import { STAGED_FILE_MAX_AGE } from "../../storage/staging";
+import { enforceChatRetention } from "../chatRetention";
 import {
 	CommandError,
 	asNullableString,
@@ -143,6 +145,15 @@ export const profileLock = defineCommand({
 	name: "profile.lock",
 	parse: () => null,
 	run: async (ctx) => {
+		try {
+			const keys = await ctx.keys();
+			await enforceChatRetention(ctx.db, keys, {
+				onLock: true,
+				now: ctx.now(),
+			});
+		} catch {
+			// Already locked or unreadable: never block locking.
+		}
 		await lockProfile(ctx.session);
 		return null;
 	},
@@ -279,6 +290,18 @@ export const profileSetAvatar = defineCommand({
 
 // Two-factor unlock (decision 0015). Each needs the unlocked profile's
 // password; the WebAuthn ceremony itself runs in the page.
+
+export const profileVerifyPassword = defineCommand({
+	name: "profile.verifyPassword",
+	parse: (input) => ({
+		password: asString(asRecord(input).password, "password"),
+	}),
+	run: async (ctx, input) => {
+		const { profileId } = await ctx.keys();
+		await verifyPassword(ctx.db, profileId, input.password);
+		return null;
+	},
+});
 
 export const profileAddAuthenticator = defineCommand({
 	name: "profile.addAuthenticator",

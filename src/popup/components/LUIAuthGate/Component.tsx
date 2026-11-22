@@ -6,7 +6,7 @@ import {
 	WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { LUIIconField } from "../LUIIconField/Component";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { send } from "../../../utils/send";
 import { useMoveNavigate } from "../../hooks/usePageMove";
@@ -38,6 +38,7 @@ const Component = ({
 	const go = useMoveNavigate();
 
 	const [isOperationInProgress, setIsOperationInProgress] = useState(false);
+	const busyRef = useRef(false);
 	// null means no delete is being confirmed.
 	const [deletePassword, setDeletePassword] = useState<string | null>(null);
 	const isConfirmingDelete = deletePassword !== null;
@@ -61,6 +62,7 @@ const Component = ({
 		authenticators !== null && !useRecovery && inPopup;
 
 	const handleGo = async () => {
+		if (busyRef.current) return;
 		if (continuesElsewhere) {
 			await openCeremonyWindow(`/unlock/${userProfile.id}`);
 			return;
@@ -77,6 +79,7 @@ const Component = ({
 			setWarning("Enter your recovery code");
 			return;
 		}
+		busyRef.current = true;
 		setIsOperationInProgress(true);
 		try {
 			const factor: UnlockFactor | undefined =
@@ -96,6 +99,7 @@ const Component = ({
 					: "Couldn't open this profile.",
 			);
 		} finally {
+			busyRef.current = false;
 			setIsOperationInProgress(false);
 		}
 	};
@@ -106,6 +110,7 @@ const Component = ({
 	};
 
 	const handleDelete = async () => {
+		if (busyRef.current) return;
 		if (deletePassword === null) {
 			setDeletePassword("");
 			setDeleteArmedAt(Date.now());
@@ -129,6 +134,7 @@ const Component = ({
 		) {
 			return;
 		}
+		busyRef.current = true;
 		setIsOperationInProgress(true);
 		try {
 			await send("profile.delete", {
@@ -144,6 +150,7 @@ const Component = ({
 					: "Couldn't delete this profile.",
 			);
 		} finally {
+			busyRef.current = false;
 			setIsOperationInProgress(false);
 		}
 	};
@@ -278,7 +285,7 @@ const Component = ({
 								<LUICUButton
 									name={
 										continuesElsewhere
-											? "Continue with security key"
+											? "Use security key"
 											: type
 									}
 									onClick={handleGo}
@@ -288,8 +295,8 @@ const Component = ({
 										variant="secondary"
 										name={
 											useRecovery
-												? "Use the security key instead"
-												: "Use a recovery code instead"
+												? "Use security key"
+												: "Use recovery code"
 										}
 										onClick={() => {
 											setUseRecovery(!useRecovery);

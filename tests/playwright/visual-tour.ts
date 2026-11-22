@@ -198,9 +198,17 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await capture(page, "19-history", page.getByText("Morning briefing"));
 
 	await page.goto("/#/home/new-task");
-	await capture(page, "20-new-task", page.getByText("Information"));
+	await capture(
+		page,
+		"20-new-task",
+		page.getByText("Information", { exact: true }),
+	);
 	await page.goto("/#/home/new-reminder");
-	await capture(page, "21-new-reminder", page.getByText("Message"));
+	await capture(
+		page,
+		"21-new-reminder",
+		page.getByText("Message", { exact: true }),
+	);
 
 	await page.goto(`/#/task/${ids.taskId}`);
 	await capture(
@@ -220,7 +228,7 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await capture(
 		page,
 		"25-note-edit",
-		page.getByRole("button", { name: "H1" }),
+		page.getByRole("button", { name: "Heading 1" }),
 	);
 	await page.goto(`/#/vbm/${ids.saveId}`);
 	await capture(page, "26-save-detail", page.getByText("Open"));
@@ -244,8 +252,13 @@ test("capture every popup screen and edge state", async ({ page }) => {
 		page.getByText("Profile not found."),
 	);
 
-	await page.goto("/#/ai");
-	await capture(page, "32-ai", page.getByText("Try one of these"));
+	// LittleAI's side panel (decision 0017).
+	await page.goto("/sidepanel.html");
+	await capture(
+		page,
+		"32-ai-panel",
+		page.getByRole("textbox", { name: "Ask LittleAI" }),
+	);
 	await page.goto("/#/settings");
 	await capture(page, "33-settings", page.getByText("Getting Started"));
 	await page.goto("/#/settings/ai");
@@ -325,8 +338,12 @@ test("capture every popup screen and edge state", async ({ page }) => {
 		"48-lock-dark",
 		page.getByRole("button", { name: "Lock" }),
 	);
-	await page.goto("/#/ai");
-	await capture(page, "49-ai-dark", page.getByText("Try one of these"));
+	await page.goto("/sidepanel.html");
+	await capture(
+		page,
+		"49-ai-panel-dark",
+		page.getByRole("textbox", { name: "Ask LittleAI" }),
+	);
 	await page.goto("/#/note/" + ids.noteId);
 	await capture(page, "50-note-dark", page.getByText("Project notes"));
 
@@ -375,12 +392,12 @@ test("capture every popup screen and edge state", async ({ page }) => {
 		[
 			"/#/home/new-task",
 			"59-new-task-green",
-			page.getByText("Information"),
+			page.getByText("Information", { exact: true }),
 		],
 		[
 			"/#/home/new-reminder",
 			"60-new-reminder-green",
-			page.getByText("Message"),
+			page.getByText("Message", { exact: true }),
 		],
 		[
 			`/#/task/${ids.taskId}`,
@@ -398,7 +415,11 @@ test("capture every popup screen and edge state", async ({ page }) => {
 			page.getByText("Project notes"),
 		],
 		[`/#/vbm/${ids.saveId}`, "64-save-green", page.getByText("Open")],
-		["/#/ai", "65-ai-green", page.getByText("Try one of these")],
+		[
+			"/sidepanel.html",
+			"65-ai-panel-green",
+			page.getByRole("textbox", { name: "Ask LittleAI" }),
+		],
 		[
 			"/#/settings/ai",
 			"66-settings-ai-green",

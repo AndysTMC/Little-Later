@@ -40,6 +40,9 @@ let container: HTMLDivElement;
 afterEach(() => {
 	act(() => root.unmount());
 	container.remove();
+	theme.accent = "blue";
+	theme.setAccent.mockClear();
+	theme.setAccentColor.mockClear();
 });
 
 // One group of native radios: a single Tab stop, and arrow keys move the

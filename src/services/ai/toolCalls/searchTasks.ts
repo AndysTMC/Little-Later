@@ -3,9 +3,10 @@ import { LDate } from "little-shared/types";
 import type { Task } from "../../../storage/repositories";
 import type { TaskSchedule } from "../../../storage/schema";
 import { IDJSONObjectInstruction } from "../config";
-import { LittleAI } from "../../../services/ai";
+import type { LittleAI } from "../main";
 import { searchTasks } from "../../../popup/records";
 import { readTasks } from "../records";
+import { hybridRank, rrfFuse } from "./_utils/bm25";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
 	pickSemanticCandidates,
@@ -13,6 +14,11 @@ import {
 } from "./_utils/semanticSearch";
 import { dateMatchesCriteria, LDateMatchCriteria } from "./_utils/dateFilters";
 import type { AIOwner } from "../owner";
+
+const taskSearchText = (task: Task): string =>
+	[task.label, task.information, task.priority, ...(task.tags ?? [])].join(
+		" ",
+	);
 
 const toolCall = async (
 	owner: AIOwner,
@@ -25,6 +31,7 @@ const toolCall = async (
 		priority,
 		query,
 		scheduleType,
+		tag,
 	}: {
 		deadlineDate?: LDate;
 		deadlineDateCriteria?: LDateMatchCriteria;
@@ -33,36 +40,16 @@ const toolCall = async (
 		priority?: LTASK_PRIORITY;
 		query?: string;
 		scheduleType?: TaskSchedule["kind"];
+		tag?: string;
 	},
 ): Promise<Array<Task>> => {
 	const tasks = await readTasks(await owner.keys());
 	let resultTasks = tasks.slice();
-	if (query) {
-		const queryTasks = new Set<Task>(searchTasks(tasks, query));
-		const tasksToSend = pickSemanticCandidates([...queryTasks], tasks).map(
-			(task) => ({
-				id: task.id,
-				label: task.label,
-				information: task.information,
-				priority: task.priority,
-			}),
+	if (tag && tag.trim() !== "") {
+		const normalizedTag = tag.trim().toLowerCase().replace(/^#/, "");
+		resultTasks = resultTasks.filter((task) =>
+			(task.tags ?? []).some((t) => t.toLowerCase() === normalizedTag),
 		);
-		const response = await ai.getStructuredResponse(
-			`
-                Here is a list of tasks in JSON format:
-                ${JSON.stringify(tasksToSend)}
-
-                The user's query is: "${quoteForPrompt(query)}".
-
-                Find all relevant ids of tasks where the information matches or relates to the query.
-            `,
-			IDJSONObjectInstruction,
-		);
-		const semanticTaskIds = extractSemanticIds(response);
-		tasks
-			.filter((task) => semanticTaskIds.includes(task.id))
-			.forEach((task) => queryTasks.add(task));
-		resultTasks = resultTasks.filter((task) => queryTasks.has(task));
 	}
 	if (priority) {
 		resultTasks = resultTasks.filter(
@@ -96,6 +83,48 @@ const toolCall = async (
 					finishDateCriteria,
 				),
 		);
+	}
+	if (query && resultTasks.length > 0) {
+		const lexicalHits = searchTasks(resultTasks, query);
+		const bm25Hits = hybridRank(resultTasks, query, taskSearchText).map(
+			(entry) => entry.item,
+		);
+		const mergedLexical = pickSemanticCandidates(
+			bm25Hits,
+			lexicalHits,
+			resultTasks.length,
+		);
+		const tasksToSend = pickSemanticCandidates(
+			mergedLexical,
+			resultTasks,
+		).map((task) => ({
+			id: task.id,
+			label: task.label,
+			information: task.information,
+			priority: task.priority,
+			tags: task.tags ?? [],
+		}));
+		const response = await ai.getStructuredResponse(
+			`
+                Here is a list of tasks in JSON format:
+                ${JSON.stringify(tasksToSend)}
+
+                The user's query is: "${quoteForPrompt(query)}".
+
+                Find all relevant ids of tasks where the information, label, or tags match or relate to the query.
+            `,
+			IDJSONObjectInstruction,
+		);
+		const semanticTaskIds = extractSemanticIds(response);
+		const fusedIds = rrfFuse([
+			bm25Hits.map((task) => task.id),
+			lexicalHits.map((task) => task.id),
+			semanticTaskIds,
+		]);
+		const byId = new Map(resultTasks.map((task) => [task.id, task]));
+		resultTasks = fusedIds
+			.map((id) => byId.get(id))
+			.filter((task): task is Task => task !== undefined);
 	}
 	return resultTasks;
 };

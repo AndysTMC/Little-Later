@@ -4,8 +4,15 @@ import {
 	LHOME_SEARCH_RESULT_TYPE,
 	LTHEME,
 } from "little-shared/enums";
-import type { Note, Reminder, Save, Task } from "../../../storage/repositories";
+import type {
+	ImageRecord,
+	Note,
+	Reminder,
+	Save,
+	Task,
+} from "../../../storage/repositories";
 import {
+	searchImages,
 	searchNotes,
 	searchReminders,
 	searchSaves,
@@ -30,8 +37,11 @@ import { usePagination } from "../../hooks/usePagination";
 import { LUIPagination } from "../LUIPagination/Component";
 import { LUINotes } from "../LUINotes/Component";
 import { LUINoteMini } from "../LUINoteMini/Component";
+import { LUIImageMini, LUIImages } from "../LUIImages/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
-
+import { LUINote } from "../LUINote/Component";
+import { LUIPillButton } from "../LUIPillButton/Component";
+import { collectProfileTags } from "../../../utils/tags";
 import { useDraft } from "../../hooks/useDraft";
 
 type SearchResult = {
@@ -42,6 +52,7 @@ type SearchResult = {
 	| { type: LHOME_SEARCH_RESULT_TYPE.TASK; data: Task }
 	| { type: LHOME_SEARCH_RESULT_TYPE.REMINDER; data: Reminder }
 	| { type: LHOME_SEARCH_RESULT_TYPE.NOTE; data: Note }
+	| { type: LHOME_SEARCH_RESULT_TYPE.IMAGE; data: ImageRecord }
 );
 
 const Component = ({ className }: { className?: string }) => {
@@ -50,6 +61,7 @@ const Component = ({ className }: { className?: string }) => {
 		userSettings,
 		links,
 		notes,
+		images,
 		reminders,
 		tasks,
 		pages,
@@ -68,29 +80,80 @@ const Component = ({ className }: { className?: string }) => {
 
 	const [currentContent, setCurrentContent] = useDraft<LHOME_MAIN_CONTENT>(
 		"home.tab",
-		LHOME_MAIN_CONTENT.SAVES,
+		userSettings.misc.defaultHomeTab ?? LHOME_MAIN_CONTENT.SAVES,
 	);
-
-	const [searchResults, setSearchResults] = useState<Array<SearchResult>>([]);
+	const [backupDismissed, setBackupDismissed] = useState(false);
+	const backupReminderDays = userSettings.misc.backupReminderDays ?? 0;
+	const lastBackupAt = userSettings.misc.lastBackupAt ?? 0;
+	const [mountedAt] = useState(() => Date.now());
+	const showBackupReminder =
+		!backupDismissed &&
+		backupReminderDays > 0 &&
+		(lastBackupAt === 0 ||
+			mountedAt - lastBackupAt >= backupReminderDays * 86_400_000);
 
 	const [searchQuery, setSearchQuery] = useState("");
 
 	const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
+	const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
-	const { startIndex, endIndex, currentBatch, batchCount, onBatchChange } =
-		usePagination(searchResults.length, 5);
-
-	const handleContentChange = (content: LHOME_MAIN_CONTENT) => {
-		setCurrentContent(content);
+	const allTags = useMemo(
+		() => collectProfileTags([saves, tasks, reminders, notes, images]),
+		[saves, tasks, reminders, notes, images],
+	);
+	const activeTag =
+		selectedTag !== null && allTags.includes(selectedTag)
+			? selectedTag
+			: null;
+	const toggleTag = (tag: string) => {
+		setSelectedTag((current) => (current === tag ? null : tag));
 	};
 
-	const handleSearch = async (text: string): Promise<void> => {
-		const query = text.trim();
-		setSearchQuery(query);
-		if (!query) {
-			if (searchResults.length !== 0) setSearchResults([]);
-			return;
-		}
+	const filteredSaves = useMemo(
+		() =>
+			activeTag
+				? saves.filter((save) => (save.tags ?? []).includes(activeTag))
+				: saves,
+		[saves, activeTag],
+	);
+	const filteredTasks = useMemo(
+		() =>
+			activeTag
+				? tasks.filter((task) => (task.tags ?? []).includes(activeTag))
+				: tasks,
+		[tasks, activeTag],
+	);
+	const filteredReminders = useMemo(
+		() =>
+			activeTag
+				? reminders.filter((reminder) =>
+						(reminder.tags ?? []).includes(activeTag),
+					)
+				: reminders,
+		[reminders, activeTag],
+	);
+	const filteredNotes = useMemo(
+		() =>
+			activeTag
+				? unlinkedNotes.filter((note) =>
+						(note.tags ?? []).includes(activeTag),
+					)
+				: unlinkedNotes,
+		[unlinkedNotes, activeTag],
+	);
+	const filteredImages = useMemo(
+		() =>
+			activeTag
+				? images.filter((image) =>
+						(image.tags ?? []).includes(activeTag),
+					)
+				: images,
+		[images, activeTag],
+	);
+
+	const searchResults = useMemo((): Array<SearchResult> => {
+		const query = searchQuery.trim();
+		if (!query) return [];
 
 		const words = query.split(/\s+/);
 		const results: Array<SearchResult> = [];
@@ -151,6 +214,16 @@ const Component = ({ className }: { className?: string }) => {
 					});
 				}
 			}
+			for (const image of searchImages(images, word)) {
+				if (!count(LHOME_SEARCH_RESULT_TYPE.IMAGE, image.id, word)) {
+					results.push({
+						type: LHOME_SEARCH_RESULT_TYPE.IMAGE,
+						data: image,
+						noOfMatches: 1,
+						totalLengthMatched: word.length,
+					});
+				}
+			}
 		}
 
 		results.sort((a, b) => {
@@ -161,6 +234,7 @@ const Component = ({ className }: { className?: string }) => {
 						[LHOME_SEARCH_RESULT_TYPE.SAVE]: 1,
 						[LHOME_SEARCH_RESULT_TYPE.REMINDER]: 2,
 						[LHOME_SEARCH_RESULT_TYPE.NOTE]: 3,
+						[LHOME_SEARCH_RESULT_TYPE.IMAGE]: 4,
 					};
 					return priority[a.type] - priority[b.type];
 				}
@@ -168,7 +242,18 @@ const Component = ({ className }: { className?: string }) => {
 			}
 			return b.totalLengthMatched - a.totalLengthMatched;
 		});
-		setSearchResults(results);
+		return results;
+	}, [searchQuery, saves, tasks, reminders, notes, images]);
+
+	const { startIndex, endIndex, currentBatch, batchCount, onBatchChange } =
+		usePagination(searchResults.length, 5);
+
+	const handleContentChange = (content: LHOME_MAIN_CONTENT) => {
+		setCurrentContent(content);
+	};
+
+	const handleSearch = async (text: string): Promise<void> => {
+		setSearchQuery(text.trim());
 		onBatchChange(1);
 	};
 
@@ -188,11 +273,34 @@ const Component = ({ className }: { className?: string }) => {
 				currentUserProfile={currentUserProfile}
 				aiSettings={userSettings.ai}
 			/>
-			<div className={`w-full px-5 py-2`}>
+			<div className="mx-auto w-full max-w-3xl px-4 py-2">
 				<LUISearchBar
 					handleSearch={handleSearch}
 					setIsSearchFocused={setIsSearchFocused}
 				/>
+				{showBackupReminder ? (
+					<div className="mt-2">
+						<LUINote className="w-full">
+							<div className="flex flex-wrap items-center justify-between gap-2">
+								<span>
+									{lastBackupAt === 0
+										? "You haven't exported a backup yet."
+										: `It's been over ${backupReminderDays} days since your last backup.`}
+								</span>
+								<div className="flex shrink-0 items-center gap-1.5">
+									<LUIPillButton
+										label="Export"
+										onClick={() => go("/export", "forward")}
+									/>
+									<LUIPillButton
+										label="Dismiss"
+										onClick={() => setBackupDismissed(true)}
+									/>
+								</div>
+							</div>
+						</LUINote>
+					</div>
+				) : null}
 			</div>
 
 			<AnimatePresence mode="wait">
@@ -206,11 +314,9 @@ const Component = ({ className }: { className?: string }) => {
 						transition={{ duration: 0.2 }}
 					>
 						{paginationSearchResults.length > 0 ? (
-							<div
-								className={`flex w-full flex-col gap-y-1 overflow-y-hidden`}
-							>
+							<div className="flex w-full flex-col gap-y-1 overflow-y-hidden">
 								{batchCount > 1 ? (
-									<div className="flex h-max w-full shrink-0 px-4 py-1">
+									<div className="mx-auto flex h-max w-full max-w-3xl shrink-0 px-4 py-1">
 										<LUIPagination
 											currentBatch={currentBatch}
 											batchCount={batchCount}
@@ -220,73 +326,101 @@ const Component = ({ className }: { className?: string }) => {
 								) : null}
 
 								<div
-									className={`flex w-full grow flex-col gap-y-1 overflow-y-auto ${theme}-scrollbar px-5 pb-1`}
+									className={`w-full grow overflow-y-auto ${theme}-scrollbar px-4 pb-2`}
 								>
-									{paginationSearchResults.map((result) => {
-										if (
-											result.type ===
-											LHOME_SEARCH_RESULT_TYPE.SAVE
-										) {
-											return (
-												<LUIVBMMini
-													links={links}
-													notes={notes}
-													reminders={reminders}
-													tasks={tasks}
-													key={`${result.type}-${result.data.id}`}
-													save={result.data}
-												/>
-											);
-										}
-										if (
-											result.type ===
-											LHOME_SEARCH_RESULT_TYPE.TASK
-										) {
-											return (
-												<LUITaskMini
-													links={links}
-													reminders={reminders}
-													saves={saves}
-													key={`${result.type}-${result.data.id}`}
-													task={result.data}
-												/>
-											);
-										}
-										if (
-											result.type ===
-											LHOME_SEARCH_RESULT_TYPE.REMINDER
-										) {
-											return (
-												<LUIReminderMini
-													links={links}
-													saves={saves}
-													tasks={tasks}
-													key={`${result.type}-${result.data.id}`}
-													reminder={result.data}
-												/>
-											);
-										}
-										if (
-											result.type ===
-											LHOME_SEARCH_RESULT_TYPE.NOTE
-										) {
-											return (
-												<LUINoteMini
-													key={`${result.type}-${result.data.id}`}
-													className="break-inside-auto"
-													note={result.data}
-													onOpen={(note) =>
-														go(
-															`/note/${note.id}`,
-															"forward",
-														)
-													}
-													showDelete={false}
-												/>
-											);
-										}
-										return null;
-									})}
+									<div className="mx-auto flex w-full max-w-3xl flex-col gap-y-2">
+										{paginationSearchResults.map(
+											(result) => {
+												if (
+													result.type ===
+													LHOME_SEARCH_RESULT_TYPE.SAVE
+												) {
+													return (
+														<LUIVBMMini
+															links={links}
+															notes={notes}
+															reminders={
+																reminders
+															}
+															tasks={tasks}
+															key={`${result.type}-${result.data.id}`}
+															save={result.data}
+														/>
+													);
+												}
+												if (
+													result.type ===
+													LHOME_SEARCH_RESULT_TYPE.TASK
+												) {
+													return (
+														<LUITaskMini
+															links={links}
+															reminders={
+																reminders
+															}
+															saves={saves}
+															key={`${result.type}-${result.data.id}`}
+															task={result.data}
+														/>
+													);
+												}
+												if (
+													result.type ===
+													LHOME_SEARCH_RESULT_TYPE.REMINDER
+												) {
+													return (
+														<LUIReminderMini
+															links={links}
+															saves={saves}
+															tasks={tasks}
+															key={`${result.type}-${result.data.id}`}
+															reminder={
+																result.data
+															}
+														/>
+													);
+												}
+												if (
+													result.type ===
+													LHOME_SEARCH_RESULT_TYPE.NOTE
+												) {
+													return (
+														<LUINoteMini
+															key={`${result.type}-${result.data.id}`}
+															className="break-inside-auto"
+															note={result.data}
+															onOpen={(note) =>
+																go(
+																	`/note/${note.id}`,
+																	"forward",
+																)
+															}
+															showDelete={false}
+														/>
+													);
+												}
+												if (
+													result.type ===
+													LHOME_SEARCH_RESULT_TYPE.IMAGE
+												) {
+													return (
+														<LUIImageMini
+															key={`${result.type}-${result.data.id}`}
+															image={result.data}
+															onOpen={(image) =>
+																go(
+																	`/image/${image.id}`,
+																	"forward",
+																)
+															}
+															showDelete={false}
+														/>
+													);
+												}
+												return null;
+											},
+										)}
+									</div>
 								</div>
 							</div>
 						) : (
@@ -302,10 +436,54 @@ const Component = ({ className }: { className?: string }) => {
 						exit={{ opacity: 0, y: -10 }}
 						transition={{ duration: 0.2 }}
 					>
-						<LUIHomeMainFeatureMenu
-							currentContent={currentContent}
-							handleContentChange={handleContentChange}
-						/>
+						<div className="mx-auto w-full max-w-3xl">
+							<LUIHomeMainFeatureMenu
+								currentContent={currentContent}
+								handleContentChange={handleContentChange}
+							/>
+							{allTags.length > 0 ? (
+								<div
+									role="group"
+									aria-label="Filter by tag"
+									className={`flex w-full items-center gap-1.5 overflow-x-auto px-4 pt-1 pb-1.5 ${theme}-thin-scrollbar`}
+								>
+									<button
+										type="button"
+										aria-pressed={activeTag === null}
+										onClick={() => setSelectedTag(null)}
+										className={`shrink-0 cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+											activeTag === null
+												? "ll-accent-fill border-transparent"
+												: theme === LTHEME.DARK
+													? "border-neutral-800 bg-neutral-900 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200"
+													: "border-neutral-200 bg-neutral-100 text-neutral-600 hover:border-neutral-300 hover:text-neutral-900"
+										}`}
+									>
+										All
+									</button>
+									{allTags.map((tag) => {
+										const isSelected = activeTag === tag;
+										return (
+											<button
+												key={tag}
+												type="button"
+												aria-pressed={isSelected}
+												onClick={() => toggleTag(tag)}
+												className={`shrink-0 cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+													isSelected
+														? "ll-accent-fill border-transparent"
+														: theme === LTHEME.DARK
+															? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-neutral-700 hover:text-white"
+															: "border-neutral-200 bg-neutral-100 text-neutral-700 hover:border-neutral-300 hover:text-black"
+												}`}
+											>
+												#{tag}
+											</button>
+										);
+									})}
+								</div>
+							) : null}
+						</div>
 						{isReady ? (
 							<div className="w-full grow overflow-y-hidden">
 								<AnimatePresence mode="wait">
@@ -327,8 +505,10 @@ const Component = ({ className }: { className?: string }) => {
 												links={links}
 												notes={notes}
 												reminders={reminders}
-												saves={saves}
+												saves={filteredSaves}
 												tasks={tasks}
+												activeTag={activeTag}
+												onSelectTag={toggleTag}
 											/>
 										</motion.div>
 									)}
@@ -350,7 +530,9 @@ const Component = ({ className }: { className?: string }) => {
 												links={links}
 												reminders={reminders}
 												saves={saves}
-												tasks={tasks}
+												tasks={filteredTasks}
+												activeTag={activeTag}
+												onSelectTag={toggleTag}
 											/>
 										</motion.div>
 									)}
@@ -370,9 +552,11 @@ const Component = ({ className }: { className?: string }) => {
 										>
 											<LUIReminders
 												links={links}
-												reminders={reminders}
+												reminders={filteredReminders}
 												saves={saves}
 												tasks={tasks}
+												activeTag={activeTag}
+												onSelectTag={toggleTag}
 											/>
 										</motion.div>
 									)}
@@ -390,7 +574,32 @@ const Component = ({ className }: { className?: string }) => {
 											exit={{ opacity: 0 }}
 											transition={{ duration: 0.2 }}
 										>
-											<LUINotes notes={unlinkedNotes} />
+											<LUINotes
+												notes={filteredNotes}
+												activeTag={activeTag}
+												onSelectTag={toggleTag}
+											/>
+										</motion.div>
+									)}
+									{currentContent ===
+										LHOME_MAIN_CONTENT.IMAGES && (
+										<motion.div
+											key={LHOME_MAIN_CONTENT.IMAGES}
+											className={`flex h-full w-full flex-col ${
+												theme === LTHEME.DARK
+													? "bg-black"
+													: "bg-white"
+											}`}
+											initial={{ opacity: 0 }}
+											animate={{ opacity: 1 }}
+											exit={{ opacity: 0 }}
+											transition={{ duration: 0.2 }}
+										>
+											<LUIImages
+												images={filteredImages}
+												activeTag={activeTag}
+												onSelectTag={toggleTag}
+											/>
 										</motion.div>
 									)}
 								</AnimatePresence>

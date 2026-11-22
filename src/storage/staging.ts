@@ -118,28 +118,32 @@ export const createOpfsStaging = (): Staging => {
 	return {
 		put: async (bytes) => {
 			const name = crypto.randomUUID();
-			const file = await (
-				await directory()
-			).getFileHandle(name, { create: true });
+			const dir = await directory();
+			const file = await dir.getFileHandle(name, { create: true });
 			const writable = await file.createWritable();
-			await writable.write(bytes);
-			await writable.close();
+			try {
+				await writable.write(bytes);
+				await writable.close();
+			} catch (error) {
+				await writable.abort().catch(() => undefined);
+				await dir.removeEntry(name).catch(() => undefined);
+				throw error;
+			}
 			return name;
 		},
 		take: async (name) => {
 			assertName(name);
-			const dir = await directory();
-			let file: FileSystemFileHandle;
 			try {
-				file = await dir.getFileHandle(name);
+				const dir = await directory();
+				const file = await dir.getFileHandle(name);
+				const bytes = new Uint8Array(
+					await (await file.getFile()).arrayBuffer(),
+				);
+				await dir.removeEntry(name);
+				return bytes;
 			} catch {
 				throw new StagingError("The staged file is gone.");
 			}
-			const bytes = new Uint8Array(
-				await (await file.getFile()).arrayBuffer(),
-			);
-			await dir.removeEntry(name);
-			return bytes;
 		},
 		read: async (name) => {
 			assertName(name);
@@ -154,13 +158,18 @@ export const createOpfsStaging = (): Staging => {
 		},
 		putBlob: async (blob) => {
 			const name = crypto.randomUUID();
-			const file = await (
-				await directory()
-			).getFileHandle(name, { create: true });
+			const dir = await directory();
+			const file = await dir.getFileHandle(name, { create: true });
 			const writable = await file.createWritable();
-			// Streamed from the Blob to disk.
-			await writable.write(blob);
-			await writable.close();
+			try {
+				// Streamed from the Blob to disk.
+				await writable.write(blob);
+				await writable.close();
+			} catch (error) {
+				await writable.abort().catch(() => undefined);
+				await dir.removeEntry(name).catch(() => undefined);
+				throw error;
+			}
 			return name;
 		},
 		readBlob: async (name) => {

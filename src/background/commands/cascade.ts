@@ -5,6 +5,7 @@ import type { LittleDB } from "../../storage/schema";
 export const cascadeTables = (db: LittleDB) => [
 	db.saves,
 	db.notes,
+	db.images,
 	db.tasks,
 	db.reminders,
 	db.links,
@@ -28,6 +29,7 @@ export const removeRecords = async (
 	await db.assets.where("[profileId+ownerId]").anyOf(keys).delete();
 	await db.saves.bulkDelete([...ids]);
 	await db.notes.bulkDelete([...ids]);
+	await db.images.bulkDelete([...ids]);
 	await db.tasks.bulkDelete([...ids]);
 	await db.reminders.bulkDelete([...ids]);
 };

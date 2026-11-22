@@ -39,6 +39,10 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 					description: "The type of the reminder",
 					enum: [LREMINDER_TYPE.NORMAL, LREMINDER_TYPE.ESCALATING],
 				},
+				tag: {
+					type: "string",
+					description: "Optional tag filter (with or without #)",
+				},
 			},
 			required: [],
 			additionalProperties: false,

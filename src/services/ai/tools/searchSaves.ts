@@ -22,6 +22,10 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 					type: "string",
 					description: "The URL of the website",
 				},
+				tag: {
+					type: "string",
+					description: "Optional tag filter (with or without #)",
+				},
 			},
 			required: [],
 			additionalProperties: false,

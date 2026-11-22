@@ -13,7 +13,7 @@ type ProviderRequest = {
 };
 
 type Answer =
-	| { content: string }
+	| { content: string; delayMs?: number }
 	| { tool: string; args: Record<string, unknown> }
 	| { error: string };
 
@@ -58,6 +58,9 @@ export const startProvider = async (
 			return;
 		}
 		const answer = reply(request);
+		if ("delayMs" in answer && answer.delayMs) {
+			await new Promise((resolve) => setTimeout(resolve, answer.delayMs));
+		}
 		if ("error" in answer) {
 			res.writeHead(400).end(
 				JSON.stringify({ error: { message: answer.error } }),
@@ -106,6 +109,6 @@ export const configureAI = async (page: Page, url: string) => {
 		},
 	});
 	await expect(
-		page.getByRole("button", { name: "Open AI Assist" }),
+		page.getByRole("button", { name: "Open LittleAI" }),
 	).toBeVisible();
 };

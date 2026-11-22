@@ -3,7 +3,7 @@ import { createRoot, Root } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LTHEME } from "little-shared/enums";
-import { ThemeContext } from "../../src/popup/contexts/Theme";
+import { ThemeContext } from "../../src/popup/contexts/ThemeContext";
 import { LUIAuthGate } from "../../src/popup/components/LUIAuthGate/Component";
 import { LUIPasswordForm } from "../../src/popup/components/LUIPasswordForm/Component";
 import type { UserProfile } from "../../src/popup/hooks/useUserProfiles";

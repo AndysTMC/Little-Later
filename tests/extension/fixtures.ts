@@ -38,6 +38,8 @@ type Fixtures = {
 	// Opens an extension page, the popup by default, in a tab. A tab and
 	// the toolbar popup load the same index.html; only the window differs.
 	openPopup: (hashRoute?: string) => Promise<Page>;
+	// LittleAI's side panel page (decision 0017), as a tab.
+	openPanel: () => Promise<Page>;
 	// Stops the worker the way Chrome does when it is idle, and resolves
 	// once it is gone. The next event (a message, an alarm) starts it again.
 	stopServiceWorker: (onStopping?: () => Promise<void>) => Promise<void>;
@@ -60,6 +62,9 @@ export const test = base.extend<Fixtures>({
 				"--no-proxy-server",
 				`--disable-extensions-except=${EXTENSION_DIR}`,
 				`--load-extension=${EXTENSION_DIR}`,
+				// Reminders stay in the test browser instead of reaching the
+				// desktop; chrome.notifications works the same.
+				"--disable-features=NativeNotifications,SystemNotifications",
 			],
 		});
 		await provide(context);
@@ -83,6 +88,15 @@ export const test = base.extend<Fixtures>({
 			await page.goto(
 				`chrome-extension://${extensionId}/index.html#${hashRoute}`,
 			);
+			return page;
+		});
+	},
+
+	openPanel: async ({ context, extensionId }, provide) => {
+		await provide(async () => {
+			const page = await context.newPage();
+			await page.setViewportSize({ width: 420, height: 720 });
+			await page.goto(`chrome-extension://${extensionId}/sidepanel.html`);
 			return page;
 		});
 	},

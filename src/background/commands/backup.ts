@@ -23,9 +23,18 @@ import {
 	type ProfileKeys,
 } from "../../storage/keys";
 import { newProfile, removeProfileRows } from "../../storage/profiles";
-import { defaultSettings, type Settings } from "../../storage/repositories";
+import {
+	defaultSettings,
+	MAX_CHAT_TEXT,
+	type ChatContent,
+	type ChatMessageContent,
+	type Settings,
+} from "../../storage/repositories";
 import type {
 	AssetRow,
+	ChatMessageRow,
+	ChatRow,
+	ImageRow,
 	LinkRow,
 	LittleDB,
 	NoteRow,
@@ -35,14 +44,17 @@ import type {
 	SaveRow,
 	TaskRow,
 } from "../../storage/schema";
+import { normalizeTags } from "../../utils/tags";
+import { ALLOWED_IMAGE_MIME_TYPES } from "./images";
 import { toBase64 } from "../../storage/session";
+import { asStoredAIOutput } from "./chats";
 import {
 	AVATAR_TYPES,
 	MAX_AUTO_LOCK_MINUTES,
 	MAX_AVATAR_BYTES,
 	asProfileName,
 } from "./profiles";
-import { asRecord, asString, defineCommand } from "./registry";
+import { asBoolean, asRecord, asString, defineCommand } from "./registry";
 import { asWebUrl } from "./saves";
 import { asMisc } from "./settings";
 import { asPriority, asSchedule, occurrenceDate } from "./tasks";
@@ -153,14 +165,26 @@ const parsed = <T>(parse: () => T): T => {
 };
 
 type Rows = {
+	chats: Array<ChatRow>;
+	chatMessages: Array<ChatMessageRow>;
 	saves: Array<SaveRow>;
 	notes: Array<NoteRow>;
+	images: Array<ImageRow>;
 	tasks: Array<TaskRow>;
 	reminders: Array<ReminderRow>;
 	links: Array<LinkRow>;
 	assets: Array<AssetRow>;
 	settings: Array<{ misc: Settings["misc"] }>;
 };
+
+const importTags = (value: unknown): Array<string> =>
+	Array.isArray(value)
+		? normalizeTags(
+				value.filter(
+					(item): item is string => typeof item === "string",
+				),
+			)
+		: [];
 
 const addEntry = async (
 	job: ImportJob,
@@ -224,13 +248,20 @@ const addEntry = async (
 			}
 			return;
 		}
-		case "settings":
-			rows.settings.push({ misc: parsed(() => asMisc(entry.misc)) });
+		case "settings": {
+			const misc = parsed(() => asMisc(entry.misc));
+			// Local-device backup timestamp and external MCP access do not
+			// carry over automatically to a newly imported profile.
+			delete misc.lastBackupAt;
+			delete misc.externalMcpMode;
+			rows.settings.push({ misc });
 			return;
+		}
 		case "saves": {
 			const row = await base();
 			const content = record(entry.content);
 			const url = parsed(() => asWebUrl(content.url));
+			const tags = importTags(content.tags);
 			rows.saves.push({
 				...row,
 				...(await sealBody(keys, "saves", row.id, {
@@ -240,6 +271,8 @@ const addEntry = async (
 					...(content.provisional === true
 						? { provisional: true as const }
 						: {}),
+					...(content.archived === true ? { archived: true } : {}),
+					...(tags.length > 0 ? { tags } : {}),
 				})),
 				urlKey: await urlKeyFor(keys.index, url),
 				originKey: await originKeyFor(keys.index, url),
@@ -253,10 +286,43 @@ const addEntry = async (
 		case "notes": {
 			const row = await base();
 			const content = record(entry.content);
+			const tags = importTags(content.tags);
+			const title =
+				typeof content.title === "string"
+					? content.title.trim().slice(0, 100)
+					: "";
 			rows.notes.push({
 				...row,
 				...(await sealBody(keys, "notes", row.id, {
 					content: text(content.content),
+					...(content.locked === true ? { locked: true } : {}),
+					...(title !== "" ? { title } : {}),
+					...(tags.length > 0 ? { tags } : {}),
+				})),
+				privacy: privacy(entry.privacy),
+			});
+			return;
+		}
+		case "images": {
+			const row = await base();
+			const content = record(entry.content);
+			const mimeType = text(content.mimeType, 100).toLowerCase();
+			if (!ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) {
+				damaged();
+			}
+			const tags = importTags(content.tags);
+			const sourceUrl =
+				typeof content.sourceUrl === "string" &&
+				content.sourceUrl.trim() !== ""
+					? parsed(() => asWebUrl(content.sourceUrl))
+					: undefined;
+			rows.images.push({
+				...row,
+				...(await sealBody(keys, "images", row.id, {
+					title: text(content.title, 120),
+					mimeType,
+					...(sourceUrl ? { sourceUrl } : {}),
+					...(tags.length > 0 ? { tags } : {}),
 				})),
 				privacy: privacy(entry.privacy),
 			});
@@ -267,6 +333,7 @@ const addEntry = async (
 			const content = record(entry.content);
 			const schedule = parsed(() => asSchedule(entry.schedule));
 			const dueAt = instant(entry.dueAt);
+			const tags = importTags(content.tags);
 			rows.tasks.push({
 				...row,
 				...(await sealBody(keys, "tasks", row.id, {
@@ -276,6 +343,7 @@ const addEntry = async (
 					),
 					label: text(content.label, LMAX_TASK_LABEL_LENGTH),
 					priority: parsed(() => asPriority(content.priority)),
+					...(tags.length > 0 ? { tags } : {}),
 				})),
 				schedule,
 				dueAt,
@@ -299,6 +367,7 @@ const addEntry = async (
 		case "reminders": {
 			const row = await base();
 			const content = record(entry.content);
+			const tags = importTags(content.tags);
 			rows.reminders.push({
 				...row,
 				...(await sealBody(keys, "reminders", row.id, {
@@ -306,6 +375,7 @@ const addEntry = async (
 						content.message,
 						LMAX_REMINDER_MESSAGE_LENGTH,
 					),
+					...(tags.length > 0 ? { tags } : {}),
 				})),
 				target: instant(entry.target),
 				escalation: escalation(entry.escalation),
@@ -331,6 +401,65 @@ const addEntry = async (
 				...(await sealAsset(keys, row.id, bytes(entry.bytes))),
 				ownerId: await newId(seed, text(entry.ownerId)),
 				kind: text(entry.kind, 100),
+			});
+			return;
+		}
+		case "chats": {
+			const row = await base();
+			rows.chats.push({
+				...row,
+				...(await sealBody<ChatContent>(keys, "chats", row.id, {
+					title: text(record(entry.content).title, 120),
+					...(record(entry.content).named === true
+						? { named: true as const }
+						: {}),
+				})),
+			});
+			return;
+		}
+		case "chatMessages": {
+			const row = await base();
+			const content = record(entry.content);
+			// Only the shapes LittleAI stores; anything else is damage.
+			const message: ChatMessageContent =
+				content.role === "user"
+					? {
+							role: "user",
+							text: text(content.text, MAX_CHAT_TEXT),
+							// The attached page's title and address, if any.
+							...(content.page
+								? {
+										page: {
+											title: text(
+												record(content.page).title,
+												300,
+											),
+											url: parsed(() =>
+												asWebUrl(
+													record(content.page).url,
+												),
+											),
+										},
+									}
+								: {}),
+						}
+					: content.role === "assistant"
+						? {
+								role: "assistant",
+								output: parsed(() =>
+									asStoredAIOutput(content.output),
+								),
+							}
+						: damaged();
+			rows.chatMessages.push({
+				...row,
+				chatId: await newId(seed, text(entry.chatId)),
+				...(await sealBody<ChatMessageContent>(
+					keys,
+					"chatMessages",
+					row.id,
+					message,
+				)),
 			});
 			return;
 		}
@@ -409,6 +538,9 @@ export const backupImportChunk = defineCommand({
 		return {
 			jobId: asString(record.jobId, "jobId"),
 			chunk: asString(record.chunk, "chunk"),
+			...(record.more !== undefined
+				? { more: asBoolean(record.more, "more") }
+				: {}),
 		};
 	},
 	run: async (ctx, input) => {
@@ -423,9 +555,15 @@ export const backupImportChunk = defineCommand({
 			job.next,
 			await ctx.staging.take(input.chunk),
 		);
+		if (last && input.more) {
+			damaged();
+		}
 		const rows: Rows = {
+			chats: [],
+			chatMessages: [],
 			saves: [],
 			notes: [],
+			images: [],
 			tasks: [],
 			reminders: [],
 			links: [],
@@ -453,6 +591,7 @@ export const backupImportChunk = defineCommand({
 			[
 				db.saves,
 				db.notes,
+				db.images,
 				db.tasks,
 				db.reminders,
 				db.links,
@@ -461,10 +600,20 @@ export const backupImportChunk = defineCommand({
 				db.profiles,
 				db.avatars,
 				db.jobs,
+				db.chats,
+				db.chatMessages,
 			],
 			async () => {
+				await db.chats.bulkAdd(rows.chats);
+				// A message whose chat the file doesn't hold is left out.
+				for (const message of rows.chatMessages) {
+					if ((await db.chats.get(message.chatId)) !== undefined) {
+						await db.chatMessages.add(message);
+					}
+				}
 				await db.saves.bulkAdd(rows.saves);
 				await db.notes.bulkAdd(rows.notes);
+				await db.images.bulkAdd(rows.images);
 				await db.tasks.bulkAdd(rows.tasks);
 				await db.reminders.bulkAdd(rows.reminders);
 				// Records come before links and assets in a backup, so both
@@ -475,6 +624,7 @@ export const backupImportChunk = defineCommand({
 				const held = async (id: string) =>
 					(await db.saves.get(id)) !== undefined ||
 					(await db.notes.get(id)) !== undefined ||
+					(await db.images.get(id)) !== undefined ||
 					(await db.tasks.get(id)) !== undefined ||
 					(await db.reminders.get(id)) !== undefined;
 				for (const link of rows.links) {

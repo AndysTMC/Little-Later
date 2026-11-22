@@ -67,6 +67,8 @@ export type SaveRow = RecordBase & {
 
 export type NoteRow = RecordBase & { privacy: Privacy };
 
+export type ImageRow = RecordBase & { privacy: Privacy };
+
 // When a task is due (decision 0011). Plain, like a reminder's schedule:
 // it shows when, not what.
 export type TaskSchedule =
@@ -116,6 +118,15 @@ export type AssetRow = RecordBase & { ownerId: string; kind: string };
 // settings.
 export type SettingsRow = RecordBase;
 
+// A LittleAI conversation (decision 0017). Its title is sealed; when it
+// last changed is plain, so the history lists newest first.
+export type ChatRow = RecordBase;
+
+// One message in a chat, sealed: what the user asked, or what LittleAI
+// answered (with the records it found). Plain chatId and createdAt keep a
+// chat's messages in order without opening them.
+export type ChatMessageRow = RecordBase & { chatId: string };
+
 // A long job tied to an open page (decision 0012, Jobs). An import still
 // `running` when the worker starts was cut off: its rows are deleted.
 export type JobRow = {
@@ -131,22 +142,28 @@ export type LittleDB = Dexie & {
 	avatars: EntityTable<AvatarRow, "profileId">;
 	saves: EntityTable<SaveRow, "id">;
 	notes: EntityTable<NoteRow, "id">;
+	images: EntityTable<ImageRow, "id">;
 	tasks: EntityTable<TaskRow, "id">;
 	reminders: EntityTable<ReminderRow, "id">;
 	links: EntityTable<LinkRow, "id">;
 	assets: EntityTable<AssetRow, "id">;
 	settings: EntityTable<SettingsRow, "id">;
 	jobs: EntityTable<JobRow, "id">;
+	chats: EntityTable<ChatRow, "id">;
+	chatMessages: EntityTable<ChatMessageRow, "id">;
 };
 
 // Tables whose rows carry a sealed body under a profile key.
 export const SEALED_TABLES = [
 	"saves",
 	"notes",
+	"images",
 	"tasks",
 	"reminders",
 	"assets",
 	"settings",
+	"chats",
+	"chatMessages",
 ] as const;
 export type SealedTable = (typeof SEALED_TABLES)[number];
 
@@ -163,6 +180,16 @@ export const openLittleDB = (name: string = LITTLE_DB_NAME): LittleDB => {
 		assets: "id, [profileId+ownerId], [profileId+keyId]",
 		settings: "id, [profileId+keyId]",
 		jobs: "id",
+	});
+	// LittleAI's chats (decision 0017). Only adds tables: every v1 row is
+	// read as it was.
+	db.version(2).stores({
+		chats: "id, [profileId+updatedAt], [profileId+keyId]",
+		chatMessages: "id, [chatId+createdAt], [profileId+keyId]",
+	});
+	// Saved images gallery: metadata sealed here, binary sealed in `assets`.
+	db.version(3).stores({
+		images: "id, [profileId+updatedAt], [profileId+keyId]",
 	});
 	return db;
 };

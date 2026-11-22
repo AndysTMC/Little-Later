@@ -78,12 +78,12 @@ export const upload = async (page: Page, files: ReadonlyArray<TestFile>) => {
 export const tab = (page: Page, name: string) =>
 	page.getByRole("tab", { name, exact: true });
 
-// LUISelectT1 renders the caption and arrow buttons as adjacent groups.
-export const option = (page: Page, field: string, direction = "Next") =>
-	button(
-		page.getByText(field, { exact: true }).locator("../.."),
-		direction + " option",
-	);
+// LUISelectT1 renders a segmented control (radiogroup) below its caption.
+export const option = (page: Page, field: string, choice: string) =>
+	page
+		.getByText(field, { exact: true })
+		.locator("../..")
+		.getByRole("radio", { name: choice, exact: true });
 
 // A settings dropdown (LUISelectT2), named "<setting>: <choice>, change".
 export const dropdown = (page: Page, setting: string) =>

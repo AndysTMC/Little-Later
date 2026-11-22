@@ -44,7 +44,10 @@ const Component = ({ className }: { className?: string }) => {
 			<div
 				className={`flex w-full grow flex-col gap-y-1 overflow-y-hidden`}
 			>
-				<LUIFeaturePageUD Icon={ClockCounterClockwiseIcon} />
+				<LUIFeaturePageUD
+					Icon={ClockCounterClockwiseIcon}
+					title="History"
+				/>
 				{paginationHistory.length > 0 ? (
 					<div
 						className={`flex w-full grow flex-col overflow-y-hidden`}
@@ -60,7 +63,7 @@ const Component = ({ className }: { className?: string }) => {
 								{/* Room for the page controls even before there is a
 							    second page: appearing later, they pushed the
 							    list down under the reader. */}
-								<div className="flex h-max min-h-9 w-full shrink-0 px-4 py-1">
+								<div className="mx-auto flex h-max min-h-9 w-full max-w-3xl shrink-0 px-4 py-1">
 									<LUIPagination
 										currentBatch={currentBatch}
 										batchCount={batchCount}
@@ -68,25 +71,27 @@ const Component = ({ className }: { className?: string }) => {
 									/>
 								</div>
 								<div
-									className={`flex w-full grow flex-col gap-y-1 overflow-y-auto ${theme}-scrollbar px-4`}
+									className={`w-full grow overflow-y-auto ${theme}-scrollbar px-4`}
 								>
-									{paginationHistory.map((visualBM) => (
-										<LUIBrowsedVBM
-											key={visualBM.id}
-											visualBM={visualBM}
-										/>
-									))}
-									<span className="h-2 w-full" />
+									<div className="mx-auto flex w-full max-w-3xl flex-col gap-y-1">
+										{paginationHistory.map((visualBM) => (
+											<LUIBrowsedVBM
+												key={visualBM.id}
+												visualBM={visualBM}
+											/>
+										))}
+										<span className="h-2 w-full" />
+									</div>
 								</div>
 							</motion.div>
 						) : null}
 					</div>
-				) : (
+				) : isReady ? (
 					<LUIEmptyState
 						title="No history yet?"
 						hint="Visit a page to start capturing."
 					/>
-				)}
+				) : null}
 			</div>
 		</div>
 	);

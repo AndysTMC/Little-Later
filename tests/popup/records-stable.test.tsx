@@ -67,14 +67,17 @@ beforeEach(() => {
 
 describe("the popup's record lists", () => {
 	it("stay in place while a background write is being read", async () => {
-		live.rows = [row("a", 1), row("b", 1)];
+		live.rows = { profileId: "p1", rows: [row("a", 1), row("b", 1)] };
 		const view = await mount();
 		expect(view.seen.at(-1)?.map((note) => note.id)).toEqual(["a", "b"]);
 
 		// The worker rewrites one row; opening it takes a moment.
 		let release = () => {};
 		opened.gate = new Promise((resolve) => (release = resolve));
-		live.rows = [row("a", 2), row("b", 1), row("c", 1)];
+		live.rows = {
+			profileId: "p1",
+			rows: [row("a", 2), row("b", 1), row("c", 1)],
+		};
 		const from = view.seen.length;
 		await view.refresh();
 		// Nothing rendered in between was an empty or missing list.
@@ -95,7 +98,10 @@ describe("the popup's record lists", () => {
 	it("skip a row that cannot be opened instead of hiding the rest", async () => {
 		opened.failing.add("broken");
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-		live.rows = [row("a", 1), row("broken", 1), row("b", 1)];
+		live.rows = {
+			profileId: "p1",
+			rows: [row("a", 1), row("broken", 1), row("b", 1)],
+		};
 		const view = await mount();
 		expect(view.seen.at(-1)?.map((note) => note.id)).toEqual(["a", "b"]);
 		expect(warn).toHaveBeenCalled();
@@ -104,10 +110,17 @@ describe("the popup's record lists", () => {
 	});
 
 	it("are dropped when the profile locks", async () => {
-		live.rows = [row("a", 1)];
+		live.rows = { profileId: "p1", rows: [row("a", 1)] };
 		const view = await mount();
 		expect(view.seen.at(-1)).toHaveLength(1);
 		await view.lock();
+		expect(view.seen.at(-1)).toBeUndefined();
+		view.unmount();
+	});
+
+	it("ignore rows tagged for another profile during a switch", async () => {
+		live.rows = { profileId: "other-profile", rows: [row("a", 1)] };
+		const view = await mount();
 		expect(view.seen.at(-1)).toBeUndefined();
 		view.unmount();
 	});

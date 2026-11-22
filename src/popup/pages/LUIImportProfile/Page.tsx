@@ -11,6 +11,7 @@ import { createToast } from "../../../services/toasts";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUICUButton } from "../../components/LUICUButton/Component";
 import { LUIIconField } from "../../components/LUIIconField/Component";
+import { LUINote } from "../../components/LUINote/Component";
 import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import { pickRoute, type PickRequest } from "../../filePick";
 import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
@@ -109,10 +110,12 @@ const Page = () => {
 				passedTheme={LTHEME.LIGHT}
 			/>
 			<div className="flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-hidden">
-				<h1 className="mt-5 flex items-center justify-center text-4xl font-semibold text-black">
+				<h1 className="mt-2 flex items-center justify-center text-2xl font-semibold tracking-tight text-black">
 					Import Profile
 				</h1>
-				<div className="flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-auto px-12 pt-5 pb-1">
+				<div
+					className={`flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-auto px-6 pt-5 pb-1 ${LTHEME.LIGHT}-scrollbar`}
+				>
 					<button
 						type="button"
 						aria-label={
@@ -120,37 +123,37 @@ const Page = () => {
 								? "Upload a backup file"
 								: "Change the backup files"
 						}
-						className="flex min-h-24 w-72 cursor-pointer flex-col items-center justify-center gap-y-1 rounded-lg border border-dashed border-neutral-300 bg-neutral-100 px-4 py-3 hover:bg-neutral-200"
+						className="flex min-h-24 w-full max-w-72 cursor-pointer flex-col items-center justify-center gap-y-1.5 rounded-2xl border border-dashed border-neutral-300 bg-neutral-100 px-4 py-4 transition-colors hover:bg-neutral-200"
 						onClick={handleChoose}
 					>
 						{picked.files.length === 0 ? (
 							<>
 								<LUIThemedIcon
 									Icon={UploadSimpleIcon}
-									weight="light"
-									className="size-8"
+									weight="regular"
+									className="size-7"
 									passedTheme={LTHEME.LIGHT}
 								/>
-								<span className="text-base font-semibold text-black">
+								<span className="text-sm font-semibold text-black">
 									Upload
 								</span>
-								<span className="text-sm text-neutral-600">
+								<span className="text-xs text-neutral-600">
 									A Little Later backup file (.lldat)
 								</span>
 							</>
 						) : (
 							picked.files.map((file) => (
 								<span
-									key={file.name + file.size}
+									key={file.id}
 									className="flex w-full items-center gap-x-2 text-left"
 								>
 									<LUIThemedIcon
 										Icon={FileIcon}
-										weight="light"
-										className="size-5 shrink-0"
+										weight="regular"
+										className="size-4 shrink-0"
 										passedTheme={LTHEME.LIGHT}
 									/>
-									<span className="min-w-0 grow truncate text-sm text-black">
+									<span className="min-w-0 grow truncate text-xs font-medium text-black">
 										{file.name}
 									</span>
 									<span className="shrink-0 text-xs text-neutral-600">
@@ -179,19 +182,14 @@ const Page = () => {
 						onSubmit={() => void handleImport()}
 						passedTheme={LTHEME.LIGHT}
 					/>
-					{warning !== "" ? (
-						<p
-							role="alert"
-							className="w-72 text-sm font-semibold text-red-700"
-						>
-							{warning}
-						</p>
-					) : (
-						<p className="w-72 text-sm text-neutral-600 italic">
-							The imported profile opens with the backup's
-							password.
-						</p>
-					)}
+					<LUINote
+						warning={warning !== ""}
+						passedTheme={LTHEME.LIGHT}
+					>
+						{warning !== ""
+							? warning
+							: "The imported profile opens with the backup's password."}
+					</LUINote>
 					<div className="flex h-12 w-full items-center justify-center">
 						<LUICUButton
 							name="Import"

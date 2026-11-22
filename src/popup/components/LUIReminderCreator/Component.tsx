@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
 import { useLocation, useOutletContext } from "react-router";
@@ -5,9 +6,11 @@ import { useMoveNavigate } from "../../hooks/usePageMove";
 import { LUIBasicNav } from "../LUINavs/LUIBasicNav/Component";
 import { LUIReminderForm } from "../LUIReminderForm/Component";
 import type { HomeData } from "../../records";
+import { collectProfileTags } from "../../../utils/tags";
 
 const Component = () => {
-	const { links, pages } = useOutletContext<HomeData>();
+	const { links, notes, reminders, tasks, pages } =
+		useOutletContext<HomeData>();
 	const { theme } = useTheme();
 	const go = useMoveNavigate();
 	const location = useLocation();
@@ -19,7 +22,11 @@ const Component = () => {
 		// The panel closes over the list.
 		go("/home", "sink");
 	};
-	const saves = pages.filter((page) => page.saved);
+	const saves = useMemo(() => pages.filter((page) => page.saved), [pages]);
+	const tagSuggestions = useMemo(
+		() => collectProfileTags([saves, tasks, reminders, notes]),
+		[saves, tasks, reminders, notes],
+	);
 	return (
 		<div
 			className={`flex h-full w-full flex-col overflow-y-hidden select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"}`}
@@ -28,6 +35,7 @@ const Component = () => {
 			<LUIReminderForm
 				links={links}
 				saves={saves}
+				tagSuggestions={tagSuggestions}
 				prelinkedSaveId={prelinkedSaveId}
 				additionalSubmitCallback={additionalSubmitCallback}
 			/>

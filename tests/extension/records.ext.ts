@@ -82,10 +82,9 @@ test("a standalone note can be created, edited, and deleted after confirmation",
 	openPopup,
 }) => {
 	const page = await createProfile(openPopup);
-	await tab(page, "Notes").click();
-	await button(page, "Create note").click();
+	await button(page, "New note").click();
 	await page.getByLabel("Note content").fill("Draft for garden plan");
-	await button(page, "Update").click();
+	await button(page, "Create").click();
 	await expect(exactText(page, "Draft for garden plan")).toBeVisible();
 	await button(page, "Go back").click();
 	await openNote(page, "Draft for garden plan");
@@ -109,7 +108,7 @@ test("a due task links and unlinks a save, can complete and reopen, and confirms
 	await seedSave(page, "Release page");
 	await button(page, "New task").click();
 	await page.getByPlaceholder("Information").fill("Write release notes");
-	await option(page, "Type").click();
+	await option(page, "Type", "Due").click();
 	await expect(exactText(page, "Deadline")).toBeVisible();
 	await linkSave(page, "Release page");
 	await button(page, "Create").click();
@@ -145,8 +144,8 @@ test("completing a recurring task keeps it open and advances its next occurrence
 	const page = await createProfile(openPopup);
 	await button(page, "New task").click();
 	await page.getByPlaceholder("Information").fill("Recurring watering task");
-	await option(page, "Type", "Previous").click();
-	await expect(exactText(page, "Recurring")).toBeVisible();
+	await option(page, "Type", "Recurring").click();
+	await expect(option(page, "Type", "Recurring")).toBeChecked();
 	await button(page, "Create").click();
 	await tab(page, "Tasks").click();
 	await expect(exactText(page, "Recurring watering task")).toBeVisible();
@@ -200,9 +199,9 @@ test("a task's reminder can only be edited or removed through its task", async (
 	const page = await createProfile(openPopup);
 	await button(page, "New task").click();
 	await page.getByPlaceholder("Information").fill("Task owns this alert");
-	await option(page, "Type").click();
-	await option(page, "Reminder").click();
-	await expect(exactText(page, "Normal")).toBeVisible();
+	await option(page, "Type", "Due").click();
+	await option(page, "Reminder", "Normal").click();
+	await expect(option(page, "Reminder", "Normal")).toBeChecked();
 	await button(page, "Create").click();
 	await tab(page, "Reminders").click();
 	await button(page, "Details").click();
@@ -222,7 +221,7 @@ test("a task's reminder can only be edited or removed through its task", async (
 	await tab(page, "Tasks").click();
 	await button(page, "Edit task").click();
 	await expect(page).toHaveURL(/#\/task\//);
-	await option(page, "Reminder", "Previous").click();
+	await option(page, "Reminder", "None").click();
 	await button(page, "Update").click();
 	await expect.poll(() => rows(page, "reminders")).toHaveLength(0);
 });
@@ -256,10 +255,9 @@ test("a standalone note can be attached to and detached from a save in its edito
 }) => {
 	const page = await createProfile(openPopup);
 	const saved = await seedSave(page, "Existing travel guide");
-	await tab(page, "Notes").click();
-	await button(page, "Create note").click();
+	await button(page, "New note").click();
 	await page.getByLabel("Note content").fill("A standalone itinerary");
-	await button(page, "Update").click();
+	await button(page, "Create").click();
 	await expect(exactText(page, "A standalone itinerary")).toBeVisible();
 	await button(page, "Edit").click();
 	await expect(button(page, "Link a save")).toBeVisible({ timeout: 2_000 });

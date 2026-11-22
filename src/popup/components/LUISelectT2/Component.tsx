@@ -30,35 +30,30 @@ const Component = <T extends string>({
 	optionLabel?: (option: T) => string;
 }) => {
 	const { theme } = useTheme();
+	const isDark = theme === LTHEME.DARK;
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
-	const rootRef = useRef<HTMLDivElement>(null);
+	const triggerRef = useRef<HTMLButtonElement>(null);
 	const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
 	const focusOption = (index: number) => {
 		const count = options.length;
+		if (count === 0) return;
 		optionRefs.current[((index % count) + count) % count]?.focus();
 	};
 
 	const choose = (option: T) => {
 		onOptionChange(option);
 		setIsMenuOpen(false);
-		rootRef.current?.focus();
+		triggerRef.current?.focus();
 	};
 
 	return (
 		<div
-			ref={rootRef}
 			// Open, it draws over the rows below it.
 			className={twMerge(
-				`group relative h-8 w-40 rounded-lg ${isMenuOpen ? "z-50" : ""}`,
+				`group relative h-9 w-36 shrink-0 rounded-xl min-[380px]:w-40 ${isMenuOpen ? "z-50" : ""}`,
 				className,
 			)}
-			data-testid={testId}
-			role="button"
-			aria-haspopup="listbox"
-			aria-expanded={isMenuOpen}
-			aria-label={`${name ? `${name}: ` : ""}${optionLabel(currentOption)}, change`}
-			tabIndex={0}
 			onBlur={(event) => {
 				// Still inside: a choice took focus.
 				if (!event.currentTarget.contains(event.relatedTarget)) {
@@ -68,55 +63,53 @@ const Component = <T extends string>({
 			onKeyDown={(event) => {
 				if (event.key === "Escape") {
 					setIsMenuOpen(false);
-					rootRef.current?.focus();
-					return;
-				}
-				if (event.target !== event.currentTarget) {
-					return;
-				}
-				if (event.key === "Enter" || event.key === " ") {
-					event.preventDefault();
-					setIsMenuOpen(!isMenuOpen);
-				}
-				if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-					event.preventDefault();
-					setIsMenuOpen(true);
-					const current = options.indexOf(currentOption);
-					// After the choices are drawn.
-					requestAnimationFrame(() => focusOption(current));
+					triggerRef.current?.focus();
 				}
 			}}
 		>
-			<div
-				className={`flex h-8 w-full rounded-lg border ${
-					theme === LTHEME.DARK
-						? "border-neutral-700"
-						: "border-neutral-300"
+			<button
+				ref={triggerRef}
+				type="button"
+				data-testid={testId}
+				aria-haspopup="listbox"
+				aria-expanded={isMenuOpen}
+				aria-label={`${name ? `${name}: ` : ""}${optionLabel(currentOption)}, change`}
+				className={`flex h-9 w-full cursor-pointer items-center justify-between gap-x-2 rounded-xl border px-3 text-sm font-medium transition-colors ${
+					isDark
+						? "border-neutral-700 bg-neutral-900 text-neutral-100 hover:border-neutral-600"
+						: "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400"
 				}`}
 				onClick={() => setIsMenuOpen(!isMenuOpen)}
+				onKeyDown={(event) => {
+					if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+						event.preventDefault();
+						if (options.length === 0) return;
+						setIsMenuOpen(true);
+						const current = Math.max(
+							0,
+							options.indexOf(currentOption),
+						);
+						// After the choices are drawn.
+						requestAnimationFrame(() => focusOption(current));
+					}
+				}}
 			>
-				<div
-					className={`flex h-full grow items-center justify-center ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
-				>
-					{optionLabel(currentOption)}
-				</div>
-				<div className={`flex h-full items-center justify-center`}>
-					<LUIThemedIcon
-						Icon={CaretUpDownIcon}
-						weight="light"
-						color={theme === LTHEME.DARK ? "white" : "black"}
-						className="size-5"
-					/>
-				</div>
-			</div>
+				<span className="truncate">{optionLabel(currentOption)}</span>
+				<LUIThemedIcon
+					Icon={CaretUpDownIcon}
+					weight="regular"
+					color="currentColor"
+					className="size-4 shrink-0 opacity-60"
+				/>
+			</button>
 			{isMenuOpen ? (
 				<div
 					role="listbox"
-					className={`relative right-0 mt-1 max-h-40 w-40 border ${
-						theme === LTHEME.DARK
-							? "border-neutral-700 bg-black"
-							: "border-neutral-300 bg-white"
-					} overflow-y-auto rounded-lg shadow-lg ${theme}-scrollbar `}
+					className={`absolute right-0 mt-1 flex max-h-44 w-44 flex-col gap-y-0.5 overflow-y-auto rounded-xl border p-1 shadow-lg ${
+						isDark
+							? "border-neutral-800 bg-neutral-900"
+							: "border-neutral-200 bg-white"
+					} ${theme}-scrollbar`}
 				>
 					{options.map((option, index) => (
 						<button
@@ -127,19 +120,13 @@ const Component = <T extends string>({
 							ref={(element) => {
 								optionRefs.current[index] = element;
 							}}
-							className={`z-10 flex h-8 w-full cursor-pointer items-center justify-center ${
+							className={`block h-8 w-full shrink-0 cursor-pointer truncate rounded-lg px-2.5 text-left text-sm leading-8 transition-colors ${
 								currentOption === option
-									? theme === LTHEME.DARK
-										? "bg-neutral-700"
-										: "bg-neutral-300"
-									: theme === LTHEME.DARK
-										? "bg-neutral-950 hover:bg-neutral-900"
-										: "bg-neutral-50 hover:bg-neutral-100"
-							} ${
-								theme === LTHEME.DARK
-									? "text-white"
-									: "text-black"
-							} `}
+									? "ll-accent-fill font-medium"
+									: isDark
+										? "text-neutral-200 hover:bg-neutral-800"
+										: "text-neutral-800 hover:bg-neutral-100"
+							}`}
 							onClick={() => choose(option)}
 							onKeyDown={(event) => {
 								if (event.key === "ArrowDown") {

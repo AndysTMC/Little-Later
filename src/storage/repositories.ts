@@ -1,8 +1,12 @@
 import Dexie from "dexie";
 import { LINITIAL_USER_SETTINGS } from "little-shared/constants";
 import type { LUserSettings } from "little-shared/types";
-import { openBody, sealAsset, type ProfileKeys } from "./keys";
+import { openAsset, openBody, sealAsset, type ProfileKeys } from "./keys";
+import type { LAIConfirmation } from "little-shared/types";
 import type {
+	ChatMessageRow,
+	ChatRow,
+	ImageRow,
 	LittleDB,
 	NoteRow,
 	ReminderRow,
@@ -35,6 +39,8 @@ export const openEach = async <R extends { id: string }, T>(
 	return opened;
 };
 
+import { normalizeTags } from "../utils/tags";
+
 // What a save's sealed body holds. `provisional` marks a name that only
 // stands in for a title the page did not have yet (its host name); the
 // first real title replaces it. A name the user gives is never provisional.
@@ -43,8 +49,15 @@ export type SaveContent = {
 	title: string;
 	customName: string;
 	provisional?: true;
+	archived?: boolean;
+	tags?: Array<string>;
 };
-export type NoteContent = { content: string };
+export type NoteContent = {
+	content: string;
+	locked?: boolean;
+	title?: string;
+	tags?: Array<string>;
+};
 
 export type Save = SaveContent & {
 	id: string;
@@ -61,24 +74,38 @@ export type Note = NoteContent & {
 	updatedAt: number;
 };
 
-// Builders join a row's plain fields with its opened body. Pages that cache
-// opened bodies use them directly.
-export const toSave = (row: SaveRow, content: SaveContent): Save => ({
-	...content,
-	id: row.id,
-	saved: row.saved === 1,
-	browsed: row.browsed === 1,
-	browsedAt: row.browsedAt,
-	createdAt: row.createdAt,
-	updatedAt: row.updatedAt,
-});
+// Builders join a row's plain fields with its opened body. Optional fields
+// (`archived`, `locked`, `title`, `tags`) are included only when set, matching
+// `provisional` and preserving exact backward compatibility with format v1–3
+// records and golden backups.
+export const toSave = (row: SaveRow, content: SaveContent): Save => {
+	const tags = normalizeTags(content.tags);
+	return {
+		...content,
+		...(content.archived ? { archived: true } : {}),
+		...(tags.length > 0 ? { tags } : {}),
+		id: row.id,
+		saved: row.saved === 1,
+		browsed: row.browsed === 1,
+		browsedAt: row.browsedAt,
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
+	};
+};
 
-export const toNote = (row: NoteRow, content: NoteContent): Note => ({
-	...content,
-	id: row.id,
-	createdAt: row.createdAt,
-	updatedAt: row.updatedAt,
-});
+export const toNote = (row: NoteRow, content: NoteContent): Note => {
+	const tags = normalizeTags(content.tags);
+	const title = typeof content.title === "string" ? content.title.trim() : "";
+	return {
+		...content,
+		...(content.locked ? { locked: true } : {}),
+		...(title !== "" ? { title } : {}),
+		...(tags.length > 0 ? { tags } : {}),
+		id: row.id,
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
+	};
+};
 
 export const openSave = async (
 	keys: ProfileKeys,
@@ -226,6 +253,78 @@ export const listNotesFor = async (
 	);
 };
 
+export const IMAGE_KIND = "image";
+
+export type ImageContent = {
+	title: string;
+	mimeType: string;
+	sourceUrl?: string;
+	tags?: Array<string>;
+};
+
+export type ImageRecord = ImageContent & {
+	id: string;
+	createdAt: number;
+	updatedAt: number;
+};
+
+export const toImage = (row: ImageRow, content: ImageContent): ImageRecord => {
+	const tags = normalizeTags(content.tags);
+	const sourceUrl =
+		typeof content.sourceUrl === "string" && content.sourceUrl.trim() !== ""
+			? content.sourceUrl.trim()
+			: undefined;
+	return {
+		title: content.title,
+		mimeType: content.mimeType,
+		...(sourceUrl ? { sourceUrl } : {}),
+		...(tags.length > 0 ? { tags } : {}),
+		id: row.id,
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
+	};
+};
+
+export const openImage = async (
+	keys: ProfileKeys,
+	row: ImageRow,
+): Promise<ImageRecord> =>
+	toImage(
+		row,
+		await openBody<ImageContent>(keys, "images", row.id, row.body),
+	);
+
+export const listImages = async (
+	db: LittleDB,
+	keys: ProfileKeys,
+): Promise<Array<ImageRecord>> => {
+	const [from, to] = ownedBy(keys.profileId);
+	const rows = await db.images
+		.where("[profileId+updatedAt]")
+		.between(from, to)
+		.reverse()
+		.toArray();
+	return openEach("images", rows, (row) => openImage(keys, row));
+};
+
+export const getImageBlob = async (
+	db: LittleDB,
+	keys: ProfileKeys,
+	imageId: string,
+	mimeType: string,
+): Promise<Blob | undefined> => {
+	const row = await db.assets
+		.where("[profileId+ownerId]")
+		.equals([keys.profileId, imageId])
+		.filter((asset) => asset.kind === IMAGE_KIND)
+		.first();
+	if (!row) {
+		return undefined;
+	}
+	const bytes = await openAsset(keys, row.id, row.body);
+	return new Blob([bytes.slice()], { type: mimeType });
+};
+
 // A profile's sealed settings: the AI provider with its key, and the
 // history limits. The first-run guide is not per profile and stays out.
 export type Settings = Pick<LUserSettings, "ai" | "misc">;
@@ -250,8 +349,9 @@ export type TaskContent = {
 	information: string;
 	label: string;
 	priority: TaskPriority;
+	tags?: Array<string>;
 };
-export type ReminderContent = { message: string };
+export type ReminderContent = { message: string; tags?: Array<string> };
 
 export type Task = TaskContent &
 	Pick<TaskRow, "id" | "schedule" | "dueAt" | "finishedAt"> & {
@@ -264,26 +364,34 @@ export type Reminder = ReminderContent &
 		"id" | "target" | "escalation" | "lastFiredAt" | "nextFireAt"
 	>;
 
-export const toTask = (row: TaskRow, content: TaskContent): Task => ({
-	...content,
-	id: row.id,
-	schedule: row.schedule,
-	dueAt: row.dueAt,
-	finishedAt: row.finishedAt,
-	done: row.done === 1,
-});
+export const toTask = (row: TaskRow, content: TaskContent): Task => {
+	const tags = normalizeTags(content.tags);
+	return {
+		...content,
+		...(tags.length > 0 ? { tags } : {}),
+		id: row.id,
+		schedule: row.schedule,
+		dueAt: row.dueAt,
+		finishedAt: row.finishedAt,
+		done: row.done === 1,
+	};
+};
 
 export const toReminder = (
 	row: ReminderRow,
 	content: ReminderContent,
-): Reminder => ({
-	...content,
-	id: row.id,
-	target: row.target,
-	escalation: row.escalation,
-	lastFiredAt: row.lastFiredAt,
-	nextFireAt: row.nextFireAt,
-});
+): Reminder => {
+	const tags = normalizeTags(content.tags);
+	return {
+		...content,
+		...(tags.length > 0 ? { tags } : {}),
+		id: row.id,
+		target: row.target,
+		escalation: row.escalation,
+		lastFiredAt: row.lastFiredAt,
+		nextFireAt: row.nextFireAt,
+	};
+};
 
 export const openTask = async (
 	keys: ProfileKeys,
@@ -330,4 +438,134 @@ export const listReminders = async (
 		.between([keys.profileId, 1], [keys.profileId, Dexie.maxKey])
 		.toArray();
 	return openEach("reminders", rows, (row) => openReminder(keys, row));
+};
+
+// LittleAI's chats (decision 0017).
+
+// `named`: the user chose the title; otherwise it follows the first
+// message, also when that message is edited.
+export type ChatContent = { title: string; named?: true };
+
+// What LittleAI answered, as stored: its text, the records it found and,
+// while it waits, what it asks the user to confirm. Plain data only.
+export type StoredAIOutput = {
+	message: string;
+	expression: string;
+	confirmation?: LAIConfirmation;
+	// The change this answer made, which Undo reverts until `until`.
+	undo?: { label: string; until: number };
+	// A question for the user, with options to choose from.
+	question?: {
+		question: string;
+		options: Array<string>;
+		allowOther: boolean;
+	};
+	// What LittleAI did to answer: "Searched notes", "Read your history".
+	steps?: Array<string>;
+	content?: {
+		saves: Array<Save>;
+		reminders: Array<Reminder>;
+		tasks: Array<Task>;
+		notes: Array<Note>;
+	};
+};
+
+// How long a chat message's text may be, written or restored from a
+// backup: what you send, and what LittleAI answers (a run shortens a
+// longer answer to fit).
+export const MAX_CHAT_TEXT = 100_000;
+export const MAX_ANSWER_TEXT = 1_000_000;
+
+export type ChatMessageContent =
+	// `page`: the page attached to the message; its text isn't kept.
+	| { role: "user"; text: string; page?: { title: string; url: string } }
+	| { role: "assistant"; output: StoredAIOutput };
+
+export type Chat = ChatContent & {
+	id: string;
+	createdAt: number;
+	updatedAt: number;
+};
+
+export type ChatMessage = ChatMessageContent & {
+	id: string;
+	chatId: string;
+	createdAt: number;
+};
+
+export const openChat = async (
+	keys: ProfileKeys,
+	row: ChatRow,
+): Promise<Chat> => ({
+	...(await openBody<ChatContent>(keys, "chats", row.id, row.body)),
+	id: row.id,
+	createdAt: row.createdAt,
+	updatedAt: row.updatedAt,
+});
+
+export const openChatMessage = async (
+	keys: ProfileKeys,
+	row: ChatMessageRow,
+): Promise<ChatMessage> => ({
+	...(await openBody<ChatMessageContent>(
+		keys,
+		"chatMessages",
+		row.id,
+		row.body,
+	)),
+	id: row.id,
+	chatId: row.chatId,
+	createdAt: row.createdAt,
+});
+
+// The profile's chats, most recently active first.
+export const listChats = async (
+	db: LittleDB,
+	keys: ProfileKeys,
+): Promise<Array<Chat>> => {
+	const [from, to] = ownedBy(keys.profileId);
+	const rows = await db.chats
+		.where("[profileId+updatedAt]")
+		.between(from, to)
+		.reverse()
+		.toArray();
+	return openEach("chats", rows, (row) => openChat(keys, row));
+};
+
+// A chat's messages, oldest first. Only the profile's own.
+export const listChatMessages = async (
+	db: LittleDB,
+	keys: ProfileKeys,
+	chatId: string,
+): Promise<Array<ChatMessage>> => {
+	const rows = await db.chatMessages
+		.where("[chatId+createdAt]")
+		.between([chatId, Dexie.minKey], [chatId, Dexie.maxKey])
+		.filter((row) => row.profileId === keys.profileId)
+		.toArray();
+	return openEach("chatMessages", rows, (row) => openChatMessage(keys, row));
+};
+
+// A chat's latest `count` messages, oldest first, and whether earlier ones
+// exist: a long chat opens without reading and opening all of it.
+export const listLatestChatMessages = async (
+	db: LittleDB,
+	keys: ProfileKeys,
+	chatId: string,
+	count: number,
+): Promise<{ messages: Array<ChatMessage>; hasEarlier: boolean }> => {
+	const rows = await db.chatMessages
+		.where("[chatId+createdAt]")
+		.between([chatId, Dexie.minKey], [chatId, Dexie.maxKey])
+		.reverse()
+		.filter((row) => row.profileId === keys.profileId)
+		.limit(count + 1)
+		.toArray();
+	const latest = rows.slice(0, count).reverse();
+	return {
+		messages: await openEach("chatMessages", latest, (row) =>
+			openChatMessage(keys, row),
+		),
+		hasEarlier: rows.length > count,
+	};
 };

@@ -1,8 +1,9 @@
 import { urlKeyFor } from "little-shared/utils/envelope";
-import { putPreview } from "../storage/repositories";
+import { getSettings, putPreview } from "../storage/repositories";
 import { importProfileKeys } from "../storage/keys";
 import type { LittleDB } from "../storage/schema";
 import type { SessionStore } from "../storage/session";
+import { isUrlIgnored } from "../utils/ignoredUrls";
 import type { Dispatch, SerialQueue } from "./commands/registry";
 
 // A page the user stays on is looked at again at most this often. Its
@@ -162,6 +163,16 @@ export const createPageCapture = ({
 			const unlocked = await session.get();
 			if (!unlocked) {
 				return;
+			}
+			// Skip URLs/domains the user added to the history ignore list.
+			try {
+				const keys = await importProfileKeys(unlocked);
+				const { misc } = await getSettings(db, keys);
+				if (isUrlIgnored(url, misc.ignoredDomains)) {
+					return;
+				}
+			} catch {
+				// Proceed normally if settings couldn't be read.
 			}
 			// The page is recorded per profile: another profile opened on
 			// it has no record of it yet.

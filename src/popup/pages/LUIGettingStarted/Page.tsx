@@ -117,7 +117,7 @@ const DefaultGuide = ({
 			containerRef.current &&
 			illustrationsRef.current
 		) {
-			setTimeout(() => {
+			const timer = setTimeout(() => {
 				const container = containerRef.current;
 				const illustrations =
 					illustrationsRef.current as unknown as HTMLElement;
@@ -128,6 +128,7 @@ const DefaultGuide = ({
 					});
 				}
 			}, 300);
+			return () => clearTimeout(timer);
 		}
 	}, [displayStep, reduceMotion]);
 	return (
@@ -197,24 +198,30 @@ const DefaultGuide = ({
 						<div
 							ref={stripRef}
 							data-testid="illustration-strip"
-							className={`flex gap-8 p-4 ${reduceMotion ? "overflow-x-auto" : ""}`}
+							className={`flex gap-6 p-4 ${reduceMotion ? "overflow-x-auto" : ""}`}
 						>
 							{continuousIllustrations.map(
 								(illustration, index) => (
 									<div
 										key={index}
-										className="flex w-80 shrink-0 flex-col items-center"
+										className="flex w-64 shrink-0 flex-col items-center sm:w-80"
 									>
-										<div className="relative aspect-video h-44 overflow-hidden rounded-lg border border-neutral-500">
+										<div
+											className={`relative aspect-video w-full overflow-hidden rounded-2xl border ${
+												theme === LTHEME.DARK
+													? "border-neutral-800"
+													: "border-neutral-200"
+											}`}
+										>
 											<img
 												src={illustration.image}
 												alt={illustration.caption}
-												className={`h-full w-full object-cover shadow-md transition-all duration-200 ${theme === LTHEME.DARK ? "shadow-neutral-800" : "shadow-neutral-300"} pointer-events-none select-none`}
+												className="pointer-events-none h-full w-full object-cover select-none"
 												draggable="false"
 											/>
 										</div>
 										<p
-											className={`mt-2 px-2 text-center text-sm ${theme === LTHEME.DARK ? "text-neutral-300" : "text-neutral-700"}`}
+											className={`mt-2 px-2 text-center text-xs leading-relaxed ${theme === LTHEME.DARK ? "text-neutral-300" : "text-neutral-700"}`}
 										>
 											{illustration.caption}
 										</p>
@@ -233,15 +240,15 @@ const StartGuide = () => {
 	const { theme } = useTheme();
 	return (
 		<motion.div
-			className={`flex h-full w-full flex-col justify-start gap-y-2 px-2`}
+			className={`flex h-full w-full flex-col justify-center gap-y-3 px-4`}
 			initial={{ opacity: 0, x: "-100%" }}
 			animate={{ opacity: 1, x: 0 }}
 			exit={{ opacity: 0, x: "-100%" }}
 			transition={{ duration: 0.4, type: "spring", bounce: 0.2 }}
 		>
-			<div className={`h-max w-full text-7xl font-black`}>
+			<div className="h-max w-full text-5xl leading-tight font-black tracking-tight sm:text-6xl">
 				<motion.div
-					className={`${theme === LTHEME.DARK ? "text-neutral-500" : "text-neutral-500"}`}
+					className="text-neutral-500"
 					initial={{ opacity: 0 }}
 					animate={{
 						opacity: 1,
@@ -252,7 +259,11 @@ const StartGuide = () => {
 					Welcome
 				</motion.div>
 				<motion.div
-					className={`${theme === LTHEME.DARK ? "text-neutral-300" : "text-neutral-700"}`}
+					className={
+						theme === LTHEME.DARK
+							? "text-neutral-300"
+							: "text-neutral-700"
+					}
 					initial={{ opacity: 0 }}
 					animate={{
 						opacity: 1,
@@ -263,7 +274,11 @@ const StartGuide = () => {
 					to
 				</motion.div>
 				<motion.div
-					className={`${theme === LTHEME.DARK ? "text-neutral-100" : "text-neutral-900"}`}
+					className={
+						theme === LTHEME.DARK
+							? "text-neutral-100"
+							: "text-neutral-900"
+					}
 					initial={{ opacity: 0 }}
 					animate={{
 						opacity: 1,
@@ -275,7 +290,7 @@ const StartGuide = () => {
 				</motion.div>
 			</div>
 			<motion.div
-				className={`flex h-max flex-col justify-start`}
+				className="flex h-max flex-col justify-start"
 				initial={{ opacity: 0 }}
 				animate={{
 					opacity: 1,
@@ -284,7 +299,7 @@ const StartGuide = () => {
 				exit={{ opacity: 0, transition: { duration: 0.4 } }}
 			>
 				<div
-					className={`h-max w-full text-2xl font-thin ${theme === LTHEME.DARK ? "text-neutral-600" : "text-neutral-400"} `}
+					className={`h-max w-full text-xl font-normal ${theme === LTHEME.DARK ? "text-neutral-400" : "text-neutral-500"}`}
 				>
 					Let's get started!
 				</div>
@@ -322,15 +337,13 @@ const Page = () => {
 			className={`flex h-full w-full flex-col gap-y-2 select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} overflow-y-hidden pt-2`}
 			{...pageMotion}
 		>
-			<div
-				className={`flex h-12 w-full shrink-0 items-center justify-end gap-x-4 px-5`}
-			>
+			<div className="mx-auto flex h-12 w-full max-w-2xl shrink-0 items-center justify-end gap-x-3 px-4">
 				<button
-					className={`h-max w-max ${
+					className={`flex size-9 cursor-pointer items-center justify-center rounded-full transition-colors ${
 						theme === LTHEME.DARK
 							? "hover:bg-neutral-800"
 							: "hover:bg-neutral-200"
-					} cursor-pointer rounded-full p-1`}
+					}`}
 					type="button"
 					aria-label={
 						theme === LTHEME.DARK
@@ -342,24 +355,28 @@ const Page = () => {
 					<LUIThemedIcon
 						Icon={theme === LTHEME.DARK ? MoonIcon : SunDimIcon}
 						weight="fill"
-						className="size-7"
+						className="size-5"
 					/>
 				</button>
 				<button
-					className={`flex h-max w-max items-center justify-center gap-x-1 rounded-md px-4 py-1 active:scale-95 ${theme === LTHEME.DARK ? "bg-neutral-800 text-white" : "bg-neutral-200 text-black"} group cursor-pointer transition-all duration-200`}
+					type="button"
+					className={`flex h-9 cursor-pointer items-center justify-center gap-x-1.5 rounded-xl px-3.5 text-sm font-medium transition-colors active:scale-[0.98] ${
+						theme === LTHEME.DARK
+							? "bg-neutral-800 text-neutral-100 hover:bg-neutral-700"
+							: "bg-neutral-200 text-neutral-900 hover:bg-neutral-300"
+					}`}
 					onClick={handleSkip}
 				>
-					<span className={`font-semibold`}>Skip</span>
-					<span className={`h-max w-max`}>
-						<LUIThemedIcon
-							Icon={ArrowRightIcon}
-							weight="regular"
-							className={` `}
-						/>
-					</span>
+					<span>Skip</span>
+					<LUIThemedIcon
+						Icon={ArrowRightIcon}
+						color="currentColor"
+						weight="regular"
+						className="size-4"
+					/>
 				</button>
 			</div>
-			<div className={`w-full grow overflow-x-clip overflow-y-hidden`}>
+			<div className="mx-auto w-full max-w-2xl grow overflow-x-clip overflow-y-hidden px-2">
 				<AnimatePresence mode="wait">
 					{displayStep === 0 ? (
 						<StartGuide key="start-guide" />
@@ -563,30 +580,40 @@ const Page = () => {
 					) : null}
 				</AnimatePresence>
 			</div>
-			<div
-				className={`flex h-max w-full shrink-0 items-start justify-between px-5`}
-			>
+			<div className="mx-auto flex h-max w-full max-w-2xl shrink-0 items-center justify-between px-4 pb-3">
 				<button
-					className={`h-max w-32 px-2 py-1 ${theme === LTHEME.DARK ? "text-white" : "text-black"} ${displayStep === 0 ? "invisible" : ""} flex cursor-pointer items-center justify-start gap-x-1 opacity-50 transition-all duration-200 hover:gap-x-0.5 hover:opacity-100`}
+					type="button"
+					className={`flex h-10 cursor-pointer items-center justify-start gap-x-1 rounded-xl px-3 text-sm font-medium transition-colors ${
+						theme === LTHEME.DARK
+							? "text-neutral-300 hover:bg-neutral-900 hover:text-white"
+							: "text-neutral-700 hover:bg-neutral-100 hover:text-black"
+					} ${displayStep === 0 ? "invisible" : ""}`}
 					onClick={handlePreviousStep}
 				>
 					<LUIThemedIcon
 						Icon={CaretLeftIcon}
+						color="currentColor"
 						weight="regular"
-						className={`size-5`}
+						className="size-4"
 					/>
-					<span className={`text-lg font-semibold`}>Previous</span>
+					<span>Previous</span>
 				</button>
-				<LUILogo className="h-20 opacity-10" />
+				<LUILogo className="size-10 opacity-15" />
 				<button
-					className={`h-max w-32 px-2 py-1 ${theme === LTHEME.DARK ? "text-white" : "text-black"} flex cursor-pointer items-center justify-end gap-x-1 opacity-50 transition-all duration-200 hover:gap-x-0.5 hover:opacity-100`}
+					type="button"
+					className={`flex h-10 cursor-pointer items-center justify-end gap-x-1 rounded-xl px-3 text-sm font-medium transition-colors ${
+						theme === LTHEME.DARK
+							? "text-neutral-200 hover:bg-neutral-900 hover:text-white"
+							: "text-neutral-800 hover:bg-neutral-100 hover:text-black"
+					}`}
 					onClick={handleNextStep}
 				>
-					<span className={`text-lg font-semibold`}>Next</span>
+					<span>Next</span>
 					<LUIThemedIcon
 						Icon={CaretRightIcon}
+						color="currentColor"
 						weight="regular"
-						className={`size-5`}
+						className="size-4"
 					/>
 				</button>
 			</div>

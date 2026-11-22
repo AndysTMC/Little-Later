@@ -156,7 +156,15 @@ export const subscribeUIState = (
 
 // Pages that are never reopened: the intro, and the screens that ask for a
 // password, which must be reached on purpose.
-const FORGOTTEN = [/^\/$/, /^\/unlock\//, /^\/lock$/, /^\/browse-profiles$/];
+const FORGOTTEN = [
+	/^\/$/,
+	/^\/unlock\//,
+	/^\/lock$/,
+	/^\/browse-profiles$/,
+	/^\/settings\/security\/password$/,
+	/^\/settings\/security\/two-factor(\/|$)/,
+	/^\/preview\//,
+];
 
 export const isRememberedRoute = (path: string): boolean =>
 	!FORGOTTEN.some((pattern) => pattern.test(path));

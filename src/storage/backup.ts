@@ -13,6 +13,9 @@ import {
 } from "little-shared/utils/envelope";
 import type { Escalation } from "little-shared/utils/schedule";
 import type {
+	ChatContent,
+	ChatMessageContent,
+	ImageContent,
 	NoteContent,
 	ReminderContent,
 	SaveContent,
@@ -77,6 +80,7 @@ export type BackupEntry =
 			content: SaveContent;
 	  })
 	| (Times & { table: "notes"; privacy: Privacy; content: NoteContent })
+	| (Times & { table: "images"; privacy: Privacy; content: ImageContent })
 	| (Times & {
 			table: "tasks";
 			schedule: TaskSchedule;
@@ -108,6 +112,13 @@ export type BackupEntry =
 			ownerId: string;
 			kind: string;
 			bytes: Uint8Array;
+	  })
+	// LittleAI's chats (decision 0017); a chat comes before its messages.
+	| (Times & { table: "chats"; content: ChatContent })
+	| (Times & {
+			table: "chatMessages";
+			chatId: string;
+			content: ChatMessageContent;
 	  });
 
 export type BackupHeader = { backupId: string; wrapped: WrappedKey };
@@ -230,7 +241,10 @@ export const decodeHeader = (bytes: Uint8Array): BackupHeader => {
 			typeof json.backupId !== "string" ||
 			json.keyId !== BACKUP_KEY_ID ||
 			typeof json.kdf?.name !== "string" ||
-			typeof json.kdf.iterations !== "number"
+			typeof json.kdf.iterations !== "number" ||
+			typeof json.kdf.salt !== "string" ||
+			typeof json.iv !== "string" ||
+			typeof json.ciphertext !== "string"
 		) {
 			throw new BackupError("This backup is damaged.");
 		}
@@ -328,7 +342,8 @@ const checkPrefix = (prefix: Uint8Array) => {
 export async function* readBackupParts(
 	file: Blob,
 ): AsyncGenerator<
-	{ kind: "header"; bytes: Uint8Array } | { kind: "chunk"; bytes: Uint8Array }
+	| { kind: "header"; bytes: Uint8Array }
+	| { kind: "chunk"; bytes: Uint8Array; hasMore: boolean }
 > {
 	checkPrefix(await bytesAt(file, 0, PREFIX_LENGTH));
 	const part = async (offset: number, max: number) => {
@@ -350,8 +365,8 @@ export async function* readBackupParts(
 	while (offset < file.size) {
 		const chunk = await part(offset, MAX_CHUNK_BYTES);
 		chunks += 1;
-		yield { kind: "chunk", bytes: chunk };
 		offset += 4 + chunk.length;
+		yield { kind: "chunk", bytes: chunk, hasMore: offset < file.size };
 	}
 	if (chunks === 0) {
 		throw new BackupError("This backup is damaged.");

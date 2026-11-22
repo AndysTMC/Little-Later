@@ -1,12 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { LTHEME } from "little-shared/enums";
 import type { Note } from "../../../storage/repositories";
 import { useTheme } from "../../hooks/useTheme";
 import { twMerge } from "tailwind-merge";
 import { motion } from "framer-motion";
 import { send } from "../../../utils/send";
-import { LUIThemedIcon } from "../LUIThemedIcon/Component";
-import { NoteBlankIcon } from "@phosphor-icons/react";
 import { useMoveNavigate } from "../../hooks/usePageMove";
 import { LUINoteMini } from "../LUINoteMini/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
@@ -15,24 +13,37 @@ const Component = ({
 	className,
 	notes,
 	showCreate = true,
+	activeTag = null,
+	onSelectTag,
 	emptyMessage = "No notes yet?",
 }: {
 	className?: string;
 	notes: Array<Note>;
 	showCreate?: boolean;
+	activeTag?: string | null;
+	onSelectTag?: (tag: string) => void;
 	emptyMessage?: string;
 }) => {
 	const { theme } = useTheme();
+	const isDark = theme === LTHEME.DARK;
 	const go = useMoveNavigate();
-	const sortedNotes = useMemo(
-		() => [...notes].sort((a, b) => b.updatedAt - a.updatedAt),
+	const [filter, setFilter] = useState<"all" | "locked">("all");
+
+	const lockedCount = useMemo(
+		() => notes.filter((note) => note.locked).length,
 		[notes],
 	);
+	const effectiveFilter = lockedCount > 0 ? filter : "all";
 
-	// A note is stored once it has content, from its page.
-	const createNewNote = () => {
-		go("/note/new", "forward");
-	};
+	const sortedNotes = useMemo(
+		() =>
+			[...notes]
+				.filter((note) =>
+					effectiveFilter === "locked" ? note.locked : true,
+				)
+				.sort((a, b) => b.updatedAt - a.updatedAt),
+		[notes, effectiveFilter],
+	);
 
 	return (
 		<motion.div
@@ -41,40 +52,64 @@ const Component = ({
 				className,
 			)}
 		>
-			{showCreate ? (
-				<div className="flex h-10 w-full shrink-0 items-end justify-start gap-x-1 px-4">
-					<div
-						className={`flex h-full items-center justify-center text-2xl leading-none font-extrabold ${
-							theme === LTHEME.DARK ? "text-white" : "text-black"
+			{notes.length > 0 ? (
+				<div className="mx-auto flex h-10 w-full max-w-3xl shrink-0 items-center justify-between px-4">
+					<span
+						className={`text-xs font-medium ${
+							isDark ? "text-neutral-400" : "text-neutral-500"
 						}`}
 					>
-						New Note
-					</div>
-					<button
-						type="button"
-						aria-label="Create note"
-						className="flex h-full w-max cursor-pointer items-center justify-center active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
-						onClick={createNewNote}
-					>
-						<LUIThemedIcon
-							Icon={NoteBlankIcon}
-							color={theme === LTHEME.DARK ? "white" : "black"}
-							weight="light"
-							className="size-6"
-						/>
-					</button>
+						{sortedNotes.length} note
+						{sortedNotes.length === 1 ? "" : "s"}
+					</span>
+					{lockedCount > 0 ? (
+						<div
+							role="group"
+							aria-label="Filter notes"
+							className={`flex items-center gap-x-0.5 rounded-xl border p-0.5 ${
+								isDark
+									? "border-neutral-800 bg-neutral-900"
+									: "border-neutral-200 bg-neutral-100"
+							}`}
+						>
+							{(["all", "locked"] as const).map((mode) => {
+								const selected = effectiveFilter === mode;
+								return (
+									<button
+										key={mode}
+										type="button"
+										aria-pressed={selected}
+										onClick={() => setFilter(mode)}
+										className={`h-6 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-colors ${
+											selected
+												? "ll-accent-fill"
+												: isDark
+													? "text-neutral-400 hover:text-neutral-100"
+													: "text-neutral-600 hover:text-neutral-900"
+										}`}
+									>
+										{mode === "all"
+											? "All"
+											: `Locked (${lockedCount})`}
+									</button>
+								);
+							})}
+						</div>
+					) : null}
 				</div>
 			) : null}
 
 			{sortedNotes.length > 0 ? (
 				<div
-					className={`w-full grow overflow-y-auto px-4 pb-2 ${theme}-scrollbar`}
+					className={`w-full grow overflow-y-auto px-4 pb-3 ${theme}-scrollbar`}
 				>
-					<div className="columns-2 gap-3 [column-fill:_balance]">
+					<div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-2.5 min-[560px]:grid-cols-2">
 						{sortedNotes.map((note) => (
 							<LUINoteMini
 								key={note.id}
 								note={note}
+								activeTag={activeTag}
+								onSelectTag={onSelectTag}
 								onOpen={(selectedNote) =>
 									go(`/note/${selectedNote.id}`, "forward")
 								}
@@ -86,7 +121,7 @@ const Component = ({
 			) : (
 				<LUIEmptyState
 					title={emptyMessage}
-					hint={showCreate ? "Tap New Note." : undefined}
+					hint={showCreate ? "Tap New note." : undefined}
 				/>
 			)}
 		</motion.div>

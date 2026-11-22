@@ -62,7 +62,7 @@ const Page = () => {
 					className="h-56 w-56 object-cover"
 				/>
 			</motion.div>
-			<div className="flex items-center justify-center gap-x-5">
+			<div className="flex items-center justify-center gap-x-4">
 				<motion.div
 					initial={{
 						opacity: 0,
@@ -79,7 +79,7 @@ const Page = () => {
 						delay: 0.5,
 						type: "spring",
 					}}
-					className={`text-5xl font-extrabold`}
+					className="text-4xl font-extrabold tracking-tight sm:text-5xl"
 				>
 					Little
 				</motion.div>
@@ -99,7 +99,7 @@ const Page = () => {
 						delay: 1.5,
 						type: "spring",
 					}}
-					className={`text-5xl font-extrabold`}
+					className="text-4xl font-extrabold tracking-tight sm:text-5xl"
 				>
 					Later
 				</motion.div>
@@ -107,7 +107,7 @@ const Page = () => {
 			<button
 				type="button"
 				// The same Skip as Getting Started's; the intro is always light.
-				className="mt-8 flex h-max w-max cursor-pointer items-center justify-center rounded-md bg-neutral-200 px-4 py-1 font-semibold text-black transition-all duration-200 active:scale-95"
+				className="mt-8 flex h-9 cursor-pointer items-center justify-center rounded-xl bg-neutral-200 px-4 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-300 active:scale-[0.98]"
 				onClick={handleVideoEnd}
 			>
 				Skip intro

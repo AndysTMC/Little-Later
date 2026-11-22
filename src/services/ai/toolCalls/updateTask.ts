@@ -16,12 +16,14 @@ const toolCall = async (
 		label,
 		priority,
 		deadlineDate,
+		tags,
 	}: {
 		id: string;
 		information?: string;
 		label?: string;
 		priority?: LTASK_PRIORITY;
 		deadlineDate?: LDate;
+		tags?: Array<string>;
 	},
 ): Promise<() => Promise<void>> => {
 	const task = (await readTasks(await owner.keys())).find(
@@ -49,6 +51,7 @@ const toolCall = async (
 						},
 					}
 				: {}),
+			...(tags !== undefined ? { tags } : {}),
 		});
 	};
 };

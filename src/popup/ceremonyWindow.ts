@@ -15,6 +15,10 @@ export const inToolbarPopup = (): boolean => {
 	}
 };
 
+const isCeremonyWindow = (): boolean =>
+	!inToolbarPopup() &&
+	new URLSearchParams(window.location.search).get("ceremony") === "1";
+
 // The popup's own size (src/popup/index.css). A window's size includes its
 // title bar and borders, so the window is sized to show exactly this.
 const PAGE_WIDTH = 500;
@@ -23,7 +27,8 @@ const PAGE_HEIGHT = 600;
 // Run once in every page: a ceremony window resizes itself so the page
 // inside is the popup's size, whatever the system's window frame is.
 export const fitCeremonyWindow = async (): Promise<void> => {
-	if (typeof chrome === "undefined" || !chrome.windows) return;
+	if (typeof chrome === "undefined" || !chrome.windows || !isCeremonyWindow())
+		return;
 	try {
 		const current = await chrome.windows.getCurrent();
 		if (current.type !== "popup" || current.id === undefined) return;
@@ -39,7 +44,7 @@ export const fitCeremonyWindow = async (): Promise<void> => {
 // Opens `route` (a hash route, such as "/unlock/<id>") in its own window.
 export const openCeremonyWindow = async (route: string): Promise<void> => {
 	await chrome.windows.create({
-		url: `${chrome.runtime.getURL("index.html")}#${route}`,
+		url: `${chrome.runtime.getURL("index.html")}?ceremony=1#${route}`,
 		type: "popup",
 		// Corrected by fitCeremonyWindow once the page knows its frame.
 		width: PAGE_WIDTH,
@@ -52,7 +57,8 @@ export const openCeremonyWindow = async (route: string): Promise<void> => {
 // After the ceremony: back to the toolbar popup where Chrome allows it,
 // and this window closes either way. Outside a ceremony window, nothing.
 export const finishCeremonyWindow = async (): Promise<boolean> => {
-	if (typeof chrome === "undefined" || !chrome.windows) return false;
+	if (typeof chrome === "undefined" || !chrome.windows || !isCeremonyWindow())
+		return false;
 	const current = await chrome.windows.getCurrent();
 	if (current.type !== "popup") return false;
 	try {

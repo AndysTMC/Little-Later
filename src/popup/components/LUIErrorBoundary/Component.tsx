@@ -33,17 +33,17 @@ class LUIErrorBoundary extends ReactComponent<Props, State> {
 		return (
 			<div
 				role="alert"
-				className="ll-page flex h-full w-full flex-col items-center justify-center gap-y-4 px-10 text-center"
+				className="ll-page flex h-full w-full flex-col items-center justify-center gap-y-4 px-6 text-center"
 			>
-				<h1 className="text-2xl font-extrabold">
+				<h1 className="text-2xl font-semibold tracking-tight">
 					Something went wrong
 				</h1>
-				<p className="text-sm">
+				<p className="max-w-xs text-sm opacity-75">
 					Your data is safe. Reload Little Later to carry on.
 				</p>
 				<button
 					type="button"
-					className="h-10 cursor-pointer rounded-lg border px-6 text-sm font-semibold"
+					className="ll-accent-fill h-11 cursor-pointer rounded-xl px-6 text-sm font-semibold transition-opacity hover:opacity-90 active:scale-[0.98]"
 					onClick={this.handleReload}
 				>
 					Reload

@@ -8,10 +8,11 @@ import { RecordsContext, type Records } from "./RecordsContext";
 // so moving between pages neither reads nor decrypts them again.
 const RecordsProvider: React.FC<ContextProviderProps> = ({ children }) => {
 	const keys = useProfileKeys();
-	const { saves, notes, tasks, reminders, links } = useRecordsSource(keys);
+	const { saves, notes, images, tasks, reminders, links } =
+		useRecordsSource(keys);
 	const value = useMemo<Records>(
-		() => ({ saves, notes, tasks, reminders, links }),
-		[saves, notes, tasks, reminders, links],
+		() => ({ saves, notes, images, tasks, reminders, links }),
+		[saves, notes, images, tasks, reminders, links],
 	);
 	return (
 		<RecordsContext.Provider value={value}>

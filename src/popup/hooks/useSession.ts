@@ -15,11 +15,15 @@ const useSession = (): SessionState => {
 	});
 	useEffect(() => {
 		let active = true;
+		let sawLiveUpdate = false;
 		const unsubscribe = sessionStore.subscribe((session) => {
+			sawLiveUpdate = true;
 			if (active) setState({ isResolved: true, session });
 		});
 		void sessionStore.get().then((session) => {
-			if (active) setState({ isResolved: true, session });
+			if (active && !sawLiveUpdate) {
+				setState({ isResolved: true, session });
+			}
 		});
 		return () => {
 			active = false;
@@ -33,20 +37,29 @@ const useSession = (): SessionState => {
 // undefined until known.
 const useProfileKeys = (): ProfileKeys | null | undefined => {
 	const { isResolved, session } = useSession();
+	const [lastSession, setLastSession] = useState<UnlockedSession | null>(
+		session,
+	);
 	const [imported, setImported] = useState<{
 		session: UnlockedSession;
 		keys: ProfileKeys;
 	} | null>(null);
+	// Locked or switched session: drop imported keys immediately (0010).
+	if (lastSession !== session) {
+		setLastSession(session);
+		setImported(null);
+	}
 	useEffect(() => {
-		if (!session) {
-			// Locked: the imported keys go with the session (0010).
-			setImported(null);
-			return;
-		}
+		if (!session) return;
 		let active = true;
-		void importProfileKeys(session).then((keys) => {
-			if (active) setImported({ session, keys });
-		});
+		void importProfileKeys(session).then(
+			(keys) => {
+				if (active) setImported({ session, keys });
+			},
+			(error: unknown) => {
+				console.warn("Could not import profile keys.", error);
+			},
+		);
 		return () => {
 			active = false;
 		};

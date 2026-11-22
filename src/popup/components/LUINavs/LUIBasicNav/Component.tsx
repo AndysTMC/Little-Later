@@ -26,6 +26,7 @@ const Component = ({
 }) => {
 	const { theme: profileTheme } = useTheme();
 	const theme = passedTheme ?? profileTheme;
+	const isDark = theme === LTHEME.DARK;
 	const go = useMoveNavigate();
 	const location = useLocation();
 	const { referrer } = location.state || {};
@@ -40,38 +41,39 @@ const Component = ({
 			className={twMerge(
 				// Fixed height: as a flex item it shrank when the page below
 				// filled up, so the logo shrank and the page jumped up.
-				`flex h-16 w-full shrink-0 items-center p-2`,
+				`flex h-16 w-full shrink-0 items-center justify-between p-2`,
 				className,
 			)}
 		>
-			<div className={`h-full w-max`}>
-				<LUILogo className="h-full" />
-			</div>
-			{goBackDisabled ? null : (
-				<div className={`flex h-full grow items-center justify-end`}>
+			{goBackDisabled ? (
+				<div className="h-full w-max">
+					<LUILogo className="h-full" />
+				</div>
+			) : (
+				<>
 					<button
 						type="button"
 						aria-label="Go back"
-						className={`flex h-full cursor-pointer items-center justify-center px-3`}
+						className={`group flex h-10 cursor-pointer items-center gap-x-1.5 rounded-xl px-2.5 transition-colors ${
+							isDark
+								? "text-neutral-200 hover:bg-neutral-900 hover:text-white"
+								: "text-neutral-700 hover:bg-neutral-100 hover:text-black"
+						}`}
 						onClick={handleGoBack}
 					>
-						<span
-							className={`flex h-full items-center justify-center gap-x-1 transition-transform duration-100 ease-in-out hover:-translate-x-1 active:translate-x-0`}
-						>
-							<LUIThemedIcon
-								Icon={ArrowLeftIcon}
-								weight="regular"
-								className="size-6"
-								passedTheme={theme}
-							/>
-							<span
-								className={`text-lg ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
-							>
-								Go Back
-							</span>
-						</span>
+						<LUIThemedIcon
+							Icon={ArrowLeftIcon}
+							weight="regular"
+							color="currentColor"
+							className="size-5 transition-transform duration-150 group-hover:-translate-x-0.5"
+							passedTheme={theme}
+						/>
+						<span className="text-sm font-medium">Back</span>
 					</button>
-				</div>
+					<div className="h-full w-max">
+						<LUILogo className="h-full" />
+					</div>
+				</>
 			)}
 		</div>
 	);

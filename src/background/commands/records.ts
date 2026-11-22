@@ -1,5 +1,6 @@
 import type { ProfileKeys } from "../../storage/keys";
 import type { LittleDB } from "../../storage/schema";
+import { MAX_TAGS_PER_RECORD, normalizeTags } from "../../utils/tags";
 import { CommandError, asString, fail } from "./registry";
 
 // Shared by commands that attach a record to saves. A record's saves are
@@ -89,3 +90,15 @@ export const asInstant = (value: unknown, field: string): number =>
 	Number.isSafeInteger(value) && (value as number) > 0
 		? (value as number)
 		: fail(`${field} must be a time in epoch milliseconds.`);
+
+export const optionalTags = (value: unknown): Array<string> | undefined => {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (!Array.isArray(value) || value.length > MAX_TAGS_PER_RECORD * 2) {
+		fail("tags must be a list of tag names.");
+	}
+	return normalizeTags(
+		(value as Array<unknown>).map((entry) => asString(entry, "tags")),
+	);
+};

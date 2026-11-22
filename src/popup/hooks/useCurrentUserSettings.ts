@@ -17,24 +17,34 @@ const useCurrentUserSettings = (): Settings | undefined => {
 	const keys = useProfileKeys();
 	const profileId = keys?.profileId;
 	// null: the profile has no settings row yet, so it uses the defaults.
-	const row = useLiveQuery(
-		async (): Promise<SettingsRow | null | undefined> =>
+	const loaded = useLiveQuery(
+		async (): Promise<
+			{ profileId: string; row: SettingsRow | null } | undefined
+		> =>
 			profileId === undefined
 				? undefined
-				: ((await littleDB.settings.get(profileId)) ?? null),
+				: {
+						profileId,
+						row: (await littleDB.settings.get(profileId)) ?? null,
+					},
 		[profileId],
 		undefined,
+	);
+	const row =
+		loaded && loaded.profileId === profileId ? loaded.row : undefined;
+	const [lastProfileId, setLastProfileId] = useState<string | undefined>(
+		profileId,
 	);
 	const [opened, setOpened] = useState<{
 		profileId: string;
 		settings: Settings;
 	} | null>(null);
+	if (lastProfileId !== profileId) {
+		setLastProfileId(profileId);
+		setOpened(null);
+	}
 	useEffect(() => {
-		if (!keys) {
-			setOpened(null);
-			return;
-		}
-		if (!row) return;
+		if (!keys || !row) return;
 		let active = true;
 		openBody<Settings>(keys, "settings", row.id, row.body).then(
 			(settings) => {

@@ -1,19 +1,15 @@
 import { useState } from "react";
-import {
-	IdentificationBadgeIcon,
-	InfoIcon,
-	PasswordIcon,
-} from "@phosphor-icons/react";
+import { IdentificationBadgeIcon, PasswordIcon } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
 import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIAvatarInput } from "../../components/LUIAvatarInput/Component";
 import { LUICUButton } from "../../components/LUICUButton/Component";
 import { LUIIconField } from "../../components/LUIIconField/Component";
+import { LUINote } from "../../components/LUINote/Component";
 import { send } from "../../../utils/send";
 import { sendAvatar } from "../../../utils/avatar";
 import { isFirstTimeUser } from "../../../services/settings";
-import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import { NO_PASSWORD_NOTE, passwordProblem } from "../../passwords";
 import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { LMAX_NAME_LENGTH } from "little-shared/constants";
@@ -109,12 +105,12 @@ const Page = () => {
 				className={`flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-hidden`}
 			>
 				<h1
-					className={`mt-5 flex items-center justify-center text-4xl font-semibold text-black`}
+					className={`mt-2 flex items-center justify-center text-2xl font-semibold tracking-tight text-black`}
 				>
 					New Profile
 				</h1>
 				<div
-					className={`flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-auto px-12 pt-5 pb-1`}
+					className={`flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-auto px-6 pt-5 pb-1 ${LTHEME.LIGHT}-scrollbar`}
 				>
 					<div
 						className={`flex h-max w-full items-center justify-center`}
@@ -155,6 +151,9 @@ const Page = () => {
 								setPassword(value);
 								setWarning("");
 							}}
+							onSubmit={() => {
+								void handleCreate();
+							}}
 							passedTheme={LTHEME.LIGHT}
 						/>
 						{password !== "" ? (
@@ -171,24 +170,22 @@ const Page = () => {
 									setConfirmPassword(value);
 									setWarning("");
 								}}
+								onSubmit={() => {
+									void handleCreate();
+								}}
 								passedTheme={LTHEME.LIGHT}
 							/>
 						) : null}
-						<div className="flex h-max w-72 gap-x-1 opacity-75">
-							<LUIThemedIcon
-								Icon={InfoIcon}
-								weight="fill"
-								className="h-5 w-5 shrink-0"
-								passedTheme={LTHEME.LIGHT}
-							/>
-							<div className="text-sm text-black italic">
-								{warning !== ""
-									? warning
-									: password === ""
-										? NO_PASSWORD_NOTE
-										: "You'll need this password to unlock the profile. It can't be recovered."}
-							</div>
-						</div>
+						<LUINote
+							warning={warning !== ""}
+							passedTheme={LTHEME.LIGHT}
+						>
+							{warning !== ""
+								? warning
+								: password === ""
+									? NO_PASSWORD_NOTE
+									: "You'll need this password to unlock the profile. It can't be recovered."}
+						</LUINote>
 					</div>
 					<div className="flex h-12 w-full items-center justify-center">
 						<LUICUButton

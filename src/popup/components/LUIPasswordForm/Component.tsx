@@ -1,6 +1,6 @@
 import { PasswordIcon } from "@phosphor-icons/react";
 import { LTHEME } from "little-shared/enums";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import { LUICUButton } from "../LUICUButton/Component";
 import { LUIIconField } from "../LUIIconField/Component";
@@ -27,6 +27,8 @@ const Component = ({
 	const [confirm, setConfirm] = useState("");
 	const [confirmingRemove, setConfirmingRemove] = useState(false);
 	const [message, setMessage] = useState("");
+	const [isWarning, setIsWarning] = useState(false);
+	const submittingRef = useRef(false);
 
 	const removing = hasPassword && next === "";
 	const action = removing
@@ -45,31 +47,39 @@ const Component = ({
 	};
 
 	const handleSubmit = async () => {
+		if (submittingRef.current) return;
 		setMessage("");
+		setIsWarning(false);
 		if (!hasPassword && next === "") {
+			setIsWarning(true);
 			setMessage("Type a password first.");
 			return;
 		}
 		if (removing && !confirmingRemove) {
 			setConfirmingRemove(true);
+			setIsWarning(false);
 			setMessage(`${NO_PASSWORD_NOTE} Press again to confirm.`);
 			return;
 		}
 		const problem = passwordProblem(next);
 		if (problem) {
+			setIsWarning(true);
 			setMessage(problem);
 			return;
 		}
 		if (!removing && next !== confirm) {
+			setIsWarning(true);
 			setMessage("The new passwords don't match.");
 			return;
 		}
+		submittingRef.current = true;
 		try {
 			await onSubmit(
 				hasPassword ? current : null,
 				removing ? null : next,
 			);
 			reset();
+			setIsWarning(false);
 			setMessage(
 				removing
 					? "Password removed."
@@ -78,11 +88,14 @@ const Component = ({
 						: "Password set.",
 			);
 		} catch (error) {
+			setIsWarning(true);
 			setMessage(
 				error instanceof Error
 					? error.message
 					: "Couldn't change the password.",
 			);
+		} finally {
+			submittingRef.current = false;
 		}
 	};
 
@@ -108,6 +121,7 @@ const Component = ({
 						setCurrent(value);
 						setMessage("");
 					}}
+					onSubmit={() => void handleSubmit()}
 					passedTheme={theme}
 				/>
 			) : null}
@@ -127,6 +141,7 @@ const Component = ({
 					setConfirmingRemove(false);
 					setMessage("");
 				}}
+				onSubmit={() => void handleSubmit()}
 				passedTheme={theme}
 			/>
 			{next !== "" ? (
@@ -143,11 +158,14 @@ const Component = ({
 						setConfirm(value);
 						setMessage("");
 					}}
+					onSubmit={() => void handleSubmit()}
 					passedTheme={theme}
 				/>
 			) : null}
 			{message !== "" ? (
-				<LUINote passedTheme={theme}>{message}</LUINote>
+				<LUINote warning={isWarning} passedTheme={theme}>
+					{message}
+				</LUINote>
 			) : null}
 			<LUICUButton
 				name={action}

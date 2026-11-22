@@ -36,12 +36,17 @@ const previews = (page: Page) =>
 					const open = indexedDB.open("little");
 					open.onerror = () => reject(open.error);
 					open.onsuccess = () => {
-						const all = open.result
+						const db = open.result;
+						const all = db
 							.transaction("assets")
 							.objectStore("assets")
 							.getAll();
-						all.onerror = () => reject(all.error);
-						all.onsuccess = () =>
+						all.onerror = () => {
+							db.close();
+							reject(all.error);
+						};
+						all.onsuccess = () => {
+							db.close();
 							resolve(
 								all.result.map(
 									(row: {
@@ -53,6 +58,7 @@ const previews = (page: Page) =>
 									}),
 								),
 							);
+						};
 					};
 				},
 			),
@@ -63,16 +69,19 @@ test("a visited page is recorded with a preview", async ({
 	openPopup,
 }) => {
 	const site = await startSite();
-	const popup = await createProfile(openPopup);
+	try {
+		const popup = await createProfile(openPopup);
 
-	const web = await context.newPage();
-	await web.goto(site.url);
-	await web.bringToFront();
+		const web = await context.newPage();
+		await web.goto(site.url);
+		await web.bringToFront();
 
-	await expect
-		.poll(() => previews(popup), { timeout: 20_000 })
-		.toHaveLength(1);
-	await site.close();
+		await expect
+			.poll(() => previews(popup), { timeout: 20_000 })
+			.toHaveLength(1);
+	} finally {
+		await site.close();
+	}
 });
 
 test("a page that changes while it stays open gets a newer preview", async ({
@@ -81,44 +90,47 @@ test("a page that changes while it stays open gets a newer preview", async ({
 	currentServiceWorker,
 }) => {
 	const site = await startSite();
-	const popup = await createProfile(openPopup);
+	try {
+		const popup = await createProfile(openPopup);
 
-	const web = await context.newPage();
-	await web.goto(site.url);
-	await web.bringToFront();
-	await expect
-		.poll(() => previews(popup), { timeout: 20_000 })
-		.toHaveLength(1);
-	const [first] = await previews(popup);
-	const storedVisit = await rows(popup, "saves");
-	expect(storedVisit).toHaveLength(1);
+		const web = await context.newPage();
+		await web.goto(site.url);
+		await web.bringToFront();
+		await expect
+			.poll(() => previews(popup), { timeout: 20_000 })
+			.toHaveLength(1);
+		const [first] = await previews(popup);
+		const storedVisit = await rows(popup, "saves");
+		expect(storedVisit).toHaveLength(1);
 
-	// Same URL and title, different pixels.
-	await web.evaluate(() => {
-		document.body.style.background = "#000";
-		document.querySelector("h1")!.textContent = "changed";
-	});
-	// The capture alarm is what notices. Fire it now and again instead of
-	// waiting for its half-minute period; a page is looked at again at
-	// most every 15 seconds.
-	const worker = await currentServiceWorker();
-	await expect
-		.poll(
-			async () => {
-				await worker.evaluate(() =>
-					chrome.alarms.create("captureActiveTab", {
-						when: Date.now(),
-						periodInMinutes: 0.5,
-					}),
-				);
-				return (await previews(popup))[0]?.id;
-			},
-			{ timeout: 40_000, intervals: [2_000] },
-		)
-		.not.toBe(first.id);
-	expect(await previews(popup)).toHaveLength(1);
-	expect(await rows(popup, "saves")).toEqual(storedVisit);
-	await site.close();
+		// Same URL and title, different pixels.
+		await web.evaluate(() => {
+			document.body.style.background = "#000";
+			document.querySelector("h1")!.textContent = "changed";
+		});
+		// The capture alarm is what notices. Fire it now and again instead of
+		// waiting for its half-minute period; a page is looked at again at
+		// most every 15 seconds.
+		const worker = await currentServiceWorker();
+		await expect
+			.poll(
+				async () => {
+					await worker.evaluate(() =>
+						chrome.alarms.create("captureActiveTab", {
+							when: Date.now(),
+							periodInMinutes: 0.5,
+						}),
+					);
+					return (await previews(popup))[0]?.id;
+				},
+				{ timeout: 40_000, intervals: [2_000] },
+			)
+			.not.toBe(first.id);
+		expect(await previews(popup)).toHaveLength(1);
+		expect(await rows(popup, "saves")).toEqual(storedVisit);
+	} finally {
+		await site.close();
+	}
 });
 
 test("background loads and visits while locked do not add History entries", async ({

@@ -1,22 +1,26 @@
 import { LTHEME } from "little-shared/enums";
 import { useTheme } from "../../hooks/useTheme";
-import { GoogleChromeLogoIcon, ImageIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon, ImageIcon } from "@phosphor-icons/react";
 import { twMerge } from "tailwind-merge";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { useObjectUrl } from "../../hooks/useObjectUrl";
+import { inToolbarPopup } from "../../ceremonyWindow";
 
 const Component = ({
 	className,
 	previewBlob,
+	saveId,
 	url,
 	scaleType = "full",
 }: {
 	className?: string;
 	previewBlob?: Blob;
+	saveId?: string;
 	url: string;
 	scaleType?: "short" | "medium" | "full";
 }) => {
 	const { theme } = useTheme();
+	const isDark = theme === LTHEME.DARK;
 	const previewUrl = useObjectUrl(previewBlob);
 	// Without a preview, a plain frame in the palette's colours, so the
 	// accent tints it like the rest of the popup (src/appearance.ts).
@@ -24,16 +28,16 @@ const Component = ({
 		<img
 			src={previewUrl}
 			alt=""
-			className={`z-0 h-full w-full object-cover`}
+			className="z-0 h-full w-full object-cover"
 			onContextMenu={(e) => {
 				e.preventDefault();
 			}}
 		/>
 	) : (
 		<div
-			className={`z-0 flex h-full w-full items-center justify-center ${theme === LTHEME.DARK ? "bg-neutral-900 text-neutral-600" : "bg-neutral-100 text-neutral-400"}`}
+			className={`z-0 flex h-full w-full items-center justify-center ${isDark ? "bg-neutral-900 text-neutral-600" : "bg-neutral-200 text-neutral-400"}`}
 		>
-			<ImageIcon weight="light" className="size-10" />
+			<ImageIcon weight="regular" className="size-8" />
 		</div>
 	);
 	const handleOpenSave = () => {
@@ -41,140 +45,104 @@ const Component = ({
 	};
 	const handleOpenImage = () => {
 		if (!previewUrl) return;
+		if (
+			inToolbarPopup() &&
+			saveId &&
+			typeof chrome !== "undefined" &&
+			chrome.runtime?.getURL
+		) {
+			window.open(
+				`${chrome.runtime.getURL("index.html")}#/preview/${encodeURIComponent(saveId)}`,
+				"_blank",
+				"noopener,noreferrer",
+			);
+			return;
+		}
 		window.open(previewUrl, "_blank", "noopener,noreferrer");
 	};
-	if (scaleType === "short") {
+
+	const frameBorder = isDark ? "border-neutral-800" : "border-neutral-200";
+
+	if (scaleType === "short" || scaleType === "medium") {
+		const sizeClass =
+			scaleType === "short"
+				? "h-16 min-[380px]:h-20"
+				: "h-20 min-[380px]:h-24";
 		return (
 			<div
 				className={twMerge(
-					`aspect-[16/9] h-22 shrink-0 overflow-hidden rounded-lg border-2 ${theme === LTHEME.DARK ? "border-neutral-700" : "border-neutral-300"} group relative`,
+					`group relative aspect-[16/9] ${sizeClass} shrink-0 overflow-hidden rounded-xl border ${frameBorder}`,
 					className,
 				)}
 			>
 				{picture}
 				<button
 					type="button"
-					className={`absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 ${theme === LTHEME.DARK ? "bg-white/50" : "bg-black/50"} z-10 cursor-pointer transition-all duration-100`}
-					onClick={handleOpenSave}
+					aria-label="Open page"
+					className="absolute inset-0 z-10 flex cursor-pointer flex-col items-center justify-center gap-y-0.5 bg-black/60 text-white opacity-0 backdrop-blur-[2px] transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100"
+					onClick={(event) => {
+						event.stopPropagation();
+						handleOpenSave();
+					}}
 				>
 					<LUIThemedIcon
-						Icon={GoogleChromeLogoIcon}
-						color={theme === LTHEME.DARK ? "black" : "white"}
-						weight="bold"
-						className="h-max w-7 transition-all"
+						Icon={ArrowSquareOutIcon}
+						color="currentColor"
+						weight="regular"
+						className="size-5"
 					/>
-					<span
-						className={`text-base font-semibold ${theme === LTHEME.DARK ? "text-black" : "text-white"} `}
-					>
-						Open
-					</span>
+					<span className="text-xs font-medium">Open</span>
 				</button>
-			</div>
-		);
-	} else if (scaleType === "medium") {
-		return (
-			<div
-				className={twMerge(
-					`aspect-[16/9] h-30 shrink-0 overflow-hidden rounded-lg border-2 ${theme === LTHEME.DARK ? "border-neutral-700" : "border-neutral-300"} group relative`,
-					className,
-				)}
-			>
-				{picture}
-				<button
-					type="button"
-					className={`absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 ${theme === LTHEME.DARK ? "bg-white/50" : "bg-black/50"} z-10 cursor-pointer transition-all duration-100`}
-					onClick={handleOpenSave}
-				>
-					<LUIThemedIcon
-						Icon={GoogleChromeLogoIcon}
-						color={theme === LTHEME.DARK ? "black" : "white"}
-						weight="bold"
-						className="h-max w-7 transition-all"
-					/>
-					<span
-						className={`text-base font-semibold ${theme === LTHEME.DARK ? "text-black" : "text-white"} `}
-					>
-						Open
-					</span>
-				</button>
-			</div>
-		);
-	} else {
-		return (
-			<div
-				className={twMerge(
-					`flex h-max w-full items-center justify-center p-3`,
-					className,
-				)}
-			>
-				<div
-					className={`flex aspect-[16/9] w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border-2 ${theme === LTHEME.DARK ? "border-neutral-700" : "border-neutral-300"} group relative`}
-				>
-					{picture}
-					<div
-						className={`absolute inset-0 z-10 flex flex-col items-center justify-start p-2 transition-all duration-100`}
-					>
-						<div
-							className={`flex h-max w-full flex-col items-end gap-y-1`}
-						>
-							<button
-								type="button"
-								className={`flex items-center gap-x-1 text-xs font-semibold ${
-									theme === LTHEME.DARK
-										? "bg-neutral-100 text-neutral-900"
-										: "bg-neutral-900 text-neutral-100"
-								} cursor-pointer rounded-full px-3 py-1 opacity-50 shadow-md shadow-neutral-500 transition-all group-hover:opacity-100 hover:duration-100 active:scale-95`}
-								onClick={handleOpenSave}
-							>
-								<LUIThemedIcon
-									Icon={GoogleChromeLogoIcon}
-									color={
-										theme === LTHEME.DARK
-											? "black"
-											: "white"
-									}
-									weight="bold"
-									className="h-max w-6"
-								/>
-								<span
-									className={`text-base font-semibold ${theme === LTHEME.DARK ? "text-black" : "text-white"} `}
-								>
-									Open
-								</span>
-							</button>
-							{previewBlob ? (
-								<button
-									type="button"
-									className={`flex items-center gap-x-1 text-xs font-semibold ${
-										theme === LTHEME.DARK
-											? "bg-neutral-100 text-neutral-900"
-											: "bg-neutral-900 text-neutral-100"
-									} cursor-pointer rounded-full px-3 py-1 opacity-50 shadow-md shadow-neutral-500 transition-all group-hover:opacity-100 hover:duration-100 active:scale-95`}
-									onClick={handleOpenImage}
-								>
-									<LUIThemedIcon
-										Icon={ImageIcon}
-										color={
-											theme === LTHEME.DARK
-												? "black"
-												: "white"
-										}
-										weight="bold"
-										className="h-max w-6"
-									/>
-									<span
-										className={`text-base font-semibold ${theme === LTHEME.DARK ? "text-black" : "text-white"} `}
-									>
-										Open
-									</span>
-								</button>
-							) : null}
-						</div>
-					</div>
-				</div>
 			</div>
 		);
 	}
+
+	return (
+		<div
+			className={twMerge(
+				`flex h-max w-full items-center justify-center py-1`,
+				className,
+			)}
+		>
+			<div
+				className={`group relative flex aspect-[16/9] w-full shrink-0 items-center justify-center overflow-hidden rounded-xl border ${frameBorder}`}
+			>
+				{picture}
+				<div className="absolute right-2 bottom-2 z-10 flex items-center gap-x-1.5">
+					<button
+						type="button"
+						aria-label="Open page"
+						className="flex cursor-pointer items-center gap-x-1.5 rounded-lg bg-black/75 px-2.5 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition-colors hover:bg-black active:scale-95"
+						onClick={handleOpenSave}
+					>
+						<LUIThemedIcon
+							Icon={ArrowSquareOutIcon}
+							color="currentColor"
+							weight="regular"
+							className="size-3.5"
+						/>
+						<span>Open page</span>
+					</button>
+					{previewBlob ? (
+						<button
+							type="button"
+							aria-label="Open preview image"
+							className="flex cursor-pointer items-center gap-x-1.5 rounded-lg bg-black/75 px-2.5 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition-colors hover:bg-black active:scale-95"
+							onClick={handleOpenImage}
+						>
+							<LUIThemedIcon
+								Icon={ImageIcon}
+								color="currentColor"
+								weight="regular"
+								className="size-3.5"
+							/>
+							<span>View image</span>
+						</button>
+					) : null}
+				</div>
+			</div>
+		</div>
+	);
 };
 
 export { Component as LUIWebPreview };

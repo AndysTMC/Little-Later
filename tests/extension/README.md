@@ -22,6 +22,7 @@ Import `test` and `expect` from `./fixtures`, never from
 | Fixture or helper        | Use                                                             |
 | ------------------------ | --------------------------------------------------------------- |
 | `openPopup(route)`       | Opens `index.html#<route>` in a tab; returns the page           |
+| `openPanel()`            | Opens `sidepanel.html` (LittleAI) in a tab; returns the page    |
 | `serviceWorker`          | The worker at the start of the test; `evaluate` runs code in it |
 | `stopServiceWorker()`    | Stops the worker as Chrome's idle timer would                   |
 | `currentServiceWorker()` | The live worker, started if needed; use after a stop            |

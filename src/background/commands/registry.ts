@@ -3,6 +3,7 @@ import { BackupError } from "../../storage/backup";
 import { importProfileKeys, type ProfileKeys } from "../../storage/keys";
 import { ProfileError } from "../../storage/profiles";
 import { SecondFactorError } from "../../storage/secondFactor";
+import { RunError } from "../../services/ai/runStatus";
 import type { LittleDB } from "../../storage/schema";
 import type { SessionStore } from "../../storage/session";
 import { StagingError, staging, type Staging } from "../../storage/staging";
@@ -97,6 +98,7 @@ const toFailure = (
 	if (
 		error instanceof ProfileError ||
 		error instanceof SecondFactorError ||
+		error instanceof RunError ||
 		error instanceof EnvelopeError ||
 		error instanceof StagingError ||
 		error instanceof BackupError
@@ -204,6 +206,9 @@ export const asRecord = (input: unknown): Record<string, unknown> =>
 
 export const asString = (value: unknown, field: string): string =>
 	typeof value === "string" ? value : fail(`${field} must be a string.`);
+
+export const asBoolean = (value: unknown, field: string): boolean =>
+	typeof value === "boolean" ? value : fail(`${field} must be a boolean.`);
 
 export const asNullableString = (
 	value: unknown,

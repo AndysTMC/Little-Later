@@ -10,6 +10,7 @@ import {
 	profileSetAvatar,
 	profileUnlock,
 	profileUpdate,
+	profileVerifyPassword,
 } from "./profiles";
 import {
 	backupImportAbort,
@@ -17,6 +18,15 @@ import {
 	backupImportChunk,
 } from "./backup";
 import { linkCreate, linkDelete } from "./links";
+import {
+	chatAddMessage,
+	chatCreate,
+	chatDelete,
+	chatRename,
+	chatTruncate,
+} from "./chats";
+import { aiCancel, aiConfirm, aiSend, aiStop, aiUndo } from "./ai";
+import { imageCreate, imageDelete, imageUpdate } from "./images";
 import { noteCreate, noteDelete, noteUpdate } from "./notes";
 import { reminderCreate, reminderDelete, reminderUpdate } from "./reminders";
 import { saveCapture, saveDelete, saveUpdate } from "./saves";
@@ -38,6 +48,7 @@ export const commands = [
 	profileDelete,
 	profileUpdate,
 	profileSetAvatar,
+	profileVerifyPassword,
 	profileAddAuthenticator,
 	profileRemoveAuthenticator,
 	profileDisableSecondFactor,
@@ -48,6 +59,9 @@ export const commands = [
 	noteCreate,
 	noteUpdate,
 	noteDelete,
+	imageCreate,
+	imageUpdate,
+	imageDelete,
 	taskCreate,
 	taskUpdate,
 	taskComplete,
@@ -62,6 +76,16 @@ export const commands = [
 	backupImportBegin,
 	backupImportChunk,
 	backupImportAbort,
+	chatCreate,
+	chatRename,
+	chatDelete,
+	chatAddMessage,
+	chatTruncate,
+	aiSend,
+	aiConfirm,
+	aiCancel,
+	aiUndo,
+	aiStop,
 ] as const;
 
 type CommandList = typeof commands;

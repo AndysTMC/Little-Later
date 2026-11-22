@@ -1,4 +1,4 @@
-import { useCallback, useContext, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { UIStateContext } from "../contexts/UIStateContext";
 
 // State that survives the popup closing. It starts from what was
@@ -17,17 +17,20 @@ const useDraft = <T>(
 		}
 		return typeof initial === "function" ? (initial as () => T)() : initial;
 	});
+	const latest = useRef(value);
+	useEffect(() => {
+		latest.current = value;
+	});
 
 	const set = useCallback(
 		(next: T | ((current: T) => T)) => {
-			setValue((current) => {
-				const resolved =
-					typeof next === "function"
-						? (next as (current: T) => T)(current)
-						: next;
-				store.setDraft(key, resolved);
-				return resolved;
-			});
+			const resolved =
+				typeof next === "function"
+					? (next as (current: T) => T)(latest.current)
+					: next;
+			latest.current = resolved;
+			setValue(resolved);
+			store.setDraft(key, resolved);
 		},
 		[key, store],
 	);

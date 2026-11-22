@@ -27,7 +27,7 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 					type: "string",
 					enum: [LREMINDER_TYPE.NORMAL, LREMINDER_TYPE.ESCALATING],
 					description:
-						"The updated type of reminder (default is normal if not specified)",
+						"The updated type of reminder (kept as-is if omitted)",
 				},
 			},
 			required: ["id"],

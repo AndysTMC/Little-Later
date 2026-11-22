@@ -4,10 +4,13 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { openBody, type ProfileKeys } from "../../storage/keys";
 import { littleDB } from "../../storage/pageDB";
 import {
+	toImage,
 	toNote,
 	toReminder,
 	toSave,
 	toTask,
+	type ImageContent,
+	type ImageRecord,
 	type Note,
 	type NoteContent,
 	type Reminder,
@@ -18,6 +21,7 @@ import {
 	type TaskContent,
 } from "../../storage/repositories";
 import type {
+	ImageRow,
 	LinkRow,
 	NoteRow,
 	ReminderRow,
@@ -39,7 +43,7 @@ import { RecordsContext, type Records } from "../contexts/RecordsContext";
 // that render it would unmount and lose what the user was doing.
 
 type SealedRow = { id: string; body: Uint8Array };
-type Table = "saves" | "notes" | "tasks" | "reminders";
+type Table = "saves" | "notes" | "images" | "tasks" | "reminders";
 
 // The envelope's IV (decision 0010, Envelope): bytes 5 to 16.
 const sealVersion = (row: SealedRow) =>
@@ -57,27 +61,37 @@ const useOpened = <R extends SealedRow, C, T>(
 	rows: Array<R> | undefined,
 	build: (row: R, content: C) => T,
 ): Array<T> | undefined => {
-	const cache = useRef(new Map<string, C>());
+	const cache = useRef<{ profileId: string | null; map: Map<string, C> }>({
+		profileId: null,
+		map: new Map(),
+	});
+	const profileId = keys?.profileId ?? null;
+	const [lastProfileId, setLastProfileId] = useState<string | null>(
+		profileId,
+	);
 	const [opened, setOpened] = useState<{
 		profileId: string;
 		records: Array<T>;
 	} | null>(null);
 
+	// Locked or switched profile: drop decrypted state immediately (0010, Locking).
+	if (lastProfileId !== profileId) {
+		setLastProfileId(profileId);
+		setOpened(null);
+	}
+
 	useEffect(() => {
-		if (!keys) {
-			// Locked: nothing decrypted stays behind (0010, Locking).
-			cache.current = new Map();
-			setOpened(null);
-			return;
+		if (cache.current.profileId !== profileId) {
+			cache.current = { profileId, map: new Map() };
 		}
-		if (!rows) return;
+		if (!keys || !rows) return;
 		let active = true;
 		void (async () => {
 			const next = new Map<string, C>();
 			const records: Array<T> = [];
 			for (const row of rows) {
 				const version = sealVersion(row);
-				let content = cache.current.get(version);
+				let content = cache.current.map.get(version);
 				if (content === undefined) {
 					try {
 						content = await openBody<C>(
@@ -100,13 +114,13 @@ const useOpened = <R extends SealedRow, C, T>(
 				records.push(build(row, content));
 			}
 			if (!active) return;
-			cache.current = next;
+			cache.current = { profileId: keys.profileId, map: next };
 			setOpened({ profileId: keys.profileId, records });
 		})();
 		return () => {
 			active = false;
 		};
-	}, [keys, table, rows, build]);
+	}, [keys, profileId, table, rows, build]);
 
 	if (!keys) return undefined;
 	// Records of another profile are never shown; the same profile's last
@@ -119,11 +133,15 @@ const useRows = <R>(
 	query: (profileId: string) => Promise<Array<R>>,
 ): Array<R> | undefined => {
 	const profileId = keys?.profileId;
-	return useLiveQuery(
-		() => (profileId === undefined ? undefined : query(profileId)),
+	const loaded = useLiveQuery(
+		async () =>
+			profileId === undefined
+				? undefined
+				: { profileId, rows: await query(profileId) },
 		[profileId],
 		undefined,
 	);
+	return loaded && loaded.profileId === profileId ? loaded.rows : undefined;
 };
 
 // What the records provider reads. Pages use the hooks below instead.
@@ -140,6 +158,13 @@ export const useRecordsSource = (
 	);
 	const noteRows = useRows<NoteRow>(keys, (profileId) =>
 		littleDB.notes
+			.where("[profileId+updatedAt]")
+			.between(...owned(profileId))
+			.reverse()
+			.toArray(),
+	);
+	const imageRows = useRows<ImageRow>(keys, (profileId) =>
+		littleDB.images
 			.where("[profileId+updatedAt]")
 			.between(...owned(profileId))
 			.reverse()
@@ -184,6 +209,12 @@ export const useRecordsSource = (
 			noteRows,
 			toNote,
 		),
+		images: useOpened<ImageRow, ImageContent, ImageRecord>(
+			keys,
+			"images",
+			imageRows,
+			toImage,
+		),
 		tasks: useOpened<TaskRow, TaskContent, Task>(
 			keys,
 			"tasks",
@@ -207,6 +238,10 @@ export const useSaves = (): Array<Save> | undefined =>
 // Most recently changed first.
 export const useNotes = (): Array<Note> | undefined =>
 	useContext(RecordsContext).notes;
+
+// Saved images, newest first.
+export const useImages = (): Array<ImageRecord> | undefined =>
+	useContext(RecordsContext).images;
 
 // Open and finished tasks, soonest deadline first, undated last.
 export const useTasks = (): Array<Task> | undefined =>

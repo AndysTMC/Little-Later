@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { twMerge } from "tailwind-merge";
 import { LTHEME } from "little-shared/enums";
 import { CircleNotchIcon } from "@phosphor-icons/react";
@@ -24,26 +24,35 @@ const Component = ({
 }) => {
 	const go = useMoveNavigate();
 	const { theme } = useTheme();
+	const isDark = theme === LTHEME.DARK;
 	const [isCreatingSave, setIsCreatingSave] = useState(false);
+	const savingRef = useRef(false);
 
-	const handleSaveClick = async () => {
+	const handleSaveClick = async (): Promise<boolean> => {
+		if (visualBM.saved) return true;
+		if (savingRef.current) return false;
+		savingRef.current = true;
 		setIsCreatingSave(true);
-		await attempt(
-			() => send("save.update", { id: visualBM.id, saved: true }),
-			"Couldn't save this page.",
-		);
-		setIsCreatingSave(false);
+		try {
+			return await attempt(
+				() => send("save.update", { id: visualBM.id, saved: true }),
+				"Couldn't save this page.",
+			);
+		} finally {
+			savingRef.current = false;
+			setIsCreatingSave(false);
+		}
 	};
 
 	const handleTaskClick = async (webDataUrl: string) => {
-		await handleSaveClick();
+		if (!(await handleSaveClick())) return;
 		go("/home/new-task", "forward", {
 			state: { passedWebDataUrl: webDataUrl, passedSaveId: visualBM.id },
 		});
 	};
 
 	const handleReminderClick = async (webDataUrl: string) => {
-		await handleSaveClick();
+		if (!(await handleSaveClick())) return;
 		go("/home/new-reminder", "forward", {
 			state: { passedWebDataUrl: webDataUrl, passedSaveId: visualBM.id },
 		});
@@ -51,150 +60,113 @@ const Component = ({
 
 	const { preview, elementRef } = useLazySavePreview(visualBM.id);
 
+	const actionBtn = `flex size-8 cursor-pointer items-center justify-center rounded-lg border transition-colors ${
+		isDark
+			? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800 hover:text-white"
+			: "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-200 hover:text-black"
+	}`;
+
 	return (
 		<div
 			ref={elementRef}
 			className={twMerge(
-				`h-max w-full transition-all duration-100`,
+				`my-1 flex h-max w-full items-start gap-x-3 rounded-2xl border p-2.5 transition-colors ${
+					isDark
+						? "border-neutral-800 bg-neutral-900/70 hover:border-neutral-700"
+						: "border-neutral-200 bg-neutral-100/70 hover:border-neutral-300"
+				}`,
 				className,
 			)}
 		>
-			<div className={`flex h-max w-full gap-x-2.5`}>
-				<LUIWebPreview
-					scaleType="medium"
-					previewBlob={preview}
-					url={visualBM.url}
-				/>
-				<div className={`flex h-auto w-full grow flex-col`}>
-					<div
-						className={`h-max w-full shrink-0 text-base font-semibold ${
-							theme === LTHEME.DARK
-								? "text-neutral-100"
-								: "text-neutral-900"
-						} line-clamp-3 leading-snug text-pretty break-all text-ellipsis`}
+			<LUIWebPreview
+				scaleType="medium"
+				previewBlob={preview}
+				saveId={visualBM.id}
+				url={visualBM.url}
+			/>
+			<div className="flex min-w-0 grow flex-col gap-y-1.5">
+				<div
+					className={`line-clamp-2 text-sm leading-snug font-semibold text-pretty break-words ${
+						isDark ? "text-neutral-100" : "text-neutral-900"
+					}`}
+				>
+					{visualBM.customName || visualBM.title || visualBM.url}
+				</div>
+				<div
+					className={`truncate text-xs ${
+						isDark ? "text-neutral-400" : "text-neutral-600"
+					}`}
+				>
+					<span className="font-medium">
+						{lastSeenInfo(visualBM.browsedAt)}
+					</span>
+					{" · "}
+					{prettyDate(visualBM.browsedAt)}
+				</div>
+				<div className="flex w-full flex-wrap items-center gap-1.5 pt-0.5">
+					<button
+						type="button"
+						aria-label={visualBM.saved ? "Saved" : "Save this page"}
+						className={
+							visualBM.saved
+								? "ll-accent-fill flex size-8 cursor-default items-center justify-center rounded-lg"
+								: actionBtn
+						}
+						onClick={!visualBM.saved ? handleSaveClick : undefined}
 					>
-						{visualBM.customName || visualBM.title || visualBM.url}
-					</div>
-					<div
-						className={`flex w-full grow flex-col justify-end gap-y-1 pb-0.5`}
-					>
-						<div
-							className={`h-max w-full text-xs font-medium ${theme === LTHEME.DARK ? "text-white" : "text-black"} opacity-50`}
-						>
-							<span className="font-bold">
-								( {lastSeenInfo(visualBM.browsedAt)} ) &nbsp;
-							</span>
-							{prettyDate(visualBM.browsedAt)}
-						</div>
-						<div className={`flex h-max w-full gap-x-2 opacity-80`}>
-							<button
-								type="button"
-								aria-label={
-									visualBM.saved ? "Saved" : "Save this page"
-								}
-								className={`h-max w-max border ${theme === LTHEME.DARK ? "border-white" : "border-black"} ${
-									visualBM.saved
-										? theme === LTHEME.DARK
-											? "bg-white"
-											: "bg-black"
-										: theme === LTHEME.DARK
-											? "hover:bg-neutral-800"
-											: "hover:bg-neutral-200"
-								} rounded-lg p-1 ${visualBM.saved ? "cursor-default" : "cursor-pointer"} `}
-								onClick={
-									!visualBM.saved
-										? handleSaveClick
-										: undefined
-								}
-							>
-								{!isCreatingSave ? (
-									<LUIThemedIcon
-										Icon={LVBMIcon}
-										color={
-											theme === LTHEME.DARK
-												? visualBM.saved
-													? "black"
-													: "white"
-												: visualBM.saved
-													? "white"
-													: "black"
-										}
-										weight="fill"
-										className="size-5"
-									/>
-								) : (
-									<LUIThemedIcon
-										Icon={CircleNotchIcon}
-										color={
-											theme === LTHEME.DARK
-												? visualBM.saved
-													? "black"
-													: "white"
-												: visualBM.saved
-													? "white"
-													: "black"
-										}
-										weight="bold"
-										className="size-5 animate-spin"
-									/>
-								)}
-							</button>
-							<button
-								type="button"
-								aria-label="New task for this page"
-								className={`h-max w-max border ${
-									theme === LTHEME.DARK
-										? "border-white hover:bg-neutral-800"
-										: "border-black hover:bg-neutral-200"
-								} cursor-pointer rounded-lg p-1`}
-								onClick={() => handleTaskClick(visualBM.url)}
-							>
-								<LUIThemedIcon
-									Icon={LTaskIcon}
-									color={
-										theme === LTHEME.DARK
-											? "white"
-											: "black"
-									}
-									weight="fill"
-									className="size-5"
-								/>
-							</button>
-							<button
-								type="button"
-								aria-label="New reminder for this page"
-								className={`h-max w-max border ${
-									theme === LTHEME.DARK
-										? "border-white hover:bg-neutral-800"
-										: "border-black hover:bg-neutral-200"
-								} cursor-pointer rounded-lg p-1`}
-								onClick={() =>
-									handleReminderClick(visualBM.url)
-								}
-							>
-								<LUIThemedIcon
-									Icon={LReminderIcon}
-									color={
-										theme === LTHEME.DARK
-											? "white"
-											: "black"
-									}
-									weight="fill"
-									className="size-5"
-								/>
-							</button>
-							<LUIDeleteButton
-								className="self-center"
-								subject="from history"
-								onDelete={() =>
-									send("save.update", {
-										id: visualBM.id,
-										browsed: false,
-									})
-								}
-								failureMessage="Couldn't remove this page from history."
+						{!isCreatingSave ? (
+							<LUIThemedIcon
+								Icon={LVBMIcon}
+								color="currentColor"
+								weight={visualBM.saved ? "fill" : "regular"}
+								className="size-4"
 							/>
-						</div>
+						) : (
+							<LUIThemedIcon
+								Icon={CircleNotchIcon}
+								color="currentColor"
+								weight="bold"
+								className="size-4 animate-spin"
+							/>
+						)}
+					</button>
+					<button
+						type="button"
+						aria-label="New task for this page"
+						className={actionBtn}
+						onClick={() => handleTaskClick(visualBM.url)}
+					>
+						<LUIThemedIcon
+							Icon={LTaskIcon}
+							color="currentColor"
+							weight="regular"
+							className="size-4"
+						/>
+					</button>
+					<button
+						type="button"
+						aria-label="New reminder for this page"
+						className={actionBtn}
+						onClick={() => handleReminderClick(visualBM.url)}
+					>
+						<LUIThemedIcon
+							Icon={LReminderIcon}
+							color="currentColor"
+							weight="regular"
+							className="size-4"
+						/>
+					</button>
+					<div className="flex grow justify-end">
+						<LUIDeleteButton
+							subject="from history"
+							onDelete={() =>
+								send("save.update", {
+									id: visualBM.id,
+									browsed: false,
+								})
+							}
+							failureMessage="Couldn't remove this page from history."
+						/>
 					</div>
 				</div>
 			</div>

@@ -32,7 +32,11 @@ import {
 	writeBackupFile,
 } from "../../src/storage/backup";
 import { littleDB } from "../../src/storage/pageDB";
-import { putPreview } from "../../src/storage/repositories";
+import {
+	listChatMessages,
+	listChats,
+	putPreview,
+} from "../../src/storage/repositories";
 import { sessionStore } from "../../src/storage/session";
 import { staging } from "../../src/storage/staging";
 import { send } from "../../src/utils/send";
@@ -125,6 +129,21 @@ const seedProfile = async (password: string | null = null) => {
 		message: "Call Bob",
 		target: Date.now() + 2 * DAY,
 	});
+	const chat = await send("chat.create", { title: "Trip plans" });
+	await send("chat.addMessage", {
+		chatId: chat.id,
+		message: { role: "user", text: "What's due this week?" },
+	});
+	await send("chat.addMessage", {
+		chatId: chat.id,
+		message: {
+			role: "assistant",
+			output: {
+				message: "Read example, by Friday.",
+				expression: "smiling",
+			},
+		},
+	});
 	return { saveId: save.id, taskId: task.id };
 };
 
@@ -159,7 +178,19 @@ const snapshot = async () => {
 		}),
 	);
 	const avatar = await littleDB.avatars.get(keys.profileId);
+	const chats = await Promise.all(
+		(await listChats(littleDB, keys)).map(async (chat) => ({
+			title: chat.title,
+			messages: (await listChatMessages(littleDB, keys, chat.id)).map(
+				(message) =>
+					message.role === "user"
+						? message.text
+						: message.output.message,
+			),
+		})),
+	);
 	return {
+		chats,
 		profile: { name: profile.name, prefs: profile.prefs },
 		avatar: avatar
 			? {
@@ -370,6 +401,38 @@ describe("backups", { timeout: 30_000 }, () => {
 		]);
 		expect(original.previews).toHaveLength(1);
 		expect(await littleDB.jobs.count()).toBe(0);
+	});
+
+	it("restores a chat whose answer is longer than a message may be", async () => {
+		await send("profile.create", { name: "Ada", password: null });
+		const chat = await send("chat.create", { title: "Long answer" });
+		const answer = "word ".repeat(21_000);
+		await send("chat.addMessage", {
+			chatId: chat.id,
+			message: { role: "user", text: "Write a lot" },
+		});
+		await send("chat.addMessage", {
+			chatId: chat.id,
+			message: {
+				role: "assistant",
+				output: { message: answer, expression: "smiling" },
+			},
+		});
+		const sourceId = (await unlockedKeys()).profileId;
+		const backup = await createBackup(PASSWORD, cheap());
+		await importBackup(backup, PASSWORD);
+		const [importedId] = await importedProfileIds(sourceId);
+		await send("profile.unlock", {
+			profileId: importedId,
+			password: PASSWORD,
+		});
+		const keys = await unlockedKeys();
+		const [restored] = await listChats(littleDB, keys);
+		const messages = await listChatMessages(littleDB, keys, restored.id);
+		expect(messages.at(-1)).toMatchObject({
+			role: "assistant",
+			output: { message: answer },
+		});
 	});
 
 	// An export holds the profile's keys while it reads. Locking during
@@ -616,6 +679,23 @@ describe("backups", { timeout: 30_000 }, () => {
 			/older version/,
 		);
 		expect(backupFileParts(new Uint8Array([1]), [])).toHaveLength(4);
+	});
+
+	it("exports a chat's messages in the order they were written", async () => {
+		await send("profile.create", { name: "Ada", password: null });
+		const chat = await send("chat.create", { title: "Turns" });
+		for (let turn = 1; turn <= 10; turn++) {
+			await send("chat.addMessage", {
+				chatId: chat.id,
+				message: { role: "user", text: `Turn ${turn}` },
+			});
+		}
+		const readable = (await createReadableExport()) as {
+			chats: Array<{ messages: Array<{ text: string }> }>;
+		};
+		expect(readable.chats[0].messages.map((m) => m.text)).toEqual(
+			Array.from({ length: 10 }, (_, index) => `Turn ${index + 1}`),
+		);
 	});
 
 	it("exports readable JSON without the AI key or images", async () => {

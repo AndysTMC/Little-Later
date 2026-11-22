@@ -23,23 +23,30 @@ const Component = ({
 }) => {
 	const { theme: contextTheme } = useTheme();
 	const theme = passedTheme ?? contextTheme;
+	const isDark = theme === LTHEME.DARK;
+	const tone = warning
+		? isDark
+			? "text-red-400"
+			: "text-red-600"
+		: isDark
+			? "text-neutral-400"
+			: "text-neutral-600";
 	return (
 		<div
 			role={warning ? "alert" : "status"}
 			className={twMerge(
-				"flex h-max w-72 shrink-0 gap-x-1 opacity-75",
+				`flex h-max w-full max-w-72 shrink-0 items-start gap-x-2 ${tone}`,
 				className,
 			)}
 		>
 			<LUIThemedIcon
 				Icon={icon ?? (warning ? WarningCircleIcon : InfoIcon)}
 				weight="fill"
-				className="h-5 w-5 shrink-0"
+				color="currentColor"
+				className="mt-0.5 size-4 shrink-0"
 				passedTheme={theme}
 			/>
-			<div
-				className={`text-sm italic ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
-			>
+			<div className="min-w-0 text-xs leading-relaxed italic">
 				{children}
 			</div>
 		</div>

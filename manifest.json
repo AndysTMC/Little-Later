@@ -13,14 +13,20 @@
 		"alarms",
 		"idle",
 		"declarativeNetRequest",
-		"notifications"
+		"notifications",
+		"sidePanel",
+		"scripting"
 	],
+	"optional_permissions": ["nativeMessaging"],
 	"host_permissions": ["<all_urls>"],
 	"content_security_policy": {
 		"extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'; img-src 'self' blob: data:"
 	},
 	"action": {
 		"default_popup": "index.html"
+	},
+	"side_panel": {
+		"default_path": "sidepanel.html"
 	},
 	"background": {
 		"service_worker": "src/background/background.ts",

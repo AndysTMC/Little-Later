@@ -10,10 +10,12 @@ import {
 	PREVIEW_TYPE,
 	getSettings,
 	openEach,
+	openImage,
 	openNote,
 	openReminder,
 	openSave,
 	openTask,
+	type ImageRecord,
 	type Note,
 	type Reminder,
 	type Save,
@@ -52,16 +54,20 @@ export const readSaves = async (keys: ProfileKeys): Promise<Array<Save>> =>
 		(row) => openSave(keys, row),
 	);
 
+// Locked notes are excluded from LittleAI so password-gated content is
+// never sent to an LLM provider.
 export const readNotes = async (keys: ProfileKeys): Promise<Array<Note>> =>
-	openEach(
-		"notes",
-		await littleDB.notes
-			.where("[profileId+updatedAt]")
-			.between(...owned(keys.profileId))
-			.reverse()
-			.toArray(),
-		(row) => openNote(keys, row),
-	);
+	(
+		await openEach(
+			"notes",
+			await littleDB.notes
+				.where("[profileId+updatedAt]")
+				.between(...owned(keys.profileId))
+				.reverse()
+				.toArray(),
+			(row) => openNote(keys, row),
+		)
+	).filter((note) => !note.locked);
 
 export const readTasks = async (keys: ProfileKeys): Promise<Array<Task>> =>
 	openEach(
@@ -91,6 +97,19 @@ export const readLinks = (keys: ProfileKeys): Promise<Array<LinkRow>> =>
 		.where("[profileId+fromId]")
 		.between(...owned(keys.profileId))
 		.toArray();
+
+export const readImages = async (
+	keys: ProfileKeys,
+): Promise<Array<ImageRecord>> =>
+	openEach(
+		"images",
+		await littleDB.images
+			.where("[profileId+updatedAt]")
+			.between(...owned(keys.profileId))
+			.reverse()
+			.toArray(),
+		(row) => openImage(keys, row),
+	);
 
 export const readProfile = async (keys: ProfileKeys): Promise<ProfileRow> => {
 	const profile = await littleDB.profiles.get(keys.profileId);

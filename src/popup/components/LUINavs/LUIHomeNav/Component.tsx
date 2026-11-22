@@ -1,7 +1,7 @@
 import { LTHEME, LLOWER_HOME_NAV_ROUTES } from "little-shared/enums";
 import { LUIThemedIcon } from "../../LUIThemedIcon/Component";
 import { useTheme } from "../../../hooks/useTheme";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react";
+import { ClockCounterClockwiseIcon, NotebookIcon } from "@phosphor-icons/react";
 import { useLocation } from "react-router";
 import { useMoveNavigate } from "../../../hooks/usePageMove";
 import { twMerge } from "tailwind-merge";
@@ -24,14 +24,20 @@ const TABS: ReadonlyArray<{
 	{
 		route: LLOWER_HOME_NAV_ROUTES.NEW_TASK,
 		label: "New task",
-		name: "New Task",
+		name: "New task",
 		Icon: LTaskIcon,
 	},
 	{
 		route: LLOWER_HOME_NAV_ROUTES.NEW_REMINDER,
 		label: "New reminder",
-		name: "New Reminder",
+		name: "New reminder",
 		Icon: LReminderIcon,
+	},
+	{
+		route: LLOWER_HOME_NAV_ROUTES.NEW_NOTE,
+		label: "New note",
+		name: "New note",
+		Icon: NotebookIcon,
 	},
 ];
 
@@ -66,54 +72,57 @@ const Component = ({ className }: { className?: string }) => {
 	return (
 		<div
 			className={twMerge(
-				`z-10 grid h-16 w-full shrink-0 grid-cols-3 ${
+				`z-10 h-16 w-full shrink-0 border-t px-2 py-1.5 ${
 					isDark
-						? "border-t border-neutral-800 bg-black"
-						: "border-t border-neutral-200 bg-white"
+						? "border-neutral-800 bg-black"
+						: "border-neutral-200 bg-white"
 				}`,
 				className,
 			)}
 		>
-			{TABS.map(({ route, label, name, Icon }) => {
-				const isActive = activeRoute === route;
-				return (
-					<button
-						key={route}
-						type="button"
-						aria-label={label}
-						aria-pressed={isActive}
-						// The open panel's tab is drawn in the profile's accent.
-						className={`group flex h-full w-full cursor-pointer flex-col items-center justify-center py-1 ${
-							isActive
-								? "ll-accent-fill"
-								: isDark
-									? "text-white"
-									: "text-black"
-						}`}
-						onClick={() => handleRoute(route)}
-					>
-						<div
-							className={`flex h-full w-4/5 items-center justify-center rounded-full py-0.5 transition-all duration-300 ${
+			<div className="mx-auto grid h-full w-full max-w-3xl grid-cols-4">
+				{TABS.map(({ route, label, name, Icon }) => {
+					const isActive = activeRoute === route;
+					return (
+						<button
+							key={route}
+							type="button"
+							aria-label={label}
+							aria-pressed={isActive}
+							className={`group flex h-full w-full min-w-0 cursor-pointer flex-col items-center justify-center gap-y-0.5 rounded-xl px-0.5 transition-colors ${
 								isActive
-									? "bg-[color-mix(in_srgb,var(--ll-accent-ink)_12%,transparent)]"
+									? isDark
+										? "text-white"
+										: "text-black"
 									: isDark
-										? "group-hover:bg-neutral-800"
-										: "group-hover:bg-neutral-200"
+										? "text-neutral-400 hover:text-neutral-200"
+										: "text-neutral-500 hover:text-neutral-900"
 							}`}
+							onClick={() => handleRoute(route)}
 						>
-							<LUIThemedIcon
-								Icon={Icon}
-								color="currentColor"
-								weight={isActive ? "duotone" : "bold"}
-								className="h-full w-7"
-							/>
-						</div>
-						<div className="flex h-max w-full items-center justify-center text-sm font-medium">
-							{name}
-						</div>
-					</button>
-				);
-			})}
+							<div
+								className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors ${
+									isActive
+										? "ll-accent-fill"
+										: isDark
+											? "group-hover:bg-neutral-900"
+											: "group-hover:bg-neutral-100"
+								}`}
+							>
+								<LUIThemedIcon
+									Icon={Icon}
+									color="currentColor"
+									weight={isActive ? "fill" : "regular"}
+									className="size-5"
+								/>
+							</div>
+							<span className="max-w-full truncate text-[11px] font-medium">
+								{name}
+							</span>
+						</button>
+					);
+				})}
+			</div>
 		</div>
 	);
 };

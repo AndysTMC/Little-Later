@@ -60,7 +60,7 @@ export const proveFactor = async (
 ): Promise<FactorProof> => {
 	let credential: PublicKeyCredential;
 	try {
-		credential = (await navigator.credentials.get({
+		const result = (await navigator.credentials.get({
 			publicKey: {
 				challenge: buffer(random(32)),
 				allowCredentials: authenticators.map((entry) => ({
@@ -80,7 +80,13 @@ export const proveFactor = async (
 					},
 				},
 			},
-		})) as PublicKeyCredential;
+		})) as PublicKeyCredential | null;
+		if (!result) {
+			throw new WebAuthnError(
+				"The security key prompt was closed or timed out.",
+			);
+		}
+		credential = result;
 	} catch (error) {
 		return explain(error);
 	}
@@ -117,7 +123,7 @@ export const registerFactor = async (
 	const prfSalt = random(32);
 	let credential: PublicKeyCredential;
 	try {
-		credential = (await navigator.credentials.create({
+		const result = (await navigator.credentials.create({
 			publicKey: {
 				rp: { name: "Little Later" },
 				user: {
@@ -139,7 +145,13 @@ export const registerFactor = async (
 				timeout: 120_000,
 				extensions: { prf: { eval: { first: buffer(prfSalt) } } },
 			},
-		})) as PublicKeyCredential;
+		})) as PublicKeyCredential | null;
+		if (!result) {
+			throw new WebAuthnError(
+				"The security key prompt was closed or timed out.",
+			);
+		}
+		credential = result;
 	} catch (error) {
 		return explain(error);
 	}

@@ -62,3 +62,25 @@ test("a protected profile stores encrypted per-record bodies for saves, notes, t
 	await expect(page.getByText(strings.notes, { exact: true })).toBeVisible();
 	await expect(button(page, "Edit")).toBeVisible();
 });
+
+// A command bound to an unlock (an AI tool's write, decision 0015/0017's
+// owner) must be refused once that unlock is over. The worker's listener
+// once dropped the binding, so such a write landed anyway.
+test("a write bound to an ended unlock is refused by the worker", async ({
+	openPopup,
+}) => {
+	const page = await createProfile(openPopup);
+	const result = await page.evaluate(() =>
+		chrome.runtime.sendMessage({
+			type: "little/command",
+			name: "note.create",
+			input: { content: "From a request that outlived its unlock" },
+			unlockId: "an-unlock-that-ended",
+		}),
+	);
+	expect(result).toMatchObject({
+		ok: false,
+		error: { message: /profile changed/i },
+	});
+	expect(await rows(page, "notes")).toHaveLength(0);
+});

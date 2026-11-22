@@ -3,6 +3,7 @@ import { usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
 import {
+	DatabaseIcon,
 	ExportIcon,
 	PaletteIcon,
 	RocketLaunchIcon,
@@ -48,6 +49,12 @@ const Page = () => {
 					label="Security"
 					icon={ShieldCheckIcon}
 					to="/settings/security"
+					referrer="/settings"
+				/>
+				<LUISettingLink
+					label="Data & Privacy"
+					icon={DatabaseIcon}
+					to="/settings/privacy"
 					referrer="/settings"
 				/>
 				<LUISettingLink

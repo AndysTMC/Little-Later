@@ -1,4 +1,9 @@
-import { LAI_PROVIDERS, LFACE_EXPRESSION, LTOAST_TYPE } from "./enums.js";
+import {
+	LAI_PROVIDERS,
+	LFACE_EXPRESSION,
+	LHOME_MAIN_CONTENT,
+	LTOAST_TYPE,
+} from "./enums.js";
 
 export type LToast = {
 	id: number;
@@ -26,11 +31,35 @@ export type LAIOutput = {
 	confirmation?: LAIConfirmation;
 };
 
+export type LAIVerbosity = "concise" | "balanced" | "detailed";
+
+export type LAIPreset = {
+	id: string;
+	name: string;
+	provider: LAI_PROVIDERS;
+	baseUrl: string;
+	apiKey: string;
+	model: string;
+};
+
+export type LAIMemory = {
+	id: string;
+	text: string;
+	createdAt: number;
+};
+
+export type LExternalMcpMode = "off" | "read" | "write";
+
 export type LAISettings = {
 	provider: LAI_PROVIDERS;
 	baseUrl: string;
 	apiKey: string;
 	model: string;
+	instructions?: string;
+	verbosity?: LAIVerbosity;
+	presets?: Array<LAIPreset>;
+	memories?: Array<LAIMemory>;
+	mcpServerUrl?: string;
 };
 
 export type LUserSettings = {
@@ -41,6 +70,12 @@ export type LUserSettings = {
 	misc: {
 		VBMLimit: number;
 		VBMSameOriginLimit: number;
+		defaultHomeTab?: LHOME_MAIN_CONTENT;
+		ignoredDomains?: Array<string>;
+		backupReminderDays?: number;
+		lastBackupAt?: number;
+		chatRetentionDays?: number;
+		externalMcpMode?: LExternalMcpMode;
 	};
 };
 

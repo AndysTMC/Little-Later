@@ -83,7 +83,7 @@ test("a security key and the password unlock together; the recovery code works w
 	// The password and the recovery code, typed loosely.
 	await lock(page);
 	await button(page, "Open profile Ada").click();
-	await button(page, "Use a recovery code instead").click();
+	await button(page, "Use recovery code").click();
 	await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
 	await page
 		.getByLabel("Recovery code")

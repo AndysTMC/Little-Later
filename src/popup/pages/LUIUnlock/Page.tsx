@@ -11,8 +11,8 @@ import {
 	type UnlockFactor,
 } from "../../components/LUIAuthGate/Component";
 import { finishCeremonyWindow } from "../../ceremonyWindow";
-import { useUserProfiles, type UserProfile } from "../../hooks/useUserProfiles";
-import { useEffect, useState } from "react";
+import { useUserProfiles } from "../../hooks/useUserProfiles";
+import { useEffect } from "react";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
@@ -26,8 +26,7 @@ const Page = () => {
 	const { id } = useParams();
 
 	const userProfiles = useUserProfiles();
-
-	const [savedUP, setSavedUP] = useState<UserProfile | undefined>();
+	const savedUP = userProfiles?.find((profile) => profile.id === id);
 
 	const loading = useLoading([userProfiles]);
 
@@ -51,14 +50,6 @@ const Page = () => {
 		showLookOf(savedUP ?? null);
 		return () => showLookOf(null);
 	}, [savedUP, showLookOf]);
-	useEffect(() => {
-		if (userProfiles) {
-			const up = userProfiles.find((profile) => profile.id === id);
-			if (up) {
-				setSavedUP(up);
-			}
-		}
-	}, [userProfiles, id, setSavedUP]);
 
 	return (
 		<motion.div

@@ -39,6 +39,11 @@ Option C.
 - **Usability:** each unlock needs a tap or a fingerprint as well as the password.
 - **Complexity:** a new kind of wrapped key and a WebAuthn flow, all in `src/storage/keys.ts`, `src/storage/profiles.ts` and the profile commands.
 
+## Assumptions
+
+- Chrome continues to allow extension pages to call WebAuthn with the extension origin as the relying party and with the PRF extension enabled.
+- Users enabling two-factor unlock have an authenticator or passkey manager that supports WebAuthn PRF (`hmac-secret`) and keep their recovery code safely.
+
 ## Settled while building (2026-11-19)
 
 - **Key model:** a random key W is wrapped by the password, and each root key is sealed under `HKDF-SHA-256(W ‖ secret)` per factor (an authenticator's PRF output, or the recovery code). The password alone opens only W. Changing the password re-wraps W, so every factor keeps working, which a direct `password ‖ PRF` wrap could not do without every authenticator present (`src/storage/secondFactor.ts`).

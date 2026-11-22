@@ -2,7 +2,7 @@ import { LTHEME } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
-import { UploadSimpleIcon } from "@phosphor-icons/react";
+import { PlusIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIProfileMini } from "../../components/LUIProfileMini/Component";
 import { useUserProfiles } from "../../hooks/useUserProfiles";
@@ -43,66 +43,48 @@ const Page = () => {
 						className={`flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-hidden`}
 					>
 						<h1
-							className={`mt-5 flex items-center justify-center text-4xl font-semibold text-black`}
+							className={`mt-2 flex items-center justify-center text-2xl font-semibold tracking-tight text-black`}
 						>
-							Choose Profile
+							Choose profile
 						</h1>
-						<div className="w-full grow overflow-y-hidden px-10 pt-5 pb-1">
+						<div className="mx-auto w-full max-w-2xl grow overflow-y-hidden px-4 pt-3 pb-1">
 							<div
-								className={`grid max-h-full w-full grow grid-cols-3 justify-items-center gap-y-5 overflow-y-auto px-6 ${LTHEME.LIGHT}-scrollbar `}
+								className={`grid max-h-full w-full grow grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] justify-items-center gap-x-3 gap-y-5 overflow-y-auto px-2 py-2 ${LTHEME.LIGHT}-scrollbar`}
 							>
-								<div className="col-span-1 flex h-max w-max flex-col items-center justify-center">
-									<div className="h-2 w-full"></div>
+								<div className="col-span-1 flex h-max w-full flex-col items-center justify-center gap-y-2">
 									<button
 										type="button"
 										aria-label="Create a new profile"
-										className={`flex h-max w-max cursor-pointer items-center justify-start bg-transparent p-1 transition-transform duration-300 ease-in-out hover:scale-110`}
+										className="flex size-24 cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-neutral-100 text-neutral-800 transition-all duration-150 hover:border-neutral-400 hover:bg-neutral-200/80 hover:shadow-md hover:ring-4 hover:ring-neutral-900/10 active:scale-[0.97]"
 										onClick={handleNewProfile}
 									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											fill="none"
-											viewBox="0 0 24 24"
-											strokeWidth={0.5}
-											stroke="currentColor"
-											className="size-24 active:bg-neutral-100"
-										>
-											<path
-												strokeLinecap="round"
-												strokeLinejoin="round"
-												d="M12 4.5v15m7.5-7.5h-15"
-											/>
-										</svg>
+										<LUIThemedIcon
+											Icon={PlusIcon}
+											weight="regular"
+											className="size-10"
+											passedTheme={LTHEME.LIGHT}
+										/>
 									</button>
-									<div
-										className={`h-max w-max text-lg font-semibold`}
-									>
-										New Profile
+									<div className="h-max w-full text-center text-sm font-medium text-neutral-900">
+										New profile
 									</div>
 								</div>
-								<div className="col-span-1 flex h-max w-full flex-col items-center justify-center">
-									<div className="h-2 w-full"></div>
+								<div className="col-span-1 flex h-max w-full flex-col items-center justify-center gap-y-2">
 									<button
 										type="button"
 										aria-label="Import a profile"
-										className={`h-max w-max bg-transparent p-1 active:bg-neutral-100`}
+										className="flex size-24 cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-neutral-100 text-neutral-800 transition-all duration-150 hover:border-neutral-400 hover:bg-neutral-200/80 hover:shadow-md hover:ring-4 hover:ring-neutral-900/10 active:scale-[0.97]"
 										onClick={handleImportProfile}
 									>
-										<div
-											className={`flex h-24 w-24 cursor-pointer items-center justify-center p-1 transition-transform duration-300 ease-in-out hover:scale-110`}
-										>
-											<LUIThemedIcon
-												Icon={UploadSimpleIcon}
-												weight="thin"
-												className={`size-18`}
-												passedTheme={LTHEME.LIGHT}
-											/>
-										</div>
+										<LUIThemedIcon
+											Icon={UploadSimpleIcon}
+											weight="regular"
+											className="size-9"
+											passedTheme={LTHEME.LIGHT}
+										/>
 									</button>
-									<div
-										className={`h-max w-full text-center text-lg font-semibold text-wrap break-words`}
-									>
-										Import Profile
+									<div className="h-max w-full text-center text-sm font-medium break-words text-neutral-900">
+										Import profile
 									</div>
 								</div>
 								{userProfiles!.map((profile) => (

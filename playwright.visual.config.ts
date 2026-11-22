@@ -10,7 +10,9 @@ export default defineConfig({
 		// Its own port, never shared: a server already on it (the e2e
 		// suite's, another project's) would be photographed instead.
 		baseURL: "http://127.0.0.1:4174",
-		channel: "chrome",
+		...(process.env.PLAYWRIGHT_CHANNEL
+			? { channel: process.env.PLAYWRIGHT_CHANNEL }
+			: {}),
 		headless: true,
 		viewport: { width: 500, height: 600 },
 		deviceScaleFactor: 1,

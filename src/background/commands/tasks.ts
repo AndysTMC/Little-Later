@@ -28,8 +28,9 @@ import {
 	assertOwnSaves,
 	asInstant,
 	boundedText,
-	setSaveLinks,
 	optionalSaveIds,
+	optionalTags,
+	setSaveLinks,
 } from "./records";
 import {
 	CommandError,
@@ -339,6 +340,7 @@ export const taskCreate = defineCommand({
 			schedule,
 			reminder,
 			saveIds: optionalSaveIds(record.saveIds),
+			tags: optionalTags(record.tags),
 		};
 	},
 	run: async (ctx, input) => {
@@ -346,10 +348,12 @@ export const taskCreate = defineCommand({
 		await assertOwnSaves(ctx.db, keys, input.saveIds);
 		const id = crypto.randomUUID();
 		const now = ctx.now();
+		const tags = input.tags ?? [];
 		const sealed = await sealBody<TaskContent>(keys, "tasks", id, {
 			information: input.information,
 			label: input.label ?? "",
 			priority: input.priority ?? "medium",
+			...(tags.length > 0 ? { tags } : {}),
 		});
 		const task: TaskRow = {
 			id,
@@ -422,6 +426,7 @@ export const taskUpdate = defineCommand({
 					: asReminderKind(record.reminder),
 			// Given, the exact saves the task is attached to afterwards.
 			saveIds: optionalSaveIds(record.saveIds),
+			tags: optionalTags(record.tags),
 		};
 	},
 	run: async (ctx, input) => {
@@ -430,10 +435,12 @@ export const taskUpdate = defineCommand({
 		await assertOwnSaves(ctx.db, keys, input.saveIds);
 		const content = await openTask(keys, row);
 		const information = input.information ?? content.information;
+		const tags = input.tags ?? content.tags ?? [];
 		const sealed = await sealBody<TaskContent>(keys, "tasks", row.id, {
 			information,
 			label: input.label ?? content.label,
 			priority: input.priority ?? content.priority,
+			...(tags.length > 0 ? { tags } : {}),
 		});
 		const now = ctx.now();
 		// Only a schedule that differs moves the deadline: the same one sent

@@ -88,8 +88,11 @@ export const setChromeStorageRecords = (
 };
 
 export const getActiveTab = (): Promise<chrome.tabs.Tab | undefined> => {
+	if (typeof chrome === "undefined" || !chrome.tabs?.query) {
+		return Promise.resolve(undefined);
+	}
 	return new Promise((resolve) => {
-		chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+		chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
 			if (chrome.runtime.lastError) {
 				console.error(
 					"Error getting active tab:",

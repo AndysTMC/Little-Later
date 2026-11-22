@@ -1,6 +1,6 @@
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { LUILabel } from "../LUILabel/Component";
@@ -30,33 +30,30 @@ const Component = ({
 	const [hovered, setHovered] = useState(false);
 	const [focused, setFocused] = useState(false);
 	const padded = String(passedValue).padStart(maxLength, "0");
-	const [tempValue, setTempValue] = useState(padded);
+	// Holds only in-progress typing; null follows `passedValue` directly.
+	const [typed, setTyped] = useState<string | null>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 
+	const commitTyped = () => {
+		if (typed === null) return;
+		const parsed = typed.trim() === "" ? minValue : Number(typed);
+		const clamped = Number.isNaN(parsed)
+			? passedValue
+			: Math.min(maxValue, Math.max(minValue, parsed));
+		setTyped(null);
+		if (clamped !== passedValue) {
+			onChange(clamped);
+		}
+	};
+
 	const handleInputFocus = () => {
-		setTempValue(padded);
 		setFocused(true);
 	};
 
 	const handleInputBlur = () => {
-		const tempValueNum = Number(tempValue);
-		if (tempValueNum < minValue) {
-			onChange(minValue);
-		} else if (tempValueNum > maxValue) {
-			onChange(maxValue);
-		} else {
-			onChange(tempValueNum);
-		}
+		commitTyped();
 		setFocused(false);
 	};
-
-	useEffect(() => {
-		// Not while it is being typed in: the value just typed comes back
-		// here, and replacing the text would move the caret.
-		if (!focused) {
-			setTempValue(passedValue.toString());
-		}
-	}, [passedValue, focused]);
 
 	return (
 		<div
@@ -77,16 +74,22 @@ const Component = ({
 						transition: { duration: 0.1 },
 					}}
 				>
-					<LUILabel name={name} />
+					<LUILabel
+						name={name}
+						className="justify-center text-[11px]"
+					/>
 				</motion.div>
 				<AnimatePresence>
 					{focused || hovered ? (
-						<motion.div
+						<motion.button
+							type="button"
+							tabIndex={-1}
+							aria-label={`Increase ${name}`}
 							className={`absolute flex h-full w-full items-center justify-center border ${
 								theme === LTHEME.DARK
-									? "border-white bg-black"
-									: "border-black bg-white"
-							} z-10 cursor-pointer rounded-t-md`}
+									? "border-neutral-700 bg-neutral-900 hover:bg-neutral-800"
+									: "border-neutral-300 bg-neutral-50 hover:bg-neutral-100"
+							} z-10 cursor-pointer rounded-t-lg`}
 							initial={{ y: "100%" }}
 							animate={{
 								y: 0,
@@ -96,44 +99,50 @@ const Component = ({
 								y: "100%",
 								transition: { duration: 0.1 },
 							}}
-							onClick={() => onShift(1)}
+							onMouseDown={(event) => event.preventDefault()}
+							onClick={() => {
+								commitTyped();
+								onShift(1);
+							}}
 						>
 							<LUIThemedIcon
 								Icon={CaretUpIcon}
 								weight="fill"
-								className="size-4"
+								className="size-3.5"
 							/>
-						</motion.div>
+						</motion.button>
 					) : null}
 				</AnimatePresence>
 			</div>
 			<input
 				ref={inputRef}
 				type="text"
-				className={`h-10 w-full border text-center ${
+				className={`h-10 w-full rounded-lg border text-center text-sm font-medium transition-colors ${
 					theme === LTHEME.DARK
-						? "border-neutral-700 bg-black text-white focus:border-neutral-300"
-						: "border-neutral-300 bg-white text-black focus:border-neutral-700"
-				} z-20 text-base transition-all duration-300`}
+						? "border-neutral-700 bg-neutral-900 text-neutral-100 focus:border-neutral-400"
+						: "border-neutral-300 bg-white text-neutral-900 focus:border-neutral-600"
+				} z-20`}
 				placeholder={name}
 				aria-label={name}
 				inputMode="numeric"
-				value={focused ? tempValue : padded}
+				value={typed ?? padded}
 				onChange={(event) => {
-					if (isNaN(Number(event.target.value.toString()))) return;
-					const typed = Number(event.target.value);
+					const raw = event.target.value;
+					if (raw !== "" && !/^\d+$/.test(raw)) return;
+					const nextNum = Number(raw);
 					if (!focused) {
-						return onChange(typed);
+						if (raw !== "") onChange(nextNum);
+						return;
 					}
-					setTempValue(event.target.value);
+					setTyped(raw);
 					// Committed as it is typed, not only on blur: the popup
 					// closing while the field still has focus lost the edit.
 					if (
-						event.target.value !== "" &&
-						typed >= minValue &&
-						typed <= maxValue
+						raw !== "" &&
+						nextNum >= minValue &&
+						nextNum <= maxValue
 					) {
-						onChange(typed);
+						onChange(nextNum);
 					}
 				}}
 				onFocus={handleInputFocus}
@@ -141,14 +150,14 @@ const Component = ({
 				maxLength={maxLength}
 				onKeyDown={(event) => {
 					if (event.key === "Enter") {
-						handleInputBlur();
+						commitTyped();
 						inputRef.current?.blur();
 					}
 					// The arrows on screen appear on hover; these do the
 					// same from the keyboard.
 					if (event.key === "ArrowUp" || event.key === "ArrowDown") {
 						event.preventDefault();
-						handleInputBlur();
+						commitTyped();
 						onShift(event.key === "ArrowUp" ? 1 : -1);
 					}
 				}}
@@ -156,12 +165,15 @@ const Component = ({
 			<div className={`h-5 w-full`}>
 				<AnimatePresence>
 					{focused || hovered ? (
-						<motion.div
-							className={`flex h-max w-full items-center justify-center border ${
+						<motion.button
+							type="button"
+							tabIndex={-1}
+							aria-label={`Decrease ${name}`}
+							className={`flex h-full w-full items-center justify-center border ${
 								theme === LTHEME.DARK
-									? "border-white bg-black"
-									: "border-black bg-white"
-							} z-10 cursor-pointer rounded-b-md`}
+									? "border-neutral-700 bg-neutral-900 hover:bg-neutral-800"
+									: "border-neutral-300 bg-neutral-50 hover:bg-neutral-100"
+							} z-10 cursor-pointer rounded-b-lg`}
 							initial={{ y: "-100%" }}
 							animate={{
 								y: 0,
@@ -171,14 +183,18 @@ const Component = ({
 								y: "-100%",
 								transition: { duration: 0.1 },
 							}}
-							onClick={() => onShift(-1)}
+							onMouseDown={(event) => event.preventDefault()}
+							onClick={() => {
+								commitTyped();
+								onShift(-1);
+							}}
 						>
 							<LUIThemedIcon
 								Icon={CaretDownIcon}
 								weight="fill"
-								className="size-4"
+								className="size-3.5"
 							/>
-						</motion.div>
+						</motion.button>
 					) : null}
 				</AnimatePresence>
 			</div>

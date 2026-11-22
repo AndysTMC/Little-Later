@@ -7,7 +7,7 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	function: {
 		name: "create_task",
 		description:
-			"Creates a task. It has no deadline (anytime) if no deadlineDate is provided; with one, it is due then and gets a reminder.",
+			"Creates a task. Supports anytime (default), due (deadlineDate), or recurring (recurrence rule) schedules, plus optional tags.",
 		parameters: {
 			type: "object",
 			properties: {
@@ -30,6 +30,48 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 				deadlineDate: {
 					type: "string",
 					description: `Optional due date (${LDATE_FORMAT})`,
+				},
+				recurrence: {
+					type: "object",
+					description:
+						"Optional recurring schedule rule (mutually exclusive with deadlineDate).",
+					properties: {
+						freq: {
+							type: "string",
+							enum: ["daily", "weekly", "monthly", "yearly"],
+						},
+						interval: {
+							type: "integer",
+							description: "Repeat every N units (default 1).",
+						},
+						time: {
+							type: "string",
+							description:
+								'Local 24-hour time "HH:mm" (default "09:00").',
+						},
+						byWeekday: {
+							type: "array",
+							items: { type: "integer" },
+							description:
+								"ISO weekdays 1 (Mon) to 7 (Sun) for weekly rules.",
+						},
+						byMonthDay: {
+							type: "integer",
+							description:
+								"Day of month 1..31 (or -1 for last day) for monthly/yearly rules.",
+						},
+						byMonth: {
+							type: "integer",
+							description: "Month 1..12 for yearly rules.",
+						},
+					},
+					required: ["freq"],
+					additionalProperties: false,
+				},
+				tags: {
+					type: "array",
+					items: { type: "string" },
+					description: "Optional tags for the task.",
 				},
 			},
 			required: ["information"],

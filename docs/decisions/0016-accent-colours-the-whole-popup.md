@@ -40,6 +40,11 @@ Option C.
 - **Consistency:** colours named outside the classes (an icon's `fill="white"`, the scrollbars, the loading squares, image placeholders) are drawn from the same variables, so no part stays black and white.
 - **Complexity:** one module of colour arithmetic, with no new dependency.
 
+## Assumptions
+
+- Tailwind 4 continues to back `black`, `white`, and `neutral-*` utilities with `--color-*` CSS custom properties on `:root`.
+- OKLCH lightness preservation keeps contrast ratios within WCAG AA across the full hue range.
+
 ## Rollback
 
 Choosing Mono restores the plain palette. Removing the feature means removing the variables `paintRoot` sets; the classes fall back to Tailwind's own colours.

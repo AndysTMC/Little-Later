@@ -29,6 +29,8 @@ export const markGettingStarted = (): Promise<void> =>
 // plain, and `activeUserId` the open profile. Keeps only the guide flag.
 export const dropPreV1Settings = async (): Promise<void> => {
 	const firstTime = await isFirstTimeUser();
-	await chrome.storage.local.remove("activeUserId");
+	if (typeof chrome !== "undefined" && chrome.storage?.local?.remove) {
+		await chrome.storage.local.remove("activeUserId");
+	}
 	await setChromeStorageRecords({ userSettings: guideOnly(firstTime) });
 };

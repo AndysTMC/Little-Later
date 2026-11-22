@@ -19,3 +19,4 @@
 | 0015 | A passkey or security key can be a second factor for unlocking                                          | proposed           | 2026-11-18 | —                |
 | 0016 | A profile's accent colours the whole popup                                                              | proposed           | 2026-11-19 | —                |
 | 0017 | LittleAI becomes an agent in Chrome's side panel                                                        | proposed           | 2026-11-19 | —                |
+| 0018 | Images vault, locked notes, and opt-in local MCP bridge                                                 | proposed           | 2026-11-22 | —                |

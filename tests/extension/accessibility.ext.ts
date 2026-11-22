@@ -3,6 +3,7 @@ import { createProfile, expect, test } from "./fixtures";
 import {
 	button,
 	command,
+	dropdown,
 	rows,
 	seedReminder,
 	seedSave,
@@ -47,11 +48,10 @@ test("profiles, tasks, notes and locking work with Tab, Enter and typed text", a
 	await activate(page, tab(page, "Tasks"));
 	await activate(page, button(page, "Mark task as finished"));
 	await expect.poll(() => rows(page, "tasks")).toMatchObject([{ done: 1 }]);
-	await activate(page, tab(page, "Notes"));
-	await activate(page, button(page, "Create note"));
+	await activate(page, button(page, "New note"));
 	await reachByTab(page, page.getByLabel("Note content"));
 	await page.keyboard.type("Keyboard note");
-	await activate(page, button(page, "Update"));
+	await activate(page, button(page, "Create"));
 	await expect(
 		page.getByText("Keyboard note", { exact: true }),
 	).toBeVisible();
@@ -100,6 +100,7 @@ test("rendered buttons on the exercised popup routes have accessible names", asy
 		["/home/history", "New task for this page"],
 		["/home/new-task", "Create"],
 		["/home/new-reminder", "Create"],
+		["/home/new-note", "Create"],
 		["/profile", "Add a profile photo"],
 		["/settings", "Misc"],
 		["/settings/ai", "Go back"],
@@ -109,8 +110,7 @@ test("rendered buttons on the exercised popup routes have accessible names", asy
 		["/settings/security/two-factor", "Go back"],
 		["/settings/appearance", "Go back"],
 		["/export", "Export"],
-		["/ai", "Send message"],
-		["/note/new", "Update"],
+		["/note/new", "Create"],
 		["/lock", "Lock"],
 	] as const) {
 		await page.goto(page.url().split("#")[0] + "#" + route);
@@ -137,10 +137,7 @@ test("Export format options are reachable and selectable from the keyboard", asy
 	const home = await createProfile(openPopup);
 	const page = await openPopup("/export");
 	await home.close();
-	await activate(
-		page,
-		page.getByText("Importable", { exact: true }).locator("../.."),
-	);
+	await activate(page, dropdown(page, "Choose Export Format"));
 	const readable = page.getByText("Readable", { exact: true });
 	await reachByTab(page, readable);
 	await page.keyboard.press("Enter");

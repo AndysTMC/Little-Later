@@ -14,6 +14,7 @@ let OpenAICompatibleAI: typeof OpenAICompatibleAIClass;
 
 type MockServerState = {
 	baseUrl: string;
+	recordedMessages: Array<Array<{ role?: string; content?: unknown }>>;
 	close: () => Promise<void>;
 };
 
@@ -59,6 +60,8 @@ const completionPayload = (
 
 const createMockServer = async (): Promise<MockServerState> => {
 	const requestAttempts = new Map<string, number>();
+	const recordedMessages: Array<Array<{ role?: string; content?: unknown }>> =
+		[];
 	const server = createServer(async (req, res) => {
 		if (req.url === "/v1/models" && req.method === "GET") {
 			return sendJSON(res, 200, {
@@ -70,6 +73,7 @@ const createMockServer = async (): Promise<MockServerState> => {
 		if (req.url === "/v1/chat/completions" && req.method === "POST") {
 			const body = JSON.parse(await readBody(req));
 			const messages = Array.isArray(body.messages) ? body.messages : [];
+			recordedMessages.push(messages);
 			const lastMessage = messages.at(-1);
 			if (lastMessage?.role === "user") {
 				const userText = String(lastMessage.content ?? "");
@@ -95,6 +99,20 @@ const createMockServer = async (): Promise<MockServerState> => {
 						}),
 					);
 				}
+				if (userText.includes("retry_after_429")) {
+					if ((requestAttempts.get(userText) ?? 0) === 1) {
+						res.setHeader("Retry-After", "0");
+						return sendJSON(res, 429, { error: "rate_limited" });
+					}
+					return sendJSON(
+						res,
+						200,
+						completionPayload({
+							role: "assistant",
+							content: "rate limit recovered",
+						}),
+					);
+				}
 				if (userText.includes("plain_response")) {
 					return sendJSON(
 						res,
@@ -103,6 +121,60 @@ const createMockServer = async (): Promise<MockServerState> => {
 							role: "assistant",
 							content: "plain ok",
 						}),
+					);
+				}
+				if (userText.includes("loop_repeat")) {
+					return sendJSON(
+						res,
+						200,
+						completionPayload(
+							{
+								role: "assistant",
+								content: null,
+								tool_calls: [
+									{
+										id: "call_loop_1",
+										type: "function",
+										function: {
+											name: "get_current_date_time_info",
+											arguments: "{}",
+										},
+									},
+								],
+							},
+							"tool_calls",
+						),
+					);
+				}
+				if (userText.includes("parallel_reads")) {
+					return sendJSON(
+						res,
+						200,
+						completionPayload(
+							{
+								role: "assistant",
+								content: null,
+								tool_calls: [
+									{
+										id: "call_p1",
+										type: "function",
+										function: {
+											name: "get_current_date_time_info",
+											arguments: "{}",
+										},
+									},
+									{
+										id: "call_p2",
+										type: "function",
+										function: {
+											name: "get_user_name",
+											arguments: "{}",
+										},
+									},
+								],
+							},
+							"tool_calls",
+						),
 					);
 				}
 				if (userText.includes("tool_multi")) {
@@ -172,6 +244,44 @@ const createMockServer = async (): Promise<MockServerState> => {
 			}
 
 			if (lastMessage?.role === "tool") {
+				const lastUser = [...messages]
+					.reverse()
+					.find((m: { role?: string }) => m.role === "user");
+				const lastUserText = String(lastUser?.content ?? "");
+				if (lastUserText.includes("loop_repeat")) {
+					const toolContent = String(lastMessage.content ?? "");
+					if (!toolContent.includes('"repeated":true')) {
+						return sendJSON(
+							res,
+							200,
+							completionPayload(
+								{
+									role: "assistant",
+									content: null,
+									tool_calls: [
+										{
+											id: "call_loop_2",
+											type: "function",
+											function: {
+												name: "get_current_date_time_info",
+												arguments: "{}",
+											},
+										},
+									],
+								},
+								"tool_calls",
+							),
+						);
+					}
+					return sendJSON(
+						res,
+						200,
+						completionPayload({
+							role: "assistant",
+							content: "loop recovered",
+						}),
+					);
+				}
 				return sendJSON(
 					res,
 					200,
@@ -203,6 +313,7 @@ const createMockServer = async (): Promise<MockServerState> => {
 	const baseUrl = `http://127.0.0.1:${address.port}`;
 	return {
 		baseUrl,
+		recordedMessages,
 		close: () =>
 			new Promise<void>((resolve, reject) =>
 				server.close((err) => (err ? reject(err) : resolve())),
@@ -315,5 +426,47 @@ describe("OpenAICompatibleAI integration", () => {
 			"Return JSON",
 		);
 		expect(output).toEqual({});
+	});
+
+	it("executes independent read-only tool calls in parallel and preserves order", async () => {
+		const output = await ai.prompt("parallel_reads");
+		expect(output.message).toBe("tools done");
+		expect(output.expression).toBe(LFACE_EXPRESSION.SLIGHTLY_SMILING);
+		const secondRequest = server.recordedMessages.at(-1) ?? [];
+		const toolReplies = secondRequest.filter((m) => m.role === "tool");
+		expect(toolReplies).toHaveLength(2);
+		expect(String(toolReplies[0].content)).not.toContain('"repeated":true');
+		expect(String(toolReplies[1].content)).not.toContain('"repeated":true');
+	});
+
+	it("intercepts identical repeated tool calls across rounds so the model recovers", async () => {
+		const output = await ai.prompt("loop_repeat");
+		expect(output.message).toBe("loop recovered");
+		expect(output.expression).toBe(LFACE_EXPRESSION.SLIGHTLY_SMILING);
+		const finalRequest = server.recordedMessages.at(-1) ?? [];
+		const lastToolReply = finalRequest.at(-1);
+		expect(lastToolReply?.role).toBe("tool");
+		expect(String(lastToolReply?.content)).toContain('"repeated":true');
+	});
+
+	it("keeps prior turns prefix-stable by placing dynamic temporal context before the latest user turn", async () => {
+		await ai.prompt("plain_response");
+		await ai.prompt("plain_response today");
+		const secondTurnMessages = server.recordedMessages.at(-1) ?? [];
+		// [0] static system, [1] turn 1 user, [2] turn 1 assistant, [3] temporal system, [4] turn 2 user
+		expect(secondTurnMessages[0]?.role).toBe("system");
+		expect(secondTurnMessages[1]?.role).toBe("user");
+		expect(secondTurnMessages[2]?.role).toBe("assistant");
+		expect(secondTurnMessages[3]?.role).toBe("system");
+		expect(String(secondTurnMessages[3]?.content)).toContain(
+			"Current date/time context",
+		);
+		expect(secondTurnMessages[4]?.role).toBe("user");
+	});
+
+	it("honors Retry-After on 429 responses and recovers", async () => {
+		const output = await ai.prompt("retry_after_429");
+		expect(output.message).toBe("rate limit recovered");
+		expect(output.expression).toBe(LFACE_EXPRESSION.SLIGHTLY_SMILING);
 	});
 });

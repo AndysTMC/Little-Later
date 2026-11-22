@@ -17,8 +17,11 @@ const oneAtATime = <T>(change: () => Promise<T>): Promise<T> => {
 const createToast = (message: string, type: LTOAST_TYPE): Promise<void> =>
 	oneAtATime(async () => {
 		const toasts = await getToasts();
-		const id =
-			toasts.map((t) => t.id).reduce((a, b) => Math.max(a, b), 0) + 1;
+		const maxId = toasts.reduce((max, t) => Math.max(max, t.id), 0);
+		const id = Math.max(
+			Date.now() * 1000 + Math.floor(Math.random() * 1000),
+			maxId + 1,
+		);
 		toasts.push({ id, message, type });
 		await setChromeStorageRecords({ toasts });
 	});

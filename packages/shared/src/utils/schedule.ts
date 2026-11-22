@@ -39,6 +39,7 @@ const FREQUENCIES: ReadonlyArray<Frequency> = [
 	"yearly",
 ];
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_INTERVAL = 1000;
 
 const isIntIn = (value: unknown, min: number, max: number): value is number =>
@@ -65,7 +66,7 @@ export const parseRule = (input: unknown): RecurrenceRule => {
 	if (typeof raw.time !== "string" || !TIME_PATTERN.test(raw.time)) {
 		throw new ScheduleError('time must be "HH:mm".');
 	}
-	if (typeof raw.anchor !== "string") {
+	if (typeof raw.anchor !== "string" || !DATE_PATTERN.test(raw.anchor)) {
 		throw new ScheduleError('anchor must be a "YYYY-MM-DD" date.');
 	}
 	let anchor: Temporal.PlainDate;

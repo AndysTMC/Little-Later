@@ -7,7 +7,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIAuthGate } from "../../components/LUIAuthGate/Component";
 import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { UserProfile } from "../../hooks/useUserProfiles";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
@@ -20,7 +20,14 @@ const Page = () => {
 	const pageMotion = usePageMotion();
 
 	const currentUserProfile = useCurrentUserProfile();
-	const [savedUP, setSavedUP] = useState<UserProfile | undefined>();
+	// Keep the last unlocked profile while the lock exit transition runs.
+	const [lastProfile, setLastProfile] = useState<UserProfile | undefined>(
+		currentUserProfile,
+	);
+	if (currentUserProfile && currentUserProfile !== lastProfile) {
+		setLastProfile(currentUserProfile);
+	}
+	const savedUP = currentUserProfile ?? lastProfile;
 
 	const handleLock = async () => {
 		if (currentUserProfile === undefined) {
@@ -39,12 +46,6 @@ const Page = () => {
 			);
 		}
 	};
-
-	useEffect(() => {
-		if (currentUserProfile) {
-			setSavedUP(currentUserProfile);
-		}
-	}, [currentUserProfile]);
 
 	const loading = useLoading([savedUP]);
 

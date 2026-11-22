@@ -56,6 +56,7 @@
 - Times are epoch milliseconds, and recurrence is an anchored rule computed with Temporal (decision 0011, `packages/shared/src/utils/schedule.ts`).
 - The unlocked profile's keys live in `chrome.storage.session` (`src/storage/session.ts`). `chrome.storage.local` keeps only the first-run guide flag and toasts. Dev/test fallback: `src/utils/chrome.ts` via `localStorage`.
 - AI: Ollama, LM Studio, custom OpenAI-compatible. Tool schemas are in `src/services/ai/tools/`, their handlers in `src/services/ai/toolCalls/`. The live smoke script reads `.env` via Bun; see `.env.example`.
+- LittleAI (decision 0017) lives in the side panel (`sidepanel.html`, `src/panel/`); its runs execute in the worker (`src/services/ai/runs.ts`, commands `ai.*`), and chats are encrypted records (`chat.*`).
 - Tag `v*` triggers `.github/workflows/release.yml`: zip, CRX signed with `SIGNING_KEY` from the `release` environment, SBOM, checksums and provenance.
 
 ## Authority
@@ -87,6 +88,7 @@
 | Shared types                | packages/shared/src/types.ts  |
 | Service worker              | src/background/background.ts  |
 | Popup routes                | src/popup/App.tsx             |
+| LittleAI side panel         | src/panel/                    |
 | Design rules (UI)           | docs/design.md                |
 | Feature logic               | src/services/                 |
 | Tests                       | tests/                        |

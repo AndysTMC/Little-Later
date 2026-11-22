@@ -66,22 +66,28 @@ const Component = ({
 		<div
 			role="search"
 			className={twMerge(
-				`ll-field flex h-8 w-full rounded-full border pl-1 ${
+				`ll-field flex h-9 w-full items-center rounded-xl border pl-1 transition-colors ${
 					isSearching
-						? "bg-transparent " +
-							(isDark
-								? "border-neutral-700"
-								: "border-neutral-300")
-						: "border-transparent " +
-							(isDark ? "bg-neutral-900" : "bg-neutral-100")
+						? isDark
+							? "border-neutral-700 bg-neutral-950"
+							: "border-neutral-300 bg-white"
+						: isDark
+							? "border-neutral-800/80 bg-neutral-900 hover:border-neutral-700"
+							: "border-neutral-200/80 bg-neutral-100 hover:border-neutral-300"
 				}`,
 				className,
 			)}
 		>
-			<div className={`flex h-full w-8 items-center justify-center`}>
+			<div
+				className={`flex h-full w-8 shrink-0 items-center justify-center ${
+					isDark ? "text-neutral-400" : "text-neutral-500"
+				}`}
+			>
 				<LUIThemedIcon
 					Icon={MagnifyingGlassIcon}
-					className={`size-4`}
+					color="currentColor"
+					weight="regular"
+					className="size-4"
 				/>
 			</div>
 
@@ -104,7 +110,11 @@ const Component = ({
 						endSearch();
 					}
 				}}
-				className={`h-full grow appearance-none rounded-full border-0 bg-transparent px-1 text-sm font-bold text-neutral-500 placeholder-current ring-0 [&::-webkit-search-cancel-button]:hidden ${isDark ? "focus:text-neutral-100" : "focus:text-neutral-900"}`}
+				className={`h-full min-w-0 grow appearance-none rounded-xl border-0 bg-transparent px-1 text-sm font-normal ring-0 [&::-webkit-search-cancel-button]:hidden ${
+					isDark
+						? "text-neutral-100 placeholder:text-neutral-500"
+						: "text-neutral-900 placeholder:text-neutral-500"
+				}`}
 			/>
 			{isSearching ? (
 				<button
@@ -113,10 +123,19 @@ const Component = ({
 					// Keeps focus in the box, so leaving it empty does not end
 					// the search before this button's own click.
 					onMouseDown={(event) => event.preventDefault()}
-					className={`flex h-full w-8 cursor-pointer items-center justify-center rounded-full bg-transparent ${isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-200"}`}
+					className={`mr-1 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-transparent transition-colors ${
+						isDark
+							? "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
+							: "text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900"
+					}`}
 					onClick={endSearch}
 				>
-					<LUIThemedIcon Icon={XIcon} className={`size-4`} />
+					<LUIThemedIcon
+						Icon={XIcon}
+						color="currentColor"
+						weight="regular"
+						className="size-4"
+					/>
 				</button>
 			) : null}
 		</div>

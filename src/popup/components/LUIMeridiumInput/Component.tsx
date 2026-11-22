@@ -39,16 +39,22 @@ const Component = ({
 						transition: { duration: 0.1 },
 					}}
 				>
-					<LUILabel name={"A"} />
+					<LUILabel
+						name={"A"}
+						className="justify-center text-[11px]"
+					/>
 				</motion.div>
 				<AnimatePresence>
 					{focused || hovered ? (
-						<motion.div
+						<motion.button
+							type="button"
+							tabIndex={-1}
+							aria-label="Toggle AM or PM"
 							className={`absolute flex h-full w-full items-center justify-center border ${
 								theme === LTHEME.DARK
-									? "border-white bg-black"
-									: "border-black bg-white"
-							} z-10 cursor-pointer rounded-t-md`}
+									? "border-neutral-700 bg-neutral-900 hover:bg-neutral-800"
+									: "border-neutral-300 bg-neutral-50 hover:bg-neutral-100"
+							} z-10 cursor-pointer rounded-t-lg`}
 							initial={{ y: "100%" }}
 							animate={{
 								y: 0,
@@ -58,25 +64,26 @@ const Component = ({
 								y: "100%",
 								transition: { duration: 0.1 },
 							}}
+							onMouseDown={(event) => event.preventDefault()}
 							onClick={() => onShift(1)}
 						>
 							<LUIThemedIcon
 								Icon={CaretUpIcon}
 								weight="fill"
-								className="size-4"
+								className="size-3.5"
 							/>
-						</motion.div>
+						</motion.button>
 					) : null}
 				</AnimatePresence>
 			</div>
 			<input
 				type="text"
 				readOnly
-				className={`h-10 w-full border text-center ${
+				className={`h-10 w-full rounded-lg border text-center text-sm font-medium transition-colors ${
 					theme === LTHEME.DARK
-						? "border-neutral-700 bg-black text-white focus:border-neutral-300"
-						: "border-neutral-300 bg-white text-black focus:border-neutral-700"
-				} z-20 text-base transition-all duration-300`}
+						? "border-neutral-700 bg-neutral-900 text-neutral-100 focus:border-neutral-400"
+						: "border-neutral-300 bg-white text-neutral-900 focus:border-neutral-600"
+				} z-20`}
 				placeholder={"A"}
 				aria-label="AM or PM. Use the arrow keys to change it."
 				value={passedValue}
@@ -93,12 +100,15 @@ const Component = ({
 			<div className={`h-5 w-full`}>
 				<AnimatePresence>
 					{focused || hovered ? (
-						<motion.div
-							className={`flex h-max w-full items-center justify-center border ${
+						<motion.button
+							type="button"
+							tabIndex={-1}
+							aria-label="Toggle AM or PM"
+							className={`flex h-full w-full items-center justify-center border ${
 								theme === LTHEME.DARK
-									? "border-white bg-black"
-									: "border-black bg-white"
-							} z-10 cursor-pointer rounded-b-md`}
+									? "border-neutral-700 bg-neutral-900 hover:bg-neutral-800"
+									: "border-neutral-300 bg-neutral-50 hover:bg-neutral-100"
+							} z-10 cursor-pointer rounded-b-lg`}
 							initial={{ y: "-100%" }}
 							animate={{
 								y: 0,
@@ -108,14 +118,15 @@ const Component = ({
 								y: "-100%",
 								transition: { duration: 0.1 },
 							}}
+							onMouseDown={(event) => event.preventDefault()}
 							onClick={() => onShift(-1)}
 						>
 							<LUIThemedIcon
 								Icon={CaretDownIcon}
 								weight="fill"
-								className="size-4"
+								className="size-3.5"
 							/>
-						</motion.div>
+						</motion.button>
 					) : null}
 				</AnimatePresence>
 			</div>

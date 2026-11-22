@@ -172,7 +172,9 @@ const CustomColor = ({ isDark }: { isDark: boolean }) => {
 					className={`h-9 w-28 rounded-lg border px-3 font-mono text-sm ${isDark ? "border-neutral-700 bg-neutral-950" : "border-neutral-300 bg-white"}`}
 				/>
 				{valid ? null : (
-					<span className="text-xs text-neutral-500">
+					<span
+						className={`text-xs ${isDark ? "text-neutral-400" : "text-neutral-500"}`}
+					>
 						Like #0e7490
 					</span>
 				)}
@@ -205,7 +207,7 @@ const Page = () => {
 
 					<fieldset className="flex w-full flex-col gap-y-2 border-0 p-0 py-2">
 						<legend
-							className={`pb-2 text-lg ${isDark ? "text-white" : "text-black"}`}
+							className={`pb-2 text-sm font-medium ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
 						>
 							Accent
 						</legend>

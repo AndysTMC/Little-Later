@@ -1,20 +1,28 @@
 import { usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
 import { LEXPORT_TYPE, LTHEME, LTOAST_TYPE } from "little-shared/enums";
+import { capitalize } from "little-shared/utils/misc";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { exportBackup, exportReadable } from "../../../services/backup";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
-import { LUISelectT2 } from "../../components/LUISelectT2/Component";
+import { LUISettingSelect } from "../../components/LUISettingRow/Component";
+import { LUINote } from "../../components/LUINote/Component";
 import { LUITextInputT1 } from "../../components/LUITextInput/Component";
 import { LUICUButton } from "../../components/LUICUButton/Component";
 import { createToast } from "../../../services/toasts";
+import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
+import { send } from "../../../utils/send";
 
 const Page = () => {
 	const { theme } = useTheme();
 	const pageMotion = usePageMotion();
-	const ExportTypes = Object.values(LEXPORT_TYPE);
+	const userSettings = useCurrentUserSettings();
+	const exportOptions = Object.values(LEXPORT_TYPE).map((value) => ({
+		value,
+		label: capitalize(value),
+	}));
 	const [exportType, setExportType] = useState<LEXPORT_TYPE>(
 		LEXPORT_TYPE.IMPORTABLE,
 	);
@@ -24,6 +32,14 @@ const Page = () => {
 		try {
 			if (exportType === LEXPORT_TYPE.IMPORTABLE) {
 				await exportBackup(backupPassword);
+				if (userSettings) {
+					void send("settings.update", {
+						misc: {
+							...userSettings.misc,
+							lastBackupAt: Date.now(),
+						},
+					}).catch(() => undefined);
+				}
 			} else {
 				await exportReadable();
 			}
@@ -44,39 +60,23 @@ const Page = () => {
 		>
 			<LUIBasicNav navigateTo="/settings" />
 			<LUISettingsLayout pageName="Export">
-				<div className={`relative h-max w-full`}>
-					<div
-						className={`relative z-40 flex h-max w-full items-center justify-between py-2`}
-					>
-						<div
-							className={`h-auto w-max text-lg ${
-								theme === LTHEME.DARK
-									? "text-white"
-									: "text-black"
-							} `}
-						>
-							Choose Export Format
-						</div>
-						<LUISelectT2
-							options={ExportTypes}
-							currentOption={exportType}
-							onOptionChange={setExportType}
+				<div className={`relative flex h-max w-full flex-col gap-y-2`}>
+					<div className="relative z-40">
+						<LUISettingSelect
+							label="Choose Export Format"
+							value={exportType}
+							options={exportOptions}
+							onChange={setExportType}
 						/>
 					</div>
 					{exportType === LEXPORT_TYPE.IMPORTABLE ? (
 						<>
-							<div
-								className={`mb-1 text-sm ${
-									theme === LTHEME.DARK
-										? "text-neutral-300"
-										: "text-neutral-600"
-								}`}
-							>
+							<LUINote className="w-full">
 								Choose a password for this backup; you can use
 								this profile's password. Importing the backup
 								needs it, and the imported profile opens with
 								it.
-							</div>
+							</LUINote>
 							<LUITextInputT1
 								name="Backup password"
 								inputType="password"
@@ -95,16 +95,10 @@ const Page = () => {
 							/>
 						</>
 					) : (
-						<div
-							className={`mb-2 text-sm ${
-								theme === LTHEME.DARK
-									? "text-neutral-300"
-									: "text-neutral-600"
-							}`}
-						>
+						<LUINote className="w-full">
 							Readable exports are plaintext and omit your AI API
 							key.
-						</div>
+						</LUINote>
 					)}
 					<div className="flex w-full justify-center pt-2">
 						<LUICUButton

@@ -48,7 +48,7 @@ body:
       id: logs
       attributes:
           label: Errors or screenshots
-          description: Errors from the popup's or service worker's DevTools console help most.
+          description: Errors from the popup's, side panel's, or service worker's DevTools console help most.
     - type: textarea
       id: diagnosis
       attributes:

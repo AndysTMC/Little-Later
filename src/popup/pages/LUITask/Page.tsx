@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { usePageMotion } from "../../hooks/usePageMove";
 import { LTHEME } from "little-shared/enums";
 import { motion } from "framer-motion";
@@ -7,6 +8,7 @@ import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUITaskForm } from "../../components/LUITaskForm/Component";
 import {
 	useLinks,
+	useNotes,
 	useReminders,
 	useSaves,
 	useTasks,
@@ -14,17 +16,33 @@ import {
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
+import { collectProfileTags } from "../../../utils/tags";
 
 const Page = () => {
 	const { theme } = useTheme();
 	const pageMotion = usePageMotion();
 	const links = useLinks();
+	const notes = useNotes();
 	const pages = useSaves();
 	const reminders = useReminders();
 	const tasks = useTasks();
 	const { id } = useParams();
-	const loading = useLoading([id, links, pages, reminders, tasks]);
+	const loading = useLoading([id, links, notes, pages, reminders, tasks]);
 	const task = tasks?.find((item) => item.id === id);
+	const savedPages = useMemo(
+		() => (pages ?? []).filter((page) => page.saved),
+		[pages],
+	);
+	const tagSuggestions = useMemo(
+		() =>
+			collectProfileTags([
+				savedPages,
+				tasks ?? [],
+				reminders ?? [],
+				notes ?? [],
+			]),
+		[savedPages, tasks, reminders, notes],
+	);
 	return (
 		<motion.div
 			className={`h-full w-full select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} `}
@@ -45,7 +63,8 @@ const Page = () => {
 							task={task}
 							links={links!}
 							reminders={reminders!}
-							saves={pages!.filter((page) => page.saved)}
+							saves={savedPages}
+							tagSuggestions={tagSuggestions}
 						/>
 					) : (
 						<LUIEmptyState title="Task not found." />

@@ -20,6 +20,7 @@ export enum LHOME_MAIN_CONTENT {
 	REMINDERS = "reminders",
 	TASKS = "tasks",
 	NOTES = "notes",
+	IMAGES = "images",
 }
 
 export enum LHOME_SEARCH_RESULT_TYPE {
@@ -27,6 +28,7 @@ export enum LHOME_SEARCH_RESULT_TYPE {
 	TASK = "task",
 	REMINDER = "reminder",
 	NOTE = "note",
+	IMAGE = "image",
 }
 
 export enum LTHEME {
@@ -39,6 +41,7 @@ export enum LLOWER_HOME_NAV_ROUTES {
 	HISTORY = "/home/history",
 	NEW_REMINDER = "/home/new-reminder",
 	NEW_TASK = "/home/new-task",
+	NEW_NOTE = "/home/new-note",
 }
 
 export enum LREMINDER_TYPE {

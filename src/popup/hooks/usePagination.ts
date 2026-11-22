@@ -7,6 +7,7 @@ const usePagination = (itemCount: number, itemsPerBatch: number) => {
 	);
 
 	const [currentBatch, setCurrentBatch] = useState(1);
+	const safeBatch = Math.min(currentBatch, batchCount);
 
 	const onBatchChange = (newBatch: number) => {
 		if (newBatch >= 1 && newBatch <= batchCount) {
@@ -14,25 +15,21 @@ const usePagination = (itemCount: number, itemsPerBatch: number) => {
 		}
 	};
 
-	if (currentBatch > batchCount) {
-		setCurrentBatch(batchCount);
-	}
-
 	const startIndex = useMemo(
-		() => (currentBatch - 1) * itemsPerBatch,
-		[currentBatch, itemsPerBatch],
+		() => (safeBatch - 1) * itemsPerBatch,
+		[safeBatch, itemsPerBatch],
 	);
 
 	const endIndex = useMemo(
-		() => Math.min(currentBatch * itemsPerBatch, itemCount),
-		[currentBatch, itemsPerBatch, itemCount],
+		() => Math.min(safeBatch * itemsPerBatch, itemCount),
+		[safeBatch, itemsPerBatch, itemCount],
 	);
 
 	return {
 		startIndex,
 		endIndex,
 		batchCount,
-		currentBatch,
+		currentBatch: safeBatch,
 		onBatchChange,
 	};
 };

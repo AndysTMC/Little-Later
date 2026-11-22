@@ -46,7 +46,6 @@ test("unlocked popup opens directly on every inner route", async ({
 		],
 		["/home/new-task", (page) => page.getByPlaceholder("Information")],
 		["/home/new-reminder", (page) => page.getByPlaceholder("Message")],
-		["/ai", (page) => page.getByPlaceholder("Ask AI")],
 		["/profile", (page) => button(page, "Add a profile photo")],
 		["/settings", (page) => button(page, "Misc")],
 		[
@@ -71,6 +70,7 @@ test("unlocked popup opens directly on every inner route", async ({
 		],
 		["/note/" + note.id, (page) => button(page, "Edit")],
 		["/note/new", (page) => page.getByLabel("Note content")],
+		["/ai", (page) => page.getByTestId("ai-assist-input")],
 		[
 			pickRoute(AVATAR_REQUEST, "nav-test", "/profile"),
 			(page) => page.getByTestId("upload-area"),
@@ -161,4 +161,17 @@ test("History keeps its header's height once its list appears", async ({
 	await expect(page.getByText("Visited 7")).toBeVisible();
 	await expect.poll(async () => (await logo.boundingBox())?.height).toBe(48);
 	await expect.poll(async () => (await logo.boundingBox())?.y).toBe(8);
+});
+
+// An unknown route (or one remembered from an older version) lands on Home
+// rather than a blank page.
+test("a route that no longer exists goes to Home", async ({ openPopup }) => {
+	const setup = await createProfile(openPopup);
+	await setup.close();
+	for (const route of ["/old-route", "/no-such-page"]) {
+		const page = await openPopup(route);
+		await expect(page.getByRole("tablist")).toBeVisible();
+		await expect(page).toHaveURL(/#\/home$/);
+		await page.close();
+	}
 });

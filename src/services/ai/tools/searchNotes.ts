@@ -13,6 +13,10 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 					description:
 						"The user's query with all necessary information to search the notes",
 				},
+				tag: {
+					type: "string",
+					description: "Optional tag filter (with or without #)",
+				},
 			},
 			required: ["query"],
 			additionalProperties: false,

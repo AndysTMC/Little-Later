@@ -32,7 +32,7 @@ describe("ai tool resilience", { concurrent: false }, () => {
 			for (const payload of malformedPayloads) {
 				expect(() =>
 					definition.normalizeArgs(
-						(payload ?? {}) as Record<string, unknown>,
+						payload as Record<string, unknown>,
 					),
 				).not.toThrow();
 			}
@@ -45,7 +45,10 @@ describe("ai tool resilience", { concurrent: false }, () => {
 			"create_reminder",
 			"create_task",
 			"delete_note",
+			"delete_reminder",
+			"delete_task",
 			"update_note",
+			"update_reminder",
 			"update_task",
 			"update_save",
 		] as const;

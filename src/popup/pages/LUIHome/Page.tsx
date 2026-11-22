@@ -4,11 +4,12 @@ import { LTHEME } from "little-shared/enums";
 import { AnimatePresence, motion } from "framer-motion";
 import { LUIHomeNav } from "../../components/LUINavs/LUIHomeNav/Component";
 import { useLocation, useOutlet } from "react-router";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { pageVariants, readMove } from "../../../route-transitions";
 import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
 import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
 import {
+	useImages,
 	useLinks,
 	useNotes,
 	useReminders,
@@ -32,23 +33,24 @@ const Page = () => {
 	const userSettings = useCurrentUserSettings();
 	const links = useLinks();
 	const notes = useNotes();
+	const images = useImages();
 	const reminders = useReminders();
 	const tasks = useTasks();
 	const pages = useSaves();
-	const hasLoadedOnce = useRef(false);
+	const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 	const notificationsAllowed = useNotificationsAllowed();
 	useRefusedReminderToasts(currentUserProfile?.id, reminders);
-	if (
-		!hasLoadedOnce.current &&
-		currentUserProfile &&
-		userSettings &&
-		links &&
-		notes &&
-		reminders &&
-		tasks &&
-		pages
-	) {
-		hasLoadedOnce.current = true;
+	const allReady =
+		currentUserProfile !== undefined &&
+		userSettings !== undefined &&
+		links !== undefined &&
+		notes !== undefined &&
+		images !== undefined &&
+		reminders !== undefined &&
+		tasks !== undefined &&
+		pages !== undefined;
+	if (allReady && !hasLoadedOnce) {
+		setHasLoadedOnce(true);
 	}
 	// The panel whose move has finished: Home's own on first open, then
 	// each panel's as it opens.
@@ -61,6 +63,7 @@ const Page = () => {
 		userSettings,
 		links,
 		notes,
+		images,
 		reminders,
 		tasks,
 		pages,
@@ -76,14 +79,8 @@ const Page = () => {
 			{...pageMotion}
 			onAnimationComplete={settle}
 		>
-			{currentUserProfile === undefined ||
-			userSettings === undefined ||
-			links === undefined ||
-			notes === undefined ||
-			reminders === undefined ||
-			tasks === undefined ||
-			pages === undefined ? (
-				!hasLoadedOnce.current ? (
+			{!allReady ? (
+				!hasLoadedOnce ? (
 					<LUILoading />
 				) : null
 			) : (
