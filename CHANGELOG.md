@@ -4,6 +4,8 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-22
+
 ### Added
 
 - **LittleAI side panel:** A dedicated Chrome side panel (`sidepanel.html`) with background-worker runs, encrypted chat history, an inline model switcher with live search and saved connections, hybrid local retrieval (BM25 + trigrams), and expanded tools (`search_all`, `search_images`, `read_open_tabs`, `link_records`, `unlink_records`, `remember_fact`, `forget_fact`, recurring tasks, and tag filters).
@@ -94,7 +96,8 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 - First release.
 
-[Unreleased]: https://github.com/AndysTMC/Little-Later/compare/v3.0.1...HEAD
+[Unreleased]: https://github.com/AndysTMC/Little-Later/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/AndysTMC/Little-Later/compare/v3.0.1...v3.1.0
 [3.0.1]: https://github.com/AndysTMC/Little-Later/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/AndysTMC/Little-Later/compare/v2.1.1...v3.0.0
 [2.1.1]: https://github.com/AndysTMC/Little-Later/compare/v2.1.0...v2.1.1

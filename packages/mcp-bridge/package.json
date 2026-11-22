@@ -1,6 +1,6 @@
 {
 	"name": "little-later-mcp-bridge",
-	"version": "3.0.1",
+	"version": "3.1.0",
 	"private": true,
 	"description": "Local MCP stdio <-> Chrome Native Messaging bridge for Little Later",
 	"type": "module",
