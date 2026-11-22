@@ -28,15 +28,15 @@ Little Later has no account, no server and no sync. Everything you save is store
 
 ## Features
 
-- **Saves and history.** Little Later keeps a history of the pages you visit, each with a screenshot preview. Save a page from the right-click menu, or later from your history.
+- **Saves and history.** Little Later keeps a history of the pages you visit, each with a screenshot preview. Save or archive pages, and exclude sites you do not want recorded in **Settings → Data & Privacy**.
 - **Tasks.** Tasks with no deadline, a due date, or a daily, weekly, monthly or yearly repeat. Overdue tasks move to a Missed group, and a task can carry its own reminder.
 - **Reminders.** Browser notifications at a set time, or escalating reminders that fire more often as the time gets close. Recurring times follow you when you change time zone.
-- **Notes.** Markdown notes with edit and preview. Select text on a page and choose **Note text** to save it as a note.
-- **Links between records.** Attach a save to a note, task or reminder, and a reminder to a task.
-- **Search** across saves, tasks, reminders and notes.
-- **Profiles.** Several profiles in one browser, each with its own data, theme (light or dark) and optional password.
+- **Notes and locked notes.** Markdown notes with edit and preview, plus password-locked notes that require re-verification to view and stay hidden from search, LittleAI and external MCP. Right-click selected text to save a note or quote.
+- **Images.** Encrypted image vault: right-click any image to save it or upload from disk, tag it, view details and download later.
+- **Tags, links and search.** Organise saves, tasks, reminders, notes and images with `#tags`, link records together, and search across everything.
+- **Profiles and security.** Multiple profiles with accent themes (light or dark), optional password encryption and optional passkey or security-key two-factor unlock.
 - **Backups.** Export a profile as an encrypted `.lldat` backup you can import later, or as readable JSON.
-- **AI assistant (optional).** Chat with your own data: find saves, summarise history, create or update tasks, reminders and notes. Every change it proposes waits for your confirmation in the chat.
+- **LittleAI (optional).** Side-panel AI assistant with searchable model switching, local or cloud providers, encrypted chat history, hybrid search and optional local MCP. Every write waits for your confirmation in the chat.
 
 ## Install
 
@@ -98,24 +98,20 @@ The full design, including exactly which fields stay readable, is in [decision 0
 
 ### Permissions
 
-| Permission                        | Why                                                                                    |
-| --------------------------------- | -------------------------------------------------------------------------------------- |
-| `tabs`, `activeTab`, `<all_urls>` | Record visited pages and take their screenshot previews                                |
-| `storage`, `unlimitedStorage`     | Keep your data and settings in the browser, without the default storage cap            |
-| `alarms`, `notifications`         | Fire reminders on time, even after Chrome suspends the background worker               |
-| `idle`                            | Lock the profile when the screen locks or after the idle time you set                  |
-| `contextMenus`                    | **Save page**, **Note text** and the AI note actions in the right-click menu           |
-| `declarativeNetRequest`           | Let the extension's own requests reach Ollama or LM Studio on this machine (see below) |
+| Permission                        | Why                                                                              |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| `tabs`, `activeTab`, `<all_urls>` | Record visited pages and take their screenshot previews                          |
+| `storage`, `unlimitedStorage`     | Keep your data and settings in the browser, without the default storage cap      |
+| `alarms`, `notifications`         | Fire reminders on time, even after Chrome suspends the background worker         |
+| `idle`                            | Lock the profile when the screen locks or after the idle time you set            |
+| `contextMenus`                    | **Save page**, **Save image**, **Save quote**, **Note text** and AI note actions |
+| `declarativeNetRequest`           | Let the extension's own requests reach local AI servers on this machine          |
+| `sidePanel`, `scripting`          | Run LittleAI in Chrome's side panel and read the active page when you ask        |
+| `nativeMessaging` _(optional)_    | Opt-in local MCP bridge for external agents (**Settings → Data & Privacy**)      |
 
 ## AI assistant
 
-The assistant is off until you configure it in **Settings → AI**. It works with:
-
-| Provider                             | Endpoint                                                |
-| ------------------------------------ | ------------------------------------------------------- |
-| [Ollama](https://ollama.com)         | `http://127.0.0.1:11434/v1` on this machine             |
-| [LM Studio](https://lmstudio.ai)     | `http://127.0.0.1:1234/v1` on this machine              |
-| Any OpenAI-compatible API (_Custom_) | A URL and API key you enter; `https` unless it is local |
+LittleAI is off until you configure it in **Settings → AI**. It supports **Local** servers ([Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai), Local vLLM, llama.cpp), **Cloud** presets (OpenAI, Gemini, Claude, OpenRouter, Groq, Together, Mistral, DeepSeek), and any **Custom** OpenAI-compatible API (`https` unless local). You can also connect a loopback-only local MCP server.
 
 Start the local server, load a model, then pick the provider and model in settings. Local servers reject requests from extension pages by default, so Little Later sends its own requests to them with a `127.0.0.1` origin; websites you visit do not get that header.
 
