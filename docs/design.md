@@ -20,12 +20,12 @@ Structural borders use `neutral-800` in dark (`neutral-200` in light); control b
 
 There are four page layouts. Popup and side-panel pages start with `LUIBasicNav` (`← Back` on the left where there is somewhere to go back to, logo on the right). Standalone LittleAI has its own header (`src/panel/`).
 
-| Layout                             | Used for                                              | Parts                                                                                                                                   |
-| ---------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Settings (`LUISettingsLayout`)     | Settings and its pages, Profile, Export               | `text-2xl` title above a `rounded-2xl` surface card holding rows and notes                                                              |
-| Identity (`LUIIdentityPage`)       | Unlock, Lock, the password, two-factor unlock changes | Centred `text-2xl` title, `size-24` avatar, one column of responsive `max-w-72` fields and buttons                                      |
-| Record (`LUIFeaturePageUD` header) | Notes, tasks, reminders, saves, and Home's panels     | Compact icon + title pill on a hairline divider, then its form or list                                                                  |
-| LittleAI (`src/panel/`)            | The side panel, `/ai`, and the same page in a tab     | A header (Back when inline, chats, logo, title, new chat), the conversation, and the composer with in-chat model switcher at the bottom |
+| Layout                             | Used for                                              | Parts                                                                                                                                              |
+| ---------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Settings (`LUISettingsLayout`)     | Settings and its pages, Profile, Export               | `text-2xl` title above a `rounded-2xl` surface card holding rows and notes                                                                         |
+| Identity (`LUIIdentityPage`)       | Unlock, Lock, the password, two-factor unlock changes | Centred `text-2xl` title, `size-24` avatar, one column of responsive `max-w-72` fields and buttons                                                 |
+| Record (`LUIFeaturePageUD` header) | Notes, tasks, reminders, saves, and Home's panels     | Compact icon + title pill on a hairline divider, then its form or list                                                                             |
+| LittleAI (`src/panel/`)            | The side panel, `/ai`, and the same page in a tab     | A header (Back when inline, chats, logo, title, new chat), the conversation, and the composer with in-chat searchable model switcher at the bottom |
 
 Titles are `text-2xl font-semibold tracking-tight`. Every scrollable region uses Little Later's themed scrollbar (configured globally on `#root`), never Chrome's native scrollbar.
 
@@ -37,7 +37,8 @@ Saves, tasks, reminders, notes, and history entries share one `rounded-2xl` card
 - **Reminders (`LUIReminderMini`):** Message visible on the primary line when collapsed, with target time, kind badge, and tag chips underneath; clickable card / Details toggle + quiet Edit icon; hairline-divided expanded drawer with links and Delete.
 - **Saves (`LUIVBMs` / `LUIVBMMini`):** Thumbnail + title + domain + tag chips + link counts when collapsed; `Active | Archived` filter when archived saves exist; hairline-divided expanded drawer with full preview (`Open page`, `View image`), links, `Archive`/`Unarchive`, and actions.
 - **Notes (`LUINotes` / `LUINoteMini`):** Clean single-column list (upgrading to a left-to-right 2-column grid on wide viewports) with `All | Locked` filter when locked notes exist; creating a new note lives in the bottom navigation bar (`History | New task | New reminder | New note`). Locked notes show only a lock badge, optional visible title, tags, and date until unlocked with the profile password, and re-lock on leave.
-- **Tags (`LUITagChips` / `LUITagInput`):** Shared `#tag` pills across saves, tasks, reminders, and notes, with a horizontal tag filter row on Home whenever tags exist.
+- **Images (`LUIImages` / `/image/:id`):** Responsive 2-column encrypted thumbnail grid with `+ Add image` routing through the shared `/pick-file` screen and a detail viewer for title, tags, source URL, download, and delete.
+- **Tags (`LUITagChips` / `LUITagInput`):** Shared `#tag` pills across saves, tasks, reminders, notes, and images, with a horizontal tag filter row on Home whenever tags exist.
 - **History (`LUIBrowsedVBM`):** Same card surface, concise timestamp (`relative · date`), uniform row of `rounded-lg` icon buttons + unified Delete.
 
 ## Rows
