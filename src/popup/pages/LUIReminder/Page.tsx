@@ -1,5 +1,5 @@
-import { useLittleTransition } from "../../hooks/useLittleTransition";
-import { exitTransitions } from "../../../route-transitions";
+import { useMemo } from "react";
+import { usePageMotion } from "../../hooks/usePageMove";
 import { LTHEME } from "little-shared/enums";
 import { motion } from "framer-motion";
 import { useTheme } from "../../hooks/useTheme";
@@ -8,6 +8,7 @@ import { LUIReminderForm } from "../../components/LUIReminderForm/Component";
 import { useParams } from "react-router";
 import {
 	useLinks,
+	useNotes,
 	useReminders,
 	useSaves,
 	useTasks,
@@ -15,25 +16,38 @@ import {
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
+import { collectProfileTags } from "../../../utils/tags";
 
 const Page = () => {
 	const { theme } = useTheme();
-	const { entry, exit } = useLittleTransition({
-		defaultExit: exitTransitions.slideRight,
-	});
+	const pageMotion = usePageMotion();
 	const links = useLinks();
+	const notes = useNotes();
 	const reminders = useReminders();
 	const pages = useSaves();
 	const tasks = useTasks();
 	const { id } = useParams();
-	const loading = useLoading([id, links, reminders, pages, tasks]);
+	const loading = useLoading([id, links, notes, reminders, pages, tasks]);
 	const reminder = reminders?.find((item) => item.id === id);
+	const savedPages = useMemo(
+		() => (pages ?? []).filter((page) => page.saved),
+		[pages],
+	);
+	const tagSuggestions = useMemo(
+		() =>
+			collectProfileTags([
+				savedPages,
+				tasks ?? [],
+				reminders ?? [],
+				notes ?? [],
+			]),
+		[savedPages, tasks, reminders, notes],
+	);
 
 	return (
 		<motion.div
 			className={`h-full w-full select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} `}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			{loading ? (
 				<LUILoading />
@@ -49,8 +63,9 @@ const Page = () => {
 							key={reminder.id}
 							reminder={reminder}
 							links={links!}
-							saves={pages!.filter((page) => page.saved)}
+							saves={savedPages}
 							tasks={tasks!}
+							tagSuggestions={tagSuggestions}
 						/>
 					) : (
 						<LUIEmptyState title="Reminder not found." />

@@ -5,6 +5,13 @@
 // Outside production there is no extension, so they live in memory.
 
 const SESSION_KEY = "unlocked";
+// What the popup remembers between openings (src/popup/uiState.ts): the
+// page it was on and unsaved drafts. It is a profile's content, so it goes
+// when the profile locks, and when another profile's session replaces it:
+// otherwise one profile's drafts reopened in the next profile's forms.
+// Each piece is its own "ui:" key; "ui" alone is the single key it used to
+// be, removed with them.
+const isUIStateKey = (key: string) => key === "ui" || key.startsWith("ui:");
 
 export type UnlockedSession = {
 	profileId: string;
@@ -13,7 +20,14 @@ export type UnlockedSession = {
 	rootKeys: Record<string, string>;
 	// Index key, base64.
 	indexKey: string;
+	// New on every unlock. Work bound to one unlock, such as an AI request,
+	// ends when the profile locks, even if the same profile is opened again
+	// before the work finishes (src/services/ai/owner.ts).
+	unlockId: string;
 };
+
+// The key material of a session, without what identifies the unlock.
+export type SessionKeys = Omit<UnlockedSession, "unlockId">;
 
 type Listener = (session: UnlockedSession | null) => void;
 
@@ -46,13 +60,28 @@ export const createMemorySessionStore = (): SessionStore => {
 	};
 };
 
+const chromeUIStateKeys = async () =>
+	(await chrome.storage.session.getKeys()).filter(isUIStateKey);
+
 export const createChromeSessionStore = (): SessionStore => ({
 	get: async () => {
 		const result = await chrome.storage.session.get(SESSION_KEY);
 		return (result[SESSION_KEY] as UnlockedSession | undefined) ?? null;
 	},
-	set: (session) => chrome.storage.session.set({ [SESSION_KEY]: session }),
-	clear: () => chrome.storage.session.remove(SESSION_KEY),
+	set: async (session) => {
+		const previous = (await chrome.storage.session.get(SESSION_KEY))[
+			SESSION_KEY
+		] as UnlockedSession | undefined;
+		if (previous?.profileId !== session.profileId) {
+			await chrome.storage.session.remove(await chromeUIStateKeys());
+		}
+		await chrome.storage.session.set({ [SESSION_KEY]: session });
+	},
+	clear: async () =>
+		chrome.storage.session.remove([
+			SESSION_KEY,
+			...(await chromeUIStateKeys()),
+		]),
 	subscribe: (listener) => {
 		const onChanged = (changes: {
 			[key: string]: chrome.storage.StorageChange;
@@ -78,6 +107,12 @@ export const createWebSessionStore = (storage: Storage): SessionStore => {
 		const text = storage.getItem(SESSION_KEY);
 		return text === null ? null : (JSON.parse(text) as UnlockedSession);
 	};
+	const removeUIState = () => {
+		const keys = Array.from({ length: storage.length }, (_, index) =>
+			storage.key(index),
+		).filter((key): key is string => key !== null && isUIStateKey(key));
+		for (const key of keys) storage.removeItem(key);
+	};
 	const emit = () => {
 		const current = read();
 		listeners.forEach((listener) => listener(current));
@@ -85,11 +120,15 @@ export const createWebSessionStore = (storage: Storage): SessionStore => {
 	return {
 		get: async () => read(),
 		set: async (session) => {
+			if (read()?.profileId !== session.profileId) {
+				removeUIState();
+			}
 			storage.setItem(SESSION_KEY, JSON.stringify(session));
 			emit();
 		},
 		clear: async () => {
 			storage.removeItem(SESSION_KEY);
+			removeUIState();
 			emit();
 		},
 		subscribe: (listener) => {

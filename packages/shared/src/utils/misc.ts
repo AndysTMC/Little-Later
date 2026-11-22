@@ -14,5 +14,5 @@ export const fakeWait = async ({
 
 export const getDomainFromUrl = (url: string): string => {
 	const urlObj = new URL(url);
-	return urlObj.hostname.replace("www.", "");
+	return urlObj.hostname.replace(/^www\./i, "");
 };

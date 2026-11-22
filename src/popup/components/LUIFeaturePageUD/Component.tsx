@@ -7,38 +7,40 @@ import { twMerge } from "tailwind-merge";
 const Component = ({
 	className,
 	Icon,
+	title,
 }: {
 	className?: string;
 	Icon: IconComponentType | LIconComponentType;
+	title?: string;
 }) => {
 	const { theme } = useTheme();
+	const isDark = theme === LTHEME.DARK;
 	return (
 		<div
 			className={twMerge(
-				`relative z-50 flex h-16 w-full shrink-0 items-end justify-center`,
+				`relative z-20 flex h-11 w-full shrink-0 items-center justify-center px-4`,
 				className,
 			)}
 		>
-			<hr
-				className={`h-0 w-full border-t ${
-					theme === LTHEME.DARK
-						? "border-neutral-700"
-						: "border-neutral-300"
-				} -translate-y-8`}
-			></hr>
 			<div
-				className={`absolute h-16 w-16 rounded-xl ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} border ${
-					theme === LTHEME.DARK
-						? "border-neutral-700"
-						: "border-neutral-300"
-				} flex items-center justify-center`}
+				className={`h-px w-full ${isDark ? "bg-neutral-800" : "bg-neutral-200"}`}
+			/>
+			<div
+				className={`absolute flex items-center gap-x-2 rounded-xl border px-3 py-1.5 ${
+					isDark
+						? "border-neutral-800 bg-neutral-900 text-white"
+						: "border-neutral-200 bg-neutral-100 text-black"
+				}`}
 			>
 				<LUIThemedIcon
 					Icon={Icon}
-					color={theme === LTHEME.DARK ? "white" : "black"}
-					weight="bold"
-					className="h-12 w-12"
+					color="currentColor"
+					weight="regular"
+					className="size-5"
 				/>
+				{title ? (
+					<span className="text-sm font-semibold">{title}</span>
+				) : null}
 			</div>
 		</div>
 	);

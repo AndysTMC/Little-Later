@@ -6,7 +6,6 @@ export default new Map<LIconWeight, ReactElement>([
 		"thin",
 		<>
 			<path
-				id="path2-4"
 				style={{
 					display: "inline",
 					fill: "none",
@@ -34,7 +33,6 @@ export default new Map<LIconWeight, ReactElement>([
 					paintOrder: "normal",
 				}}
 				d="m 119.00038,85.2518 h 16.87429 v 44.99811 h 44.99811 v 16.87429 h -61.8724 z"
-				id="path21"
 			/>
 		</>,
 	],
@@ -42,7 +40,6 @@ export default new Map<LIconWeight, ReactElement>([
 		"light",
 		<>
 			<path
-				id="path2-4"
 				style={{
 					display: "inline",
 					fill: "none",
@@ -70,7 +67,6 @@ export default new Map<LIconWeight, ReactElement>([
 					paintOrder: "normal",
 				}}
 				d="m 119.00038,85.2518 h 16.87429 v 44.99811 h 44.99811 v 16.87429 h -61.8724 z"
-				id="path21"
 			/>
 		</>,
 	],
@@ -78,7 +74,6 @@ export default new Map<LIconWeight, ReactElement>([
 		"regular",
 		<>
 			<path
-				id="path2-4"
 				style={{
 					display: "inline",
 					fill: "none",
@@ -106,7 +101,6 @@ export default new Map<LIconWeight, ReactElement>([
 					paintOrder: "normal",
 				}}
 				d="m 119.00038,85.2518 h 16.87429 v 44.99811 h 44.99811 v 16.87429 h -61.8724 z"
-				id="path21"
 			/>
 		</>,
 	],
@@ -114,7 +108,6 @@ export default new Map<LIconWeight, ReactElement>([
 		"bold",
 		<>
 			<path
-				id="path2-4"
 				style={{
 					display: "inline",
 					fill: "none",
@@ -142,7 +135,6 @@ export default new Map<LIconWeight, ReactElement>([
 					paintOrder: "normal",
 				}}
 				d="m 119.00038,85.2518 h 16.87429 v 44.99811 h 44.99811 v 16.87429 h -61.8724 z"
-				id="path21"
 			/>
 		</>,
 	],
@@ -150,7 +142,6 @@ export default new Map<LIconWeight, ReactElement>([
 		"fill",
 		<>
 			<path
-				id="path2-4"
 				style={{
 					display: "inline",
 					fill: "inherit",
@@ -170,7 +161,6 @@ export default new Map<LIconWeight, ReactElement>([
 		"duotone",
 		<>
 			<path
-				id="path2-4"
 				style={{
 					display: "inline",
 					fill: "inherit",

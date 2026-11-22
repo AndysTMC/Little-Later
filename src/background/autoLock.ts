@@ -1,6 +1,8 @@
 import type { SerialQueue } from "./commands/registry";
 import type { LittleDB } from "../storage/schema";
 import type { SessionStore } from "../storage/session";
+import { importProfileKeys } from "../storage/keys";
+import { enforceChatRetention } from "./chatRetention";
 
 // Automatic lock (decision 0010, Locking): the unlocked profile locks when
 // the screen locks, and after its configured idle minutes. Browser start and
@@ -45,11 +47,27 @@ export const createAutoLock = ({
 		idle.onStateChanged.addListener((state) => {
 			if (state === "idle" || state === "locked") {
 				// Queued, so a command already running finishes first.
-				void queue(() => session.clear());
+				void queue(async () => {
+					const unlocked = await session.get();
+					await session.clear();
+					if (unlocked) {
+						try {
+							await enforceChatRetention(
+								db,
+								await importProfileKeys(unlocked),
+								{ onLock: true },
+							);
+						} catch {
+							// Never block auto-lock.
+						}
+					}
+				});
 			}
 		});
 		session.subscribe((unlocked) => {
-			if (unlocked) void configure();
+			if (unlocked) {
+				void configure();
+			}
 		});
 		void configure();
 	};

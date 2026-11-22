@@ -11,28 +11,55 @@ import { useProfileKeys } from "./useSession";
 const NOT_STORED = defaultSettings();
 
 // The unlocked profile's sealed settings: AI provider and history limits.
+// While a changed row is being opened the last settings stay in place, so
+// pages that need them do not fall back to their loading state.
 const useCurrentUserSettings = (): Settings | undefined => {
 	const keys = useProfileKeys();
 	const profileId = keys?.profileId;
 	// null: the profile has no settings row yet, so it uses the defaults.
-	const row = useLiveQuery(
-		async (): Promise<SettingsRow | null | undefined> =>
+	const loaded = useLiveQuery(
+		async (): Promise<
+			{ profileId: string; row: SettingsRow | null } | undefined
+		> =>
 			profileId === undefined
 				? undefined
-				: ((await littleDB.settings.get(profileId)) ?? null),
+				: {
+						profileId,
+						row: (await littleDB.settings.get(profileId)) ?? null,
+					},
 		[profileId],
 		undefined,
 	);
+	const row =
+		loaded && loaded.profileId === profileId ? loaded.row : undefined;
+	const [lastProfileId, setLastProfileId] = useState<string | undefined>(
+		profileId,
+	);
 	const [opened, setOpened] = useState<{
-		row: SettingsRow;
+		profileId: string;
 		settings: Settings;
 	} | null>(null);
+	if (lastProfileId !== profileId) {
+		setLastProfileId(profileId);
+		setOpened(null);
+	}
 	useEffect(() => {
 		if (!keys || !row) return;
 		let active = true;
-		void openBody<Settings>(keys, "settings", row.id, row.body).then(
+		openBody<Settings>(keys, "settings", row.id, row.body).then(
 			(settings) => {
-				if (active) setOpened({ row, settings });
+				if (active) setOpened({ profileId: keys.profileId, settings });
+			},
+			(error: unknown) => {
+				// Unreadable settings fall back to the defaults, so the
+				// profile still opens and they can be set again.
+				console.warn("Could not open the settings.", error);
+				if (active) {
+					setOpened({
+						profileId: keys.profileId,
+						settings: NOT_STORED,
+					});
+				}
 			},
 		);
 		return () => {
@@ -41,7 +68,7 @@ const useCurrentUserSettings = (): Settings | undefined => {
 	}, [keys, row]);
 	if (!keys || row === undefined) return undefined;
 	if (row === null) return NOT_STORED;
-	return opened?.row === row ? opened.settings : undefined;
+	return opened?.profileId === keys.profileId ? opened.settings : undefined;
 };
 
 export { useCurrentUserSettings };

@@ -2,11 +2,7 @@ import { LTHEME } from "little-shared/enums";
 import { useTheme } from "../../hooks/useTheme";
 import { twMerge } from "tailwind-merge";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
-import {
-	CaretLeftIcon,
-	CaretRightIcon,
-	DotsThreeOutlineIcon,
-} from "@phosphor-icons/react";
+import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
 
 const PaginationBlock = ({
 	children,
@@ -15,6 +11,7 @@ const PaginationBlock = ({
 	isActive = false,
 	isDisabled = false,
 	onClick = () => {},
+	label,
 }: {
 	children?: React.ReactNode;
 	className?: string;
@@ -22,11 +19,24 @@ const PaginationBlock = ({
 	isActive?: boolean;
 	isDisabled?: boolean;
 	onClick?: () => void;
+	label?: string;
 }) => {
+	const isDark = theme === LTHEME.DARK;
 	return (
 		<button
+			type="button"
+			aria-label={label}
+			aria-current={isActive ? "page" : undefined}
 			className={twMerge(
-				`${theme === LTHEME.DARK ? (isActive ? "bg-white text-black" : "bg-neutral-800 text-white not-disabled:hover:bg-neutral-700") : isActive ? "bg-black text-white" : "bg-neutral-200 text-black not-disabled:hover:bg-neutral-300"} ${isActive ? "" : "not-disabled:cursor-pointer"} flex h-7 items-center justify-center rounded-md px-3 text-sm disabled:opacity-50`,
+				`flex size-7 shrink-0 items-center justify-center rounded-lg text-xs font-medium transition-colors disabled:opacity-40 ${
+					isActive
+						? "ll-accent-fill"
+						: `not-disabled:cursor-pointer ${
+								isDark
+									? "bg-neutral-900 text-neutral-300 not-disabled:hover:bg-neutral-800"
+									: "bg-neutral-100 text-neutral-700 not-disabled:hover:bg-neutral-200"
+							}`
+				}`,
 				className,
 			)}
 			onClick={onClick}
@@ -49,133 +59,72 @@ const Component = ({
 	onBatchChange: (newBatch: number) => void;
 }) => {
 	const { theme } = useTheme();
+	const isDark = theme === LTHEME.DARK;
 	if (batchCount <= 1) return null;
+
+	const pages: Array<number | "ellipsis-start" | "ellipsis-end"> = [];
+	if (currentBatch > 2) pages.push(1);
+	if (currentBatch > 3) pages.push("ellipsis-start");
+	if (currentBatch > 1) pages.push(currentBatch - 1);
+	pages.push(currentBatch);
+	if (currentBatch < batchCount) pages.push(currentBatch + 1);
+	if (currentBatch + 2 === batchCount) pages.push(currentBatch + 2);
+	if (currentBatch < batchCount - 2) {
+		pages.push("ellipsis-end");
+		pages.push(batchCount);
+	}
+
 	return (
-		<div className={twMerge(`flex h-max w-full gap-x-1`, className)}>
+		<div
+			className={twMerge(
+				`flex h-max w-max items-center gap-x-1`,
+				className,
+			)}
+		>
 			<PaginationBlock
-				key={-1}
+				label="Previous page"
 				theme={theme}
-				isDisabled={currentBatch == 1}
+				isDisabled={currentBatch <= 1}
 				onClick={() => onBatchChange(currentBatch - 1)}
 			>
 				<LUIThemedIcon
 					Icon={CaretLeftIcon}
-					color={theme === LTHEME.DARK ? "white" : "black"}
+					color="currentColor"
 					weight="regular"
-					className="size-4"
+					className="size-3.5"
 				/>
 			</PaginationBlock>
-			<div className={`flex h-max grow gap-x-1`}>
-				{currentBatch > 2 ? (
-					<PaginationBlock
-						key={1}
-						className="shrink-0"
-						theme={theme}
-						onClick={() => onBatchChange(1)}
+			{pages.map((entry) =>
+				typeof entry === "string" ? (
+					<span
+						key={entry}
+						aria-hidden
+						className={`px-1 text-xs ${isDark ? "text-neutral-500" : "text-neutral-400"}`}
 					>
-						{1}
-					</PaginationBlock>
-				) : null}
-				<div className={`flex h-max grow gap-x-1`}>
-					{currentBatch > 3 ? (
-						<PaginationBlock
-							key={-2}
-							className="grow"
-							theme={theme}
-							isDisabled
-							onClick={() => onBatchChange(1)}
-						>
-							<LUIThemedIcon
-								Icon={DotsThreeOutlineIcon}
-								color={
-									theme === LTHEME.DARK ? "white" : "black"
-								}
-								weight="fill"
-								className="size-4"
-							/>
-						</PaginationBlock>
-					) : null}
-					{currentBatch > 1 ? (
-						<PaginationBlock
-							key={currentBatch - 1}
-							className="shrink-0"
-							theme={theme}
-							onClick={() => onBatchChange(currentBatch - 1)}
-						>
-							{currentBatch - 1}
-						</PaginationBlock>
-					) : null}
+						…
+					</span>
+				) : (
 					<PaginationBlock
-						key={currentBatch}
-						className="shrink-0"
+						key={entry}
 						theme={theme}
-						isActive
-						onClick={() => onBatchChange(currentBatch)}
+						isActive={entry === currentBatch}
+						onClick={() => onBatchChange(entry)}
 					>
-						{currentBatch}
+						{entry}
 					</PaginationBlock>
-					{currentBatch < batchCount ? (
-						<PaginationBlock
-							key={currentBatch + 1}
-							className="shrink-0"
-							theme={theme}
-							onClick={() => onBatchChange(currentBatch + 1)}
-						>
-							{currentBatch + 1}
-						</PaginationBlock>
-					) : null}
-					{currentBatch + 2 === batchCount ? (
-						<PaginationBlock
-							key={currentBatch + 2}
-							className="shrink-0"
-							theme={theme}
-							onClick={() => onBatchChange(currentBatch + 2)}
-						>
-							{currentBatch + 2}
-						</PaginationBlock>
-					) : null}
-					{currentBatch < batchCount - 2 ? (
-						<PaginationBlock
-							key={-3}
-							className="grow"
-							theme={theme}
-							isDisabled
-							onClick={() => onBatchChange(1)}
-						>
-							<LUIThemedIcon
-								Icon={DotsThreeOutlineIcon}
-								color={
-									theme === LTHEME.DARK ? "white" : "black"
-								}
-								weight="fill"
-								className="size-4"
-							/>
-						</PaginationBlock>
-					) : null}
-				</div>
-				{currentBatch < batchCount - 2 ? (
-					<PaginationBlock
-						key={batchCount}
-						className="shrink-0"
-						theme={theme}
-						onClick={() => onBatchChange(batchCount)}
-					>
-						{batchCount}
-					</PaginationBlock>
-				) : null}
-			</div>
-
+				),
+			)}
 			<PaginationBlock
-				key={-4}
+				label="Next page"
 				theme={theme}
 				isDisabled={currentBatch >= batchCount}
 				onClick={() => onBatchChange(currentBatch + 1)}
 			>
 				<LUIThemedIcon
 					Icon={CaretRightIcon}
-					color={theme === LTHEME.DARK ? "white" : "black"}
+					color="currentColor"
 					weight="regular"
-					className="size-4"
+					className="size-3.5"
 				/>
 			</PaginationBlock>
 		</div>

@@ -1,94 +1,85 @@
-import { NotePencilIcon, UserIcon, XCircleIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon, UserIcon, XIcon } from "@phosphor-icons/react";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LTHEME } from "little-shared/enums";
 import { twMerge } from "tailwind-merge";
 import { useObjectUrl } from "../../hooks/useObjectUrl";
 
+// Shows a profile photo and asks for a new one. The photo itself is
+// chosen on the shared input screen (../../filePick.ts): `onChoose` sends
+// the user there.
 const Component = ({
 	className,
 	avatar,
-	setAvatar,
-	avatarInputRef,
+	onChoose,
+	onRemove,
 	theme,
 }: {
 	className?: string;
 	avatar: Blob | null;
-	setAvatar: (avatarUrl: Blob | null) => void;
-	avatarInputRef: React.RefObject<HTMLInputElement | null>;
+	onChoose: () => void;
+	onRemove: () => void;
 	theme: LTHEME;
 }) => {
+	const isDark = theme === LTHEME.DARK;
 	const avatarUrl = useObjectUrl(avatar);
-	const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		if (!event.target.files) return;
-		const blob = event.target.files[0];
-		if (blob === undefined) setAvatar(null);
-		setAvatar(blob);
-	};
-	const removeAvatar = () => {
-		setAvatar(null);
-		if (avatarInputRef.current) {
-			avatarInputRef.current.value = "";
-		}
-	};
+	const badgeSurface = isDark
+		? "border-neutral-700 bg-neutral-900 text-neutral-100 hover:bg-neutral-800"
+		: "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100";
 	return (
 		<div className={twMerge(`relative h-max w-max`, className)}>
-			<input
-				type="file"
-				accept="image/*"
-				onChange={handleAvatarChange}
-				ref={avatarInputRef}
-				className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-				style={{ display: "none" }}
-				id="little-profile-avatar-upload"
-			/>
-			<label htmlFor="little-profile-avatar-upload">
+			<button
+				type="button"
+				aria-label={
+					avatar ? "Change the profile photo" : "Add a profile photo"
+				}
+				className="cursor-pointer rounded-full"
+				onClick={onChoose}
+			>
 				<div
-					className={`relative h-28 w-28 rounded-full border-2 ${theme === LTHEME.DARK ? "border-neutral-700" : "border-neutral-300"}`}
+					className={`relative size-28 rounded-full border-2 ${isDark ? "border-neutral-700" : "border-neutral-300"}`}
 				>
 					{avatarUrl ? (
 						<img
 							src={avatarUrl}
 							alt="Profile photo"
-							className={`h-full w-full rounded-full object-cover`}
+							className="h-full w-full rounded-full object-cover"
 						/>
 					) : (
 						<div
-							className={`h-full w-full ${theme === LTHEME.DARK ? "bg-neutral-800" : "bg-neutral-200"} rounded-full p-2`}
+							className={`h-full w-full rounded-full p-2 ${isDark ? "bg-neutral-800" : "bg-neutral-200"}`}
 						>
 							<LUIThemedIcon
 								Icon={UserIcon}
 								weight="light"
-								color={
-									theme === LTHEME.DARK ? "white" : "black"
-								}
+								color={isDark ? "white" : "black"}
 								className="size-full"
 							/>
 						</div>
 					)}
 					<div
-						className={`absolute right-0 bottom-0 flex items-center justify-center ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} cursor-pointer rounded-full p-0.5`}
+						className={`absolute right-0 bottom-0 flex size-7 items-center justify-center rounded-full border shadow-sm transition-colors ${badgeSurface}`}
 					>
 						<LUIThemedIcon
-							Icon={NotePencilIcon}
-							weight="fill"
-							color={theme === LTHEME.DARK ? "white" : "black"}
-							className="h-6 w-6"
+							Icon={PencilSimpleIcon}
+							weight="regular"
+							color="currentColor"
+							className="size-3.5"
 						/>
 					</div>
 				</div>
-			</label>
+			</button>
 			{avatar ? (
 				<button
 					type="button"
 					aria-label="Remove profile photo"
-					className={`absolute top-0 right-0 m-0 flex h-max w-max cursor-pointer items-center justify-center rounded-full p-0`}
-					onClick={removeAvatar}
+					className={`absolute top-0 right-0 flex size-7 cursor-pointer items-center justify-center rounded-full border shadow-sm transition-colors ${badgeSurface}`}
+					onClick={onRemove}
 				>
 					<LUIThemedIcon
-						Icon={XCircleIcon}
-						weight="fill"
-						color={theme === LTHEME.DARK ? "white" : "black"}
-						className="h-6 w-6"
+						Icon={XIcon}
+						weight="regular"
+						color="currentColor"
+						className="size-3.5"
 					/>
 				</button>
 			) : null}

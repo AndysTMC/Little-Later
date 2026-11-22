@@ -5,7 +5,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-	{ ignores: ["dist"] },
+	{ ignores: ["dist", "dist-dev", "artifacts", "packages/**/dist"] },
 	{
 		extends: [js.configs.recommended, ...tseslint.configs.recommended],
 		files: ["**/*.{ts,tsx}"],
@@ -19,12 +19,6 @@ export default tseslint.config(
 		},
 		rules: {
 			...reactHooks.configs.recommended.rules,
-			// React Compiler rules new in eslint-plugin-react-hooks 7. The
-			// popup has ~44 existing hits; they are fixed screen by screen
-			// in the design-system phase, then raised back to errors.
-			"react-hooks/refs": "warn",
-			"react-hooks/set-state-in-effect": "warn",
-			"react-hooks/immutability": "warn",
 			"react-refresh/only-export-components": [
 				"warn",
 				{ allowConstantExport: true },
@@ -34,7 +28,12 @@ export default tseslint.config(
 	{
 		// The service worker is the only writer (decision 0012): page code
 		// reads the database and sends commands to change it.
-		files: ["src/popup/**", "src/services/**", "src/utils/**"],
+		files: [
+			"src/popup/**",
+			"src/panel/**",
+			"src/services/**",
+			"src/utils/**",
+		],
 		rules: {
 			"no-restricted-syntax": [
 				"error",

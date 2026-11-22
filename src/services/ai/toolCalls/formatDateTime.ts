@@ -58,7 +58,7 @@ const toolCall = ({
 	const offsetSign = timezoneOffsetMinutes >= 0 ? "+" : "-";
 	const offsetHours = Math.floor(Math.abs(timezoneOffsetMinutes) / 60);
 	const offsetMinutes = Math.abs(timezoneOffsetMinutes) % 60;
-	return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(
+	return `${date.getFullYear().toString().padStart(4, "0")}-${pad2(date.getMonth() + 1)}-${pad2(
 		date.getDate(),
 	)}T${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(
 		date.getSeconds(),

@@ -1,12 +1,22 @@
-import { send } from "../../../utils/send";
+import { readNotes } from "../records";
+import type { AIOwner } from "../owner";
 
-const toolCall = async ({
-	id,
-}: {
-	id: string;
-}): Promise<() => Promise<void>> => {
+const toolCall = async (
+	owner: AIOwner,
+	{
+		id,
+	}: {
+		id: string;
+	},
+): Promise<() => Promise<void>> => {
+	const note = (await readNotes(await owner.keys())).find(
+		(item) => item.id === id,
+	);
+	if (note === undefined) {
+		throw new Error("Note not found.");
+	}
 	return async () => {
-		await send("note.delete", { id });
+		await owner.send("note.delete", { id });
 	};
 };
 

@@ -1,6 +1,6 @@
 import { LDATE_FORMAT } from "little-shared/constants";
 import { LTASK_PRIORITY } from "little-shared/enums";
-import OpenAI from "openai";
+import type OpenAI from "openai";
 
 const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	type: "function",
@@ -68,11 +68,14 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 						"The type of the task schedule: anytime (no deadline), due (one deadline) or recurring",
 					enum: ["anytime", "due", "recurring"],
 				},
+				tag: {
+					type: "string",
+					description: "Optional tag filter (with or without #)",
+				},
 			},
 			required: [],
 			additionalProperties: false,
 		},
-		strict: true,
 	},
 };
 export { tool as searchTasksTool };

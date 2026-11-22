@@ -37,22 +37,57 @@ export type ReminderSchedulerDeps = {
 	setAlarm: (when: number | null) => Promise<void>;
 	// `image` is the attached page's preview, only while unlocked.
 	notify: (id: string, message: string, image?: Uint8Array) => Promise<void>;
+	// Told about a notice the system refused to show. The reminder still
+	// counts as fired, so nothing repeats; the popup tells the user.
+	refused?: (notice: RefusedNotice) => Promise<void>;
 };
+
+// A notice that could not be shown: one reminder, or the collapsed notice
+// for several missed while the browser was closed, which may span profiles.
+export type RefusedNotice =
+	| { profileId: string; reminderId: string; at: number }
+	| { profileId: null; reminderId: null; count: number; at: number };
 
 export type SchedulerRun = { fired: number; nextAlarm: number | null };
 
-// Re-arms after every successful command. Reminder, task, import and
-// delete commands all write reminders, and the alarm is read back from the
-// table, so no list of command names can fall behind them.
+// Re-arms after a successful command that changed what the schedule is
+// read from. Which commands do is told by the tables themselves
+// (watchScheduleTables), so no list of command names can fall behind
+// them, and a page visit no longer re-reads every profile's tasks.
 export const rearmAfterCommands =
-	(dispatch: Dispatch, rearm: () => void): Dispatch =>
+	(
+		dispatch: Dispatch,
+		rearm: () => void,
+		changed: () => boolean = () => true,
+	): Dispatch =>
 	async (name, input, options) => {
 		const result = await dispatch(name, input, options);
-		if (result.ok) {
+		if (result.ok && changed()) {
 			rearm();
 		}
 		return result;
 	};
+
+// Notes any write to the tables a schedule is read from. `takeChanged`
+// says whether one happened since it was last asked.
+export const watchScheduleTables = (db: LittleDB) => {
+	let changed = false;
+	const mark = () => {
+		changed = true;
+	};
+	for (const table of [db.reminders, db.tasks, db.profiles]) {
+		table.hook("creating", mark);
+		table.hook("updating", mark);
+		table.hook("deleting", mark);
+	}
+	return {
+		takeChanged: () => {
+			const was = changed;
+			changed = false;
+			return was;
+		},
+	};
+};
 
 const unlockedKeys = async (
 	session: SessionStore,
@@ -141,7 +176,13 @@ export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 		return earliest;
 	};
 
-	const fire = async (): Promise<SchedulerRun> => {
+	// Updates the schedule inside the write queue and returns the notices to
+	// show, which are shown after it: a slow notification must not hold up
+	// the next write.
+	const fire = async (): Promise<{
+		run: SchedulerRun;
+		notices: Array<{ show: () => Promise<void>; refused: RefusedNotice }>;
+	}> => {
 		const now = deps.now();
 		// Before anything is read as due: a floating deadline is due by the
 		// clock of the zone the device is in now (0011).
@@ -185,40 +226,66 @@ export const createReminderScheduler = (deps: ReminderSchedulerDeps) => {
 		// Several missed fires collapse into one notice (0011, Catch-up).
 		const collapsed = missed.length > 1 ? new Set(missed) : new Set();
 		const keys = await unlockedKeys(session);
-		const notices = due
+		const notices: Array<{
+			show: () => Promise<void>;
+			refused: RefusedNotice;
+		}> = due
 			.filter((row) => !collapsed.has(row))
-			.map(
-				(row) => async () =>
+			.map((row) => ({
+				show: async () =>
 					deps.notify(
 						`${REMINDER_NOTICE}${row.id}`,
 						await reminderText(keys, row),
 						await previewOf(keys, row),
 					),
-			);
+				refused: {
+					profileId: row.profileId,
+					reminderId: row.id,
+					at: now,
+				},
+			}));
 		if (collapsed.size > 0) {
-			notices.push(() =>
-				deps.notify(
-					`${AWAY_NOTICE}${now}`,
-					`${collapsed.size} reminders while you were away`,
-				),
-			);
+			notices.push({
+				show: () =>
+					deps.notify(
+						`${AWAY_NOTICE}${now}`,
+						`${collapsed.size} reminders while you were away`,
+					),
+				refused: {
+					profileId: null,
+					reminderId: null,
+					count: collapsed.size,
+					at: now,
+				},
+			});
 		}
-		// One notice that cannot be shown must not hide the others.
-		for (const notice of notices) {
-			try {
-				await notice();
-			} catch (error) {
-				console.error("Could not show a reminder.", error);
-			}
-		}
-		return { fired: due.length, nextAlarm };
+		return { run: { fired: due.length, nextAlarm }, notices };
 	};
 
 	return {
 		// Fires what is due and re-arms the alarm. Safe to call at any time:
 		// at worker start, on the alarm, when the device wakes, and after
 		// every command.
-		run: (): Promise<SchedulerRun> => queue(fire),
+		run: async (): Promise<SchedulerRun> => {
+			const { run, notices } = await queue(fire);
+			// One notice that cannot be shown must not hide the others.
+			for (const notice of notices) {
+				try {
+					await notice.show();
+				} catch (error) {
+					console.error("Could not show a reminder.", error);
+					await deps
+						.refused?.(notice.refused)
+						.catch((reportError: unknown) =>
+							console.error(
+								"Could not record a refused reminder.",
+								reportError,
+							),
+						);
+				}
+			}
+			return run;
+		},
 		// The page a reminder notice opens: its attached save, when the
 		// reminder's profile is unlocked. Otherwise null, for the popup.
 		noticeTarget: async (

@@ -3,7 +3,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { twMerge } from "tailwind-merge";
 import { LVBMIcon, LTaskIcon, LReminderIcon } from "../LUIIcons";
-import { NotebookIcon } from "@phosphor-icons/react";
+import { ImageIcon, NotebookIcon } from "@phosphor-icons/react";
 
 const Component = ({
 	className,
@@ -15,6 +15,7 @@ const Component = ({
 	handleContentChange: (content: LHOME_MAIN_CONTENT) => void;
 }) => {
 	const { theme } = useTheme();
+	const isDark = theme === LTHEME.DARK;
 
 	const tabs = [
 		{
@@ -37,22 +38,27 @@ const Component = ({
 			label: "Notes",
 			icon: NotebookIcon,
 		},
+		{
+			content: LHOME_MAIN_CONTENT.IMAGES,
+			label: "Images",
+			icon: ImageIcon,
+		},
 	];
 
 	return (
 		<div
 			className={twMerge(
-				`flex h-max w-full items-center justify-center py-1`,
+				`flex h-max w-full items-center justify-center px-4 py-1`,
 				className,
 			)}
 		>
 			<div
 				role="tablist"
 				aria-label="Home features"
-				className={`flex h-8 w-4/5 overflow-hidden rounded-full border ${
-					theme === LTHEME.DARK
-						? "border-neutral-800"
-						: "border-neutral-200"
+				className={`flex h-9 w-full items-center gap-x-1 rounded-xl border p-1 ${
+					isDark
+						? "border-neutral-800 bg-neutral-900"
+						: "border-neutral-200 bg-neutral-100"
 				}`}
 			>
 				{tabs.map((tab) => {
@@ -64,27 +70,25 @@ const Component = ({
 							aria-selected={isActive}
 							aria-label={tab.label}
 							key={tab.content}
-							className={`flex h-full cursor-pointer items-center justify-center gap-x-1 transition-colors duration-300 ${
-								isActive ? "min-w-0 grow px-4" : "w-14 shrink-0"
-							} ${
+							className={`flex h-full cursor-pointer items-center justify-center gap-x-1.5 rounded-lg transition-colors duration-150 ${
 								isActive
-									? theme === LTHEME.DARK
-										? "bg-white text-black"
-										: "bg-black text-white"
-									: theme === LTHEME.DARK
-										? "bg-black text-white hover:bg-neutral-800"
-										: "bg-white text-black hover:bg-neutral-200"
+									? "ll-accent-fill min-w-0 grow px-3"
+									: `w-12 shrink-0 ${
+											isDark
+												? "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
+												: "text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900"
+										}`
 							}`}
 							onClick={() => handleContentChange(tab.content)}
 						>
 							<LUIThemedIcon
 								Icon={tab.icon}
-								weight="fill"
-								className="size-5"
-								invertTheme={isActive}
+								weight={isActive ? "fill" : "regular"}
+								color="currentColor"
+								className="size-4 shrink-0"
 							/>
 							{isActive ? (
-								<span className="text-md truncate font-bold whitespace-nowrap">
+								<span className="truncate text-sm font-semibold whitespace-nowrap">
 									{tab.label}
 								</span>
 							) : null}

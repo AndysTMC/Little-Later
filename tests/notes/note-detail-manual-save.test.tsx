@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot, Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LTHEME } from "little-shared/enums";
-import { ThemeContext } from "../../src/popup/contexts/Theme";
+import { ThemeContext } from "../../src/popup/contexts/ThemeContext";
 import { LUINoteDetailForm } from "../../src/popup/components/LUINoteDetailForm/Component";
 
 const mocks = vi.hoisted(() => ({
@@ -43,6 +43,13 @@ describe("note detail manual save flow", () => {
 						theme: LTHEME.DARK,
 						toggleTheme: () => {},
 						setTheme: () => {},
+						preference: "light",
+						setPreference: () => {},
+						accent: "mono",
+						setAccent: () => {},
+						accentColor: "#0e7490",
+						setAccentColor: () => {},
+						showLookOf: () => {},
 					}}
 				>
 					<LUINoteDetailForm note={note} />

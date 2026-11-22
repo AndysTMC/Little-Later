@@ -24,11 +24,19 @@ import {
 import {
 	BACKUP_FORMAT,
 	backupFileParts,
+	encodeHeader,
+	newBackupKey,
 	readBackupFile,
+	readBackupParts,
+	sealChunk,
 	writeBackupFile,
 } from "../../src/storage/backup";
 import { littleDB } from "../../src/storage/pageDB";
-import { putPreview } from "../../src/storage/repositories";
+import {
+	listChatMessages,
+	listChats,
+	putPreview,
+} from "../../src/storage/repositories";
 import { sessionStore } from "../../src/storage/session";
 import { staging } from "../../src/storage/staging";
 import { send } from "../../src/utils/send";
@@ -51,7 +59,12 @@ const reset = async () => {
 // A profile with one of everything, linked the way the app links them.
 const seedProfile = async (password: string | null = null) => {
 	await send("profile.create", { name: "Ada", password });
-	await send("profile.update", { theme: "dark", autoLockMinutes: 45 });
+	await send("profile.update", {
+		theme: "dark",
+		autoLockMinutes: 45,
+		accent: "custom",
+		accentColor: "#c026d3",
+	});
 	await send("profile.setAvatar", {
 		file: await staging.put(new Uint8Array([0x89, 0x50, 0x4e, 0x47])),
 		type: "image/png",
@@ -82,14 +95,14 @@ const seedProfile = async (password: string | null = null) => {
 		new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]),
 		Date.now(),
 	);
-	await send("note.create", { content: "About example", saveId: save.id });
+	await send("note.create", { content: "About example", saveIds: [save.id] });
 	const task = await send("task.create", {
 		information: "Read example",
 		label: "Reading",
 		priority: "high",
 		schedule: { kind: "due", at: Date.now() + DAY },
 		reminder: "escalating",
-		saveId: save.id,
+		saveIds: [save.id],
 	});
 	await send("task.create", {
 		information: "Water plants",
@@ -115,6 +128,21 @@ const seedProfile = async (password: string | null = null) => {
 	await send("reminder.create", {
 		message: "Call Bob",
 		target: Date.now() + 2 * DAY,
+	});
+	const chat = await send("chat.create", { title: "Trip plans" });
+	await send("chat.addMessage", {
+		chatId: chat.id,
+		message: { role: "user", text: "What's due this week?" },
+	});
+	await send("chat.addMessage", {
+		chatId: chat.id,
+		message: {
+			role: "assistant",
+			output: {
+				message: "Read example, by Friday.",
+				expression: "smiling",
+			},
+		},
 	});
 	return { saveId: save.id, taskId: task.id };
 };
@@ -150,7 +178,19 @@ const snapshot = async () => {
 		}),
 	);
 	const avatar = await littleDB.avatars.get(keys.profileId);
+	const chats = await Promise.all(
+		(await listChats(littleDB, keys)).map(async (chat) => ({
+			title: chat.title,
+			messages: (await listChatMessages(littleDB, keys, chat.id)).map(
+				(message) =>
+					message.role === "user"
+						? message.text
+						: message.output.message,
+			),
+		})),
+	);
 	return {
+		chats,
 		profile: { name: profile.name, prefs: profile.prefs },
 		avatar: avatar
 			? {
@@ -187,8 +227,153 @@ const rowCounts = async () =>
 		),
 	);
 
+// Runs `edit` once, on the export's `nth` decryption, and lets the export
+// go on after it. The export opens the profile's settings first, then its
+// saved pages.
+const duringDecrypt = (nth: number, edit: () => Promise<unknown>) => {
+	const decrypt = crypto.subtle.decrypt.bind(crypto.subtle);
+	let seen = 0;
+	vi.spyOn(crypto.subtle, "decrypt").mockImplementation(
+		async (...args: Parameters<SubtleCrypto["decrypt"]>) => {
+			seen += 1;
+			if (seen === nth) {
+				await edit();
+			}
+			return decrypt(...args);
+		},
+	);
+};
+
 describe("backups", { timeout: 30_000 }, () => {
 	beforeEach(reset);
+	afterEach(() => vi.restoreAllMocks());
+
+	// The export read one table after another, so a page and a note linked
+	// to it, added between the reads of saves and of notes, went into the
+	// file as a note and a link without the page.
+	it("restores no link to a record the backup left out, edited during export", async () => {
+		const { saveId } = await seedProfile();
+		const sourceId = (await unlockedKeys()).profileId;
+		// While the first saved page is opened.
+		duringDecrypt(2, async () => {
+			const { id } = await send("save.capture", {
+				url: "https://added-during.example/",
+				title: "Added during export",
+				saved: true,
+			});
+			await send("note.create", {
+				content: "Linked to the new page",
+				saveIds: [id, saveId],
+			});
+		});
+		const backup = await createBackup(PASSWORD, cheap());
+		vi.restoreAllMocks();
+		await importBackup(backup, PASSWORD);
+		const [importedId] = await importedProfileIds(sourceId);
+		const ids = new Set(
+			(
+				await Promise.all(
+					[
+						littleDB.saves,
+						littleDB.notes,
+						littleDB.tasks,
+						littleDB.reminders,
+					].map((table) => table.toArray()),
+				)
+			)
+				.flat()
+				.filter((row) => row.profileId === importedId)
+				.map((row) => row.id),
+		);
+		const links = (await littleDB.links.toArray()).filter(
+			(link) => link.profileId === importedId,
+		);
+		expect(links.length).toBeGreaterThan(0);
+		for (const link of links) {
+			expect(ids.has(link.fromId) && ids.has(link.toId)).toBe(true);
+		}
+	});
+
+	// Records came from one snapshot, but previews were read afterwards
+	// from the live database: a page deleted in between went into the file
+	// without its preview.
+	it("keeps each restored page's preview when a page is deleted during export", async () => {
+		const { saveId } = await seedProfile();
+		const sourceId = (await unlockedKeys()).profileId;
+		// While the first saved page is opened, after the snapshot.
+		duringDecrypt(2, () => send("save.delete", { id: saveId }));
+		const backup = await createBackup(PASSWORD, cheap());
+		vi.restoreAllMocks();
+		await importBackup(backup, PASSWORD);
+		const [importedId] = await importedProfileIds(sourceId);
+		const imported = (await littleDB.saves.toArray()).filter(
+			(row) => row.profileId === importedId,
+		);
+		const withPreview = new Set(
+			(await littleDB.assets.toArray())
+				.filter((row) => row.profileId === importedId)
+				.map((row) => row.ownerId),
+		);
+		// The page is either restored with its preview, or not at all.
+		const source = await littleDB.saves.toArray();
+		for (const row of imported) {
+			const match = source.find(
+				(other) =>
+					other.profileId === sourceId &&
+					other.createdAt === row.createdAt,
+			);
+			if (match === undefined) {
+				expect(withPreview.has(row.id)).toBe(true);
+			}
+		}
+		expect(imported.length).toBe(
+			source.filter((row) => row.profileId === sourceId).length,
+		);
+	});
+
+	// Backups made before that fix can hold such links; importing one must
+	// not create a link to nothing.
+	it("leaves out a link to a record the file does not contain, and says so", async () => {
+		const { header, keys } = await newBackupKey(PASSWORD, cheap());
+		const chunk = await sealChunk(keys, header.backupId, 0, {
+			last: true,
+			entries: [
+				{
+					table: "profile",
+					name: "Old backup",
+					prefs: { theme: "system", autoLockMinutes: 30 },
+					avatar: null,
+				},
+				{
+					table: "notes",
+					id: "n1",
+					createdAt: 1,
+					updatedAt: 1,
+					privacy: "private",
+					content: { content: "A note" },
+				},
+				{
+					table: "links",
+					id: "l1",
+					fromId: "n1",
+					toId: "missing-save",
+					createdAt: 1,
+				},
+			],
+		} as never);
+		const result = await importBackup(
+			new Blob([writeBackupFile(encodeHeader(header), [chunk])]),
+			PASSWORD,
+		);
+		expect(result.skippedLinks).toBe(1);
+		const [profile] = await littleDB.profiles.toArray();
+		expect(
+			(await littleDB.notes.toArray()).filter(
+				(note) => note.profileId === profile.id,
+			),
+		).toHaveLength(1);
+		expect(await littleDB.links.count()).toBe(0);
+	});
 
 	it("restores every record, link, preview and avatar into a new profile", async () => {
 		await seedProfile();
@@ -218,21 +403,77 @@ describe("backups", { timeout: 30_000 }, () => {
 		expect(await littleDB.jobs.count()).toBe(0);
 	});
 
+	it("restores a chat whose answer is longer than a message may be", async () => {
+		await send("profile.create", { name: "Ada", password: null });
+		const chat = await send("chat.create", { title: "Long answer" });
+		const answer = "word ".repeat(21_000);
+		await send("chat.addMessage", {
+			chatId: chat.id,
+			message: { role: "user", text: "Write a lot" },
+		});
+		await send("chat.addMessage", {
+			chatId: chat.id,
+			message: {
+				role: "assistant",
+				output: { message: answer, expression: "smiling" },
+			},
+		});
+		const sourceId = (await unlockedKeys()).profileId;
+		const backup = await createBackup(PASSWORD, cheap());
+		await importBackup(backup, PASSWORD);
+		const [importedId] = await importedProfileIds(sourceId);
+		await send("profile.unlock", {
+			profileId: importedId,
+			password: PASSWORD,
+		});
+		const keys = await unlockedKeys();
+		const [restored] = await listChats(littleDB, keys);
+		const messages = await listChatMessages(littleDB, keys, restored.id);
+		expect(messages.at(-1)).toMatchObject({
+			role: "assistant",
+			output: { message: answer },
+		});
+	});
+
 	// An export holds the profile's keys while it reads. Locking during
 	// it must stop it, so no plain export or backup comes out afterwards.
+	// One damaged record used to fail every AI read and the export with a
+	// generic error, while the popup quietly skipped it.
+	describe("with a record that cannot be read", () => {
+		const damageOneNote = async () => {
+			const { id } = await send("note.create", { content: "Damaged" });
+			await littleDB.notes.update(id, {
+				body: new Uint8Array([1, 2, 3]),
+			});
+			return id;
+		};
+
+		it("still reads the rest", async () => {
+			await seedProfile();
+			const before = (await readNotes(await unlockedKeys())).length;
+			await damageOneNote();
+			const notes = await readNotes(await unlockedKeys());
+			expect(notes).toHaveLength(before);
+			expect(notes.map((note) => note.content)).not.toContain("Damaged");
+		});
+
+		it("stops the export, naming the record", async () => {
+			await seedProfile();
+			const id = await damageOneNote();
+			await expect(createReadableExport()).rejects.toThrow(
+				`A record in notes (${id}) can't be read, so the export stopped.`,
+			);
+		});
+	});
+
 	describe("when the profile locks during the export", () => {
 		afterEach(() => {
 			vi.restoreAllMocks();
 		});
 
+		// Locks once the export has started opening records.
 		const lockWhenNotesAreRead = () => {
-			const bulkGet = littleDB.notes.bulkGet.bind(littleDB.notes);
-			vi.spyOn(littleDB.notes, "bulkGet").mockImplementation(((
-				keys: string[],
-			) =>
-				send("profile.lock", null).then(() =>
-					bulkGet(keys),
-				)) as typeof littleDB.notes.bulkGet);
+			duringDecrypt(1, () => send("profile.lock", null));
 		};
 
 		it("stops the readable export", async () => {
@@ -355,6 +596,30 @@ describe("backups", { timeout: 30_000 }, () => {
 			return { header, chunks };
 		};
 
+		// A backup is read a chunk at a time; the whole file, which can be
+		// larger than memory allows, is never read in one go.
+		it("imports without reading the whole file at once", async () => {
+			const { header, chunks } = await multiChunk();
+			const sourceId = (await unlockedKeys()).profileId;
+			const file = new Blob([writeBackupFile(header, chunks)]);
+			file.arrayBuffer = () => {
+				throw new Error("Read the whole file.");
+			};
+			await importBackup(file, PASSWORD);
+			expect(await importedProfileIds(sourceId)).toHaveLength(1);
+		});
+
+		it("reads the same parts as a whole-file read", async () => {
+			const { header, chunks } = await multiChunk();
+			const parts = [];
+			for await (const part of readBackupParts(
+				new Blob([writeBackupFile(header, chunks)]),
+			)) {
+				parts.push(part.bytes);
+			}
+			expect(parts).toEqual([header, ...chunks]);
+		});
+
 		it("rejects chunks out of order, and a file cut short", async () => {
 			const { header, chunks } = await multiChunk();
 			const before = await rowCounts();
@@ -414,6 +679,23 @@ describe("backups", { timeout: 30_000 }, () => {
 			/older version/,
 		);
 		expect(backupFileParts(new Uint8Array([1]), [])).toHaveLength(4);
+	});
+
+	it("exports a chat's messages in the order they were written", async () => {
+		await send("profile.create", { name: "Ada", password: null });
+		const chat = await send("chat.create", { title: "Turns" });
+		for (let turn = 1; turn <= 10; turn++) {
+			await send("chat.addMessage", {
+				chatId: chat.id,
+				message: { role: "user", text: `Turn ${turn}` },
+			});
+		}
+		const readable = (await createReadableExport()) as {
+			chats: Array<{ messages: Array<{ text: string }> }>;
+		};
+		expect(readable.chats[0].messages.map((m) => m.text)).toEqual(
+			Array.from({ length: 10 }, (_, index) => `Turn ${index + 1}`),
+		);
 	});
 
 	it("exports readable JSON without the AI key or images", async () => {

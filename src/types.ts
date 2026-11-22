@@ -1,7 +1,5 @@
 import { IconProps } from "@phosphor-icons/react";
-import { MotionProps } from "framer-motion";
 import { ReactNode, ComponentPropsWithoutRef, RefAttributes } from "react";
-import { To, NavigateOptions } from "react-router";
 
 export type WriterTone = "formal" | "neutral" | "casual";
 export type WriterFormat = "plain-text" | "markdown";
@@ -36,12 +34,6 @@ export interface LIconProps
 
 export type LIconWeight =
 	"thin" | "light" | "regular" | "bold" | "fill" | "duotone";
-
-export type LittleNavigation = {
-	exit: MotionProps;
-	navigateTo?: To | null;
-	navigateOptions?: NavigateOptions;
-};
 
 export type Validation = {
 	success: boolean;

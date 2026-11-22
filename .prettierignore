@@ -1,5 +1,6 @@
 node_modules
 dist
+dist-dev
 build
 coverage
 bun.lock

@@ -1,4 +1,5 @@
 /* @vitest-environment node */
+import { currentOwner } from "../../src/services/ai/owner";
 import "fake-indexeddb/auto";
 import {
 	afterAll,
@@ -454,8 +455,9 @@ const seedTestData = async (): Promise<Seeded> => {
 	};
 };
 
-const createAI = (baseUrl: string): OpenAICompatibleAIClass =>
+const createAI = async (baseUrl: string): Promise<OpenAICompatibleAIClass> =>
 	new OpenAICompatibleAI({
+		owner: await currentOwner(),
 		model: "mock-model",
 		provider: LAI_PROVIDERS.CUSTOM,
 		apiKey: "",
@@ -734,7 +736,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 			{
 				prompt: "Update task one label.",
 				expectedTool: "update_task",
-				expectedMessage: "Updated task",
+				expectedMessage: "Updated the task",
 				scenario: {
 					toolCalls: [
 						{
@@ -925,6 +927,120 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 					],
 				} satisfies PromptScenario,
 			},
+			{
+				prompt: "Add milk to my list.",
+				expectedTool: "ask_user",
+				expectedMessage: "Which list?",
+				expectedExpression: LFACE_EXPRESSION.THINKING,
+				scenario: {
+					toolCalls: [
+						{
+							name: "ask_user",
+							args: {
+								question: "Which list?",
+								options: ["Groceries", "Home"],
+							},
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Search everything for hotstar.",
+				expectedTool: "search_all",
+				expectedMessage: "Found",
+				scenario: {
+					toolCalls: [
+						{
+							name: "search_all",
+							args: { query: "hotstar" },
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Search my saved images.",
+				expectedTool: "search_images",
+				expectedMessage: "No images found.",
+				scenario: {
+					toolCalls: [
+						{
+							name: "search_images",
+							args: { query: "diagram" },
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "What tabs do I have open?",
+				expectedTool: "read_open_tabs",
+				expectedMessage: "open",
+				scenario: {
+					toolCalls: [
+						{
+							name: "read_open_tabs",
+							args: { limit: 10 },
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Link my ship task to hotstar save.",
+				expectedTool: "link_records",
+				expectedMessage: "Linked records.",
+				scenario: {
+					toolCalls: [
+						{
+							name: "link_records",
+							args: {
+								fromId: seeded.shipTask,
+								toId: seeded.hotstarSave,
+							},
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Unlink my ship task from hotstar save.",
+				expectedTool: "unlink_records",
+				expectedMessage: "Unlinked records.",
+				scenario: {
+					toolCalls: [
+						{
+							name: "unlink_records",
+							args: {
+								fromId: seeded.shipTask,
+								toId: seeded.hotstarSave,
+							},
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Remember that I prefer concise replies.",
+				expectedTool: "remember_fact",
+				expectedMessage: "Remembered:",
+				scenario: {
+					toolCalls: [
+						{
+							name: "remember_fact",
+							args: { text: "User prefers concise replies." },
+						},
+					],
+				} satisfies PromptScenario,
+			},
+			{
+				prompt: "Forget my concise replies preference.",
+				expectedTool: "forget_fact",
+				expectedMessage: "Forgot that memory.",
+				scenario: {
+					toolCalls: [
+						{
+							name: "forget_fact",
+							args: { query: "concise replies" },
+						},
+					],
+				} satisfies PromptScenario,
+			},
 		] as const;
 
 		mockServer.setScenarios(
@@ -936,7 +1052,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 			),
 		);
 
-		const ai = createAI(mockServer.baseUrl);
+		const ai = await createAI(mockServer.baseUrl);
 		const toolExecutionSpy = instrumentToolExecutions();
 
 		try {
@@ -963,7 +1079,11 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 				expect(
 					finalOutput.expression,
 					`Prompt failed: "${item.prompt}" with message "${finalOutput.message}"`,
-				).toBe(LFACE_EXPRESSION.SLIGHTLY_SMILING);
+				).toBe(
+					"expectedExpression" in item
+						? item.expectedExpression
+						: LFACE_EXPRESSION.SLIGHTLY_SMILING,
+				);
 				expect(finalOutput.message).toContain(item.expectedMessage);
 
 				const executedForPrompt =
@@ -1031,7 +1151,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 				},
 			]),
 		);
-		const ai = createAI(mockServer.baseUrl);
+		const ai = await createAI(mockServer.baseUrl);
 		const output = await ai.prompt("Create a cancelled note.");
 		expect(output.confirmation).toBeDefined();
 		expect(ai.hasPendingConfirmation()).toBe(true);
@@ -1163,7 +1283,7 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 			),
 		);
 
-		const ai = createAI(mockServer.baseUrl);
+		const ai = await createAI(mockServer.baseUrl);
 
 		for (const item of edgePromptMatrix) {
 			const output = await ai.prompt(item.prompt);
@@ -1176,5 +1296,11 @@ describe("ai prompt tool matrix coverage", { concurrent: false }, () => {
 			).toBe(LFACE_EXPRESSION.FROWNING);
 			expect(finalOutput.message).toContain(item.expectedMessage);
 		}
+		const notesAfterErrors = await readNotes(await unlockedKeys());
+		expect(
+			notesAfterErrors.some((note) =>
+				note.content.includes("should not be created"),
+			),
+		).toBe(false);
 	}, 15000);
 });

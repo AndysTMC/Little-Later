@@ -30,13 +30,13 @@ export const loadSigningKeyPem = (raw: string | undefined): string => {
 		text = text.slice(1, -1);
 	}
 	text = text.replace(/\r\n/g, "\n");
-	if (!text.includes("-----BEGIN") && text.includes("\\n")) {
+	if (!text.includes("\n") && text.includes("\\n")) {
 		text = text.replace(/\\n/g, "\n");
 	}
 	if (!text.includes("-----BEGIN")) {
 		let decoded = Buffer.from(text, "base64").toString("utf8").trim();
 		decoded = decoded.replace(/\r\n/g, "\n");
-		if (!decoded.includes("-----BEGIN") && decoded.includes("\\n")) {
+		if (!decoded.includes("\n") && decoded.includes("\\n")) {
 			decoded = decoded.replace(/\\n/g, "\n");
 		}
 		text = decoded;

@@ -152,6 +152,8 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	);
 
 	await page.goto("/#/home");
+	// Home reopens on the tab it was left on.
+	await page.getByRole("tab", { name: "Saves" }).click();
 	await capture(page, "07-home-saves-empty", page.getByText("No saves yet?"));
 	await page.getByRole("tab", { name: "Tasks" }).click();
 	await capture(page, "08-home-tasks-empty", page.getByText("No tasks yet?"));
@@ -170,6 +172,8 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	const ids = await seedRecords(page);
 
 	await page.goto("/#/home");
+	// Home reopens on the tab it was left on.
+	await page.getByRole("tab", { name: "Saves" }).click();
 	await capture(page, "12-home-saves", page.getByText("Little Later docs"));
 	await page.getByRole("tab", { name: "Tasks" }).click();
 	await capture(page, "13-home-tasks-active", page.getByText("Active"));
@@ -194,9 +198,17 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await capture(page, "19-history", page.getByText("Morning briefing"));
 
 	await page.goto("/#/home/new-task");
-	await capture(page, "20-new-task", page.getByText("Information"));
+	await capture(
+		page,
+		"20-new-task",
+		page.getByText("Information", { exact: true }),
+	);
 	await page.goto("/#/home/new-reminder");
-	await capture(page, "21-new-reminder", page.getByText("Message"));
+	await capture(
+		page,
+		"21-new-reminder",
+		page.getByText("Message", { exact: true }),
+	);
 
 	await page.goto(`/#/task/${ids.taskId}`);
 	await capture(
@@ -216,7 +228,7 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await capture(
 		page,
 		"25-note-edit",
-		page.getByRole("button", { name: "H1" }),
+		page.getByRole("button", { name: "Heading 1" }),
 	);
 	await page.goto(`/#/vbm/${ids.saveId}`);
 	await capture(page, "26-save-detail", page.getByText("Open"));
@@ -240,12 +252,37 @@ test("capture every popup screen and edge state", async ({ page }) => {
 		page.getByText("Profile not found."),
 	);
 
-	await page.goto("/#/ai");
-	await capture(page, "32-ai", page.getByText("Try one of these"));
+	// LittleAI's side panel (decision 0017).
+	await page.goto("/sidepanel.html");
+	await capture(
+		page,
+		"32-ai-panel",
+		page.getByRole("textbox", { name: "Ask LittleAI" }),
+	);
 	await page.goto("/#/settings");
 	await capture(page, "33-settings", page.getByText("Getting Started"));
 	await page.goto("/#/settings/ai");
 	await capture(page, "34-settings-ai", page.getByText("AI Provider"));
+	await page.goto("/#/settings/security");
+	await capture(
+		page,
+		"34a-settings-security",
+		page.getByText("Set a password"),
+	);
+	await page.goto("/#/settings/security/password");
+	await capture(
+		page,
+		"34b-settings-password",
+		page.getByRole("button", { name: "Set password" }),
+	);
+	await page.goto("/#/settings/security/two-factor");
+	await capture(
+		page,
+		"34d-settings-two-factor",
+		page.getByText("Set a password first"),
+	);
+	await page.goto("/#/settings/appearance");
+	await capture(page, "34c-settings-appearance", page.getByTitle("Green"));
 	await page.goto("/#/settings/misc");
 	await capture(page, "35-settings-misc", page.getByText("Misc Settings"));
 	await page.goto("/#/export");
@@ -281,6 +318,8 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await capture(page, "43-unlock-already-open");
 
 	await page.goto("/#/home");
+	// Home reopens on the tab it was left on.
+	await page.getByRole("tab", { name: "Saves" }).click();
 	await page.getByRole("button", { name: "Switch to dark theme" }).click();
 	await capture(page, "44-home-dark", page.getByText("Little Later docs"));
 	await page.getByRole("tab", { name: "Tasks" }).click();
@@ -299,8 +338,142 @@ test("capture every popup screen and edge state", async ({ page }) => {
 		"48-lock-dark",
 		page.getByRole("button", { name: "Lock" }),
 	);
-	await page.goto("/#/ai");
-	await capture(page, "49-ai-dark", page.getByText("Try one of these"));
+	await page.goto("/sidepanel.html");
+	await capture(
+		page,
+		"49-ai-panel-dark",
+		page.getByRole("textbox", { name: "Ask LittleAI" }),
+	);
 	await page.goto("/#/note/" + ids.noteId);
 	await capture(page, "50-note-dark", page.getByText("Project notes"));
+
+	// An accent colours the whole popup, dark and light.
+	await page.goto("/#/settings/appearance");
+	await page.getByTitle("Green").click();
+	await capture(page, "51-appearance-green-dark", page.getByTitle("Green"));
+	await page.goto("/#/home");
+	await page.getByRole("tab", { name: "Tasks" }).click();
+	await capture(page, "52-tasks-green-dark", page.getByText("Active"));
+	await page.getByRole("button", { name: "Switch to light theme" }).click();
+	await capture(page, "53-tasks-green-light", page.getByText("Active"));
+	await page.getByRole("tab", { name: "Saves" }).click();
+	await capture(
+		page,
+		"54-home-green-light",
+		page.getByText("Little Later docs"),
+	);
+	await page.goto("/#/settings");
+	await capture(
+		page,
+		"55-settings-green-light",
+		page.getByText("Getting Started"),
+	);
+	await page.goto("/#/settings/misc");
+	await page.getByRole("button", { name: /^Lock after idle: / }).click();
+	await capture(
+		page,
+		"56-dropdown-green-light",
+		page.getByRole("option", { name: "1 hour" }),
+	);
+	await page.goto("/#/settings/security/password");
+	await capture(
+		page,
+		"57-password-green-light",
+		page.getByRole("button", { name: "Set password" }),
+	);
+
+	// Every other screen under the accent, to check nothing is left plain.
+	const tinted: Array<[string, string, Locator]> = [
+		[
+			"/#/home/history",
+			"58-history-green",
+			page.getByText("Morning briefing"),
+		],
+		[
+			"/#/home/new-task",
+			"59-new-task-green",
+			page.getByText("Information", { exact: true }),
+		],
+		[
+			"/#/home/new-reminder",
+			"60-new-reminder-green",
+			page.getByText("Message", { exact: true }),
+		],
+		[
+			`/#/task/${ids.taskId}`,
+			"61-task-green",
+			page.getByText("Review export password flow"),
+		],
+		[
+			`/#/reminder/${ids.reminderId}`,
+			"62-reminder-green",
+			page.getByText("Lock the profile"),
+		],
+		[
+			`/#/note/${ids.noteId}`,
+			"63-note-green",
+			page.getByText("Project notes"),
+		],
+		[`/#/vbm/${ids.saveId}`, "64-save-green", page.getByText("Open")],
+		[
+			"/sidepanel.html",
+			"65-ai-panel-green",
+			page.getByRole("textbox", { name: "Ask LittleAI" }),
+		],
+		[
+			"/#/settings/ai",
+			"66-settings-ai-green",
+			page.getByText("AI Provider"),
+		],
+		[
+			"/#/export",
+			"67-export-green",
+			page.getByText("Choose a password for this backup"),
+		],
+		["/#/profile", "68-profile-green", page.getByLabel("Name")],
+		[
+			"/#/lock",
+			"69-lock-green",
+			page.getByRole("button", { name: "Lock" }),
+		],
+		[
+			"/#/getting-started",
+			"70-getting-started-green",
+			page.getByRole("button", { name: "Next" }),
+		],
+	];
+	for (const [route, name, ready] of tinted) {
+		await page.goto(route);
+		await capture(page, name, ready);
+	}
+	await page.goto("/#/home");
+	await page.getByRole("tab", { name: "Reminders" }).click();
+	await capture(page, "71-reminders-green", page.getByText("Normal"));
+	await page.getByRole("tab", { name: "Notes" }).click();
+	await capture(page, "72-notes-green", page.getByText("Project notes"));
+	await page.getByRole("searchbox").click();
+	await capture(page, "73-search-focus-green", page.getByRole("searchbox"));
+
+	// A Custom accent, with its dials, in the dark theme.
+	await page.goto("/#/settings/appearance");
+	await page.getByTitle("Custom").click();
+	await page.getByLabel("Colour").fill("#c026d3");
+	await page.getByRole("button", { name: /^Theme: / }).click();
+	await page.getByRole("option", { name: "Little Dark" }).click();
+	await capture(page, "74-appearance-custom-dark", page.getByLabel("Hue"));
+	await page.goto("/#/home");
+	await page.getByRole("tab", { name: "Tasks" }).click();
+	await capture(page, "75-tasks-custom-dark", page.getByText("Active"));
+
+	// The unlock screen shows its profile's own look; the picker stays plain.
+	await page.goto("/#/lock");
+	await page.getByRole("button", { name: "Lock" }).click();
+	await page.getByText("Choose Profile").waitFor();
+	await capture(page, "76-picker-after-lock", page.getByText("Avery"));
+	await page.goto("/#/unlock/" + profiles.averyId);
+	await capture(
+		page,
+		"77-unlock-custom-dark",
+		page.getByRole("button", { name: "Unlock" }),
+	);
 });

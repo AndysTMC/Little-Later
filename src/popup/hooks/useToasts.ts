@@ -6,23 +6,30 @@ const useToasts = (): Array<LToast> => {
 	const [toasts, setToasts] = useState<Array<LToast>>([]);
 	useEffect(() => {
 		if (import.meta.env.MODE === "test") return;
+		let active = true;
 		void getToasts().then((nextToasts) => {
-			setToasts(nextToasts);
+			if (active) setToasts(nextToasts);
 		});
 
 		const refreshToasts = () => {
 			void getToasts().then((nextToasts) => {
-				setToasts(nextToasts);
+				if (active) setToasts(nextToasts);
 			});
 		};
 
 		window.addEventListener("little-storage-change", refreshToasts);
 
-		const chromeListener = (changes: {
-			[key: string]: chrome.storage.StorageChange;
-		}) => {
-			if (changes.toasts?.newValue) {
-				setToasts(changes.toasts.newValue as Array<LToast>);
+		const chromeListener = (
+			changes: {
+				[key: string]: chrome.storage.StorageChange;
+			},
+			areaName: string,
+		) => {
+			if (areaName === "local" && changes.toasts !== undefined) {
+				setToasts(
+					(changes.toasts.newValue as Array<LToast> | undefined) ??
+						[],
+				);
 			}
 		};
 		if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
@@ -30,6 +37,7 @@ const useToasts = (): Array<LToast> => {
 		}
 
 		return () => {
+			active = false;
 			window.removeEventListener("little-storage-change", refreshToasts);
 			if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
 				chrome.storage.onChanged.removeListener(chromeListener);

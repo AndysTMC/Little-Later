@@ -1,30 +1,33 @@
 import { motion } from "framer-motion";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
-import { useLittleTransition } from "../../hooks/useLittleTransition";
+import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { send } from "../../../utils/send";
 import { createToast } from "../../../services/toasts";
-import { useNavigate } from "react-router";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIAuthGate } from "../../components/LUIAuthGate/Component";
 import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { UserProfile } from "../../hooks/useUserProfiles";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
 
 const Page = () => {
-	const { theme, setTheme } = useTheme();
-	const navigate = useNavigate();
+	const { theme } = useTheme();
+	const go = useMoveNavigate();
 
-	const { entry, exit, setExit } = useLittleTransition({
-		defaultExit: exitTransitions.zoomIn,
-	});
+	const pageMotion = usePageMotion();
 
 	const currentUserProfile = useCurrentUserProfile();
-	const [savedUP, setSavedUP] = useState<UserProfile | undefined>();
+	// Keep the last unlocked profile while the lock exit transition runs.
+	const [lastProfile, setLastProfile] = useState<UserProfile | undefined>(
+		currentUserProfile,
+	);
+	if (currentUserProfile && currentUserProfile !== lastProfile) {
+		setLastProfile(currentUserProfile);
+	}
+	const savedUP = currentUserProfile ?? lastProfile;
 
 	const handleLock = async () => {
 		if (currentUserProfile === undefined) {
@@ -32,11 +35,7 @@ const Page = () => {
 		}
 		try {
 			await send("profile.lock", null);
-			setExit(exitTransitions.zoomOut);
-			setTheme(LTHEME.LIGHT);
-			navigate("/browse-profiles", {
-				state: { entryTransition: entryTransitions.zoomOut },
-			});
+			go("/browse-profiles", "outOf");
 		} catch (error) {
 			console.error("Failed to lock profile.", error);
 			await createToast(
@@ -48,19 +47,12 @@ const Page = () => {
 		}
 	};
 
-	useEffect(() => {
-		if (currentUserProfile) {
-			setSavedUP(currentUserProfile);
-		}
-	}, [currentUserProfile]);
-
 	const loading = useLoading([savedUP]);
 
 	return (
 		<motion.div
 			className={`h-full w-full select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"}`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			{loading ? (
 				<LUILoading />
@@ -70,10 +62,7 @@ const Page = () => {
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
 				>
-					<LUIBasicNav
-						navigateTo="/home"
-						entryTransition={entryTransitions.zoomIn}
-					/>
+					<LUIBasicNav navigateTo="/home" move="into" />
 					{savedUP ? (
 						<LUIAuthGate
 							type="Lock"

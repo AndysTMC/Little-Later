@@ -18,6 +18,7 @@ const Component = () => {
 	// Track which IDs already have a scheduled auto-close
 	const scheduledRef = useRef<Set<string | number>>(new Set());
 	const timersRef = useRef<Map<string | number, number>>(new Map());
+	const mountedRef = useRef(true);
 
 	useEffect(() => {
 		const baseDelay = 3000;
@@ -31,16 +32,22 @@ const Component = () => {
 
 			const delay = baseDelay + index * stagger;
 			const timer = window.setTimeout(async () => {
+				if (!mountedRef.current) return;
 				setClosingIds((prev) => {
 					const next = new Set(prev);
 					next.add(toast.id);
 					return next;
 				});
 				await fakeWait({ waitPeriod: exitDuration });
-				await deleteToast(toast.id);
+				try {
+					await deleteToast(toast.id);
+				} catch (error) {
+					console.warn("Could not dismiss toast.", error);
+				}
 
 				scheduledRef.current.delete(toast.id);
 				timersRef.current.delete(toast.id);
+				if (!mountedRef.current) return;
 				setClosingIds((prev) => {
 					if (!prev.has(toast.id)) return prev;
 					const next = new Set(prev);
@@ -55,15 +62,19 @@ const Component = () => {
 	}, [toasts]);
 
 	useEffect(() => {
+		mountedRef.current = true;
+		const timers = timersRef.current;
+		const scheduled = scheduledRef.current;
 		return () => {
-			timersRef.current.forEach((t) => clearTimeout(t));
-			timersRef.current.clear();
-			scheduledRef.current.clear();
+			mountedRef.current = false;
+			timers.forEach((t) => clearTimeout(t));
+			timers.clear();
+			scheduled.clear();
 		};
 	}, []);
 
 	return (
-		<div className="absolute bottom-4 left-1/2 z-50 max-h-full w-max -translate-x-1/2 transform">
+		<div className="pointer-events-none absolute bottom-4 left-1/2 z-50 max-h-full w-max -translate-x-1/2 transform">
 			<AnimatePresence mode="sync">
 				{toasts.map(
 					(toast) =>
@@ -74,7 +85,7 @@ const Component = () => {
 								animate={{ opacity: 1, y: 0 }}
 								exit={{ opacity: 0, y: 20 }}
 								transition={{ duration: 0.3 }}
-								className="mb-2 h-max w-max"
+								className="pointer-events-auto mb-2 h-max w-max"
 							>
 								<LUIToast theme={theme} toast={toast} />
 							</motion.div>

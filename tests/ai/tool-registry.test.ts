@@ -81,8 +81,10 @@ describe("ai tool registry normalization", () => {
 		expect(toolNames).toContain("update_task");
 		expect(toolNames).toContain("save_active_web_page");
 		expect(toolNames).toContain("update_save");
+		expect(toolNames).toContain("ask_user");
 		expect(toolNames).not.toContain("create_note_on_active_webpage");
 		expect(toolNames).not.toContain("link_note_to_active_webpage");
+		expect(new Set(toolNames)).toEqual(new Set(toolRegistry.keys()));
 	});
 
 	it("requires confirmation for writes and not for reads", () => {

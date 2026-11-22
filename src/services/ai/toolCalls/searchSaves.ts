@@ -1,40 +1,84 @@
 import type { Save } from "../../../storage/repositories";
-import { IDJSONSchema, IDJSONObjectInstruction } from "../config";
-import { LittleAI } from "../../../services/ai";
+import { IDJSONObjectInstruction } from "../config";
+import type { LittleAI } from "../main";
 import { searchSaves } from "../../../popup/records";
-import { readSaves, unlockedKeys } from "../records";
+import { readSaves } from "../records";
+import { hybridRank, rrfFuse } from "./_utils/bm25";
 import { extractSemanticIds } from "./_utils/extractSemanticIds";
 import {
 	pickSemanticCandidates,
 	quoteForPrompt,
 } from "./_utils/semanticSearch";
+import type { AIOwner } from "../owner";
+
+const saveSearchText = (save: Save): string =>
+	[save.customName, save.title, save.url, ...(save.tags ?? [])].join(" ");
 
 const toolCall = async (
+	owner: AIOwner,
 	ai: Pick<LittleAI, "getStructuredResponse">,
 	{
 		query,
 		domain,
 		url,
+		tag,
 	}: {
 		query?: string;
 		domain?: string;
 		url?: string;
+		tag?: string;
 	},
 ): Promise<Array<Save>> => {
-	const saves = (await readSaves(await unlockedKeys())).filter(
+	const saves = (await readSaves(await owner.keys())).filter(
 		(save) => save.saved,
 	);
 	let resultSaves = saves.slice();
-	if (query) {
-		const querySaves = new Set<Save>(searchSaves(saves, query));
-		const savesToSend = pickSemanticCandidates([...querySaves], saves).map(
-			(save) => ({
-				id: save.id,
-				name: save.customName,
-				title: save.title,
-				url: save.url,
-			}),
+	if (tag && tag.trim() !== "") {
+		const normalizedTag = tag.trim().toLowerCase().replace(/^#/, "");
+		resultSaves = resultSaves.filter((save) =>
+			(save.tags ?? []).some((t) => t.toLowerCase() === normalizedTag),
 		);
+	}
+	if (domain) {
+		const normalizedDomain = domain
+			.trim()
+			.toLowerCase()
+			.replace(/^\.+/, "");
+		resultSaves = resultSaves.filter((save) => {
+			try {
+				const host = new URL(save.url).hostname.toLowerCase();
+				return (
+					host === normalizedDomain ||
+					host.endsWith(`.${normalizedDomain}`)
+				);
+			} catch {
+				return false;
+			}
+		});
+	}
+	if (url) {
+		resultSaves = resultSaves.filter((save) => save.url === url);
+	}
+	if (query && resultSaves.length > 0) {
+		const lexicalHits = searchSaves(resultSaves, query);
+		const bm25Hits = hybridRank(resultSaves, query, saveSearchText).map(
+			(entry) => entry.item,
+		);
+		const mergedLexical = pickSemanticCandidates(
+			bm25Hits,
+			lexicalHits,
+			resultSaves.length,
+		);
+		const savesToSend = pickSemanticCandidates(
+			mergedLexical,
+			resultSaves,
+		).map((save) => ({
+			id: save.id,
+			name: save.customName,
+			title: save.title,
+			url: save.url,
+			tags: save.tags ?? [],
+		}));
 		const response = await ai.getStructuredResponse(
 			`
                 Here is a list of saves in JSON format:
@@ -42,25 +86,20 @@ const toolCall = async (
 
                 The user's query is: "${quoteForPrompt(query)}".
 
-                Find all relevant ids of saves where the name, domain, or notes (if present) match or relate to the query.
+                Find all relevant ids of saves where the name, title, URL, or tags match or relate to the query.
             `,
-			IDJSONSchema,
 			IDJSONObjectInstruction,
 		);
 		const semanticSaveIds = extractSemanticIds(response);
-		saves
-			.filter((save) => semanticSaveIds.includes(save.id))
-			.forEach((save) => querySaves.add(save));
-		resultSaves = resultSaves.filter((save) => querySaves.has(save));
-	}
-	if (domain) {
-		const normalizedDomain = domain.toLowerCase();
-		resultSaves = resultSaves.filter((save) =>
-			save.url.toLowerCase().includes(normalizedDomain),
-		);
-	}
-	if (url) {
-		resultSaves = resultSaves.filter((save) => save.url === url);
+		const fusedIds = rrfFuse([
+			bm25Hits.map((save) => save.id),
+			lexicalHits.map((save) => save.id),
+			semanticSaveIds,
+		]);
+		const byId = new Map(resultSaves.map((save) => [save.id, save]));
+		resultSaves = fusedIds
+			.map((id) => byId.get(id))
+			.filter((save): save is Save => save !== undefined);
 	}
 	return resultSaves;
 };

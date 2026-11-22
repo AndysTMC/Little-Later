@@ -1,4 +1,4 @@
-import { LTHEME } from "little-shared/enums";
+import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LToast } from "little-shared/types";
 import { LTOAST_TYPE_TO_ICON } from "../../../constants";
@@ -13,24 +13,36 @@ const Component = ({
 	theme: LTHEME;
 	toast: LToast;
 }) => {
+	const isDark = theme === LTHEME.DARK;
+	const iconTone =
+		toast.type === LTOAST_TYPE.ERROR
+			? "text-red-500"
+			: toast.type === LTOAST_TYPE.WARNING
+				? "text-amber-500"
+				: "text-[var(--ll-accent)]";
+
 	return (
 		<div
 			role="status"
 			className={twMerge(
-				`flex w-96 items-center justify-start gap-x-1 rounded-lg px-2 py-1 opacity-90 ${theme === LTHEME.DARK ? "bg-neutral-900" : "bg-neutral-100"} outline-1 outline-neutral-500`,
+				`flex w-[min(22rem,calc(100vw-2rem))] items-center gap-x-2.5 rounded-xl border px-3.5 py-2.5 shadow-lg ${
+					isDark
+						? "border-neutral-800 bg-neutral-900 text-neutral-100"
+						: "border-neutral-200 bg-white text-neutral-900"
+				}`,
 				className,
 			)}
 		>
-			<div className={`h-max w-max px-2`}>
+			<span className={`flex shrink-0 items-center ${iconTone}`}>
 				<LUIThemedIcon
 					Icon={LTOAST_TYPE_TO_ICON[toast.type]}
-					className={`size-4`}
+					className="size-4"
 					weight="fill"
+					color="currentColor"
+					passedTheme={theme}
 				/>
-			</div>
-			<span
-				className={`grow-1 text-left text-sm ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
-			>
+			</span>
+			<span className="grow text-left text-sm leading-snug">
 				{toast.message}
 			</span>
 		</div>

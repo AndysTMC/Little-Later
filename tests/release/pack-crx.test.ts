@@ -110,10 +110,15 @@ describe("pack-crx", () => {
 		expect(parsed.key).toBe(publicKeySpkiDer(pem).toString("base64"));
 	});
 
-	it("accepts base64 PEM and rejects empty keys without echoing them", () => {
+	it("accepts base64 PEM, escaped-newline PEM, and rejects empty keys without echoing them", () => {
 		const pem = rsaPem();
 		const loaded = loadSigningKeyPem(Buffer.from(pem).toString("base64"));
 		expect(loaded.includes("PRIVATE KEY")).toBe(true);
+		const escaped = pem.trim().replace(/\n/g, "\\n");
+		expect(loadSigningKeyPem(escaped)).toContain("\n");
+		expect(publicKeySpkiDer(loadSigningKeyPem(escaped))).toEqual(
+			publicKeySpkiDer(pem),
+		);
 		expect(() => loadSigningKeyPem("")).toThrow(/SIGNING_KEY is missing/);
 		try {
 			loadSigningKeyPem("not-a-key-super-secret");

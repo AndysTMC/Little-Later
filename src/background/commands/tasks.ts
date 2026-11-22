@@ -25,11 +25,12 @@ import type {
 } from "../../storage/schema";
 import { cascadeTables, removeRecords } from "./cascade";
 import {
-	assertOwnSave,
+	assertOwnSaves,
 	asInstant,
 	boundedText,
-	linkToSave,
-	optionalSaveId,
+	optionalSaveIds,
+	optionalTags,
+	setSaveLinks,
 } from "./records";
 import {
 	CommandError,
@@ -74,6 +75,32 @@ type Deadline = Pick<TaskRow, "dueAt" | "occursOn">;
 
 // The deadline the task's lists sort and filter by: for a recurring task,
 // the first occurrence after `from`, and the civil date it falls on.
+// Whether two schedules say the same thing, whatever order their keys
+// arrived in.
+const sameValue = (a: unknown, b: unknown): boolean => {
+	if (a === b) return true;
+	if (
+		typeof a !== "object" ||
+		typeof b !== "object" ||
+		a === null ||
+		b === null ||
+		Array.isArray(a) !== Array.isArray(b)
+	) {
+		return false;
+	}
+	const aKeys = Object.keys(a);
+	const bKeys = Object.keys(b);
+	return (
+		aKeys.length === bKeys.length &&
+		aKeys.every((key) =>
+			sameValue(
+				(a as Record<string, unknown>)[key],
+				(b as Record<string, unknown>)[key],
+			),
+		)
+	);
+};
+
 const deadlineFor = (
 	ctx: CommandContext,
 	schedule: TaskSchedule,
@@ -178,11 +205,14 @@ const planTaskReminder = async (
 					message: information ?? "",
 				});
 	// Same time and kind, still armed: keep its place in the schedule.
-	const unchanged =
+	// Same time and kind: keep when it last fired, and, while it is still
+	// armed, its place in the schedule. Editing the task's text must not
+	// erase that a reminder already went off.
+	const sameTimeAndKind =
 		existing !== undefined &&
 		existing.target === target &&
-		(existing.escalation !== null) === (escalation !== null) &&
-		existing.nextFireAt !== 0;
+		(existing.escalation !== null) === (escalation !== null);
+	const unchanged = sameTimeAndKind && existing.nextFireAt !== 0;
 	return {
 		kind: "put",
 		isNew: existing === undefined,
@@ -194,7 +224,7 @@ const planTaskReminder = async (
 			updatedAt: now,
 			target,
 			escalation,
-			lastFiredAt: unchanged ? existing.lastFiredAt : 0,
+			lastFiredAt: sameTimeAndKind ? existing.lastFiredAt : 0,
 			nextFireAt:
 				task.done === 1
 					? 0
@@ -238,6 +268,7 @@ const putTask = async (
 	task: TaskRow,
 	reminder: TaskReminderKind | null | undefined,
 	information: string | undefined,
+	saveIds?: ReadonlyArray<string>,
 ): Promise<void> => {
 	const change = await planTaskReminder(
 		ctx,
@@ -249,6 +280,15 @@ const putTask = async (
 	await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {
 		await ctx.db.tasks.put(task);
 		await applyTaskReminder(ctx.db, task, change);
+		if (saveIds) {
+			await setSaveLinks(
+				ctx.db,
+				keys.profileId,
+				task.id,
+				saveIds,
+				task.updatedAt,
+			);
+		}
 	});
 };
 
@@ -299,18 +339,21 @@ export const taskCreate = defineCommand({
 					: asPriority(record.priority),
 			schedule,
 			reminder,
-			saveId: optionalSaveId(record.saveId),
+			saveIds: optionalSaveIds(record.saveIds),
+			tags: optionalTags(record.tags),
 		};
 	},
 	run: async (ctx, input) => {
 		const keys = await ctx.keys();
-		await assertOwnSave(ctx.db, keys, input.saveId);
+		await assertOwnSaves(ctx.db, keys, input.saveIds);
 		const id = crypto.randomUUID();
 		const now = ctx.now();
+		const tags = input.tags ?? [];
 		const sealed = await sealBody<TaskContent>(keys, "tasks", id, {
 			information: input.information,
 			label: input.label ?? "",
 			priority: input.priority ?? "medium",
+			...(tags.length > 0 ? { tags } : {}),
 		});
 		const task: TaskRow = {
 			id,
@@ -333,7 +376,13 @@ export const taskCreate = defineCommand({
 		);
 		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {
 			await ctx.db.tasks.add(task);
-			await linkToSave(ctx.db, keys.profileId, id, input.saveId, now);
+			await setSaveLinks(
+				ctx.db,
+				keys.profileId,
+				id,
+				input.saveIds ?? [],
+				now,
+			);
 			await applyTaskReminder(ctx.db, task, change);
 		});
 		return { id };
@@ -375,20 +424,31 @@ export const taskUpdate = defineCommand({
 				record.reminder === undefined
 					? undefined
 					: asReminderKind(record.reminder),
+			// Given, the exact saves the task is attached to afterwards.
+			saveIds: optionalSaveIds(record.saveIds),
+			tags: optionalTags(record.tags),
 		};
 	},
 	run: async (ctx, input) => {
 		const keys = await ctx.keys();
 		const row = await getOwnTask(ctx.db, keys, input.id);
+		await assertOwnSaves(ctx.db, keys, input.saveIds);
 		const content = await openTask(keys, row);
 		const information = input.information ?? content.information;
+		const tags = input.tags ?? content.tags ?? [];
 		const sealed = await sealBody<TaskContent>(keys, "tasks", row.id, {
 			information,
 			label: input.label ?? content.label,
 			priority: input.priority ?? content.priority,
+			...(tags.length > 0 ? { tags } : {}),
 		});
 		const now = ctx.now();
-		const schedule = input.schedule ?? row.schedule;
+		// Only a schedule that differs moves the deadline: the same one sent
+		// again would otherwise move an overdue occurrence on.
+		const scheduleChanged =
+			input.schedule !== undefined &&
+			!sameValue(input.schedule, row.schedule);
+		const schedule = scheduleChanged ? input.schedule! : row.schedule;
 		if (input.reminder && schedule.kind === "anytime") {
 			throw new CommandError("invalid-input", NO_DEADLINE_REMINDER);
 		}
@@ -399,11 +459,12 @@ export const taskUpdate = defineCommand({
 				...row,
 				...sealed,
 				schedule,
-				...(input.schedule ? deadlineFor(ctx, schedule, now) : {}),
+				...(scheduleChanged ? deadlineFor(ctx, schedule, now) : {}),
 				updatedAt: now,
 			},
 			input.reminder,
 			information,
+			input.saveIds,
 		);
 		return null;
 	},

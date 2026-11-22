@@ -90,7 +90,10 @@ const formatSelectedLines = (
 	prefixForLine: (lineIndex: number) => string,
 ): NoteFormattingResult => {
 	const safeSelection = normalizeSelection(content, selection);
-	const blockStart = content.lastIndexOf("\n", safeSelection.start - 1) + 1;
+	const blockStart =
+		safeSelection.start === 0
+			? 0
+			: content.lastIndexOf("\n", safeSelection.start - 1) + 1;
 	const blockEndIndex = content.indexOf("\n", safeSelection.end);
 	const blockEnd = blockEndIndex === -1 ? content.length : blockEndIndex;
 	const block = content.slice(blockStart, blockEnd);

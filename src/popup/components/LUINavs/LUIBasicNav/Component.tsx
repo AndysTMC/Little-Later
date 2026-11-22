@@ -1,81 +1,79 @@
+import { LUILogo } from "../../LUILogo/Component";
 import { useTheme } from "../../../hooks/useTheme";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation } from "react-router";
 import { LUIThemedIcon } from "../../LUIThemedIcon/Component";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
-import { entryTransitions } from "../../../../route-transitions";
+import type { Move } from "../../../../route-transitions";
+import { useMoveNavigate } from "../../../hooks/usePageMove";
 import { LTHEME } from "little-shared/enums";
-import { MotionProps } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 
 const Component = ({
 	className,
 	navigateTo,
 	goBackDisabled = false,
-	changePreviousExit = () => {},
-	entryTransition = entryTransitions.slideRight,
+	move = "back",
 	goBackCallback = async () => {},
 	passedTheme,
 }: {
 	className?: string;
 	navigateTo?: string;
 	goBackDisabled?: boolean;
-	changePreviousExit?: () => void;
-	entryTransition?: MotionProps;
+	// How going back looks: the reverse of how this page was opened.
+	move?: Move;
 	goBackCallback?: () => Promise<void>;
 	passedTheme?: LTHEME;
 }) => {
 	const { theme: profileTheme } = useTheme();
 	const theme = passedTheme ?? profileTheme;
-	const navigate = useNavigate();
+	const isDark = theme === LTHEME.DARK;
+	const go = useMoveNavigate();
 	const location = useLocation();
 	const { referrer } = location.state || {};
 	const handleGoBack = async () => {
-		changePreviousExit();
 		if (goBackDisabled) return;
 		await goBackCallback();
-		if (referrer) {
-			navigate(referrer, { state: { entryTransition }, replace: true });
-		} else if (navigateTo) {
-			navigate(navigateTo, { state: { entryTransition }, replace: true });
-		}
+		const to = referrer ?? navigateTo;
+		if (to) go(to, move, { replace: true });
 	};
 	return (
 		<div
-			className={twMerge(`flex h-16 w-full items-center p-2`, className)}
+			className={twMerge(
+				// Fixed height: as a flex item it shrank when the page below
+				// filled up, so the logo shrank and the page jumped up.
+				`flex h-16 w-full shrink-0 items-center justify-between p-2`,
+				className,
+			)}
 		>
-			<div className={`h-full w-max`}>
-				<img
-					src={`/images/${theme}-icon.png`}
-					alt="Little Later Logo"
-					className={`h-full`}
-					draggable="false"
-				/>
-			</div>
-			{goBackDisabled ? null : (
-				<div className={`flex h-full grow items-center justify-end`}>
+			{goBackDisabled ? (
+				<div className="h-full w-max">
+					<LUILogo className="h-full" />
+				</div>
+			) : (
+				<>
 					<button
 						type="button"
 						aria-label="Go back"
-						className={`flex h-full cursor-pointer items-center justify-center px-3`}
+						className={`group flex h-10 cursor-pointer items-center gap-x-1.5 rounded-xl px-2.5 transition-colors ${
+							isDark
+								? "text-neutral-200 hover:bg-neutral-900 hover:text-white"
+								: "text-neutral-700 hover:bg-neutral-100 hover:text-black"
+						}`}
 						onClick={handleGoBack}
 					>
-						<span
-							className={`flex h-full items-center justify-center gap-x-1 transition-transform duration-100 ease-in-out hover:-translate-x-1 active:translate-x-0`}
-						>
-							<LUIThemedIcon
-								Icon={ArrowLeftIcon}
-								weight="regular"
-								className="size-6"
-								passedTheme={theme}
-							/>
-							<span
-								className={`text-lg ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
-							>
-								Go Back
-							</span>
-						</span>
+						<LUIThemedIcon
+							Icon={ArrowLeftIcon}
+							weight="regular"
+							color="currentColor"
+							className="size-5 transition-transform duration-150 group-hover:-translate-x-0.5"
+							passedTheme={theme}
+						/>
+						<span className="text-sm font-medium">Back</span>
 					</button>
-				</div>
+					<div className="h-full w-max">
+						<LUILogo className="h-full" />
+					</div>
+				</>
 			)}
 		</div>
 	);

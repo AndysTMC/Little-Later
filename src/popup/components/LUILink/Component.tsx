@@ -1,11 +1,12 @@
-import { ArrowCircleRightIcon } from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
-import { useContext, useState } from "react";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
-import { HomeContext } from "../../contexts/Home";
+import { useState } from "react";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { twMerge } from "tailwind-merge";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
+
+import { pressable } from "../../a11y";
 
 const Component = ({
 	className,
@@ -21,38 +22,26 @@ const Component = ({
 	disableNavs?: boolean;
 }) => {
 	const { theme } = useTheme();
-	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
-		useContext(HomeContext);
+	const isDark = theme === LTHEME.DARK;
+	const go = useMoveNavigate();
 	const [hovered, setHovered] = useState(false);
 	const handleOnClick = () => {
 		if (disableNavs) return;
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.slideLeft,
-			navigateTo,
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.slideLeft },
-			},
-		});
-		setShouldHomeNavigate(true);
+		go(navigateTo, "forward");
 	};
 	return (
 		<div
 			className={twMerge(
-				`my-0.5 flex min-h-6 w-full items-start gap-x-1 rounded-xl pr-1 pl-2 ${hovered ? hoverBackground : ""} `,
+				`my-0.5 flex min-h-8 w-full items-center gap-x-2 rounded-lg px-2 py-1 transition-colors ${disableNavs ? "" : "cursor-pointer"} ${hovered ? hoverBackground : ""}`,
 				className,
 			)}
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+			{...(disableNavs ? {} : pressable(handleOnClick))}
 		>
-			<div
-				className={`flex h-auto grow cursor-pointer items-center justify-center p-1`}
-				onMouseEnter={() => setHovered(true)}
-				onMouseLeave={() => setHovered(false)}
-				onClick={handleOnClick}
-			>
+			<div className="min-w-0 grow">
 				<div
-					className={`h-max w-full text-xs font-medium ${theme === LTHEME.DARK ? "text-white" : "text-black"} text-wrap`}
+					className={`text-xs leading-snug font-medium break-words ${isDark ? "text-neutral-200" : "text-neutral-800"}`}
 				>
 					{content}
 				</div>
@@ -60,13 +49,15 @@ const Component = ({
 
 			{!disableNavs ? (
 				<div
-					className={`flex h-auto w-6 items-center justify-center ${hovered ? "translate-x-1" : ""} transition-transform duration-200`}
+					className={`flex size-5 shrink-0 items-center justify-center transition-transform duration-150 ${hovered ? "translate-x-0.5" : ""} ${
+						isDark ? "text-neutral-400" : "text-neutral-500"
+					}`}
 				>
 					<LUIThemedIcon
-						Icon={ArrowCircleRightIcon}
-						color={theme === LTHEME.DARK ? "white" : "black"}
-						weight="fill"
-						className={`size-6`}
+						Icon={CaretRightIcon}
+						color="currentColor"
+						weight="regular"
+						className="size-3.5"
 					/>
 				</div>
 			) : null}

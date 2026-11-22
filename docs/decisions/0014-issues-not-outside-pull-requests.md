@@ -34,6 +34,11 @@ Option B.
 - **Contributor experience:** outside contributors cannot land code themselves; their diagnosis still counts and is credited.
 - **Velocity:** fewer, larger reviews are replaced by issue triage, which is cheaper.
 
+## Assumptions
+
+- The maintainer and collaborators can triage issues and turn clear diagnoses into pull requests promptly.
+- Outside contributors remain willing to share bug reports and diagnoses via issues even without direct pull requests.
+
 ## Rollback
 
 Restore the earlier `CONTRIBUTING.md` wording and allow pull requests from all users in the repository settings.

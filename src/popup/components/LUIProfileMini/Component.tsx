@@ -1,11 +1,8 @@
-import { useState } from "react";
-import { useNavigate } from "react-router";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
+import { useRef, useState } from "react";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { UserCircleIcon } from "@phosphor-icons/react";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
-import { MotionProps } from "framer-motion";
 import { twMerge } from "tailwind-merge";
-import { fakeWait } from "little-shared/utils/misc";
 import { isFirstTimeUser } from "../../../services/settings";
 import { createToast } from "../../../services/toasts";
 import { LTOAST_TYPE } from "little-shared/enums";
@@ -18,46 +15,37 @@ const Component = ({
 	className,
 	userProfile,
 	name,
-	changeExit = () => {},
 }: {
 	className?: string;
 	userProfile: UserProfile;
 	name: string;
-	changeExit: (exit: MotionProps) => void;
 }) => {
-	const navigate = useNavigate();
+	const go = useMoveNavigate();
 
 	const [isAuthenticating, setIsAuthenticating] = useState(false);
+	const openingRef = useRef(false);
 
 	const userAvatar = useUserAvatar(userProfile.id);
 	const avatarUrl = useObjectUrl(userAvatar);
 
 	const handleClick = async () => {
+		if (openingRef.current) return;
+		openingRef.current = true;
 		setIsAuthenticating(true);
 		try {
-			await fakeWait();
 			if (userProfile.hasPassword) {
-				changeExit(exitTransitions.zoomIn);
-				navigate("/unlock/" + userProfile.id, {
-					state: { entryTransition: entryTransitions.zoomIn },
-				});
+				go("/unlock/" + userProfile.id, "into");
 				return;
 			}
 			await send("profile.unlock", {
 				profileId: userProfile.id,
 				password: null,
 			});
-			if (await isFirstTimeUser()) {
-				changeExit(exitTransitions.slideLeft);
-				navigate("/getting-started", {
-					state: { entryTransition: entryTransitions.slideLeft },
-				});
-				return;
-			}
-			changeExit(exitTransitions.zoomIn);
-			navigate("/home", {
-				state: { entryTransition: entryTransitions.zoomIn },
-			});
+			// Opening a profile always zooms into it, as unlocking does.
+			go(
+				(await isFirstTimeUser()) ? "/getting-started" : "/home",
+				"into",
+			);
 		} catch (error) {
 			console.error("Failed to open profile.", error);
 			await createToast(
@@ -67,24 +55,25 @@ const Component = ({
 				LTOAST_TYPE.ERROR,
 			);
 		} finally {
+			openingRef.current = false;
 			setIsAuthenticating(false);
 		}
 	};
 	return (
 		<div
 			className={twMerge(
-				`col-span-1 flex h-max w-full flex-col items-center justify-center`,
+				`col-span-1 flex h-max w-full flex-col items-center justify-center gap-y-2`,
 				className,
 			)}
 		>
-			<div className="h-2 w-full"></div>
 			<button
 				type="button"
+				disabled={isAuthenticating}
 				aria-label={`Open profile ${name}`}
-				className={`flex h-max w-max cursor-pointer items-center justify-start bg-transparent p-1 transition-transform duration-300 ease-in-out ${
+				className={`flex size-24 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 transition-all duration-150 ${
 					isAuthenticating
-						? "animate-bounce-profile"
-						: "hover:-translate-y-1"
+						? "animate-pulse"
+						: "hover:border-neutral-400 hover:shadow-md hover:ring-4 hover:ring-neutral-900/10 active:scale-[0.97]"
 				}`}
 				onClick={handleClick}
 			>
@@ -92,7 +81,7 @@ const Component = ({
 					<img
 						src={avatarUrl}
 						alt=""
-						className={`h-24 w-24 rounded-full object-cover`}
+						className="h-full w-full rounded-full object-cover"
 						draggable="false"
 					/>
 				) : (
@@ -103,9 +92,7 @@ const Component = ({
 					/>
 				)}
 			</button>
-			<div
-				className={`line-clamp-2 h-max max-h-full text-center text-lg text-ellipsis`}
-			>
+			<div className="line-clamp-2 h-max w-full text-center text-sm font-medium break-words text-neutral-900">
 				{name}
 			</div>
 		</div>

@@ -1,16 +1,12 @@
 import { capitalize } from "little-shared/utils/misc";
 import { LTHEME } from "little-shared/enums";
-import {
-	CaretDownIcon,
-	CaretUpIcon,
-	NotePencilIcon,
-} from "@phosphor-icons/react";
-import { useContext, useState } from "react";
-import { HomeContext } from "../../contexts/Home";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
+import { CaretDownIcon, NotePencilIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { AnimatePresence, motion } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
+import { LReminderIcon } from "../LUIIcons";
 import { LUIGroup } from "../LUIGroup/Component";
 import { LUILink } from "../LUILink/Component";
 import { useTheme } from "../../hooks/useTheme";
@@ -19,6 +15,9 @@ import type { LinkRow } from "../../../storage/schema";
 import { linkedFrom, reminderKind } from "../../records";
 import { prettyDate } from "../../../utils/dates";
 import { send } from "../../../utils/send";
+import { LUIDeleteButton } from "../LUIDeleteButton/Component";
+import { LUIPillButton } from "../LUIPillButton/Component";
+import { LUITagChips } from "../LUITagChips/Component";
 
 const Component = ({
 	className,
@@ -27,6 +26,8 @@ const Component = ({
 	tasks,
 	reminder,
 	disableNavs,
+	activeTag = null,
+	onSelectTag,
 }: {
 	className?: string;
 	links: Array<LinkRow>;
@@ -34,10 +35,12 @@ const Component = ({
 	tasks: Array<Task>;
 	reminder: Reminder;
 	disableNavs?: boolean;
+	activeTag?: string | null;
+	onSelectTag?: (tag: string) => void;
 }) => {
 	const { theme } = useTheme();
-	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
-		useContext(HomeContext);
+	const isDark = theme === LTHEME.DARK;
+	const go = useMoveNavigate();
 	const [showDetails, setShowDetails] = useState(false);
 	const linkedSaves = linkedFrom(links, reminder.id, saves);
 	// A task's own reminder is changed and removed through the task.
@@ -50,163 +53,212 @@ const Component = ({
 			: 0;
 	const handleEdit = () => {
 		if (disableNavs) return;
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.slideLeft,
-			navigateTo: "/reminder/" + reminder.id,
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.slideLeft },
-			},
-		});
-		setShouldHomeNavigate(true);
-	};
-	const handleDelete = async () => {
-		await send("reminder.delete", { id: reminder.id });
+		go("/reminder/" + reminder.id, "forward");
 	};
 	return (
 		<div
 			className={twMerge(
-				`flex h-max w-full flex-col ${showDetails ? "rounded-lg" : "rounded-full"} shrink-0 overflow-hidden`,
+				`flex h-max w-full shrink-0 flex-col rounded-2xl border transition-colors ${
+					isDark
+						? "border-neutral-800 bg-neutral-900/70 hover:border-neutral-700"
+						: "border-neutral-200 bg-neutral-100/70 hover:border-neutral-300"
+				}`,
 				className,
 			)}
 		>
-			<div
-				className={`flex h-10 w-full ${
-					theme === LTHEME.DARK ? "bg-neutral-900" : "bg-neutral-100"
-				} `}
-			>
+			<div className="flex w-full items-start gap-x-3 p-3">
 				<div
-					className={`flex h-auto w-44 items-center justify-center ${showDetails ? "rounded-t-lg" : "rounded-full"} ${
-						theme === LTHEME.DARK
-							? "border border-white bg-black text-white"
-							: "border border-black bg-white text-black"
-					} text-sm font-semibold`}
+					aria-hidden
+					className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl ${
+						isDark
+							? "bg-neutral-800 text-neutral-200"
+							: "bg-neutral-200 text-neutral-800"
+					}`}
 				>
-					{prettyDate(reminder.target)}
+					<LUIThemedIcon
+						Icon={LReminderIcon}
+						color="currentColor"
+						weight={kind === "escalating" ? "fill" : "regular"}
+						className="size-4"
+					/>
 				</div>
-				<div
-					className={`flex grow flex-col items-center justify-center pl-2`}
-				>
-					<div
-						className={`w-full text-xs italic opacity-75 ${
-							theme === LTHEME.DARK ? "text-white" : "text-black"
-						} `}
-					>
-						{capitalize(kind) + (nextFire ? " | Next At:" : "")}
-					</div>
-					{nextFire ? (
-						<div
-							className={`w-full text-xs font-medium opacity-75 ${
-								theme === LTHEME.DARK
-									? "text-white"
-									: "text-black"
-							} `}
-						>
-							{prettyDate(nextFire)}
-						</div>
-					) : null}
-				</div>
-				<div
-					className={`flex h-full w-max items-center justify-center px-1`}
-				>
-					<div
-						className={`flex h-max w-max cursor-pointer items-center justify-center gap-x-1`}
-						onClick={() => setShowDetails(!showDetails)}
-					>
-						<div
-							className={`text-base font-medium ${
-								theme === LTHEME.DARK
-									? "text-white"
-									: "text-black"
-							} `}
-						>
-							Details
-						</div>
-						<LUIThemedIcon
-							Icon={showDetails ? CaretUpIcon : CaretDownIcon}
-							color={theme === LTHEME.DARK ? "white" : "black"}
-							weight="bold"
-							className={`h-4 w-4`}
-						/>
-					</div>
-				</div>
-				{!disableNavs ? (
-					<button
-						className={`h-10 w-10 ${theme === LTHEME.DARK ? "bg-white" : "bg-black"} flex cursor-pointer items-center justify-center disabled:cursor-not-allowed disabled:opacity-50`}
-						onClick={handleEdit}
-						disabled={linkedTask !== undefined}
-					>
-						<LUIThemedIcon
-							Icon={NotePencilIcon}
-							color={theme === LTHEME.DARK ? "black" : "white"}
-							weight="bold"
-							className={`h-6 w-6`}
-						/>
-					</button>
-				) : null}
-			</div>
-			<AnimatePresence>
-				{showDetails ? (
-					<motion.div
-						className={`w-full px-4 py-1 ${theme === LTHEME.DARK ? "border-white" : "border-black"} rounded-b-lg border-x border-b`}
-						initial={{
-							opacity: 0,
-							y: -10,
-						}}
-						animate={{
-							opacity: 1,
-							y: 0,
-							transition: {
-								duration: 0.2,
-							},
-						}}
-						exit={{
-							opacity: 0,
-							y: -10,
-							transition: {
-								duration: 0,
-							},
-						}}
-					>
-						{linkedSaves.length > 0 ? (
-							<LUIGroup
-								title={linkedSaves.length + " Saves(s)"}
-								headerTextSize="sm"
-							>
-								{linkedSaves.map((save) => (
-									<LUILink
-										key={save.id}
-										content={save.customName}
-										navigateTo={"/vbm/" + save.id}
-										hoverBackground={
-											theme === LTHEME.DARK
-												? "bg-neutral-900"
-												: "bg-neutral-100"
-										}
-									/>
-								))}
-							</LUIGroup>
-						) : null}
 
+				<div className="flex min-w-0 grow flex-col gap-y-1.5">
+					<button
+						type="button"
+						aria-label="Details"
+						aria-expanded={showDetails}
+						onClick={() => setShowDetails((open) => !open)}
+						className="flex w-full min-w-0 cursor-pointer flex-col gap-y-1 text-left"
+					>
 						<div
-							className={`text-sm ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
+							className={`text-sm leading-snug font-medium text-pretty ${
+								showDetails ? "" : "line-clamp-2"
+							} ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
 						>
 							{reminder.message}
 						</div>
-						<div className={`flex h-max grow justify-end`}>
-							<button
-								className={`h-max w-max text-xs ${
-									theme === LTHEME.DARK
-										? "bg-neutral-800 text-white"
-										: "bg-neutral-200 text-black"
-								} mt-1 cursor-pointer rounded-full px-2 py-1 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50`}
-								onClick={handleDelete}
-								disabled={linkedTask !== undefined}
+						<div className="flex flex-wrap items-center gap-1.5">
+							<span
+								className={`text-xs font-medium ${
+									isDark
+										? "text-neutral-300"
+										: "text-neutral-700"
+								}`}
 							>
-								Delete
-							</button>
+								{prettyDate(reminder.target)}
+							</span>
+							<span
+								className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+									isDark
+										? "bg-neutral-800 text-neutral-300"
+										: "bg-neutral-200 text-neutral-700"
+								}`}
+							>
+								{capitalize(kind)}
+							</span>
+							{nextFire ? (
+								<span
+									className={`text-xs ${
+										isDark
+											? "text-neutral-400"
+											: "text-neutral-600"
+									}`}
+								>
+									Next {prettyDate(nextFire)}
+								</span>
+							) : null}
+						</div>
+					</button>
+					{(reminder.tags?.length ?? 0) > 0 ? (
+						<LUITagChips
+							tags={reminder.tags ?? []}
+							activeTag={activeTag}
+							onSelect={onSelectTag}
+						/>
+					) : null}
+				</div>
+
+				<div className="flex shrink-0 items-center gap-x-0.5">
+					{!disableNavs && !showDetails ? (
+						<button
+							className={`flex size-8 cursor-pointer items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+								isDark
+									? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+									: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
+							}`}
+							type="button"
+							aria-label={
+								linkedTask
+									? "Edit this reminder on its task"
+									: "Edit reminder"
+							}
+							onClick={handleEdit}
+							disabled={linkedTask !== undefined}
+						>
+							<LUIThemedIcon
+								Icon={NotePencilIcon}
+								color="currentColor"
+								weight="regular"
+								className="size-4"
+							/>
+						</button>
+					) : null}
+					<span
+						aria-hidden
+						className={`flex size-6 items-center justify-center ${
+							isDark ? "text-neutral-500" : "text-neutral-400"
+						}`}
+					>
+						<LUIThemedIcon
+							Icon={CaretDownIcon}
+							color="currentColor"
+							weight="regular"
+							className={`size-3.5 transition-transform duration-150 ${showDetails ? "rotate-180" : ""}`}
+						/>
+					</span>
+				</div>
+			</div>
+
+			<AnimatePresence initial={false}>
+				{showDetails ? (
+					<motion.div
+						className="overflow-hidden"
+						initial={{ opacity: 0, height: 0 }}
+						animate={{ opacity: 1, height: "auto" }}
+						exit={{ opacity: 0, height: 0 }}
+						transition={{ duration: 0.16, ease: "easeOut" }}
+					>
+						<div
+							className={`flex flex-col gap-y-2.5 border-t px-3 pt-2.5 pb-3 ${
+								isDark
+									? "border-neutral-800"
+									: "border-neutral-200"
+							}`}
+						>
+							{linkedTask ? (
+								<p
+									className={`text-xs ${
+										isDark
+											? "text-neutral-400"
+											: "text-neutral-600"
+									}`}
+								>
+									Managed by its task. Edit or remove it on
+									the task.
+								</p>
+							) : null}
+							{linkedSaves.length > 0 ? (
+								<LUIGroup
+									title={`${linkedSaves.length} Save${linkedSaves.length === 1 ? "" : "s"}`}
+									headerTextSize="sm"
+								>
+									{linkedSaves.map((save) => (
+										<LUILink
+											key={save.id}
+											content={save.customName}
+											navigateTo={"/vbm/" + save.id}
+											hoverBackground={
+												isDark
+													? "bg-neutral-800"
+													: "bg-neutral-200"
+											}
+											disableNavs={disableNavs}
+										/>
+									))}
+								</LUIGroup>
+							) : null}
+							<div className="flex w-full flex-wrap items-center justify-between gap-2">
+								<div className="flex items-center gap-1.5">
+									{!disableNavs ? (
+										<LUIPillButton
+											label="Edit"
+											ariaLabel={
+												linkedTask
+													? "Edit this reminder on its task"
+													: "Edit reminder"
+											}
+											disabled={linkedTask !== undefined}
+											onClick={handleEdit}
+										/>
+									) : null}
+								</div>
+								<div className="flex items-center gap-1.5">
+									<LUIDeleteButton
+										onDelete={() =>
+											send("reminder.delete", {
+												id: reminder.id,
+											})
+										}
+										failureMessage="Couldn't delete this reminder."
+										disabled={linkedTask !== undefined}
+									/>
+									<LUIPillButton
+										label="Collapse"
+										onClick={() => setShowDetails(false)}
+									/>
+								</div>
+							</div>
 						</div>
 					</motion.div>
 				) : null}

@@ -143,13 +143,37 @@ describe("save.capture", () => {
 		expect((await getSave(db, await keys(), id))?.title).toBe("a.test");
 	});
 
+	// A page seen before its title loaded is named after its host as a
+	// stand-in, which the first real title replaces. A name the user gave
+	// it, even its host name, is theirs and stays.
+	it("replaces only a stand-in name with the page's real title", async () => {
+		const { id } = await capture("https://a.test/x", "");
+		expect((await getSave(db, await keys(), id))?.customName).toBe(
+			"a.test",
+		);
+		await capture("https://a.test/x", "Real title");
+		expect((await getSave(db, await keys(), id))?.customName).toBe(
+			"Real title",
+		);
+		await capture("https://a.test/x", "Changed title");
+		expect((await getSave(db, await keys(), id))?.customName).toBe(
+			"Real title",
+		);
+
+		await run("save.update", { id, customName: "a.test" });
+		await capture("https://a.test/x", "Another title");
+		expect((await getSave(db, await keys(), id))?.customName).toBe(
+			"a.test",
+		);
+	});
+
 	it("evicts the oldest unsaved pages of a site past the per-site limit", async () => {
 		await setLimits(1000, 2);
 		const a = await capture("https://a.test/1");
 		const b = await capture("https://a.test/2");
 		const kept = await capture("https://a.test/kept", "K", true);
 		const other = await capture("https://b.test/1");
-		await run("note.create", { content: "on a", saveId: a.id });
+		await run("note.create", { content: "on a", saveIds: [a.id] });
 		const c = await capture("https://a.test/3");
 
 		const ids = (await db.saves.toArray()).map((row) => row.id).sort();
@@ -178,7 +202,7 @@ describe("save.update and save.delete", () => {
 
 	it("unsaving detaches notes but keeps them", async () => {
 		const { id } = await capture("https://a.test/", "A", true);
-		await run("note.create", { content: "n", saveId: id });
+		await run("note.create", { content: "n", saveIds: [id] });
 		await run("save.update", { id, saved: false });
 		expect(await listNotesFor(db, await keys(), id)).toEqual([]);
 		expect(await listNotes(db, await keys())).toHaveLength(1);
@@ -194,7 +218,7 @@ describe("save.update and save.delete", () => {
 
 	it("deletes a page with its notes and links, and again is a no-op", async () => {
 		const { id } = await capture("https://a.test/", "A", true);
-		await run("note.create", { content: "attached", saveId: id });
+		await run("note.create", { content: "attached", saveIds: [id] });
 		await run("note.create", { content: "standalone" });
 		await run("save.delete", { id });
 		await run("save.delete", { id });
@@ -211,10 +235,10 @@ describe("save.update and save.delete", () => {
 		const b = await capture("https://b.test/", "B", true);
 		const shared = await run<{ id: string }>("note.create", {
 			content: "shared",
-			saveId: a.id,
+			saveIds: [a.id],
 		});
 		await run("link.create", { fromId: shared.id, toId: b.id });
-		await run("note.create", { content: "only on A", saveId: a.id });
+		await run("note.create", { content: "only on A", saveIds: [a.id] });
 
 		await run("save.delete", { id: a.id });
 		const notes = await listNotes(db, await keys());
@@ -256,8 +280,35 @@ describe("notes", () => {
 			error: { code: "invalid-input" },
 		});
 		expect(
-			await dispatch("note.create", { content: "x", saveId: "missing" }),
+			await dispatch("note.create", {
+				content: "x",
+				saveIds: ["missing"],
+			}),
 		).toMatchObject({ ok: false, error: { code: "rejected" } });
 		expect(await db.notes.count()).toBe(0);
+	});
+});
+
+describe("a save's name", () => {
+	it("follows the page's title until the user renames it", async () => {
+		const url = "https://example.com/slow";
+		// First seen before its title loaded: named after its host.
+		const { id } = await run<{ id: string }>("save.capture", {
+			url,
+			title: "",
+			saved: true,
+		});
+		const named = async () =>
+			(await listSaves(db, await keys(), true)).find(
+				(save) => save.id === id,
+			)?.customName;
+		expect(await named()).toBe("example.com");
+
+		await run("save.capture", { url, title: "The real title" });
+		expect(await named()).toBe("The real title");
+
+		await run("save.update", { id, customName: "Mine" });
+		await run("save.capture", { url, title: "A newer title" });
+		expect(await named()).toBe("Mine");
 	});
 });

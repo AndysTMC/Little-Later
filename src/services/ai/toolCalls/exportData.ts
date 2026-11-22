@@ -1,18 +1,22 @@
 import { LEXPORT_TYPE } from "little-shared/enums";
 import { exportBackup, exportReadable } from "../../backup";
+import type { AIOwner } from "../owner";
 
-const toolCall = async ({
-	type,
-	password,
-}: {
-	type: LEXPORT_TYPE;
-	password?: string;
-}): Promise<() => Promise<void>> => {
+const toolCall = async (
+	owner: AIOwner,
+	{
+		type,
+		password,
+	}: {
+		type: LEXPORT_TYPE;
+		password?: string;
+	},
+): Promise<() => Promise<void>> => {
 	return async () => {
 		if (type === LEXPORT_TYPE.READABLE) {
-			await exportReadable();
+			await exportReadable(owner.keys);
 		} else if (type === LEXPORT_TYPE.IMPORTABLE) {
-			await exportBackup(password ?? "");
+			await exportBackup(password ?? "", owner.keys);
 		}
 	};
 };

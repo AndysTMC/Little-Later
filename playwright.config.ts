@@ -10,14 +10,17 @@ export default defineConfig({
 		timeout: 12_000,
 	},
 	use: {
-		baseURL: "http://127.0.0.1:4173",
+		// Its own port, never shared: a server already on it (another
+		// project's, an old build's) would be tested instead, as happened
+		// with 4173.
+		baseURL: "http://127.0.0.1:4175",
 		headless: true,
 		trace: "retain-on-failure",
 	},
 	webServer: {
-		command: "bun run dev --host 127.0.0.1 --port 4173",
-		url: "http://127.0.0.1:4173",
-		reuseExistingServer: true,
+		command: "bun run dev --host 127.0.0.1 --port 4175 --strictPort",
+		url: "http://127.0.0.1:4175",
+		reuseExistingServer: false,
 		timeout: 120_000,
 	},
 });

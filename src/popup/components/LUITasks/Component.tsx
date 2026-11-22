@@ -17,12 +17,16 @@ const Component = ({
 	reminders,
 	saves,
 	tasks,
+	activeTag = null,
+	onSelectTag,
 }: {
 	className?: string;
 	links: Array<LinkRow>;
 	reminders: Array<Reminder>;
 	saves: Array<Save>;
 	tasks: Array<Task>;
+	activeTag?: string | null;
+	onSelectTag?: (tag: string) => void;
 }) => {
 	const { theme } = useTheme();
 
@@ -65,51 +69,72 @@ const Component = ({
 				className,
 			)}
 		>
-			{missedTasks.length > 0 ? (
-				<LUIGroup title="Missed">
-					{missedTasks.map((task) => (
-						<LUITaskMini
-							links={links}
-							reminders={reminders}
-							saves={saves}
-							key={task.id}
-							task={task}
-						/>
-					))}
-				</LUIGroup>
-			) : null}
-			{activeTasks.length > 0 ? (
-				<LUIGroup title="Active">
-					{activeTasks.map((task) => (
-						<LUITaskMini
-							links={links}
-							reminders={reminders}
-							saves={saves}
-							key={task.id}
-							task={task}
-						/>
-					))}
-				</LUIGroup>
-			) : null}
-			{finishedTasks.length > 0 ? (
-				<LUIGroup
-					title="Finished"
-					pagination={{ currentBatch, batchCount, onBatchChange }}
-				>
-					{paginationFinishedTasks.map((task) => (
-						<LUITaskMini
-							links={links}
-							reminders={reminders}
-							saves={saves}
-							key={task.id}
-							task={task}
-						/>
-					))}
-				</LUIGroup>
-			) : null}
-			{tasks.length === 0 ? (
-				<LUIEmptyState title="No tasks yet?" hint="Tap New Task." />
-			) : null}
+			<div className="mx-auto flex w-full max-w-3xl grow flex-col">
+				{tasks.length > 0 ? (
+					<div className="flex h-8 w-full shrink-0 items-center justify-between">
+						<span
+							className={`text-xs font-medium ${
+								theme === LTHEME.DARK
+									? "text-neutral-400"
+									: "text-neutral-500"
+							}`}
+						>
+							{tasks.length} task{tasks.length === 1 ? "" : "s"}
+						</span>
+					</div>
+				) : null}
+				{missedTasks.length > 0 ? (
+					<LUIGroup title="Missed">
+						{missedTasks.map((task) => (
+							<LUITaskMini
+								links={links}
+								reminders={reminders}
+								saves={saves}
+								key={task.id}
+								task={task}
+								activeTag={activeTag}
+								onSelectTag={onSelectTag}
+							/>
+						))}
+					</LUIGroup>
+				) : null}
+				{activeTasks.length > 0 ? (
+					<LUIGroup title="Active">
+						{activeTasks.map((task) => (
+							<LUITaskMini
+								links={links}
+								reminders={reminders}
+								saves={saves}
+								key={task.id}
+								task={task}
+								activeTag={activeTag}
+								onSelectTag={onSelectTag}
+							/>
+						))}
+					</LUIGroup>
+				) : null}
+				{finishedTasks.length > 0 ? (
+					<LUIGroup
+						title="Finished"
+						pagination={{ currentBatch, batchCount, onBatchChange }}
+					>
+						{paginationFinishedTasks.map((task) => (
+							<LUITaskMini
+								links={links}
+								reminders={reminders}
+								saves={saves}
+								key={task.id}
+								task={task}
+								activeTag={activeTag}
+								onSelectTag={onSelectTag}
+							/>
+						))}
+					</LUIGroup>
+				) : null}
+				{tasks.length === 0 ? (
+					<LUIEmptyState title="No tasks yet?" hint="Tap New task." />
+				) : null}
+			</div>
 		</motion.div>
 	);
 };

@@ -30,9 +30,9 @@ const Component = ({
 			)}
 		>
 			<div className={`h-max w-full`}>
-				<LUILabel name={name} className="px-4" />
+				<LUILabel name={name} />
 			</div>
-			<div className={`flex w-full`}>
+			<div className={`flex w-full gap-x-1`}>
 				<LUIDateNumInput
 					name={"hh"}
 					passedValue={hour12(clock.hour)}
@@ -43,7 +43,7 @@ const Component = ({
 					minValue={1}
 					maxValue={12}
 					maxLength={2}
-					className={`w-8`}
+					className={`w-10`}
 				/>
 				<LUIDateNumInput
 					name={"mm"}
@@ -53,12 +53,12 @@ const Component = ({
 					minValue={0}
 					maxValue={59}
 					maxLength={2}
-					className={`w-8`}
+					className={`w-10`}
 				/>
 				<LUIMeridiumInput
 					passedValue={meridiem(clock.hour)}
 					onShift={(direction) => shift({ hours: 12 * direction })}
-					className={`w-10`}
+					className={`w-11`}
 				/>
 			</div>
 		</div>

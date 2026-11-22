@@ -3,7 +3,7 @@ import { createRoot, Root } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LTHEME } from "little-shared/enums";
-import { ThemeContext } from "../../src/popup/contexts/Theme";
+import { ThemeContext } from "../../src/popup/contexts/ThemeContext";
 import { LUIProfileCreator as Page } from "../../src/popup/pages/LUIProfileCreator/Page";
 
 const mocks = vi.hoisted(() => ({
@@ -68,6 +68,13 @@ beforeEach(async () => {
 						theme: LTHEME.LIGHT,
 						toggleTheme: () => {},
 						setTheme: () => {},
+						preference: "light",
+						setPreference: () => {},
+						accent: "mono",
+						setAccent: () => {},
+						accentColor: "#0e7490",
+						setAccentColor: () => {},
+						showLookOf: () => {},
 					}}
 				>
 					<Page />
