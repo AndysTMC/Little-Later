@@ -22,10 +22,21 @@ export type Staging = {
 	put: (bytes: Uint8Array<ArrayBuffer>) => Promise<string>;
 	// Worker side: returns the bytes and deletes the file.
 	take: (name: string) => Promise<Uint8Array<ArrayBuffer>>;
+	// Returns the bytes and keeps the file: for a page that shows a chosen
+	// file before the command that takes it is sent.
+	read: (name: string) => Promise<Uint8Array<ArrayBuffer>>;
+	// The same for a file of any size: it is written and read as a Blob,
+	// which the browser keeps on disk, never as one buffer in memory.
+	putBlob: (blob: Blob) => Promise<string>;
+	readBlob: (name: string) => Promise<Blob>;
+	// Deletes a file without reading it, as when the page that staged it
+	// no longer needs it. A file already gone is not an error.
+	discard: (name: string) => Promise<void>;
 	// Deletes files staged before `before` (epoch ms): those a closed or
 	// crashed page left behind. Newer files may belong to a command still
-	// on its way, which a sweep at worker start would otherwise race.
-	sweep: (before: number) => Promise<void>;
+	// on its way, which a sweep at worker start would otherwise race. Files
+	// in `keep` are still held by a page and stay however old they are.
+	sweep: (before: number, keep?: ReadonlySet<string>) => Promise<void>;
 };
 
 // Staged files older than this are leftovers. A page sends its command
@@ -60,9 +71,37 @@ export const createMemoryStaging = (
 			files.delete(name);
 			return file.bytes;
 		},
-		sweep: async (before) => {
+		read: async (name) => {
+			assertName(name);
+			const file = files.get(name);
+			if (!file) {
+				throw new StagingError("The staged file is gone.");
+			}
+			return file.bytes.slice();
+		},
+		putBlob: async (blob) => {
+			const name = crypto.randomUUID();
+			files.set(name, {
+				bytes: new Uint8Array(await blob.arrayBuffer()),
+				stagedAt: now(),
+			});
+			return name;
+		},
+		readBlob: async (name) => {
+			assertName(name);
+			const file = files.get(name);
+			if (!file) {
+				throw new StagingError("The staged file is gone.");
+			}
+			return new Blob([file.bytes.slice()]);
+		},
+		discard: async (name) => {
+			assertName(name);
+			files.delete(name);
+		},
+		sweep: async (before, keep = new Set()) => {
 			for (const [name, file] of files) {
-				if (file.stagedAt < before) {
+				if (file.stagedAt < before && !keep.has(name)) {
 					files.delete(name);
 				}
 			}
@@ -79,33 +118,87 @@ export const createOpfsStaging = (): Staging => {
 	return {
 		put: async (bytes) => {
 			const name = crypto.randomUUID();
-			const file = await (
-				await directory()
-			).getFileHandle(name, { create: true });
+			const dir = await directory();
+			const file = await dir.getFileHandle(name, { create: true });
 			const writable = await file.createWritable();
-			await writable.write(bytes);
-			await writable.close();
+			try {
+				await writable.write(bytes);
+				await writable.close();
+			} catch (error) {
+				await writable.abort().catch(() => undefined);
+				await dir.removeEntry(name).catch(() => undefined);
+				throw error;
+			}
 			return name;
 		},
 		take: async (name) => {
 			assertName(name);
-			const dir = await directory();
-			let file: FileSystemFileHandle;
 			try {
-				file = await dir.getFileHandle(name);
+				const dir = await directory();
+				const file = await dir.getFileHandle(name);
+				const bytes = new Uint8Array(
+					await (await file.getFile()).arrayBuffer(),
+				);
+				await dir.removeEntry(name);
+				return bytes;
 			} catch {
 				throw new StagingError("The staged file is gone.");
 			}
-			const bytes = new Uint8Array(
-				await (await file.getFile()).arrayBuffer(),
-			);
-			await dir.removeEntry(name);
-			return bytes;
 		},
-		sweep: async (before) => {
+		read: async (name) => {
+			assertName(name);
+			try {
+				const file = await (await directory()).getFileHandle(name);
+				return new Uint8Array(
+					await (await file.getFile()).arrayBuffer(),
+				);
+			} catch {
+				throw new StagingError("The staged file is gone.");
+			}
+		},
+		putBlob: async (blob) => {
+			const name = crypto.randomUUID();
+			const dir = await directory();
+			const file = await dir.getFileHandle(name, { create: true });
+			const writable = await file.createWritable();
+			try {
+				// Streamed from the Blob to disk.
+				await writable.write(blob);
+				await writable.close();
+			} catch (error) {
+				await writable.abort().catch(() => undefined);
+				await dir.removeEntry(name).catch(() => undefined);
+				throw error;
+			}
+			return name;
+		},
+		readBlob: async (name) => {
+			assertName(name);
+			try {
+				const file = await (await directory()).getFileHandle(name);
+				// A File backed by the disk; reading it is up to the caller.
+				return await file.getFile();
+			} catch {
+				throw new StagingError("The staged file is gone.");
+			}
+		},
+		discard: async (name) => {
+			assertName(name);
+			try {
+				await (await directory()).removeEntry(name);
+			} catch (error) {
+				if (
+					!(error instanceof DOMException) ||
+					error.name !== "NotFoundError"
+				) {
+					throw error;
+				}
+			}
+		},
+		sweep: async (before, keep = new Set()) => {
 			const dir = await directory();
 			for await (const entry of dir.values()) {
-				if (entry.kind !== "file") {
+				if (entry.kind !== "file" || keep.has(entry.name)) {
 					continue;
 				}
 				await (entry as FileSystemFileHandle)

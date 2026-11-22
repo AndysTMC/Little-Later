@@ -1,7 +1,14 @@
-import type { Note, Reminder, Save, Task } from "../storage/repositories";
+import type {
+	ImageRecord,
+	Note,
+	Reminder,
+	Save,
+	Task,
+} from "../storage/repositories";
 import type { LinkRow } from "../storage/schema";
 import type { Settings } from "../storage/repositories";
 import type { UserProfile } from "./hooks/useUserProfiles";
+import { recordMatchesTagWord } from "../utils/tags";
 
 // What the home page loads once and hands to its views.
 export type HomeData = {
@@ -9,10 +16,13 @@ export type HomeData = {
 	userSettings: Settings;
 	links: Array<LinkRow>;
 	notes: Array<Note>;
+	images: Array<ImageRecord>;
 	reminders: Array<Reminder>;
 	tasks: Array<Task>;
 	// Every page: saved ones and browsing history.
 	pages: Array<Save>;
+	// The panel has finished moving in; heavy lists wait for it.
+	ready: boolean;
 };
 
 // Records among `candidates` that link to `targetId`, such as the tasks
@@ -48,22 +58,53 @@ export const searchSaves = (saves: ReadonlyArray<Save>, word: string) =>
 	saves.filter(
 		(save) =>
 			save.saved &&
-			includes(save.customName + save.url + save.title, word),
+			(includes(save.customName + save.url + save.title, word) ||
+				recordMatchesTagWord(save.tags, word)),
 	);
 
+// Locked notes never match their body content in plain search; only their
+// optional non-sensitive title and tags are searchable.
 export const searchNotes = (notes: ReadonlyArray<Note>, word: string) =>
-	notes.filter((note) => includes(note.content, word));
+	notes.filter((note) =>
+		note.locked
+			? includes(note.title || "Locked note", word) ||
+				recordMatchesTagWord(note.tags, word)
+			: includes(note.content, word) ||
+				(note.title !== undefined &&
+					note.title !== "" &&
+					includes(note.title, word)) ||
+				recordMatchesTagWord(note.tags, word),
+	);
 
 export const searchTasks = (tasks: ReadonlyArray<Task>, word: string) =>
 	tasks.filter(
 		(task) =>
-			includes(task.information, word) || includes(task.label, word),
+			includes(task.information, word) ||
+			includes(task.label, word) ||
+			recordMatchesTagWord(task.tags, word),
 	);
 
 export const searchReminders = (
 	reminders: ReadonlyArray<Reminder>,
 	word: string,
-) => reminders.filter((reminder) => includes(reminder.message, word));
+) =>
+	reminders.filter(
+		(reminder) =>
+			includes(reminder.message, word) ||
+			recordMatchesTagWord(reminder.tags, word),
+	);
+
+export const searchImages = (
+	images: ReadonlyArray<ImageRecord>,
+	word: string,
+) =>
+	images.filter(
+		(image) =>
+			includes(image.title, word) ||
+			(image.sourceUrl !== undefined &&
+				includes(image.sourceUrl, word)) ||
+			recordMatchesTagWord(image.tags, word),
+	);
 
 // Done one-off tasks are finished; a recurring task stays open and moves
 // on when completed. An open task past its deadline is missed.

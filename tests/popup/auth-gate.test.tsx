@@ -3,7 +3,7 @@ import { createRoot, Root } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LTHEME } from "little-shared/enums";
-import { ThemeContext } from "../../src/popup/contexts/Theme";
+import { ThemeContext } from "../../src/popup/contexts/ThemeContext";
 import { LUIAuthGate } from "../../src/popup/components/LUIAuthGate/Component";
 import { LUIPasswordForm } from "../../src/popup/components/LUIPasswordForm/Component";
 import type { UserProfile } from "../../src/popup/hooks/useUserProfiles";
@@ -53,6 +53,9 @@ const profile = (hasPassword: boolean): UserProfile => ({
 	hasPassword,
 	theme: "light",
 	autoLockMinutes: 30,
+	accent: "mono",
+	accentColor: null,
+	authenticators: null,
 });
 
 let container: HTMLDivElement;
@@ -67,6 +70,13 @@ const render = async (element: React.ReactNode) => {
 						theme: LTHEME.LIGHT,
 						toggleTheme: () => {},
 						setTheme: () => {},
+						preference: "light",
+						setPreference: () => {},
+						accent: "mono",
+						setAccent: () => {},
+						accentColor: "#0e7490",
+						setAccentColor: () => {},
+						showLookOf: () => {},
 					}}
 				>
 					{element}
@@ -108,7 +118,7 @@ describe("auth gate", () => {
 		);
 		await typeInto(container, "Password", "secret");
 		await press(container, "Unlock");
-		expect(handle).toHaveBeenCalledWith("secret");
+		expect(handle).toHaveBeenCalledWith("secret", undefined);
 	});
 
 	it("shows why an unlock failed", async () => {
@@ -143,7 +153,7 @@ describe("auth gate", () => {
 		).toBeNull();
 		expect(container.textContent).toContain("not encrypted at rest");
 		await press(container, "Lock");
-		expect(handle).toHaveBeenCalledWith(undefined);
+		expect(handle).toHaveBeenCalledWith(undefined, undefined);
 	});
 
 	it("deletes a protected profile only with its password, after confirming", async () => {
@@ -156,11 +166,7 @@ describe("auth gate", () => {
 		);
 		await press(container, "Delete");
 		expect(mocks.send).not.toHaveBeenCalled();
-		await typeInto(
-			container,
-			"Current password to delete this profile",
-			"secret",
-		);
+		await typeInto(container, "Password to delete this profile", "secret");
 		await press(container, "Confirm delete");
 		expect(mocks.send).toHaveBeenCalledWith("profile.delete", {
 			profileId: "p1",

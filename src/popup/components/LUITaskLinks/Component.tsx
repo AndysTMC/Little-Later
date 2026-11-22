@@ -24,20 +24,20 @@ const Component = ({
 				className,
 			)}
 		>
-			<div
-				className={`flex h-max w-full items-center justify-start gap-x-1`}
-			>
-				<div
-					className={`rounded-full border font-semibold ${
+			<div className="flex h-max w-full items-center justify-start">
+				<span
+					className={`text-xs font-medium ${
 						theme === LTHEME.DARK
-							? "border-white text-white"
-							: "border-black text-black"
-					} px-5`}
+							? "text-neutral-400"
+							: "text-neutral-600"
+					}`}
 				>
 					Tasks
-				</div>
+				</span>
 			</div>
-			<div className={`flex max-h-56 w-full flex-col`}>
+			<div
+				className={`flex max-h-56 w-full flex-col gap-y-1 overflow-y-auto ${theme}-scrollbar`}
+			>
 				{linkedTasks.map((task) => (
 					<LUIUnlinker
 						key={task.id}

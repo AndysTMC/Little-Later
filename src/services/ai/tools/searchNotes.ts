@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import type OpenAI from "openai";
 
 const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	type: "function",
@@ -13,11 +13,14 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 					description:
 						"The user's query with all necessary information to search the notes",
 				},
+				tag: {
+					type: "string",
+					description: "Optional tag filter (with or without #)",
+				},
 			},
 			required: ["query"],
 			additionalProperties: false,
 		},
-		strict: true,
 	},
 };
 export { tool as searchNotesTool };

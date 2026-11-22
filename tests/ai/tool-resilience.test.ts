@@ -1,18 +1,22 @@
 // @vitest-environment node
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
+import { currentOwner, type AIOwner } from "../../src/services/ai/owner";
 import { toolRegistry } from "../../src/services/ai/toolRegistry";
 import { freshProfile } from "./profile";
 
+// Each test's profile owns the AI work in it (owner.ts).
 const aiContext = {
 	ai: {
 		getStructuredResponse: async () => ({ ids: [] }),
 	},
+	owner: undefined as unknown as AIOwner,
 };
 
 describe("ai tool resilience", { concurrent: false }, () => {
 	beforeEach(async () => {
 		await freshProfile();
+		aiContext.owner = await currentOwner();
 	});
 
 	it("normalizes malformed payloads without throwing", () => {
@@ -28,7 +32,7 @@ describe("ai tool resilience", { concurrent: false }, () => {
 			for (const payload of malformedPayloads) {
 				expect(() =>
 					definition.normalizeArgs(
-						(payload ?? {}) as Record<string, unknown>,
+						payload as Record<string, unknown>,
 					),
 				).not.toThrow();
 			}
@@ -41,7 +45,10 @@ describe("ai tool resilience", { concurrent: false }, () => {
 			"create_reminder",
 			"create_task",
 			"delete_note",
+			"delete_reminder",
+			"delete_task",
 			"update_note",
+			"update_reminder",
 			"update_task",
 			"update_save",
 		] as const;

@@ -1,7 +1,11 @@
 export const SEMANTIC_CANDIDATE_LIMIT = 20;
 
 export const quoteForPrompt = (value: string): string =>
-	value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+	value
+		.replace(/\\/g, "\\\\")
+		.replace(/"/g, '\\"')
+		.replace(/\r/g, "\\r")
+		.replace(/\n/g, "\\n");
 
 export const pickSemanticCandidates = <T extends { id: string }>(
 	lexicalHits: Array<T>,

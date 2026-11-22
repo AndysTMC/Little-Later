@@ -9,9 +9,9 @@ import { LUISelectT1 } from "../LUISelectT1/Component";
 import { LUIDateNumInput } from "../LUIDateNumInput/Component";
 import { LUIDateTimeInput } from "../LUIDateTimeInput/Component";
 import { LUIVBMLinks } from "../LUIVBMLinks/Component";
+import { LUITagInput } from "../LUITagInput/Component";
 import { LUITimeInput } from "../LUITimeInput/Component";
-import { useEffect, useState } from "react";
-import { fakeWait } from "little-shared/utils/misc";
+import { useContext, useEffect, useState } from "react";
 import {
 	LMAX_TASK_INFORMATION_LENGTH,
 	LMAX_TASK_LABEL_LENGTH,
@@ -19,7 +19,7 @@ import {
 } from "little-shared/constants";
 import type { Frequency, RecurrenceRule } from "little-shared/utils/schedule";
 import { LUICUButton } from "../LUICUButton/Component";
-import { LTHEME } from "little-shared/enums";
+import { LUINote } from "../LUINote/Component";
 import { LUIAIButton } from "../LUIAIButton/Component";
 import { LittleAI } from "../../../services/ai";
 import type {
@@ -32,6 +32,9 @@ import type { LinkRow, TaskSchedule } from "../../../storage/schema";
 import { linkedFrom, linkedTo, reminderKind } from "../../records";
 import { WEEKDAY_NAMES, deviceZone, nextHour } from "../../../utils/dates";
 import { send } from "../../../utils/send";
+
+import { UIStateContext } from "../../contexts/UIStateContext";
+import { useDraft } from "../../hooks/useDraft";
 
 type ScheduleKind = TaskSchedule["kind"];
 type ReminderKind = "normal" | "escalating";
@@ -104,9 +107,9 @@ const RuleFields = ({
 	rule: RecurrenceRule;
 	onChange: (rule: RecurrenceRule) => void;
 }) => (
-	<div className={`my-1 flex h-max w-max justify-start gap-x-2`}>
-		<div className={`flex h-full w-40 flex-col gap-y-1`}>
-			<div className={`flex h-max w-full items-center justify-center`}>
+	<div className="flex h-max w-full flex-col gap-y-2.5">
+		<div className="flex h-max w-full flex-col gap-y-1">
+			<div className="flex h-max w-full items-center justify-start px-0.5">
 				<LUILabel name={"Repeats"} />
 			</div>
 			<LUISelectT1
@@ -116,15 +119,17 @@ const RuleFields = ({
 			/>
 		</div>
 		{rule.freq === "weekly" && rule.byWeekday ? (
-			<div className={`flex h-full w-44 flex-col gap-y-1`}>
-				<div
-					className={`flex h-max w-full items-center justify-center`}
-				>
+			<div className="flex h-max w-full flex-col gap-y-1">
+				<div className="flex h-max w-full items-center justify-start px-0.5">
 					<LUILabel name={"Weekday"} />
 				</div>
 				<LUISelectT1
-					passedItem={WEEKDAY_NAMES[rule.byWeekday[0] - 1]}
+					passedItem={
+						WEEKDAY_NAMES[rule.byWeekday[0] - 1] ?? WEEKDAY_NAMES[0]
+					}
 					items={WEEKDAY_NAMES}
+					labelOf={(day) => day.slice(0, 3)}
+					ariaLabelOf={(day) => day}
 					onChange={(weekday) =>
 						onChange({
 							...rule,
@@ -134,50 +139,59 @@ const RuleFields = ({
 				/>
 			</div>
 		) : null}
-		{rule.freq === "yearly" && rule.byMonth !== undefined ? (
-			<LUIDateNumInput
-				name="Month"
-				passedValue={rule.byMonth}
-				onChange={(byMonth) => onChange({ ...rule, byMonth })}
-				onShift={(shift) =>
-					onChange({
-						...rule,
-						byMonth: wrap(rule.byMonth ?? 1, shift, 1, 12),
-					})
-				}
-				minValue={1}
-				maxValue={12}
-				maxLength={2}
-				className={`w-16`}
-			/>
-		) : null}
-		{(rule.freq === "monthly" || rule.freq === "yearly") &&
-		rule.byMonthDay !== undefined ? (
-			<LUIDateNumInput
-				name="Day"
-				passedValue={rule.byMonthDay}
-				onChange={(byMonthDay) => onChange({ ...rule, byMonthDay })}
-				onShift={(shift) =>
-					onChange({
-						...rule,
-						byMonthDay: wrap(rule.byMonthDay ?? 1, shift, 1, 31),
-					})
-				}
-				minValue={1}
-				maxValue={31}
-				maxLength={2}
-				className={`w-12`}
-			/>
-		) : null}
-		<div className={`flex h-full w-max shrink-0 flex-col gap-y-1`}>
-			<LUITimeInput
-				name="Time"
-				time={rule.time}
-				onChange={(time) => onChange({ ...rule, time })}
-			/>
+		<div className="flex h-max w-full flex-wrap items-end gap-x-3 gap-y-2">
+			{rule.freq === "yearly" && rule.byMonth !== undefined ? (
+				<LUIDateNumInput
+					name="Month"
+					passedValue={rule.byMonth}
+					onChange={(byMonth) => onChange({ ...rule, byMonth })}
+					onShift={(shift) =>
+						onChange({
+							...rule,
+							byMonth: wrap(rule.byMonth ?? 1, shift, 1, 12),
+						})
+					}
+					minValue={1}
+					maxValue={12}
+					maxLength={2}
+					className="w-16"
+				/>
+			) : null}
+			{(rule.freq === "monthly" || rule.freq === "yearly") &&
+			rule.byMonthDay !== undefined ? (
+				<LUIDateNumInput
+					name="Day"
+					passedValue={rule.byMonthDay}
+					onChange={(byMonthDay) => onChange({ ...rule, byMonthDay })}
+					onShift={(shift) =>
+						onChange({
+							...rule,
+							byMonthDay: wrap(
+								rule.byMonthDay ?? 1,
+								shift,
+								1,
+								31,
+							),
+						})
+					}
+					minValue={1}
+					maxValue={31}
+					maxLength={2}
+					className="w-12"
+				/>
+			) : null}
+			<div className="flex h-max w-max shrink-0 flex-col gap-y-1">
+				<LUITimeInput
+					name="Time"
+					time={rule.time}
+					onChange={(time) => onChange({ ...rule, time })}
+				/>
+			</div>
 		</div>
 	</div>
 );
+
+const NO_TAGS: Array<string> = [];
 
 const Component = ({
 	className,
@@ -185,6 +199,7 @@ const Component = ({
 	reminders,
 	saves,
 	task,
+	tagSuggestions = NO_TAGS,
 	prelinkedSaveId,
 	additionalSubmitCallback = () => {},
 }: {
@@ -194,11 +209,16 @@ const Component = ({
 	saves: Array<Save>;
 	// The task to edit; a new one when left out.
 	task?: Task;
+	tagSuggestions?: ReadonlyArray<string>;
 	prelinkedSaveId?: string;
 	additionalSubmitCallback?: () => void;
 }) => {
 	const { theme } = useTheme();
-	const [draft, setDraft] = useState<Draft>(() => ({
+	// What is typed here is remembered until it is saved, so the popup
+	// closing (it does whenever it loses focus) does not throw it away.
+	const draftKey = `task.${task?.id ?? "new"}${prelinkedSaveId ? `@${prelinkedSaveId}` : ""}`;
+	const { clearDrafts } = useContext(UIStateContext);
+	const [draft, setDraft] = useDraft<Draft>(`${draftKey}.fields`, () => ({
 		information: task?.information ?? "",
 		label: task?.label ?? "",
 		priority: task?.priority ?? "medium",
@@ -213,16 +233,23 @@ const Component = ({
 	const storedReminder: ReminderKind | null = linkedReminder
 		? reminderKind(linkedReminder)
 		: null;
-	const [linkedSaveIds, setLinkedSaveIds] = useState(() =>
-		prelinkedSaveId !== undefined &&
-		!storedSaveIds.includes(prelinkedSaveId)
-			? [...storedSaveIds, prelinkedSaveId]
-			: storedSaveIds,
+	const [linkedSaveIds, setLinkedSaveIds] = useDraft(
+		`${draftKey}.saves`,
+		() =>
+			prelinkedSaveId !== undefined &&
+			!storedSaveIds.includes(prelinkedSaveId)
+				? [...storedSaveIds, prelinkedSaveId]
+				: storedSaveIds,
 	);
-	const [reminder, setReminder] = useState(storedReminder);
+	const [reminder, setReminder] = useDraft(
+		`${draftKey}.reminder`,
+		storedReminder,
+	);
+	const [tags, setTags] = useDraft<Array<string>>(`${draftKey}.tags`, () => [
+		...(task?.tags ?? []),
+	]);
 	const [warning, setWarning] = useState("");
-	const [aiRephrase, setAIRephrase] = useState<LittleAI | undefined>();
-	const [aiGenerate, setAIGenerate] = useState<LittleAI | undefined>();
+	const [aiAssist, setAIAssist] = useState<LittleAI | undefined>();
 
 	const validateInformation = (value: string) =>
 		value.length > LMAX_TASK_INFORMATION_LENGTH
@@ -257,9 +284,9 @@ const Component = ({
 			return;
 		}
 		setWarning("");
-		await fakeWait();
 		try {
 			await submit();
+			clearDrafts(`${draftKey}.`);
 			additionalSubmitCallback();
 		} catch (error) {
 			setWarning(
@@ -275,63 +302,48 @@ const Component = ({
 			information: draft.information,
 			label: draft.label,
 			priority: draft.priority,
+			tags,
 		};
-		let taskId: string;
-		let alreadyLinked: Array<string>;
+		// One command each way: the task and its saves change together.
 		if (task) {
-			taskId = task.id;
-			alreadyLinked = storedSaveIds;
-			// Sending an unchanged recurring schedule would move an overdue
-			// occurrence on, so only changes go out.
-			const scheduleChanged =
-				JSON.stringify(draft.schedule) !==
-				JSON.stringify(task.schedule);
+			// The command keeps the deadline when the schedule is unchanged.
 			await send("task.update", {
 				id: task.id,
 				...content,
-				schedule: scheduleChanged ? draft.schedule : undefined,
+				schedule: draft.schedule,
 				reminder: reminder !== storedReminder ? reminder : undefined,
+				saveIds: linkedSaveIds,
 			});
 		} else {
-			const [firstSaveId] = linkedSaveIds;
-			({ id: taskId } = await send("task.create", {
+			await send("task.create", {
 				...content,
 				schedule: draft.schedule,
 				reminder,
-				saveId: firstSaveId,
-			}));
-			alreadyLinked = firstSaveId === undefined ? [] : [firstSaveId];
-		}
-		for (const saveId of linkedSaveIds) {
-			if (!alreadyLinked.includes(saveId)) {
-				await send("link.create", { fromId: taskId, toId: saveId });
-			}
-		}
-		for (const saveId of alreadyLinked) {
-			if (!linkedSaveIds.includes(saveId)) {
-				await send("link.delete", { fromId: taskId, toId: saveId });
-			}
+				saveIds: linkedSaveIds,
+			});
 		}
 	};
 
 	useEffect(() => {
-		if (!aiRephrase) {
-			LittleAI.getLAIRephraseInstance().then((instance) => {
-				setAIRephrase(instance);
-			});
-		}
-		if (!aiGenerate) {
-			LittleAI.getLAIGenerateInstance().then((instance) => {
-				setAIGenerate(instance);
-			});
-		}
+		let active = true;
+		// Without one (locked, or unreadable settings) the AI buttons
+		// stay unavailable rather than failing unseen.
+		LittleAI.getLAIAssistInstance().then(
+			(instance) => {
+				if (active) setAIAssist(instance);
+			},
+			(error: unknown) => console.warn("AI is unavailable here.", error),
+		);
+		return () => {
+			active = false;
+		};
 	}, []);
 
 	const handleRephraseInformation = async () => {
-		if (!aiRephrase) {
+		if (!aiAssist) {
 			return;
 		}
-		const information = await aiRephrase.rewrite(draft.information, {
+		const information = await aiAssist.rewrite(draft.information, {
 			tone: "as-is",
 			format: "plain-text",
 			length: "as-is",
@@ -340,20 +352,21 @@ const Component = ({
 	};
 
 	const handleGenerateLabel = async () => {
-		if (!aiGenerate) {
+		if (!aiAssist) {
 			return;
 		}
-		const label = await aiGenerate.write(draft.information, {
+		const label = await aiAssist.write(draft.information, {
 			tone: "neutral",
 			format: "plain-text",
 			length: "short",
 			sharedContext:
 				"Generate a short label that summarizes the task information provided. (Max 5 words).",
 		});
-		if (label.trim() === "") {
+		const trimmed = label.trim().slice(0, LMAX_TASK_LABEL_LENGTH);
+		if (trimmed === "") {
 			return;
 		}
-		setDraft((current) => ({ ...current, label: label.trim() }));
+		setDraft((current) => ({ ...current, label: trimmed }));
 	};
 
 	const { schedule } = draft;
@@ -364,131 +377,139 @@ const Component = ({
 				className,
 			)}
 		>
-			<LUIFeaturePageUD Icon={LTaskIcon} />
+			<LUIFeaturePageUD
+				Icon={LTaskIcon}
+				title={task ? "Edit task" : "New task"}
+			/>
 			<div
-				className={`w-full grow overflow-y-auto ${theme}-scrollbar flex flex-col gap-y-1 px-4 py-4`}
+				className={`w-full grow overflow-y-auto ${theme}-scrollbar px-4 py-4`}
 			>
-				<LUITextArea
-					name="Information"
-					passedValue={draft.information}
-					onChange={(information) =>
-						setDraft((current) => ({ ...current, information }))
-					}
-					validate={validateInformation}
-					lengthLimit={LMAX_TASK_INFORMATION_LENGTH}
-				/>
-				<div className={`flex h-max w-full gap-x-2`}>
-					<LUIAIButton
-						name="Rephrase Information"
-						onClick={handleRephraseInformation}
+				<div className="mx-auto flex w-full max-w-2xl flex-col gap-y-1">
+					<LUITextArea
+						name="Information"
+						passedValue={draft.information}
+						onChange={(information) =>
+							setDraft((current) => ({ ...current, information }))
+						}
+						validate={validateInformation}
+						lengthLimit={LMAX_TASK_INFORMATION_LENGTH}
 					/>
-					<LUIAIButton
-						name="Generate Label"
-						onClick={handleGenerateLabel}
-					/>
-				</div>
-				<LUITextInputT1
-					name="Label"
-					passedValue={draft.label}
-					onChange={(label) =>
-						setDraft((current) => ({ ...current, label }))
-					}
-					validate={validateLabel}
-					lengthLimit={LMAX_TASK_LABEL_LENGTH}
-				/>
-				<div className={`my-2 flex h-max w-full gap-x-2`}>
-					<div className={`flex h-full w-full flex-col gap-y-1`}>
-						<div
-							className={`flex h-max w-full items-center justify-center`}
-						>
-							<LUILabel name={"Priority"} />
-						</div>
-						<LUISelectT1
-							passedItem={draft.priority}
-							items={PRIORITIES}
-							onChange={(priority) =>
-								setDraft((current) => ({
-									...current,
-									priority: priority as TaskPriority,
-								}))
-							}
+					<div className={`flex h-max w-full gap-x-2`}>
+						<LUIAIButton
+							name="Rephrase Information"
+							onClick={handleRephraseInformation}
+						/>
+						<LUIAIButton
+							name="Generate Label"
+							onClick={handleGenerateLabel}
 						/>
 					</div>
-					<div className={`flex h-full w-full flex-col gap-y-1`}>
-						<div
-							className={`flex h-max w-full items-center justify-center`}
-						>
-							<LUILabel name={"Type"} />
-						</div>
-						<LUISelectT1
-							passedItem={schedule.kind}
-							items={SCHEDULE_KINDS}
-							onChange={(kind) =>
-								kind !== schedule.kind &&
-								setSchedule(scheduleOf(kind as ScheduleKind))
-							}
-						/>
-					</div>
-				</div>
-				<div className={`my-1 flex h-max w-full flex-wrap gap-x-2`}>
-					{schedule.kind === "recurring" ? (
-						<RuleFields
-							rule={schedule.rule}
-							onChange={(rule) =>
-								setSchedule({ kind: "recurring", rule })
-							}
-						/>
-					) : null}
-					{schedule.kind === "due" ? (
-						<div className={`h-max w-max`}>
-							<LUIDateTimeInput
-								name="Deadline"
-								value={schedule.at}
-								onChange={(at) =>
-									setSchedule({ kind: "due", at })
+					<LUITextInputT1
+						name="Label"
+						passedValue={draft.label}
+						onChange={(label) =>
+							setDraft((current) => ({ ...current, label }))
+						}
+						validate={validateLabel}
+						lengthLimit={LMAX_TASK_LABEL_LENGTH}
+					/>
+					<div
+						className={`my-2 flex h-max w-full flex-col gap-y-2.5`}
+					>
+						<div className={`flex h-max w-full flex-col gap-y-1`}>
+							<div
+								className={`flex h-max w-full items-center justify-start px-0.5`}
+							>
+								<LUILabel name={"Priority"} />
+							</div>
+							<LUISelectT1
+								passedItem={draft.priority}
+								items={PRIORITIES}
+								onChange={(priority) =>
+									setDraft((current) => ({
+										...current,
+										priority: priority as TaskPriority,
+									}))
 								}
 							/>
 						</div>
-					) : null}
-					{schedule.kind !== "anytime" ? (
-						<div className={`flex h-full w-44 flex-col gap-y-1`}>
+						<div className={`flex h-max w-full flex-col gap-y-1`}>
 							<div
-								className={`flex h-max w-full items-center justify-center`}
+								className={`flex h-max w-full items-center justify-start px-0.5`}
 							>
-								<LUILabel name={"Reminder"} />
+								<LUILabel name={"Type"} />
 							</div>
 							<LUISelectT1
-								passedItem={reminder ?? LNONE}
-								items={[LNONE, ...REMINDER_KINDS]}
+								passedItem={schedule.kind}
+								items={SCHEDULE_KINDS}
 								onChange={(kind) =>
-									setReminder(
-										REMINDER_KINDS.includes(
-											kind as ReminderKind,
-										)
-											? (kind as ReminderKind)
-											: null,
+									kind !== schedule.kind &&
+									setSchedule(
+										scheduleOf(kind as ScheduleKind),
 									)
 								}
 							/>
 						</div>
+					</div>
+					<div className="my-1 flex h-max w-full flex-col gap-y-2.5">
+						{schedule.kind === "recurring" ? (
+							<RuleFields
+								rule={schedule.rule}
+								onChange={(rule) =>
+									setSchedule({ kind: "recurring", rule })
+								}
+							/>
+						) : null}
+						{schedule.kind === "due" ? (
+							<div className="h-max w-full">
+								<LUIDateTimeInput
+									name="Deadline"
+									value={schedule.at}
+									onChange={(at) =>
+										setSchedule({ kind: "due", at })
+									}
+								/>
+							</div>
+						) : null}
+						{schedule.kind !== "anytime" ? (
+							<div className="flex h-max w-full flex-col gap-y-1">
+								<div className="flex h-max w-full items-center justify-start px-0.5">
+									<LUILabel name={"Reminder"} />
+								</div>
+								<LUISelectT1
+									passedItem={reminder ?? LNONE}
+									items={[LNONE, ...REMINDER_KINDS]}
+									onChange={(kind) =>
+										setReminder(
+											REMINDER_KINDS.includes(
+												kind as ReminderKind,
+											)
+												? (kind as ReminderKind)
+												: null,
+										)
+									}
+								/>
+							</div>
+						) : null}
+					</div>
+					<LUITagInput
+						tags={tags}
+						onChange={setTags}
+						suggestions={tagSuggestions}
+					/>
+					<LUIVBMLinks
+						saves={saves}
+						linkedSaveIds={linkedSaveIds}
+						handleSaveLinking={handleSaveLinking}
+					/>
+					{warning !== "" ? (
+						<LUINote warning className="w-full">
+							{warning}
+						</LUINote>
 					) : null}
 				</div>
-				<LUIVBMLinks
-					saves={saves}
-					linkedSaveIds={linkedSaveIds}
-					handleSaveLinking={handleSaveLinking}
-				/>
-				{warning !== "" ? (
-					<div
-						className={`text-sm italic ${theme === LTHEME.DARK ? "text-white" : "text-black"}`}
-					>
-						{warning}
-					</div>
-				) : null}
 			</div>
-			<div
-				className={`flex h-16 w-full items-center justify-center pt-1 pb-2`}
-			>
+			<div className="flex h-16 w-full items-center justify-center px-4 pt-1 pb-2">
 				<LUICUButton
 					name={task ? "Update" : "Create"}
 					onClick={handleTaskCU}

@@ -18,11 +18,9 @@ export default new Map<LIconWeight, ReactElement>([
 					strokeOpacity: 1,
 				}}
 				d="m 40,60 v 140 a 20,20 45 0 0 20,20 h 120 a 20,20 135 0 0 20,-20 V 60 A 20,20 45 0 0 180,40 H 60 A 20,20 135 0 0 40,60 Z"
-				id="path1"
 				transform="matrix(1.125,0,0,1.125,-7,-18.25)"
 			/>
 			<path
-				id="path8"
 				style={{
 					display: "inline",
 					fill: "inherit",
@@ -54,11 +52,9 @@ export default new Map<LIconWeight, ReactElement>([
 					strokeOpacity: 1,
 				}}
 				d="m 40,60 v 140 a 20,20 45 0 0 20,20 h 120 a 20,20 135 0 0 20,-20 V 60 A 20,20 45 0 0 180,40 H 60 A 20,20 135 0 0 40,60 Z"
-				id="path1"
 				transform="matrix(1.125,0,0,1.125,-7,-18.25)"
 			/>
 			<path
-				id="path8"
 				style={{
 					display: "inline",
 					fill: "inherit",
@@ -90,11 +86,9 @@ export default new Map<LIconWeight, ReactElement>([
 					strokeOpacity: 1,
 				}}
 				d="m 40,60 v 140 a 20,20 45 0 0 20,20 h 120 a 20,20 135 0 0 20,-20 V 60 A 20,20 45 0 0 180,40 H 60 A 20,20 135 0 0 40,60 Z"
-				id="path1"
 				transform="matrix(1.125,0,0,1.125,-7,-18.25)"
 			/>
 			<path
-				id="path8"
 				style={{
 					display: "inline",
 					fill: "inherit",
@@ -126,11 +120,9 @@ export default new Map<LIconWeight, ReactElement>([
 					strokeOpacity: 1,
 				}}
 				d="m 40,60 v 140 a 20,20 45 0 0 20,20 h 120 a 20,20 135 0 0 20,-20 V 60 A 20,20 45 0 0 180,40 H 60 A 20,20 135 0 0 40,60 Z"
-				id="path1"
 				transform="matrix(1.125,0,0,1.125,-7,-18.25)"
 			/>
 			<path
-				id="path8"
 				style={{
 					display: "inline",
 					fill: "inherit",
@@ -150,7 +142,6 @@ export default new Map<LIconWeight, ReactElement>([
 		"fill",
 		<>
 			<path
-				id="path1-8"
 				style={{
 					display: "inline",
 					fill: "inherit",
@@ -170,7 +161,6 @@ export default new Map<LIconWeight, ReactElement>([
 		"duotone",
 		<>
 			<path
-				id="path1-8"
 				style={{
 					display: "inline",
 					fill: "inherit",

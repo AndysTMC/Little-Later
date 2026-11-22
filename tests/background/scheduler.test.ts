@@ -17,6 +17,8 @@ import {
 	createReminderScheduler,
 	isLittleNotice,
 	rearmAfterCommands,
+	watchScheduleTables,
+	type RefusedNotice,
 	type ReminderScheduler,
 } from "../../src/background/scheduler";
 import { importProfileKeys } from "../../src/storage/keys";
@@ -41,6 +43,7 @@ let alarm: number | null | undefined;
 let notices: Array<{ id: string; message: string }>;
 let images: Map<string, Array<number>>;
 let failNotice: ((id: string) => boolean) | null;
+let refused: Array<RefusedNotice>;
 
 const run = async <T>(name: string, input: unknown): Promise<T> => {
 	const result: CommandResult<unknown> = await dispatch(name, input);
@@ -64,6 +67,7 @@ beforeEach(async () => {
 	notices = [];
 	images = new Map();
 	failNotice = null;
+	refused = [];
 	queue = createSerialQueue();
 	dispatch = createDispatcher(
 		commands,
@@ -89,6 +93,9 @@ beforeEach(async () => {
 			notices.push({ id, message });
 			if (image) images.set(id, [...image]);
 		},
+		refused: async (notice) => {
+			refused.push(notice);
+		},
 	});
 	await run("profile.create", { name: "Ada", password: null });
 });
@@ -98,6 +105,56 @@ afterEach(async () => {
 });
 
 describe("re-arming after commands", () => {
+	// Re-arming reads every profile's tasks, so it follows only commands
+	// that changed what the schedule is read from, as the tables tell it.
+	it("re-arms after a schedule change, not after a page visit", async () => {
+		const tables = watchScheduleTables(db);
+		tables.takeChanged();
+		let runs = 0;
+		const send = rearmAfterCommands(
+			dispatch,
+			() => {
+				runs += 1;
+			},
+			tables.takeChanged,
+		);
+		await send("save.capture", { url: "https://a.test/", title: "A" });
+		expect(runs).toBe(0);
+		await send("reminder.create", {
+			message: "Call",
+			target: START + 30 * MINUTE,
+		});
+		expect(runs).toBe(1);
+	});
+
+	// Notices are shown after the write queue is free again.
+	it("does not hold up writes while a notice is shown", async () => {
+		await run("reminder.create", {
+			message: "Now",
+			target: START + MINUTE,
+		});
+		clock = START + 2 * MINUTE;
+		let release = () => {};
+		const shown = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		scheduler = createReminderScheduler({
+			db,
+			session,
+			now: () => clock,
+			zone: () => zone,
+			queue,
+			setAlarm: async () => {},
+			notify: () => shown,
+		});
+		const running = scheduler.run();
+		// A command queued after the run finishes while the notice waits.
+		const written = await dispatch("note.create", { content: "while" });
+		expect(written.ok).toBe(true);
+		release();
+		expect((await running).fired).toBe(1);
+	});
+
 	// Task commands and imports write reminders too. A list of reminder
 	// commands missed them, so a task's reminder never armed the alarm.
 	it("follows a reminder that a task command wrote", async () => {
@@ -341,6 +398,31 @@ describe("reminder scheduler", () => {
 		expect((await db.reminders.get(id))?.nextFireAt).toBe(0);
 	});
 
+	// A refused notification still counts as fired, so it is never shown
+	// twice; the popup is told instead, so the user can know it was missed.
+	it("reports a refused notice with its profile and reminder", async () => {
+		const { id } = await remind("Refused", START + 10 * MINUTE);
+		await remind("Shown", START + 10 * MINUTE);
+		failNotice = (notice) => notice.endsWith(id);
+		clock = START + 10 * MINUTE;
+		await scheduler.run();
+		const row = await db.reminders.get(id);
+		expect(refused).toEqual([
+			{ profileId: row?.profileId, reminderId: id, at: clock },
+		]);
+	});
+
+	it("reports refused missed fires as one, with how many", async () => {
+		await remind("One", START + 10 * MINUTE);
+		await remind("Two", START + 20 * MINUTE);
+		failNotice = () => true;
+		clock = START + 24 * 60 * MINUTE;
+		await scheduler.run();
+		expect(refused).toEqual([
+			{ profileId: null, reminderId: null, count: 2, at: clock },
+		]);
+	});
+
 	it("follows a rescheduled reminder", async () => {
 		const { id } = await remind("Moved", START + 10 * MINUTE);
 		await run("reminder.update", { id, target: START + 40 * MINUTE });
@@ -356,7 +438,7 @@ describe("reminder scheduler", () => {
 			saved: true,
 		});
 		const { id } = await remind("Read it", START + 10 * MINUTE, {
-			saveId,
+			saveIds: [saveId],
 		});
 		const { id: plain } = await remind("No page", START + 10 * MINUTE);
 		const notice = `little/reminder::${id}`;
@@ -387,9 +469,11 @@ describe("reminder scheduler", () => {
 			new Uint8Array([0xff, 0xd8, 7]),
 			clock,
 		);
-		const { id } = await remind("Read it", START + 10 * MINUTE, { saveId });
+		const { id } = await remind("Read it", START + 10 * MINUTE, {
+			saveIds: [saveId],
+		});
 		const { id: locked } = await remind("Read later", START + 20 * MINUTE, {
-			saveId,
+			saveIds: [saveId],
 		});
 		clock = START + 10 * MINUTE;
 		await scheduler.run();
@@ -462,7 +546,9 @@ describe("reminder scheduler", () => {
 		);
 		const [asset] = await db.assets.toArray();
 		await db.assets.update(asset.id, { body: new Uint8Array(40) });
-		const { id } = await remind("Read it", START + 10 * MINUTE, { saveId });
+		const { id } = await remind("Read it", START + 10 * MINUTE, {
+			saveIds: [saveId],
+		});
 		clock = START + 10 * MINUTE;
 		await scheduler.run();
 		expect(messages()).toEqual(["Read it"]);

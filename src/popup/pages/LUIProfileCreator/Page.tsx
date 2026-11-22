@@ -1,41 +1,44 @@
-import { useRef, useState } from "react";
-import {
-	IdentificationBadgeIcon,
-	InfoIcon,
-	PasswordIcon,
-} from "@phosphor-icons/react";
-import { fakeWait } from "little-shared/utils/misc";
-import { useNavigate } from "react-router";
+import { useState } from "react";
+import { IdentificationBadgeIcon, PasswordIcon } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
-import { useLittleTransition } from "../../hooks/useLittleTransition";
+import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIAvatarInput } from "../../components/LUIAvatarInput/Component";
 import { LUICUButton } from "../../components/LUICUButton/Component";
 import { LUIIconField } from "../../components/LUIIconField/Component";
+import { LUINote } from "../../components/LUINote/Component";
 import { send } from "../../../utils/send";
 import { sendAvatar } from "../../../utils/avatar";
 import { isFirstTimeUser } from "../../../services/settings";
-import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import { NO_PASSWORD_NOTE, passwordProblem } from "../../passwords";
 import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { LMAX_NAME_LENGTH } from "little-shared/constants";
 import { createToast } from "../../../services/toasts";
 
+import { attempt } from "../../attempt";
+
+import { useDraft } from "../../hooks/useDraft";
+
+import { pickRoute } from "../../filePick";
+import { AVATAR_REQUEST } from "../../components/LUIAvatarInput/request";
+import { usePickedFile } from "../../hooks/usePickedFile";
+
+const AVATAR_SLOT = "profile.new.avatar";
+
 const Page = () => {
-	const { entry, exit } = useLittleTransition({
-		defaultExit: exitTransitions.slideRight,
-	});
+	const pageMotion = usePageMotion();
 
-	const navigate = useNavigate();
-	const [name, setName] = useState("");
+	const go = useMoveNavigate();
+	// The name is remembered if the popup closes; the password never is.
+	const [name, setName, forgetName] = useDraft("profile.new.name", "");
 
-	const [avatar, setAvatar] = useState<Blob | null>(null);
+	// Chosen on the shared input screen; it waits here, staged, until the
+	// profile is created, so it survives the popup closing.
+	const pickedAvatar = usePickedFile(AVATAR_SLOT);
+	const avatar = pickedAvatar.blob;
 	const [password, setPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
 	const [warning, setWarning] = useState("");
-
-	const avatarInputRef = useRef<HTMLInputElement>(null);
 
 	const handleCreate = async () => {
 		const trimmedName = name.trim();
@@ -53,19 +56,27 @@ const Page = () => {
 			setWarning("The passwords don't match.");
 			return;
 		}
-		await fakeWait();
 		try {
 			// Creating a profile also unlocks it.
 			await send("profile.create", {
 				name: trimmedName,
 				password: password === "" ? null : password,
 			});
+			forgetName();
 			if (avatar) {
-				await sendAvatar(avatar);
+				// The profile exists now. A refused photo is reported, and
+				// can be set again from the profile page; staying on this
+				// form would invite creating the profile twice.
+				await attempt(
+					() => sendAvatar(avatar),
+					"The profile was created, but its photo couldn't be saved.",
+				);
+				await pickedAvatar.clear();
 			}
-			navigate((await isFirstTimeUser()) ? "/getting-started" : "/home", {
-				state: { entryTransition: entryTransitions.slideLeft },
-			});
+			go(
+				(await isFirstTimeUser()) ? "/getting-started" : "/home",
+				"forward",
+			);
 		} catch (error) {
 			await createToast(
 				error instanceof Error
@@ -76,11 +87,15 @@ const Page = () => {
 		}
 	};
 
+	// The page moves away and the upload screen comes in, as with Lock.
+	const goToUpload = () => {
+		go(pickRoute(AVATAR_REQUEST, AVATAR_SLOT, "/new-profile"), "outOf");
+	};
+
 	return (
 		<motion.div
 			className={`flex h-full w-full flex-col bg-white select-none`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			<LUIBasicNav
 				navigateTo="/browse-profiles"
@@ -89,21 +104,21 @@ const Page = () => {
 			<div
 				className={`flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-hidden`}
 			>
-				<div
-					className={`mt-5 flex items-center justify-center text-4xl font-semibold text-black`}
+				<h1
+					className={`mt-2 flex items-center justify-center text-2xl font-semibold tracking-tight text-black`}
 				>
 					New Profile
-				</div>
+				</h1>
 				<div
-					className={`flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-auto px-12 pt-5 pb-1`}
+					className={`flex w-full grow flex-col items-center justify-start gap-y-5 overflow-y-auto px-6 pt-5 pb-1 ${LTHEME.LIGHT}-scrollbar`}
 				>
 					<div
 						className={`flex h-max w-full items-center justify-center`}
 					>
 						<LUIAvatarInput
 							avatar={avatar}
-							setAvatar={setAvatar}
-							avatarInputRef={avatarInputRef}
+							onChoose={() => goToUpload()}
+							onRemove={() => void pickedAvatar.clear()}
 							theme={LTHEME.LIGHT}
 						/>
 					</div>
@@ -136,6 +151,9 @@ const Page = () => {
 								setPassword(value);
 								setWarning("");
 							}}
+							onSubmit={() => {
+								void handleCreate();
+							}}
 							passedTheme={LTHEME.LIGHT}
 						/>
 						{password !== "" ? (
@@ -152,24 +170,22 @@ const Page = () => {
 									setConfirmPassword(value);
 									setWarning("");
 								}}
+								onSubmit={() => {
+									void handleCreate();
+								}}
 								passedTheme={LTHEME.LIGHT}
 							/>
 						) : null}
-						<div className="flex h-max w-72 gap-x-1 opacity-75">
-							<LUIThemedIcon
-								Icon={InfoIcon}
-								weight="fill"
-								className="h-5 w-5 shrink-0"
-								passedTheme={LTHEME.LIGHT}
-							/>
-							<div className="text-sm text-black italic">
-								{warning !== ""
-									? warning
-									: password === ""
-										? NO_PASSWORD_NOTE
-										: "You'll need this password to unlock the profile. It can't be recovered."}
-							</div>
-						</div>
+						<LUINote
+							warning={warning !== ""}
+							passedTheme={LTHEME.LIGHT}
+						>
+							{warning !== ""
+								? warning
+								: password === ""
+									? NO_PASSWORD_NOTE
+									: "You'll need this password to unlock the profile. It can't be recovered."}
+						</LUINote>
 					</div>
 					<div className="flex h-12 w-full items-center justify-center">
 						<LUICUButton

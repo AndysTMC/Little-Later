@@ -12,30 +12,29 @@ const Component = ({
 	children: React.ReactNode;
 }) => {
 	const { theme } = useTheme();
+	const isDark = theme === LTHEME.DARK;
 	return (
 		<div
 			className={twMerge(
-				`h-full w-full overflow-y-hidden px-5 py-5`,
+				`mx-auto flex min-h-0 w-full max-w-2xl grow flex-col gap-y-3 overflow-y-hidden px-4 pt-1 pb-4`,
 				className,
 			)}
 		>
-			<div
-				className={`h-full w-full border ${theme === LTHEME.DARK ? "border-white" : "border-black"} relative rounded-lg pt-5`}
+			<h1
+				className={`shrink-0 px-1 text-2xl font-semibold tracking-tight ${
+					isDark ? "text-white" : "text-black"
+				}`}
 			>
-				<div
-					className={`h-10 w-max text-4xl font-semibold ${
-						theme === LTHEME.DARK
-							? "bg-black text-white"
-							: "bg-white text-black"
-					} absolute z-10 translate-x-5 -translate-y-10 px-2`}
-				>
-					{pageName}
-				</div>
-				<div
-					className={`h-full w-full overflow-y-auto px-5 py-1 ${theme}-scrollbar `}
-				>
-					{children}
-				</div>
+				{pageName}
+			</h1>
+			<div
+				className={`min-h-0 w-full grow overflow-y-auto rounded-2xl border p-4 ${
+					isDark
+						? "border-neutral-800 bg-neutral-900/50"
+						: "border-neutral-200 bg-neutral-100/50"
+				} ${theme}-scrollbar`}
+			>
+				{children}
 			</div>
 		</div>
 	);

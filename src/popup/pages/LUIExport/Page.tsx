@@ -1,35 +1,45 @@
-import { useLittleTransition } from "../../hooks/useLittleTransition";
+import { usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
-import { exitTransitions } from "../../../route-transitions";
 import { LEXPORT_TYPE, LTHEME, LTOAST_TYPE } from "little-shared/enums";
+import { capitalize } from "little-shared/utils/misc";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { exportBackup, exportReadable } from "../../../services/backup";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
-import { LUISelectT2 } from "../../components/LUISelectT2/Component";
+import { LUISettingSelect } from "../../components/LUISettingRow/Component";
+import { LUINote } from "../../components/LUINote/Component";
 import { LUITextInputT1 } from "../../components/LUITextInput/Component";
+import { LUICUButton } from "../../components/LUICUButton/Component";
 import { createToast } from "../../../services/toasts";
+import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
+import { send } from "../../../utils/send";
 
 const Page = () => {
 	const { theme } = useTheme();
-	const { entry, exit } = useLittleTransition({
-		defaultExit: exitTransitions.slideRight,
-	});
-	const ExportTypes = Object.values(LEXPORT_TYPE);
+	const pageMotion = usePageMotion();
+	const userSettings = useCurrentUserSettings();
+	const exportOptions = Object.values(LEXPORT_TYPE).map((value) => ({
+		value,
+		label: capitalize(value),
+	}));
 	const [exportType, setExportType] = useState<LEXPORT_TYPE>(
 		LEXPORT_TYPE.IMPORTABLE,
 	);
 	const [backupPassword, setBackupPassword] = useState("");
-	const [isExporting, setIsExporting] = useState(false);
+	// The button blocks a second press while this runs.
 	const handleExport = async () => {
-		if (isExporting) {
-			return;
-		}
-		setIsExporting(true);
 		try {
 			if (exportType === LEXPORT_TYPE.IMPORTABLE) {
 				await exportBackup(backupPassword);
+				if (userSettings) {
+					void send("settings.update", {
+						misc: {
+							...userSettings.misc,
+							lastBackupAt: Date.now(),
+						},
+					}).catch(() => undefined);
+				}
 			} else {
 				await exportReadable();
 			}
@@ -41,51 +51,32 @@ const Page = () => {
 					: "Couldn't export your data.",
 				LTOAST_TYPE.ERROR,
 			);
-		} finally {
-			setIsExporting(false);
 		}
 	};
 	return (
 		<motion.div
 			className={`flex h-full w-full flex-col select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} overflow-y-hidden`}
-			{...entry}
-			{...exit}
+			{...pageMotion}
 		>
 			<LUIBasicNav navigateTo="/settings" />
 			<LUISettingsLayout pageName="Export">
-				<div className={`relative h-max w-full`}>
-					<div
-						className={`relative z-40 flex h-max w-full items-center justify-between py-2`}
-					>
-						<div
-							className={`h-auto w-max text-lg ${
-								theme === LTHEME.DARK
-									? "text-white"
-									: "text-black"
-							} `}
-						>
-							Choose Export Format
-						</div>
-						<LUISelectT2
-							options={ExportTypes}
-							currentOption={exportType}
-							onOptionChange={setExportType}
+				<div className={`relative flex h-max w-full flex-col gap-y-2`}>
+					<div className="relative z-40">
+						<LUISettingSelect
+							label="Choose Export Format"
+							value={exportType}
+							options={exportOptions}
+							onChange={setExportType}
 						/>
 					</div>
 					{exportType === LEXPORT_TYPE.IMPORTABLE ? (
 						<>
-							<div
-								className={`mb-1 text-sm ${
-									theme === LTHEME.DARK
-										? "text-neutral-300"
-										: "text-neutral-600"
-								}`}
-							>
+							<LUINote className="w-full">
 								Choose a password for this backup; you can use
 								this profile's password. Importing the backup
 								needs it, and the imported profile opens with
 								it.
-							</div>
+							</LUINote>
 							<LUITextInputT1
 								name="Backup password"
 								inputType="password"
@@ -104,34 +95,20 @@ const Page = () => {
 							/>
 						</>
 					) : (
-						<div
-							className={`mb-2 text-sm ${
-								theme === LTHEME.DARK
-									? "text-neutral-300"
-									: "text-neutral-600"
-							}`}
-						>
+						<LUINote className="w-full">
 							Readable exports are plaintext and omit your AI API
 							key.
-						</div>
+						</LUINote>
 					)}
-					<div className={`h-max w-full`}>
-						<button
-							type="button"
+					<div className="flex w-full justify-center pt-2">
+						<LUICUButton
+							name="Export"
 							disabled={
-								isExporting ||
-								(exportType === LEXPORT_TYPE.IMPORTABLE &&
-									backupPassword.trim() === "")
+								exportType === LEXPORT_TYPE.IMPORTABLE &&
+								backupPassword.trim() === ""
 							}
-							className={`h-max w-max text-base ${
-								theme === LTHEME.DARK
-									? "bg-white text-black"
-									: "bg-black text-white"
-							} cursor-pointer rounded-full px-6 py-1 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60`}
 							onClick={handleExport}
-						>
-							{isExporting ? "Exporting..." : "Export"}
-						</button>
+						/>
 					</div>
 				</div>
 			</LUISettingsLayout>

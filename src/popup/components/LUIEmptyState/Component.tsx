@@ -12,20 +12,28 @@ const Component = ({
 	className?: string;
 }) => {
 	const { theme } = useTheme();
-	const tone = theme === LTHEME.DARK ? "text-white" : "text-black";
+	const isDark = theme === LTHEME.DARK;
 
 	return (
 		<div
 			className={twMerge(
-				"flex w-full grow flex-col items-center justify-center gap-y-2 px-8 py-10 text-center",
+				"flex w-full grow flex-col items-center justify-center gap-y-1.5 px-6 py-10 text-center",
 				className,
 			)}
 		>
-			<p className={`text-2xl font-extrabold ${tone} opacity-40`}>
+			<h2
+				className={`text-lg font-semibold tracking-tight ${
+					isDark ? "text-neutral-200" : "text-neutral-800"
+				}`}
+			>
 				{title}
-			</p>
+			</h2>
 			{hint ? (
-				<p className={`text-base font-semibold ${tone} opacity-30`}>
+				<p
+					className={`max-w-xs text-sm ${
+						isDark ? "text-neutral-400" : "text-neutral-500"
+					}`}
+				>
 					{hint}
 				</p>
 			) : null}

@@ -13,7 +13,12 @@ import { getRecentHistoryToolCall } from "./getRecentHistory";
 import { getSavePreviewImageToolCall } from "./getSavePreviewImage";
 import { getUserAppThemePrefToolCall } from "./getUserAppThemePref";
 import { getUserNameToolCall } from "./getUserName";
+import { linkRecordsToolCall, unlinkRecordsToolCall } from "./linkRecords";
+import { forgetFactToolCall, rememberFactToolCall } from "./memory";
+import { readOpenTabsToolCall } from "./readOpenTabs";
 import { saveActiveWebPageToolCall } from "./saveActiveWebPage";
+import { searchAllToolCall } from "./searchAll";
+import { searchImagesToolCall } from "./searchImages";
 import { searchNotesToolCall } from "./searchNotes";
 import { searchRemindersToolCall } from "./searchReminders";
 import { searchSavesToolCall } from "./searchSaves";
@@ -33,6 +38,7 @@ export default {
 	deleteSave: deleteSaveToolCall,
 	deleteTask: deleteTaskToolCall,
 	exportData: exportDataToolCall,
+	forgetFact: forgetFactToolCall,
 	formatDateTime: formatDateTimeToolCall,
 	getCurrentDataTimeInfo: getCurrentDateTimeInfoToolCall,
 	getProductivityOverview: getProductivityOverviewToolCall,
@@ -40,12 +46,18 @@ export default {
 	getSavePreviewImage: getSavePreviewImageToolCall,
 	getUserAppThemePref: getUserAppThemePrefToolCall,
 	getUserName: getUserNameToolCall,
+	linkRecords: linkRecordsToolCall,
+	readOpenTabs: readOpenTabsToolCall,
+	rememberFact: rememberFactToolCall,
 	saveActiveWebPage: saveActiveWebPageToolCall,
+	searchAll: searchAllToolCall,
+	searchImages: searchImagesToolCall,
 	searchNotes: searchNotesToolCall,
 	searchReminders: searchRemindersToolCall,
 	searchSaves: searchSavesToolCall,
 	searchTasks: searchTasksToolCall,
 	setUserAppThemePref: setUserAppThemePrefToolCall,
+	unlinkRecords: unlinkRecordsToolCall,
 	updateNote: updateNoteToolCall,
 	updateReminder: updateReminderToolCall,
 	updateSave: updateSaveToolCall,

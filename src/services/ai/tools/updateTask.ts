@@ -1,6 +1,6 @@
 import { LDATE_FORMAT } from "little-shared/constants";
 import { LTASK_PRIORITY } from "little-shared/enums";
-import OpenAI from "openai";
+import type OpenAI from "openai";
 
 const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	type: "function",
@@ -34,11 +34,15 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 					type: "string",
 					description: `Updated due date (${LDATE_FORMAT})`,
 				},
+				tags: {
+					type: "array",
+					items: { type: "string" },
+					description: "Updated tags for the task.",
+				},
 			},
 			required: ["id"],
 			additionalProperties: false,
 		},
-		strict: true,
 	},
 };
 

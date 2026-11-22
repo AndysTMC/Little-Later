@@ -4,6 +4,28 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-22
+
+### Added
+
+- **LittleAI side panel:** A dedicated Chrome side panel (`sidepanel.html`) with background-worker runs, encrypted chat history, an inline model switcher with live search and saved connections, hybrid local retrieval (BM25 + trigrams), and expanded tools (`search_all`, `search_images`, `read_open_tabs`, `link_records`, `unlink_records`, `remember_fact`, `forget_fact`, recurring tasks, and tag filters).
+- **Encrypted images vault:** Save images via right-click (**Save image to Little Later**) or upload from the **Images** tab; images are stored encrypted in Dexie v3 with MIME validation, a 10 MB cap, `.lldat` backup round-trip, tagging, and a detail viewer/downloader.
+- **Locked notes:** Password-gated notes that require profile password re-verification to view and stay isolated from list previews, Home search, LittleAI, and the external MCP bridge.
+- **Cross-record `#tags` and Saves archive:** Add and filter `#tags` across saves, tasks, reminders, notes, and images; archive and unarchive saves with an `Active | Archived` filter; quick **New note** action in the bottom bar; right-click **Save quote to Little Later**.
+- **Two-factor unlock:** Optional passkey or security key second factor for unlocking a profile, with single-use recovery codes.
+- **Data & Privacy and AI settings:** Dedicated **Data & Privacy** page (AI chat retention, backup reminders, ignored sites/URLs, and opt-in external agent MCP mode), plus **AI Settings** grouped by Local (Ollama, LM Studio, Local vLLM, llama.cpp), Cloud presets, and Custom providers, with connection testing, response style, and AI memories.
+- **Local MCP client and external agent bridge:** Opt-in loopback-only Local MCP client for LittleAI (confirmation-gated tool calls) and an opt-in Native Messaging MCP bridge (`packages/mcp-bridge/`) for external agents.
+
+### Changed
+
+- Unified design language and responsive layouts across the popup, full-extension side panel, and LittleAI, with profile accent theming and themed scrollbars (`docs/design.md`).
+- Hardened capture, sessions, auto-lock, backups, and reminder notifications, and added real-Chrome extension Playwright tests in CI.
+
+### Security
+
+- Locked notes cannot be read or searched by LittleAI or external MCP clients.
+- Local MCP endpoints are restricted to loopback addresses, external MCP access defaults to off (and is stripped on backup import), and `nativeMessaging` is requested only as an optional permission.
+
 ## [3.0.1] - 2026-11-04
 
 ### Fixed
@@ -74,7 +96,8 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 - First release.
 
-[Unreleased]: https://github.com/AndysTMC/Little-Later/compare/v3.0.1...HEAD
+[Unreleased]: https://github.com/AndysTMC/Little-Later/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/AndysTMC/Little-Later/compare/v3.0.1...v3.1.0
 [3.0.1]: https://github.com/AndysTMC/Little-Later/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/AndysTMC/Little-Later/compare/v2.1.1...v3.0.0
 [2.1.1]: https://github.com/AndysTMC/Little-Later/compare/v2.1.0...v2.1.1

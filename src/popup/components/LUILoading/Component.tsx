@@ -5,19 +5,22 @@ import { twMerge } from "tailwind-merge";
 export const Component = ({ className }: { className?: string }) => {
 	const { theme } = useTheme();
 
+	// The palette's own greys, so the accent tints them too.
 	const colors =
 		theme === LTHEME.DARK
 			? {
-					squareDefault: "#525252",
-					squareActive: "#f5f5f5",
+					squareDefault: "var(--color-neutral-600)",
+					squareActive: "var(--color-neutral-100)",
 				}
 			: {
-					squareDefault: "#a3a3a3",
-					squareActive: "#171717",
+					squareDefault: "var(--color-neutral-400)",
+					squareActive: "var(--color-neutral-900)",
 				};
 
 	return (
 		<div
+			role="status"
+			aria-label="Loading"
 			className={twMerge(
 				"flex h-full w-full items-center justify-center",
 				className,
@@ -66,12 +69,12 @@ export const Component = ({ className }: { className?: string }) => {
 					0%,
 					80%,
 					100% {
-						background-color: #525252;
+						background-color: var(--color-neutral-600);
 						transform: scale(1) translateY(0);
 					}
 					25%,
 					60% {
-						background-color: #f5f5f5;
+						background-color: var(--color-neutral-100);
 						transform: scale(1.08) translateY(-1px);
 					}
 				}
@@ -80,12 +83,12 @@ export const Component = ({ className }: { className?: string }) => {
 					0%,
 					80%,
 					100% {
-						background-color: #a3a3a3;
+						background-color: var(--color-neutral-400);
 						transform: scale(1) translateY(0);
 					}
 					25%,
 					60% {
-						background-color: #171717;
+						background-color: var(--color-neutral-900);
 						transform: scale(1.08) translateY(-1px);
 					}
 				}

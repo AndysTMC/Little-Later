@@ -1,7 +1,13 @@
 import { sealBody, type ProfileKeys } from "../../storage/keys";
-import type { NoteContent } from "../../storage/repositories";
+import { openNote, type NoteContent } from "../../storage/repositories";
 import type { LittleDB, NoteRow } from "../../storage/schema";
 import { cascadeTables, removeRecords } from "./cascade";
+import {
+	assertOwnSaves,
+	optionalSaveIds,
+	optionalTags,
+	setSaveLinks,
+} from "./records";
 import {
 	CommandError,
 	asRecord,
@@ -11,12 +17,36 @@ import {
 } from "./registry";
 
 const MAX_NOTE_LENGTH = 100_000;
+const MAX_NOTE_TITLE_LENGTH = 100;
 
 const asContent = (value: unknown): string => {
 	const content = asString(value, "content");
 	return content.trim() !== "" && content.length <= MAX_NOTE_LENGTH
 		? content
 		: fail(`content must be 1 to ${MAX_NOTE_LENGTH} characters.`);
+};
+
+const optionalBoolean = (value: unknown, field: string) =>
+	value === undefined || typeof value === "boolean"
+		? (value as boolean | undefined)
+		: fail(`${field} must be a boolean.`);
+
+const optionalTitle = (value: unknown): string | undefined => {
+	if (value === undefined) return undefined;
+	return asString(value, "title").trim().slice(0, MAX_NOTE_TITLE_LENGTH);
+};
+
+const assertPasswordForLockedNote = async (
+	db: LittleDB,
+	profileId: string,
+): Promise<void> => {
+	const profile = await db.profiles.get(profileId);
+	if (!profile || profile.protection !== "password") {
+		throw new CommandError(
+			"rejected",
+			"Set a profile password in Security settings before locking a note.",
+		);
+	}
 };
 
 const getOwnNote = async (
@@ -38,28 +68,31 @@ export const noteCreate = defineCommand({
 		const record = asRecord(input);
 		return {
 			content: asContent(record.content),
-			saveId:
-				record.saveId === undefined
-					? undefined
-					: asString(record.saveId, "saveId"),
+			saveIds: optionalSaveIds(record.saveIds),
+			tags: optionalTags(record.tags),
+			locked: optionalBoolean(record.locked, "locked"),
+			title: optionalTitle(record.title),
 		};
 	},
 	run: async (ctx, input) => {
 		const keys = await ctx.keys();
-		if (input.saveId !== undefined) {
-			const save = await ctx.db.saves.get(input.saveId);
-			if (!save || save.profileId !== keys.profileId) {
-				throw new CommandError("rejected", "Save not found.");
-			}
+		await assertOwnSaves(ctx.db, keys, input.saveIds);
+		if (input.locked) {
+			await assertPasswordForLockedNote(ctx.db, keys.profileId);
 		}
 		const id = crypto.randomUUID();
 		const now = ctx.now();
+		const tags = input.tags ?? [];
+		const title = input.title ?? "";
 		const sealed = await sealBody<NoteContent>(keys, "notes", id, {
 			content: input.content,
+			...(input.locked ? { locked: true } : {}),
+			...(title !== "" ? { title } : {}),
+			...(tags.length > 0 ? { tags } : {}),
 		});
 		await ctx.db.transaction(
 			"rw",
-			[ctx.db.notes, ctx.db.links],
+			[ctx.db.notes, ctx.db.links, ctx.db.saves],
 			async () => {
 				await ctx.db.notes.add({
 					id,
@@ -69,15 +102,13 @@ export const noteCreate = defineCommand({
 					updatedAt: now,
 					privacy: "private",
 				});
-				if (input.saveId !== undefined) {
-					await ctx.db.links.add({
-						id: crypto.randomUUID(),
-						profileId: keys.profileId,
-						fromId: id,
-						toId: input.saveId,
-						createdAt: now,
-					});
-				}
+				await setSaveLinks(
+					ctx.db,
+					keys.profileId,
+					id,
+					input.saveIds ?? [],
+					now,
+				);
 			},
 		);
 		return { id };
@@ -91,15 +122,47 @@ export const noteUpdate = defineCommand({
 		return {
 			id: asString(record.id, "id"),
 			content: asContent(record.content),
+			// Given, the exact saves the note is attached to afterwards.
+			saveIds: optionalSaveIds(record.saveIds),
+			tags: optionalTags(record.tags),
+			locked: optionalBoolean(record.locked, "locked"),
+			title: optionalTitle(record.title),
 		};
 	},
 	run: async (ctx, input) => {
 		const keys = await ctx.keys();
 		const row = await getOwnNote(ctx.db, keys, input.id);
+		await assertOwnSaves(ctx.db, keys, input.saveIds);
+		const existing = await openNote(keys, row);
+		const locked = input.locked ?? Boolean(existing.locked);
+		if (locked) {
+			await assertPasswordForLockedNote(ctx.db, keys.profileId);
+		}
+		const tags = input.tags ?? existing.tags ?? [];
+		const title = input.title ?? existing.title ?? "";
 		const sealed = await sealBody<NoteContent>(keys, "notes", row.id, {
 			content: input.content,
+			...(locked ? { locked: true } : {}),
+			...(title !== "" ? { title } : {}),
+			...(tags.length > 0 ? { tags } : {}),
 		});
-		await ctx.db.notes.put({ ...row, ...sealed, updatedAt: ctx.now() });
+		const now = ctx.now();
+		await ctx.db.transaction(
+			"rw",
+			[ctx.db.notes, ctx.db.links, ctx.db.saves],
+			async () => {
+				await ctx.db.notes.put({ ...row, ...sealed, updatedAt: now });
+				if (input.saveIds) {
+					await setSaveLinks(
+						ctx.db,
+						keys.profileId,
+						row.id,
+						input.saveIds,
+						now,
+					);
+				}
+			},
+		);
 		return null;
 	},
 });

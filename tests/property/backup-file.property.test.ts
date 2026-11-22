@@ -108,7 +108,21 @@ describe("backup file properties", () => {
 						encoder.encode(JSON.stringify(json) ?? ""),
 					),
 				),
-				(bytes) => expectBackupErrorOrResult(() => decodeHeader(bytes)),
+				(bytes) => {
+					try {
+						const header = decodeHeader(bytes);
+						expect(typeof header.backupId).toBe("string");
+						expect(header.wrapped.kdf.salt).toBeInstanceOf(
+							Uint8Array,
+						);
+						expect(header.wrapped.iv).toBeInstanceOf(Uint8Array);
+						expect(header.wrapped.ciphertext).toBeInstanceOf(
+							Uint8Array,
+						);
+					} catch (error) {
+						expect(error).toBeInstanceOf(BackupError);
+					}
+				},
 			),
 		);
 	});

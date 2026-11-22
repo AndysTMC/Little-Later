@@ -8,6 +8,7 @@ import {
 } from "../../storage/repositories";
 import type { LittleDB, SaveRow } from "../../storage/schema";
 import { cascadeTables, removeRecords } from "./cascade";
+import { optionalTags } from "./records";
 import {
 	CommandError,
 	asRecord,
@@ -32,9 +33,12 @@ export const asWebUrl = (value: unknown): string => {
 	return fail("url must be an http or https address.");
 };
 
-const asTitle = (value: unknown, url: string): string => {
+// The page's title, or undefined when it has none yet (it is still loading,
+// or it is an error page).
+const asTitle = (value: unknown): string | undefined => {
+	if (value === undefined) return undefined;
 	const title = asString(value, "title").trim().slice(0, MAX_TITLE_LENGTH);
-	return title !== "" ? title : new URL(url).hostname;
+	return title !== "" ? title : undefined;
 };
 
 const optionalBoolean = (value: unknown, field: string) =>
@@ -94,11 +98,14 @@ export const saveCapture = defineCommand({
 		const url = asWebUrl(record.url);
 		return {
 			url,
-			title: asTitle(record.title, url),
-			saved: optionalBoolean(record.saved, "saved") ?? false,
+			title: asTitle(record.title),
+			saved: optionalBoolean(record.saved, "saved"),
 		};
 	},
 	run: async (ctx, input) => {
+		// Without a title yet, the host name stands in for one.
+		const untitled = input.title === undefined;
+		const title = input.title ?? new URL(input.url).hostname;
 		const keys = await ctx.keys();
 		const urlKey = await urlKeyFor(keys.index, input.url);
 		const now = ctx.now();
@@ -109,15 +116,35 @@ export const saveCapture = defineCommand({
 
 		if (existing) {
 			const content = await openSave(keys, existing);
+			const existingTags = content.tags ?? [];
+			const preservedMeta = {
+				...(content.archived ? { archived: true } : {}),
+				...(existingTags.length > 0 ? { tags: existingTags } : {}),
+			};
 			const sealed = await sealBody<SaveContent>(
 				keys,
 				"saves",
 				existing.id,
-				{
-					url: content.url,
-					title: input.title,
-					customName: content.customName,
-				},
+				// A page first seen before its title loaded (an error page,
+				// a slow site) was named after its host as a stand-in. The
+				// first real title replaces it; any other name, the first
+				// real title or one the user chose, is kept.
+				content.provisional && !untitled
+					? {
+							url: content.url,
+							title,
+							customName: title,
+							...preservedMeta,
+						}
+					: {
+							url: content.url,
+							title,
+							customName: content.customName,
+							...(content.provisional
+								? { provisional: true as const }
+								: {}),
+							...preservedMeta,
+						},
 			);
 			await ctx.db.saves.put({
 				...existing,
@@ -137,8 +164,9 @@ export const saveCapture = defineCommand({
 		const id = crypto.randomUUID();
 		const sealed = await sealBody<SaveContent>(keys, "saves", id, {
 			url: input.url,
-			title: input.title,
-			customName: input.title,
+			title,
+			customName: title,
+			...(untitled ? { provisional: true as const } : {}),
 		});
 		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {
 			await removeRecords(ctx.db, keys.profileId, evict);
@@ -170,6 +198,8 @@ export const saveUpdate = defineCommand({
 			id: asString(record.id, "id"),
 			saved: optionalBoolean(record.saved, "saved"),
 			browsed: optionalBoolean(record.browsed, "browsed"),
+			archived: optionalBoolean(record.archived, "archived"),
+			tags: optionalTags(record.tags),
 			customName:
 				record.customName === undefined
 					? undefined
@@ -193,10 +223,22 @@ export const saveUpdate = defineCommand({
 		}
 
 		const content = await openSave(keys, row);
+		const archived = input.archived ?? Boolean(content.archived);
+		const tags = input.tags ?? content.tags ?? [];
 		const sealed = await sealBody<SaveContent>(keys, "saves", row.id, {
 			url: content.url,
 			title: content.title,
-			customName: input.customName ?? content.customName,
+			// A name the user gives is theirs, never a stand-in.
+			...(input.customName === undefined
+				? {
+						customName: content.customName,
+						...(content.provisional
+							? { provisional: true as const }
+							: {}),
+					}
+				: { customName: input.customName }),
+			...(archived ? { archived: true } : {}),
+			...(tags.length > 0 ? { tags } : {}),
 		});
 		const now = ctx.now();
 		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {

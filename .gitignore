@@ -12,6 +12,7 @@ temp.txt
 node_modules
 build
 dist
+dist-dev
 dist-ssr
 *.local
 dist-release

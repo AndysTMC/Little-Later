@@ -13,6 +13,9 @@ import {
 } from "little-shared/utils/envelope";
 import type { Escalation } from "little-shared/utils/schedule";
 import type {
+	ChatContent,
+	ChatMessageContent,
+	ImageContent,
 	NoteContent,
 	ReminderContent,
 	SaveContent,
@@ -77,6 +80,7 @@ export type BackupEntry =
 			content: SaveContent;
 	  })
 	| (Times & { table: "notes"; privacy: Privacy; content: NoteContent })
+	| (Times & { table: "images"; privacy: Privacy; content: ImageContent })
 	| (Times & {
 			table: "tasks";
 			schedule: TaskSchedule;
@@ -108,6 +112,13 @@ export type BackupEntry =
 			ownerId: string;
 			kind: string;
 			bytes: Uint8Array;
+	  })
+	// LittleAI's chats (decision 0017); a chat comes before its messages.
+	| (Times & { table: "chats"; content: ChatContent })
+	| (Times & {
+			table: "chatMessages";
+			chatId: string;
+			content: ChatMessageContent;
 	  });
 
 export type BackupHeader = { backupId: string; wrapped: WrappedKey };
@@ -230,7 +241,10 @@ export const decodeHeader = (bytes: Uint8Array): BackupHeader => {
 			typeof json.backupId !== "string" ||
 			json.keyId !== BACKUP_KEY_ID ||
 			typeof json.kdf?.name !== "string" ||
-			typeof json.kdf.iterations !== "number"
+			typeof json.kdf.iterations !== "number" ||
+			typeof json.kdf.salt !== "string" ||
+			typeof json.iv !== "string" ||
+			typeof json.ciphertext !== "string"
 		) {
 			throw new BackupError("This backup is damaged.");
 		}
@@ -271,6 +285,21 @@ export const backupFileParts = (
 	...chunks.flatMap((chunk) => [u32(chunk.length), chunk]),
 ];
 
+// One chunk framed for the file, as a Blob: the browser may keep it on
+// disk, so an export holds no more than one chunk's bytes itself.
+export const chunkBlob = (chunk: Uint8Array): Blob =>
+	new Blob([u32(chunk.length).slice(), chunk.slice()]);
+
+// The whole file from its header and framed chunks.
+export const backupFileBlob = (
+	header: Uint8Array,
+	chunks: ReadonlyArray<Blob>,
+): Blob =>
+	new Blob(
+		[...backupFileParts(header, []).map((part) => part.slice()), ...chunks],
+		{ type: "application/octet-stream" },
+	);
+
 export const writeBackupFile = (
 	header: Uint8Array,
 	chunks: ReadonlyArray<Uint8Array>,
@@ -284,6 +313,65 @@ export const writeBackupFile = (
 	}
 	return out;
 };
+
+const bytesAt = async (
+	file: Blob,
+	start: number,
+	length: number,
+): Promise<Uint8Array<ArrayBuffer>> =>
+	new Uint8Array(await file.slice(start, start + length).arrayBuffer());
+
+const checkPrefix = (prefix: Uint8Array) => {
+	const magic = BACKUP_MAGIC.every((byte, i) => prefix[i] === byte);
+	if (prefix.length < PREFIX_LENGTH || !magic) {
+		throw new BackupError("This is not a Little Later backup.");
+	}
+	const format = prefix[BACKUP_MAGIC.length];
+	if (format !== BACKUP_FORMAT) {
+		throw new BackupError(
+			format < BACKUP_FORMAT
+				? "This backup is from an older version of Little Later and can't be imported."
+				: "This backup is from a newer version of Little Later. Update the extension to import it.",
+		);
+	}
+};
+
+// Reads a backup file one part at a time: its header first, then each
+// chunk envelope, unopened. Only one part is in memory at once, so a file
+// of any size the app can write can be read back.
+export async function* readBackupParts(
+	file: Blob,
+): AsyncGenerator<
+	| { kind: "header"; bytes: Uint8Array }
+	| { kind: "chunk"; bytes: Uint8Array; hasMore: boolean }
+> {
+	checkPrefix(await bytesAt(file, 0, PREFIX_LENGTH));
+	const part = async (offset: number, max: number) => {
+		if (offset + 4 > file.size) {
+			throw new BackupError("This backup is damaged.");
+		}
+		const length = new DataView(
+			(await bytesAt(file, offset, 4)).buffer,
+		).getUint32(0);
+		if (length === 0 || length > max || offset + 4 + length > file.size) {
+			throw new BackupError("This backup is damaged.");
+		}
+		return bytesAt(file, offset + 4, length);
+	};
+	const header = await part(PREFIX_LENGTH, MAX_HEADER_BYTES);
+	yield { kind: "header", bytes: header };
+	let offset = PREFIX_LENGTH + 4 + header.length;
+	let chunks = 0;
+	while (offset < file.size) {
+		const chunk = await part(offset, MAX_CHUNK_BYTES);
+		chunks += 1;
+		offset += 4 + chunk.length;
+		yield { kind: "chunk", bytes: chunk, hasMore: offset < file.size };
+	}
+	if (chunks === 0) {
+		throw new BackupError("This backup is damaged.");
+	}
+}
 
 // Splits a file into its header and chunk envelopes without opening them.
 export const readBackupFile = (

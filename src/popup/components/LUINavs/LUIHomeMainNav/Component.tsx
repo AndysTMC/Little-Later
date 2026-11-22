@@ -1,3 +1,5 @@
+import { openLittleAI } from "../../../openLittleAI";
+import { LUILogo } from "../../LUILogo/Component";
 import { LTHEME } from "little-shared/enums";
 import {
 	GearIcon,
@@ -7,16 +9,11 @@ import {
 	SunDimIcon,
 	UserCircleIcon,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { LUIHMNavMenuOption } from "../../LUIHMNavMenuOption/Component";
 import { LUIThemedIcon } from "../../LUIThemedIcon/Component";
-import {
-	entryTransitions,
-	exitTransitions,
-} from "../../../../route-transitions";
-import { useContext } from "react";
-import { HomeContext } from "../../../contexts/Home";
+import { useMoveNavigate } from "../../../hooks/usePageMove";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../../hooks/useTheme";
 import { LAISettings } from "little-shared/types";
@@ -24,6 +21,7 @@ import type { UserProfile } from "../../../hooks/useUserProfiles";
 import { useUserAvatar } from "../../../hooks/useUserAvatar";
 import { useObjectUrl } from "../../../hooks/useObjectUrl";
 import { isAISettingsConfigured } from "../../../../services/ai/config";
+import { useSidePanelMode } from "../../../hooks/useSidePanelMode";
 
 const Component = ({
 	className,
@@ -36,86 +34,71 @@ const Component = ({
 }) => {
 	const { theme, toggleTheme } = useTheme();
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
+	const menuRef = useRef<HTMLDivElement>(null);
+	const toggleRef = useRef<HTMLButtonElement>(null);
 	const toggleMenu = () => {
-		setIsMenuOpen(!isMenuOpen);
+		setIsMenuOpen((open) => !open);
 	};
+
+	useEffect(() => {
+		if (!isMenuOpen) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				setIsMenuOpen(false);
+				toggleRef.current?.focus();
+			}
+		};
+		const onPointerDown = (event: MouseEvent) => {
+			const target = event.target as Node | null;
+			if (
+				target &&
+				!menuRef.current?.contains(target) &&
+				!toggleRef.current?.contains(target)
+			) {
+				setIsMenuOpen(false);
+			}
+		};
+		document.addEventListener("keydown", onKeyDown);
+		document.addEventListener("mousedown", onPointerDown);
+		return () => {
+			document.removeEventListener("keydown", onKeyDown);
+			document.removeEventListener("mousedown", onPointerDown);
+		};
+	}, [isMenuOpen]);
 
 	const userAvatar = useUserAvatar(currentUserProfile.id);
 	const avatarUrl = useObjectUrl(userAvatar);
 
-	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
-		useContext(HomeContext);
+	const go = useMoveNavigate();
+	const sidePanelMode = useSidePanelMode();
 
-	const handleSettings = () => {
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.slideLeft,
-			navigateTo: "/settings",
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.slideLeft },
-			},
-		});
-		setShouldHomeNavigate(true);
+	const handleOpenAI = () => {
+		if (
+			sidePanelMode === "ai" &&
+			document.documentElement.dataset.surface !== "panel"
+		) {
+			openLittleAI();
+			return;
+		}
+		go("/ai", "forward");
 	};
 
-	const handleProfile = () => {
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.slideLeft,
-			navigateTo: "/profile",
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.slideLeft },
-			},
-		});
-		setShouldHomeNavigate(true);
-	};
+	const handleSettings = () => go("/settings", "forward");
 
-	const handleLock = () => {
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.zoomOut,
-			navigateTo: "/lock",
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.zoomOut },
-			},
-		});
-		setShouldHomeNavigate(true);
-	};
+	const handleProfile = () => go("/profile", "forward");
 
-	const handleAIClick = () => {
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.zoomIn,
-			navigateTo: "/ai",
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.zoomIn },
-			},
-		});
-		setShouldHomeNavigate(true);
-	};
+	// Locking steps out of the profile.
+	const handleLock = () => go("/lock", "outOf");
 
 	return (
 		<div
 			className={twMerge(
-				`${theme === LTHEME.DARK ? "bg-black" : "bg-white"} flex h-16 w-full items-center p-2`,
+				`${theme === LTHEME.DARK ? "bg-black" : "bg-white"} flex h-16 w-full shrink-0 items-center p-2`,
 				className,
 			)}
 		>
 			<div className={`h-full w-max`}>
-				<img
-					src={`/images/${theme}-icon.png`}
-					alt="Little Later Logo"
-					className={`h-12 w-12`}
-					draggable="false"
-				/>
+				<LUILogo className="h-12 w-12" />
 			</div>
 			<div
 				className={`relative flex h-full grow items-center justify-end gap-x-2 pr-2`}
@@ -123,13 +106,13 @@ const Component = ({
 				{isAISettingsConfigured(aiSettings) ? (
 					<button
 						type="button"
-						aria-label="Open AI Assist"
+						aria-label="Open LittleAI"
 						className={`h-max w-max cursor-pointer rounded-full p-1 active:scale-90 ${
 							theme === LTHEME.DARK
 								? "hover:bg-neutral-800"
 								: "hover:bg-neutral-200"
 						}`}
-						onClick={handleAIClick}
+						onClick={handleOpenAI}
 					>
 						<LUIThemedIcon
 							Icon={SparkleIcon}
@@ -160,8 +143,10 @@ const Component = ({
 				</button>
 				<div className="relative h-max w-max">
 					<button
+						ref={toggleRef}
 						type="button"
 						aria-label="Open profile menu"
+						aria-haspopup="menu"
 						aria-expanded={isMenuOpen}
 						className={`h-max w-max rounded-full border-4 bg-transparent ${
 							isMenuOpen
@@ -171,11 +156,6 @@ const Component = ({
 								: "border-transparent"
 						} cursor-pointer`}
 						onClick={toggleMenu}
-						onKeyDown={(e) => {
-							if (e.key === "Escape") {
-								setIsMenuOpen(false);
-							}
-						}}
 					>
 						{avatarUrl ? (
 							<img
@@ -194,25 +174,31 @@ const Component = ({
 					</button>
 				</div>
 			</div>
-			<div className={`absolute top-14 right-4 z-20 h-max w-36`}>
+			<div
+				ref={menuRef}
+				className={`absolute top-14 right-4 z-20 h-max w-36`}
+			>
 				<AnimatePresence>
 					{isMenuOpen ? (
 						<motion.div
-							className={`h-max w-full ${
+							role="menu"
+							className={`flex h-max w-full flex-col gap-y-0.5 rounded-xl border p-1 shadow-lg ${
 								theme === LTHEME.DARK
-									? "border-neutral-700 bg-black"
-									: "border-neutral-300 bg-white"
-							} overflow-clip rounded-lg border border-solid shadow-lg`}
-							initial={{ opacity: 0, y: -10 }}
+									? "border-neutral-800 bg-neutral-900"
+									: "border-neutral-200 bg-white"
+							}`}
+							initial={{ opacity: 0, y: -6, scale: 0.98 }}
 							animate={{
 								opacity: 1,
 								y: 0,
+								scale: 1,
 							}}
-							transition={{ duration: 0.3 }}
+							transition={{ duration: 0.14 }}
 							exit={{
 								opacity: 0,
-								y: -10,
-								transition: { duration: 0.3 },
+								y: -6,
+								scale: 0.98,
+								transition: { duration: 0.1 },
 							}}
 						>
 							<LUIHMNavMenuOption

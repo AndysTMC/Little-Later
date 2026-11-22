@@ -3,7 +3,7 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-	CAPTURE_THROTTLE_MS,
+	PREVIEW_REFRESH_MS,
 	createPageCapture,
 	type PageCapture,
 } from "../../src/background/capture";
@@ -121,6 +121,24 @@ describe("page capture", () => {
 		]);
 	});
 
+	// A screenshot is of whatever the window shows when it is taken. A tab
+	// switched to meanwhile must not become this page's preview.
+	it("keeps the visit but drops a screenshot of another tab", async () => {
+		capture = createPageCapture({
+			db,
+			session,
+			queue: createSerialQueue(),
+			dispatch,
+			now: () => clock,
+			screenshot: async () => shot,
+			isShowing: async () => false,
+		});
+		await capture.visit(tab);
+		const [save] = await listSaves(db, await keys(), false);
+		expect(save).toMatchObject({ url: tab.url });
+		expect(await previews()).toEqual([]);
+	});
+
 	it("does nothing while locked, not even a screenshot", async () => {
 		await dispatch("profile.lock", {});
 		await capture.visit(tab);
@@ -135,10 +153,11 @@ describe("page capture", () => {
 		expect(await db.saves.count()).toBe(0);
 	});
 
-	it("throttles repeat visits and then replaces the preview", async () => {
+	it("records a page the user stays on once, and only refreshes its preview", async () => {
 		await capture.visit(tab);
+		const [before] = await db.saves.toArray();
 		shot = new Uint8Array([0xff, 0xd8, 0xff, 2]);
-		clock += CAPTURE_THROTTLE_MS - 1;
+		clock += PREVIEW_REFRESH_MS - 1;
 		await capture.visit(tab);
 		expect(shots).toBe(1);
 		clock += 1;
@@ -147,6 +166,49 @@ describe("page capture", () => {
 		expect(await previews()).toMatchObject([
 			{ bytes: [0xff, 0xd8, 0xff, 2] },
 		]);
+		// The record is not rewritten, so open pages have nothing to re-read.
+		expect(await db.saves.toArray()).toEqual([before]);
+	});
+
+	it("leaves the preview alone while the page looks the same", async () => {
+		await capture.visit(tab);
+		const [before] = await db.assets.toArray();
+		clock += PREVIEW_REFRESH_MS;
+		await capture.visit(tab);
+		expect(shots).toBe(2);
+		expect(await db.assets.toArray()).toEqual([before]);
+	});
+
+	it("records a return to a page as a new visit", async () => {
+		await capture.visit(tab);
+		const [first] = await db.saves.toArray();
+		clock += 1_000;
+		await capture.visit({ ...tab, url: "https://example.org/other" });
+		clock += 1_000;
+		await capture.visit(tab);
+		const again = await db.saves.get(first.id);
+		expect(again?.browsedAt).toBe(clock);
+	});
+
+	// The page was recorded for the profile that was browsing; the next
+	// profile to unlock on the same page has no record of it yet.
+	it("records the page again for another profile opened on it", async () => {
+		await capture.visit(tab);
+		await dispatch("profile.lock", {});
+		await dispatch("profile.create", { name: "Bea", password: null });
+		await capture.visit(tab);
+		const [save] = await listSaves(db, await keys(), false);
+		expect(save).toMatchObject({ url: tab.url, browsed: true });
+		expect(await db.saves.count()).toBe(2);
+	});
+
+	it("never records a private window", async () => {
+		await capture.visit({ ...tab, incognito: true });
+		expect(await capture.save({ ...tab, incognito: true })).toBe(
+			"unsupported",
+		);
+		expect(shots).toBe(0);
+		expect(await db.saves.count()).toBe(0);
 	});
 
 	it("records the visit when the screenshot fails", async () => {

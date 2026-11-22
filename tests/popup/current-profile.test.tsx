@@ -51,7 +51,7 @@ describe("the unlocked profile", () => {
 	// every render re-ran them on every render: the intro page sent the
 	// popup to /home over and over while it animated out.
 	it("keeps its identity across renders while its row is unchanged", async () => {
-		live.value = row;
+		live.value = { profileId: "p1", row };
 		const seen = await valuesAcrossRenders(useCurrentUserProfile);
 		expect(seen.length).toBeGreaterThan(2);
 		expect(new Set(seen).size).toBe(1);
@@ -63,7 +63,7 @@ describe("the unlocked profile's settings", () => {
 	// The misc settings page copies them into its state in an effect, so
 	// new default settings on every render looped until the page froze.
 	it("keep their identity across renders when the profile has none stored", async () => {
-		live.value = null;
+		live.value = { profileId: "p1", row: null };
 		const seen = await valuesAcrossRenders(useCurrentUserSettings);
 		expect(seen.length).toBeGreaterThan(2);
 		expect(new Set(seen).size).toBe(1);

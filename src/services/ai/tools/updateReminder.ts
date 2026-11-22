@@ -1,6 +1,6 @@
 import { LDATE_FORMAT } from "little-shared/constants";
 import { LREMINDER_TYPE } from "little-shared/enums";
-import OpenAI from "openai";
+import type OpenAI from "openai";
 
 const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 	type: "function",
@@ -27,13 +27,12 @@ const tool: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
 					type: "string",
 					enum: [LREMINDER_TYPE.NORMAL, LREMINDER_TYPE.ESCALATING],
 					description:
-						"The updated type of reminder (default is normal if not specified)",
+						"The updated type of reminder (kept as-is if omitted)",
 				},
 			},
 			required: ["id"],
 			additionalProperties: false,
 		},
-		strict: true,
 	},
 };
 export { tool as updateReminderTool };

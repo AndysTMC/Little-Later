@@ -10,7 +10,7 @@ import {
 	type ContentKeys,
 } from "little-shared/utils/envelope";
 import type { SealedTable } from "./schema";
-import { fromBase64, type UnlockedSession } from "./session";
+import { fromBase64, type SessionKeys } from "./session";
 
 // Non-extractable keys a context imports once from the session bytes
 // (decision 0010). No raw copy is kept here.
@@ -22,7 +22,7 @@ export type ProfileKeys = {
 };
 
 export const importProfileKeys = async (
-	session: UnlockedSession,
+	session: SessionKeys,
 ): Promise<ProfileKeys> => {
 	const byId = new Map<number, ContentKeys>();
 	for (const [keyId, root] of Object.entries(session.rootKeys)) {

@@ -2,16 +2,19 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ReactMarkdown from "react-markdown";
 import { describe, expect, it } from "vitest";
 import {
-	isInlineImageAllowed,
-	safeMarkdownComponents,
-	safeUrlTransform,
+	SafeMarkdownImage,
+	SafeMarkdownLink,
 } from "../../src/popup/markdownSafety";
+import {
+	isInlineImageAllowed,
+	safeUrlTransform,
+} from "../../src/popup/markdownUrl";
 
 const render = (markdown: string): string =>
 	renderToStaticMarkup(
 		<ReactMarkdown
 			urlTransform={safeUrlTransform}
-			components={safeMarkdownComponents}
+			components={{ img: SafeMarkdownImage, a: SafeMarkdownLink }}
 		>
 			{markdown}
 		</ReactMarkdown>,

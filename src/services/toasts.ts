@@ -5,12 +5,26 @@ import {
 	setChromeStorageRecords,
 } from "../utils/chrome";
 
-const createToast = async (message: string, type: LTOAST_TYPE) => {
-	const toasts = await getToasts();
-	const id = toasts.map((t) => t.id).reduce((a, b) => Math.max(a, b), 0) + 1;
-	toasts.push({ id, message, type });
-	await setChromeStorageRecords({ toasts });
+// Each change reads the list and writes it back, so two at once lost one
+// of them. Only pages make toasts; within a page they go one at a time.
+let pending: Promise<unknown> = Promise.resolve();
+const oneAtATime = <T>(change: () => Promise<T>): Promise<T> => {
+	const next = pending.then(change);
+	pending = next.catch(() => undefined);
+	return next;
 };
+
+const createToast = (message: string, type: LTOAST_TYPE): Promise<void> =>
+	oneAtATime(async () => {
+		const toasts = await getToasts();
+		const maxId = toasts.reduce((max, t) => Math.max(max, t.id), 0);
+		const id = Math.max(
+			Date.now() * 1000 + Math.floor(Math.random() * 1000),
+			maxId + 1,
+		);
+		toasts.push({ id, message, type });
+		await setChromeStorageRecords({ toasts });
+	});
 
 const getToasts = async (): Promise<Array<LToast>> => {
 	const { toasts } = await getChromeStorageRecords({
@@ -19,10 +33,12 @@ const getToasts = async (): Promise<Array<LToast>> => {
 	return toasts;
 };
 
-const deleteToast = async (id: number): Promise<void> => {
-	const toasts = await getToasts();
-	const updatedToasts = toasts.filter((t) => t.id !== id);
-	await setChromeStorageRecords({ toasts: updatedToasts });
-};
+const deleteToast = (id: number): Promise<void> =>
+	oneAtATime(async () => {
+		const toasts = await getToasts();
+		await setChromeStorageRecords({
+			toasts: toasts.filter((t) => t.id !== id),
+		});
+	});
 
 export { createToast, getToasts, deleteToast };

@@ -2,6 +2,20 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
+import { paintRoot, readLookHint } from "./themeHint";
+import { fitCeremonyWindow } from "./ceremonyWindow";
+
+// When the full extension opens in Chrome's side panel (?surface=panel) or
+// a tab (?surface=tab), fill its frame instead of the popup's fixed size.
+const surface = new URLSearchParams(location.search).get("surface");
+if (surface === "panel" || surface === "tab") {
+	document.documentElement.dataset.surface = surface;
+}
+
+// Before the first paint, the way the popup last looked.
+paintRoot(readLookHint());
+// A security key's own window shows the page at the popup's size.
+void fitCeremonyWindow();
 
 createRoot(document.getElementById("root")!).render(
 	<StrictMode>

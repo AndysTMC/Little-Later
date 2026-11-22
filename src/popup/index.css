@@ -18,35 +18,57 @@
 
 :root {
 	font-family: "Rubik", sans-serif;
+	/* The popup's fixed size. LittleAI's side panel and tab fill their
+	   frame instead (src/panel/main.tsx). */
 	width: 500px;
 	height: 600px;
+	/* Centred when the page is opened in a tab; no effect in the popup. */
+	margin: 0 auto;
 	display: flex;
-	--ll-bg: #ffffff;
-	--ll-fg: #000000;
-	--ll-muted: #737373;
-	--ll-border: #d4d4d4;
-	--ll-surface: #f5f5f5;
-	--ll-hover: #e5e5e5;
+	/* Drawn from the palette, which the accent redefines (src/appearance.ts). */
+	--ll-bg: var(--color-white);
+	--ll-fg: var(--color-black);
+	--ll-muted: var(--color-neutral-500);
+	--ll-border: var(--color-neutral-300);
+	--ll-surface: var(--color-neutral-100);
+	--ll-hover: var(--color-neutral-200);
 	--ll-danger: #dc2626;
 	--ll-radius: 0.5rem;
 	--ll-nav-height: 4rem;
+	--ll-accent: var(--ll-fg);
+	--ll-accent-ink: var(--ll-bg);
+	--ll-scroll-thumb: var(--color-neutral-400);
+	--ll-scroll-track: transparent;
+	color-scheme: light;
+}
+
+:root:has(#root.bg-black) {
+	color-scheme: dark;
 }
 
 #root.bg-black {
-	--ll-bg: #000000;
-	--ll-fg: #ffffff;
-	--ll-muted: #a3a3a3;
-	--ll-border: #404040;
-	--ll-surface: #171717;
-	--ll-hover: #262626;
+	--ll-bg: var(--color-black);
+	--ll-fg: var(--color-white);
+	--ll-muted: var(--color-neutral-400);
+	--ll-border: var(--color-neutral-700);
+	--ll-surface: var(--color-neutral-900);
+	--ll-hover: var(--color-neutral-800);
 	--ll-danger: #ef4444;
+	--ll-scroll-thumb: var(--color-neutral-600);
+	--ll-scroll-track: transparent;
+	color-scheme: dark;
+}
+
+:root[data-surface] {
+	width: 100%;
+	height: 100vh;
 }
 
 html,
 body,
 #root {
 	font-family: "Rubik", sans-serif;
-	font-size: 16px;
+	font-size: 1rem;
 	display: flex;
 	width: 100%;
 	height: 100%;
@@ -55,13 +77,177 @@ body,
 }
 
 :focus-visible {
-	outline: 2px solid var(--ll-fg);
+	outline: 2px solid var(--ll-accent);
 	outline-offset: 2px;
 }
 
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
+/* Fields (text boxes, dropdowns) show focus as one ring on their own edge,
+   covering their border: drawn outside it, it doubled the border, and ran
+   under a label tab sitting on the field. Buttons and swatches keep the
+   ring outside. A field drawn inside a box is marked .ll-field, and the
+   box takes the ring. */
+:is(
+	input:not([type="range"], [type="radio"], [type="checkbox"]),
+	textarea,
+	select,
+	[aria-haspopup="listbox"]
+):focus-visible,
+.ll-field:focus-within {
+	outline: 2px solid var(--ll-accent);
+	outline-offset: -2px;
+}
+
+/* A choice drawn around a hidden native input, such as a colour swatch,
+   shows keyboard focus on its visible shape. */
+.ll-choice:has(:focus-visible) {
+	outline: 2px solid var(--ll-accent);
+	outline-offset: 2px;
+}
+
+/* Icons given plain white or black draw in the palette's, which the accent
+   redefines (src/appearance.ts): an SVG fill attribute is only a hint that
+   any CSS rule overrides. */
+#root svg[fill="white"] {
+	fill: var(--color-white);
+}
+#root svg[fill="black"] {
+	fill: var(--color-black);
+}
+#root svg[stroke="white"] {
+	stroke: var(--color-white);
+}
+#root svg[stroke="black"] {
+	stroke: var(--color-black);
+}
+
+/* Native controls, selected text and the text caret follow the accent too.
+   Set on #root, where the theme paints --ll-accent: on :root it resolved
+   to the page's default ink, which is dark, so the caret vanished in every
+   dark theme. */
+#root {
+	accent-color: var(--ll-accent);
+	caret-color: var(--ll-accent);
+}
+#root *::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+#root *::-webkit-scrollbar-thumb {
+	background: var(--ll-scroll-thumb);
+	border-radius: 9999px;
+}
+#root *::-webkit-scrollbar-track {
+	background: var(--ll-scroll-track);
+	border-radius: 9999px;
+}
+#root *::-webkit-scrollbar-corner {
+	background: transparent;
+}
+::selection {
+	background-color: color-mix(in srgb, var(--ll-accent) 30%, transparent);
+}
+
+/* LittleAI's answers (src/panel/Answer.tsx): markdown with the spacing
+   and list markers Tailwind's reset takes away. */
+.ll-markdown > * + * {
+	margin-top: 0.5rem;
+}
+.ll-markdown ul {
+	list-style: disc;
+	padding-left: 1.25rem;
+}
+.ll-markdown ol {
+	list-style: decimal;
+	padding-left: 1.25rem;
+}
+.ll-markdown code {
+	font-family: ui-monospace, monospace;
+	font-size: 0.875em;
+}
+.ll-markdown :not(pre) > code {
+	border-radius: 0.375rem;
+	background: var(--ll-surface);
+	padding: 0.1rem 0.35rem;
+}
+.ll-markdown pre {
+	overflow-x: auto;
+	border-radius: 0.75rem;
+	border: 1px solid var(--ll-border);
+	background: var(--ll-surface);
+	padding: 0.625rem 0.875rem;
+}
+.ll-markdown blockquote {
+	border-left: 2px solid var(--ll-border);
+	padding-left: 0.75rem;
+	color: var(--ll-muted);
+}
+.ll-markdown hr {
+	border: 0;
+	border-top: 1px solid var(--ll-border);
+	margin: 0.75rem 0;
+}
+.ll-markdown table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.875rem;
+}
+.ll-markdown th,
+.ll-markdown td {
+	border: 1px solid var(--ll-border);
+	padding: 0.375rem 0.5rem;
+	text-align: left;
+}
+.ll-markdown th {
+	background: var(--ll-surface);
+	font-weight: 600;
+}
+.ll-markdown h1,
+.ll-markdown h2,
+.ll-markdown h3 {
+	font-weight: 600;
+}
+
+/* The answer while it streams ends in a blinking caret. */
+.ll-streaming .ll-markdown > :last-child::after {
+	content: "";
+	display: inline-block;
+	width: 0.45em;
+	height: 1em;
+	margin-left: 0.15em;
+	vertical-align: -0.15em;
+	background: var(--ll-accent);
+	animation: ll-caret 1s steps(2) infinite;
+}
+@keyframes ll-caret {
+	50% {
+		opacity: 0;
+	}
+}
+
+/* A dial of the Custom accent: its track is drawn by the page, showing
+   what each position gives. */
+.ll-dial {
+	appearance: none;
+	height: 0.5rem;
+	border-radius: 9999px;
+	cursor: pointer;
+}
+.ll-dial::-webkit-slider-thumb {
+	appearance: none;
+	width: 1.25rem;
+	height: 1.25rem;
+	border-radius: 9999px;
+	background: var(--color-white);
+	border: 2px solid var(--color-black);
+}
+
+/* The highlight the profile chose: an active tab, a button's caret block. */
+.ll-accent-fill {
+	background-color: var(--ll-accent);
+	color: var(--ll-accent-ink);
+}
+
+.ll-field :is(input, textarea, select):focus-visible {
 	outline: none;
 }
 

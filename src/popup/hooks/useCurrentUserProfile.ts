@@ -12,21 +12,30 @@ const useResolvedCurrentUser = (): {
 } => {
 	const { isResolved, session } = useSession();
 	const profileId = session?.profileId;
-	const row = useLiveQuery(
-		async () =>
-			profileId === undefined
-				? null
-				: ((await littleDB.profiles.get(profileId)) ?? null),
+	// The answer says which profile it is for. A live query keeps its last
+	// answer while the next one loads, so without this the "no profile"
+	// answer from before the session was read stood in for the unlocked
+	// profile for a moment, and a popup opened on an inner page was sent
+	// to the profile picker.
+	const found = useLiveQuery(
+		async () => ({
+			profileId,
+			row:
+				profileId === undefined
+					? null
+					: ((await littleDB.profiles.get(profileId)) ?? null),
+		}),
 		[profileId],
 		undefined,
 	);
+	const row = found && found.profileId === profileId ? found.row : undefined;
 	// One object per row, so effects that depend on the profile run when
 	// it changes, not on every render.
 	const profile = useMemo(
 		() => (row ? toUserProfile(row) : undefined),
 		[row],
 	);
-	if (!isResolved || (profileId !== undefined && row === undefined)) {
+	if (!isResolved || row === undefined) {
 		return { isResolved: false, profile: undefined };
 	}
 	return { isResolved: true, profile };

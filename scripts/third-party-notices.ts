@@ -43,7 +43,11 @@ const licenseOf = (pkg: Record<string, unknown>): string => {
 	const legacy = pkg.licenses ?? pkg.license;
 	const list = Array.isArray(legacy) ? legacy : legacy ? [legacy] : [];
 	const types = list
-		.map((entry) => (entry as { type?: unknown }).type)
+		.map((entry) =>
+			entry && typeof entry === "object"
+				? (entry as { type?: unknown }).type
+				: undefined,
+		)
 		.filter((type): type is string => typeof type === "string");
 	return types.length > 0 ? types.join(" OR ") : "UNKNOWN";
 };
@@ -84,10 +88,13 @@ export const readBundledPackage = (dir: string): BundledPackage => {
 	};
 };
 
+const compareAscii = (a: string, b: string): number =>
+	a < b ? -1 : a > b ? 1 : 0;
+
 const byNameAndVersion = (a: BundledPackage, b: BundledPackage): number =>
 	a.name === b.name
-		? a.version.localeCompare(b.version)
-		: a.name.localeCompare(b.name);
+		? compareAscii(a.version, b.version)
+		: compareAscii(a.name, b.name);
 
 export const renderNotices = (
 	project: ProjectInfo,
@@ -118,11 +125,33 @@ export const renderNotices = (
 const purlOf = (pkg: { name: string; version: string }): string =>
 	`pkg:npm/${pkg.name.replace(/^@/, "%40")}@${pkg.version}`;
 
+// Strip outer parentheses only when the opening '(' matches the final ')'.
+const stripOuterParens = (expression: string): string => {
+	let expr = expression.trim();
+	while (expr.startsWith("(") && expr.endsWith(")")) {
+		let depth = 0;
+		let wrapsWhole = true;
+		for (let i = 0; i < expr.length - 1; i += 1) {
+			if (expr[i] === "(") depth += 1;
+			else if (expr[i] === ")") {
+				depth -= 1;
+				if (depth === 0) {
+					wrapsWhole = false;
+					break;
+				}
+			}
+		}
+		if (!wrapsWhole) break;
+		expr = expr.slice(1, -1).trim();
+	}
+	return expr;
+};
+
 const cdxLicense = (license: string) =>
 	/^[A-Za-z0-9.+-]+$/.test(license)
 		? [{ license: { id: license } }]
 		: /\b(AND|OR|WITH)\b/.test(license)
-			? [{ expression: license.replace(/^\((.*)\)$/, "$1") }]
+			? [{ expression: stripOuterParens(license) }]
 			: [{ license: { name: license } }];
 
 const cdxComponent = (pkg: BundledPackage) => {

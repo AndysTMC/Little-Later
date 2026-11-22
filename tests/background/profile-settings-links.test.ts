@@ -97,6 +97,31 @@ describe("profile.update", () => {
 		expect(await refused("profile.update", { autoLockMinutes: 1.5 })).toBe(
 			"invalid-input",
 		);
+		expect(await refused("profile.update", { accent: "neon" })).toBe(
+			"invalid-input",
+		);
+		for (const accentColor of ["#12", "red", "#GGGGGG", "#ABCDEF"]) {
+			expect(await refused("profile.update", { accentColor })).toBe(
+				"invalid-input",
+			);
+		}
+		expect(
+			await refused("profile.update", {
+				accent: "custom",
+				accentColor: "#0e7490",
+			}),
+		).toBe(null);
+		expect((await db.profiles.get(profileId))?.prefs).toMatchObject({
+			accent: "custom",
+			accentColor: "#0e7490",
+		});
+		// Chrome's idle detection stops at four hours.
+		expect(await refused("profile.update", { autoLockMinutes: 241 })).toBe(
+			"invalid-input",
+		);
+		expect(await refused("profile.update", { autoLockMinutes: 240 })).toBe(
+			null,
+		);
 		expect(await refused("profile.update", { name: "  " })).toBe(
 			"invalid-input",
 		);
@@ -165,7 +190,7 @@ describe("leftover staged files", () => {
 		const old = await files.put(new Uint8Array([1]));
 		clock = STAGED_FILE_MAX_AGE + 1;
 		const fresh = await files.put(new Uint8Array([2]));
-		await send("profile.lock", {});
+		await send("profile.lock", null);
 		expect(
 			await send("profile.unlock", { profileId, password: null }),
 		).toMatchObject({ ok: true });
@@ -173,6 +198,35 @@ describe("leftover staged files", () => {
 			"The staged file is gone.",
 		);
 		expect([...(await files.take(fresh))]).toEqual([2]);
+	});
+
+	// The upload screen stages a pasted file at once and keeps it until it
+	// is used (src/popup/filePick.ts), which can be long after it was staged.
+	it("keep a file the upload screen still holds, however old", async () => {
+		let clock = 0;
+		const files = createMemoryStaging(() => clock);
+		const held = await files.put(new Uint8Array([7]));
+		const left = await files.put(new Uint8Array([8]));
+		const send = createDispatcher(
+			commands,
+			createCommandContext(
+				db,
+				session,
+				() => clock,
+				() => "UTC",
+				files,
+				async () => new Set([held]),
+			),
+		);
+		clock = STAGED_FILE_MAX_AGE + 1;
+		await send("profile.lock", null);
+		expect(
+			await send("profile.unlock", { profileId, password: null }),
+		).toMatchObject({ ok: true });
+		expect([...(await files.take(held))]).toEqual([7]);
+		await expect(files.take(left)).rejects.toThrow(
+			"The staged file is gone.",
+		);
 	});
 });
 
@@ -263,5 +317,47 @@ describe("links", () => {
 		expect(
 			await refused("link.create", { fromId: noteId, toId: saveId }),
 		).toBe("rejected");
+	});
+});
+
+describe("a task's own reminder", () => {
+	// It follows the task, so every caller, the AI tools included, changes
+	// it through the task: the popup alone used to enforce this.
+	it("cannot be rescheduled, reworded or deleted on its own", async () => {
+		const { id: taskId } = await run<{ id: string }>("task.create", {
+			information: "Pay rent",
+			schedule: { kind: "due", at: 50_000 },
+			reminder: "normal",
+		});
+		const [reminder] = await db.reminders.toArray();
+		expect(
+			await refused("reminder.update", {
+				id: reminder.id,
+				target: 90_000,
+			}),
+		).toBe("rejected");
+		expect(
+			await refused("reminder.update", {
+				id: reminder.id,
+				message: "Something else",
+			}),
+		).toBe("rejected");
+		expect(await refused("reminder.delete", { id: reminder.id })).toBe(
+			"rejected",
+		);
+		expect((await db.reminders.get(reminder.id))?.target).toBe(50_000);
+		// The task still controls it.
+		await run("task.update", { id: taskId, reminder: null });
+		expect(await db.reminders.count()).toBe(0);
+	});
+
+	it("leaves a reminder of its own free to change", async () => {
+		const { id } = await run<{ id: string }>("reminder.create", {
+			message: "Call",
+			target: 20_000,
+		});
+		await run("reminder.update", { id, target: 30_000 });
+		await run("reminder.delete", { id });
+		expect(await db.reminders.count()).toBe(0);
 	});
 });

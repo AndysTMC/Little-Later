@@ -1,6 +1,7 @@
 import { test, expect, Page } from "@playwright/test";
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { AddressInfo } from "node:net";
+import type { LAI_PROVIDERS } from "little-shared/enums";
 
 type MockProviderServer = {
 	baseUrl: string;
@@ -419,19 +420,34 @@ const createMockProviderServer = async (): Promise<MockProviderServer> => {
 						} => parsed !== null,
 					);
 
-				const imageURL = parsedToolMessages
-					.map((toolMessage) => toolMessage.payload?.imageUrl)
-					.find(
-						(value): value is string => typeof value === "string",
-					);
+				const hasPreviewImage = parsedToolMessages.some(
+					(toolMessage) => toolMessage.payload?.hasImage === true,
+				);
+				const leakedImageURL = parsedToolMessages.some(
+					(toolMessage) =>
+						typeof toolMessage.payload?.imageUrl === "string",
+				);
 
-				if (imageURL) {
+				if (leakedImageURL) {
 					sendJSON(
 						res,
 						200,
 						completionPayload({
 							role: "assistant",
-							content: `Here is your preview image.\n\n![Hotstar Preview](${imageURL})`,
+							content:
+								"Unexpected raw imageUrl in tool model payload.",
+						}),
+					);
+					return;
+				}
+
+				if (hasPreviewImage) {
+					sendJSON(
+						res,
+						200,
+						completionPayload({
+							role: "assistant",
+							content: "Here is your preview image.",
 						}),
 					);
 					return;
@@ -493,6 +509,7 @@ const createMockProviderServer = async (): Promise<MockProviderServer> => {
 					}
 					resolve();
 				});
+				server.closeAllConnections?.();
 			}),
 		getInitialPromptCount: (prompt: string) =>
 			initialPromptCount.get(normalizePrompt(prompt)) ?? 0,
@@ -524,7 +541,8 @@ const seedAIState = async (page: Page, providerBaseUrl: string) => {
 			await send("profile.update", { theme: "dark" });
 			await send("settings.update", {
 				ai: {
-					provider: "Custom",
+					// The enum cannot be imported inside the page.
+					provider: "Custom" as LAI_PROVIDERS.CUSTOM,
 					baseUrl: `${providerBaseUrl}/v1`,
 					apiKey: "",
 					model: "mock-model",
@@ -575,7 +593,8 @@ const seedAIState = async (page: Page, providerBaseUrl: string) => {
 		{ providerBaseUrl },
 	);
 
-	await page.goto("/#/ai");
+	// LittleAI's side panel page (decision 0017).
+	await page.goto("/sidepanel.html");
 	await expect(page.getByTestId("ai-assist-input")).toBeVisible();
 };
 
@@ -658,7 +677,8 @@ test.describe("AI Assist Playwright scenarios", () => {
 		const input = page.getByTestId("ai-assist-input");
 		await input.fill("add grocery note");
 		await input.press("Enter");
-		await expect(page.getByText("Create a note").first()).toBeVisible();
+		// The confirmation names what will be created.
+		await expect(page.getByText(/Create note "/).first()).toBeVisible();
 		await page.getByRole("button", { name: "Confirm change" }).click();
 		await expect(
 			page.getByText(/Created note|Created the note\./),

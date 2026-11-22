@@ -2,7 +2,7 @@
 	"version": 1,
 	"name": "Little Later",
 	"tagline": "Local-first Chrome extension for visual bookmarks, tasks, reminders, notes, and AI assist.",
-	"description": "Little Later is a Manifest V3 Chrome extension with no backend. The 500 by 600 popup stores visual bookmarks, tasks, reminders, and notes in a Dexie IndexedDB vault. A service worker captures tabs, fires reminder notifications, and offers context-menu save and note actions. Profiles lock with AES-GCM. AI Assist talks to Ollama, LM Studio, or a custom OpenAI-compatible endpoint and will not write or export until the user confirms in chat.",
+	"description": "Little Later is a Manifest V3 Chrome extension with no backend. The 500 by 600 popup keeps visual bookmarks, tasks, reminders, and notes in one Dexie IndexedDB database, with every record encrypted under its profile's key. The service worker is the only writer: it captures tabs, fires reminder notifications, runs context-menu actions, and applies typed commands sent by the popup and the AI. AI Assist talks to Ollama, LM Studio, or a custom OpenAI-compatible endpoint and will not write or export until the user confirms in chat.",
 	"year": "2025",
 	"tags": [
 		"local-first",
@@ -18,38 +18,37 @@
 	"skills": ["TypeScript", "React", "Tailwind CSS", "Framer Motion"],
 	"highlights": [
 		"Shipped as a self-contained MV3 extension: React popup plus a service worker for tab capture, alarms, notifications, and context menus.",
-		"Profiles encrypt the live vault with AES-GCM and PBKDF2; only one Dexie database is unlocked at a time.",
+		"Each record is sealed with AES-256-GCM under a per-profile key; a password wraps that key with PBKDF2-SHA-256 at 600,000 iterations, and locking drops the unwrapped key.",
+		"The service worker is the only writer: the popup and the AI send typed commands, which run one at a time.",
+		"Times are epoch milliseconds and recurrence is an anchored rule computed with Temporal, so recurring times follow the device across time zones.",
 		"AI Assist uses the OpenAI SDK against Ollama, LM Studio, or a custom compatible URL. Reads run immediately; writes and exports wait for in-chat Confirm.",
-		"Importable .lldat backups require the profile lock password. Readable JSON export strips AI API keys.",
-		"CI runs format, lint, typecheck, unit and Playwright end-to-end tests, CodeQL, OpenSSF Scorecard and workflow audits. Tagged releases ship a zip, a signed CRX, a CycloneDX SBOM, checksums and a signed build provenance attestation.",
-		"Public GitHub Releases exist for v1.0.0, v2.0.0 (extension-only rebuild), v2.1.0 (confirmed writes and lock-password backups), and v2.1.1 (security fixes and supply-chain hardening)."
+		"CI runs format, lint, typecheck, unit, property-based and Playwright end-to-end tests, CodeQL, OpenSSF Scorecard and workflow audits. Tagged releases ship a zip, a signed CRX, a CycloneDX SBOM, checksums and signed build provenance.",
+		"Public GitHub Releases exist for v1.0.0, v2.0.0 (extension-only rebuild), v2.1.0 (confirmed writes), v2.1.1 (security fixes and supply-chain hardening), v3.0.0 (encrypted storage format v1) and v3.0.1."
 	],
 	"story": {
 		"why": "Keep browsing captures, tasks, reminders, and notes in the browser profile instead of a hosted account, and let a local model act on that data only after a click.",
 		"problem": "Bookmarks, todos, reminders, and notes usually live in separate cloud products. A local-only Chrome popup needs capture, encryption, notifications, and optional AI without a server.",
 		"challenges": [
-			"The MV3 service worker suspends, so alarms re-run tab capture and reminder notifications. (src/background/background.ts)",
+			"The MV3 service worker suspends, so alarms drive reminders and catch up on missed fires. (src/background/scheduler.ts)",
 			"The whole product UI is a 500 by 600 HashRouter popup, not a website. (src/popup/index.css)",
-			"Local Ollama and LM Studio reject the extension Origin, so a DNR rule rewrites it. (src/background/background.ts)",
-			"Only one Dexie vault can be unlocked; another unlock is refused until lock. (src/services/user.ts)",
-			"AI settings live outside the vault, so a mismatched activeUserId stamp must fail closed. (src/services/settings.ts)",
-			"Importable backups are a custom length-prefixed binary, not a Dexie JSON dump. (src/services/dataExchange.ts)",
-			"Unsaved visual-bookmark history is LRU-capped so capture cannot grow without bound. (src/services/visualBM.ts)"
+			"Local Ollama and LM Studio reject the extension Origin, so a DNR rule rewrites it for the extension's own requests only. (src/background/localAIOriginRule.ts)",
+			"Reminders must fire while a profile is locked, so schedules stay readable while their text stays encrypted. (src/storage/schema.ts)",
+			"Backups are a chunked, encrypted .lldat format that imports into a new profile with fresh keys. (src/storage/backup.ts)",
+			"Unsaved history is capped per site and overall so capture cannot grow without bound. (src/background/commands/saves.ts)"
 		],
 		"designDecisions": [
 			"Stay a Chrome extension with no backend or hosted sync. (manifest.json)",
-			"Keep a single unlocked Dexie database named LLDB. (src/utils/db.ts)",
+			"Encrypt each record under a wrapped profile key, in one versioned database. (src/storage/schema.ts)",
+			"Make the service worker the only writer, through typed commands. (src/background/commands/)",
+			"Store instants as epoch milliseconds and recurrence as anchored rules. (packages/shared/src/utils/schedule.ts)",
 			"Queue mutate, destructive, and export AI tools until in-chat Confirm. (src/services/ai/main.ts)",
-			"Require the profile lock password for importable .lldat backups. (src/services/dataExchange.ts)",
-			"Store settings in chrome.storage.local and stamp them with activeUserId. (src/services/settings.ts)",
-			"Use built-in local URLs for Ollama and LM Studio; Custom supplies its own. (src/services/ai/config.ts)",
-			"Fall back to localStorage when chrome.storage is unavailable in non-production. (src/utils/chrome.ts)"
+			"Use built-in local URLs for Ollama and LM Studio; Custom supplies its own. (src/services/ai/config.ts)"
 		]
 	},
 	"future": {
-		"next": "Rebuild the core in place: versioned storage formats (format v1), key wrapping, a single writer for the vault, and defineTool for AI tools.",
+		"next": "Build the AI tools on the worker commands with defineTool, and decide the product direction for AI features.",
 		"roadmap": [
-			"Format v1 storage and its migration tests land first; the rest of the core rebuild follows, one decision record and pull request at a time.",
+			"A design-system pass across the popup, fixing the React Compiler lint warnings screen by screen.",
 			"The Playwright visual tour is still a local script, not a CI job."
 		],
 		"upcomingFeatures": [

@@ -1,7 +1,5 @@
 import { motion } from "framer-motion";
-import { exitTransitions } from "../../../route-transitions";
 import { LTHEME } from "little-shared/enums";
-import { useLittleTransition } from "../../hooks/useLittleTransition";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../LUINavs/LUIBasicNav/Component";
@@ -11,17 +9,13 @@ import { useOutletContext } from "react-router";
 import { twMerge } from "tailwind-merge";
 import { LUIBrowsedVBM } from "../LUIBrowsedVBM/Component";
 import { usePagination } from "../../hooks/usePagination";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { LUIPagination } from "../LUIPagination/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
 
 const Component = ({ className }: { className?: string }) => {
-	const { pages } = useOutletContext<HomeData>();
+	const { pages, ready: isReady } = useOutletContext<HomeData>();
 	const { theme } = useTheme();
-	const { entry, exit } = useLittleTransition({
-		transitionName: "subEntryTransition",
-		defaultExit: exitTransitions.slideUpToDown,
-	});
 
 	const history = useMemo(
 		() =>
@@ -39,23 +33,21 @@ const Component = ({ className }: { className?: string }) => {
 		[history, startIndex, endIndex],
 	);
 
-	const [isReady, setIsReady] = useState<boolean>(false);
-
 	return (
-		<motion.div
+		<div
 			className={twMerge(
 				`flex h-full w-full flex-col select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} overflow-y-hidden`,
 				className,
 			)}
-			{...entry}
-			{...exit}
-			onAnimationComplete={() => setIsReady(true)}
 		>
 			<LUIBasicNav goBackDisabled />
 			<div
 				className={`flex w-full grow flex-col gap-y-1 overflow-y-hidden`}
 			>
-				<LUIFeaturePageUD Icon={ClockCounterClockwiseIcon} />
+				<LUIFeaturePageUD
+					Icon={ClockCounterClockwiseIcon}
+					title="History"
+				/>
 				{paginationHistory.length > 0 ? (
 					<div
 						className={`flex w-full grow flex-col overflow-y-hidden`}
@@ -68,7 +60,10 @@ const Component = ({ className }: { className?: string }) => {
 								exit={{ opacity: 0 }}
 								transition={{ duration: 0.2 }}
 							>
-								<div className="flex h-max w-full shrink-0 px-4 py-1">
+								{/* Room for the page controls even before there is a
+							    second page: appearing later, they pushed the
+							    list down under the reader. */}
+								<div className="mx-auto flex h-max min-h-9 w-full max-w-3xl shrink-0 px-4 py-1">
 									<LUIPagination
 										currentBatch={currentBatch}
 										batchCount={batchCount}
@@ -76,27 +71,29 @@ const Component = ({ className }: { className?: string }) => {
 									/>
 								</div>
 								<div
-									className={`flex w-full grow flex-col gap-y-1 overflow-y-auto ${theme}-scrollbar px-4`}
+									className={`w-full grow overflow-y-auto ${theme}-scrollbar px-4`}
 								>
-									{paginationHistory.map((visualBM) => (
-										<LUIBrowsedVBM
-											key={visualBM.id}
-											visualBM={visualBM}
-										/>
-									))}
-									<span className="h-2 w-full" />
+									<div className="mx-auto flex w-full max-w-3xl flex-col gap-y-1">
+										{paginationHistory.map((visualBM) => (
+											<LUIBrowsedVBM
+												key={visualBM.id}
+												visualBM={visualBM}
+											/>
+										))}
+										<span className="h-2 w-full" />
+									</div>
 								</div>
 							</motion.div>
 						) : null}
 					</div>
-				) : (
+				) : isReady ? (
 					<LUIEmptyState
 						title="No history yet?"
 						hint="Visit a page to start capturing."
 					/>
-				)}
+				) : null}
 			</div>
-		</motion.div>
+		</div>
 	);
 };
 

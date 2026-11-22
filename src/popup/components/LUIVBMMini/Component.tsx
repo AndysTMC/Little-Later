@@ -2,11 +2,12 @@ import { LTHEME } from "little-shared/enums";
 import type { Note, Reminder, Save, Task } from "../../../storage/repositories";
 import type { LinkRow } from "../../../storage/schema";
 import { linkedTo } from "../../records";
-import { ArrowSquareRightIcon } from "@phosphor-icons/react";
-import { useContext, useState } from "react";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
+import { useState } from "react";
+import { useMoveNavigate } from "../../hooks/usePageMove";
+import { AnimatePresence, motion } from "framer-motion";
 import Markdown from "react-markdown";
-import { safeMarkdownComponents, safeUrlTransform } from "../../markdownSafety";
+import { SafeMarkdownImage, SafeMarkdownLink } from "../../markdownSafety";
+import { safeUrlTransform } from "../../markdownUrl";
 import { twMerge } from "tailwind-merge";
 import { getDomainFromUrl } from "little-shared/utils/misc";
 import { LUIWebPreview } from "../LUIWebPreview/Component";
@@ -14,10 +15,15 @@ import { LReminderIcon, LTaskIcon } from "../LUIIcons";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LUIGroup } from "../LUIGroup/Component";
 import { LUILink } from "../LUILink/Component";
-import { HomeContext } from "../../contexts/Home";
 import { useTheme } from "../../hooks/useTheme";
 import { useLazySavePreview } from "../../hooks/useSavePreview";
 import { send } from "../../../utils/send";
+import { attempt } from "../../attempt";
+import { pressable } from "../../a11y";
+import { LUIDeleteButton } from "../LUIDeleteButton/Component";
+import { LUIPillButton } from "../LUIPillButton/Component";
+import { LUITagChips } from "../LUITagChips/Component";
+import { CaretDownIcon, LockIcon, NoteIcon } from "@phosphor-icons/react";
 
 const Component = ({
 	className,
@@ -27,6 +33,8 @@ const Component = ({
 	tasks,
 	save,
 	disableNavs = false,
+	activeTag = null,
+	onSelectTag,
 }: {
 	className?: string;
 	links: Array<LinkRow>;
@@ -35,249 +43,311 @@ const Component = ({
 	tasks: Array<Task>;
 	save: Save;
 	disableNavs?: boolean;
+	activeTag?: string | null;
+	onSelectTag?: (tag: string) => void;
 }) => {
 	const { theme } = useTheme();
-	const { setHomeNavigation, setHomeSubNavigation, setShouldHomeNavigate } =
-		useContext(HomeContext);
+	const isDark = theme === LTHEME.DARK;
+	const go = useMoveNavigate();
 	const [isExpanded, setIsExpanded] = useState(false);
 	const linkedTasks = linkedTo(links, save.id, tasks);
 	const linkedReminders = linkedTo(links, save.id, reminders);
 	const linkedNotes = linkedTo(links, save.id, notes);
 
 	const handleExpand = () => {
-		setIsExpanded(!isExpanded);
+		setIsExpanded((open) => !open);
 	};
-	const handleDelete = async () => {
-		await send("save.update", { id: save.id, saved: false });
-	};
+	// Unsaving detaches the page's notes, tasks and reminders.
 	const handleEdit = () => {
 		if (disableNavs) return;
-		setHomeSubNavigation({
-			exit: exitTransitions.none,
-		});
-		setHomeNavigation({
-			exit: exitTransitions.slideLeft,
-			navigateTo: "/vbm/" + save.id,
-			navigateOptions: {
-				state: { entryTransition: entryTransitions.slideLeft },
-			},
-		});
-		setShouldHomeNavigate(true);
+		go("/vbm/" + save.id, "forward");
+	};
+	const handleToggleArchive = () => {
+		void attempt(
+			() =>
+				send("save.update", {
+					id: save.id,
+					archived: !save.archived,
+				}),
+			save.archived
+				? "Couldn't unarchive this save."
+				: "Couldn't archive this save.",
+		);
 	};
 
 	const { preview, elementRef } = useLazySavePreview(save.id);
 
 	return (
-		<div ref={elementRef} className={twMerge(`h-max w-full`, className)}>
-			<div
-				className={`flex h-max w-full gap-x-2.5 ${!isExpanded ? "" : theme === LTHEME.DARK ? "bg-neutral-900" : "bg-neutral-100"} ${isExpanded ? "border border-neutral-500 px-4 py-2" : ""} rounded-lg transition-all duration-200`}
-			>
+		<div
+			ref={elementRef}
+			className={twMerge(
+				`flex h-max w-full flex-col rounded-2xl border transition-colors ${
+					isDark
+						? "border-neutral-800 bg-neutral-900/70 hover:border-neutral-700"
+						: "border-neutral-200 bg-neutral-100/70 hover:border-neutral-300"
+				}`,
+				className,
+			)}
+		>
+			<div className="flex w-full items-start gap-x-3 p-2.5">
 				{!isExpanded ? (
 					<LUIWebPreview
 						previewBlob={preview}
+						saveId={save.id}
 						url={save.url}
 						scaleType="short"
 					/>
 				) : null}
 
 				<div
-					className={`flex h-auto w-full grow flex-col ${isExpanded ? "" : "group cursor-pointer duration-100"} relative transition-all ${
-						isExpanded
-							? ""
-							: theme === LTHEME.DARK
-								? "active:bg-neutral-800"
-								: "active:bg-neutral-200"
-					} `}
-					onClick={!isExpanded ? handleExpand : undefined}
+					className="flex min-w-0 grow cursor-pointer flex-col gap-y-1 py-0.5"
+					{...pressable(handleExpand)}
 				>
 					<div
-						className={`h-max w-full shrink-0 text-base font-semibold ${
-							theme === LTHEME.DARK
-								? "text-neutral-100"
-								: "text-neutral-900"
-						} line-clamp-2 leading-snug text-pretty break-all text-ellipsis`}
+						className={`text-sm leading-snug font-semibold text-pretty break-words ${
+							isExpanded ? "" : "line-clamp-2"
+						} ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
 					>
 						{save.customName}
 					</div>
 					<div
-						className={`h-max w-full shrink-0 text-xs font-normal opacity-90 ${
-							theme === LTHEME.DARK
-								? "text-neutral-200"
-								: "text-neutral-800"
-						} `}
+						className={`truncate text-xs ${
+							isDark ? "text-neutral-400" : "text-neutral-600"
+						}`}
 					>
 						{getDomainFromUrl(save.url)}
 					</div>
-					{!isExpanded ? (
+					{(save.tags?.length ?? 0) > 0 ? (
+						<LUITagChips
+							tags={save.tags ?? []}
+							activeTag={activeTag}
+							onSelect={onSelectTag}
+							className="mt-1"
+						/>
+					) : null}
+					{!isExpanded &&
+					(linkedTasks.length > 0 ||
+						linkedReminders.length > 0 ||
+						linkedNotes.length > 0) ? (
 						<div
-							className={`group flex w-full grow items-end justify-start gap-x-2 opacity-80`}
+							className={`mt-1 flex items-center gap-x-2.5 text-xs ${
+								isDark ? "text-neutral-400" : "text-neutral-600"
+							}`}
 						>
-							<div
-								className={`flex h-max w-max items-end justify-center gap-x-0.5 ${linkedTasks.length === 0 ? "hidden" : ""} `}
-							>
-								<div
-									className={`text-sm leading-none font-semibold ${
-										theme === LTHEME.DARK
-											? "text-white"
-											: "text-black"
-									} `}
-								>
+							{linkedTasks.length > 0 ? (
+								<span className="inline-flex items-center gap-x-0.5">
+									<LUIThemedIcon
+										Icon={LTaskIcon}
+										color="currentColor"
+										weight="regular"
+										className="size-3.5"
+									/>
 									{linkedTasks.length}
-								</div>
-								<LUIThemedIcon
-									Icon={LTaskIcon}
-									color={
-										theme === LTHEME.DARK
-											? "white"
-											: "black"
-									}
-									weight="fill"
-									className="size-4 transition-all"
-								/>
-							</div>
-							<div
-								className={`flex h-max w-max items-end justify-center gap-x-0.5 ${linkedReminders.length === 0 ? "hidden" : ""} `}
-							>
-								<div
-									className={`text-sm leading-none font-semibold ${
-										theme === LTHEME.DARK
-											? "text-white"
-											: "text-black"
-									} `}
-								>
+								</span>
+							) : null}
+							{linkedReminders.length > 0 ? (
+								<span className="inline-flex items-center gap-x-0.5">
+									<LUIThemedIcon
+										Icon={LReminderIcon}
+										color="currentColor"
+										weight="regular"
+										className="size-3.5"
+									/>
 									{linkedReminders.length}
-								</div>
-								<LUIThemedIcon
-									Icon={LReminderIcon}
-									color={
-										theme === LTHEME.DARK
-											? "white"
-											: "black"
-									}
-									weight="fill"
-									className="size-4 transition-all"
-								/>
-							</div>
-						</div>
-					) : null}
-					{isExpanded && linkedTasks.length > 0 ? (
-						<LUIGroup
-							title={linkedTasks.length + " Task(s)"}
-							headerTextSize="sm"
-						>
-							{linkedTasks.map((task) => (
-								<LUILink
-									key={task.id}
-									content={task.information}
-									navigateTo={"/task/" + task.id}
-									hoverBackground={
-										theme === LTHEME.DARK
-											? "bg-neutral-800"
-											: "bg-neutral-200"
-									}
-									disableNavs={disableNavs}
-								/>
-							))}
-						</LUIGroup>
-					) : null}
-					{isExpanded && linkedReminders.length > 0 ? (
-						<LUIGroup
-							title={linkedReminders.length + " Reminder(s)"}
-							headerTextSize="sm"
-						>
-							{linkedReminders.map((reminder) => (
-								<LUILink
-									key={reminder.id}
-									content={reminder.message}
-									navigateTo={"/reminder/" + reminder.id}
-									hoverBackground={
-										theme === LTHEME.DARK
-											? "bg-neutral-800"
-											: "bg-neutral-200"
-									}
-									disableNavs={disableNavs}
-								/>
-							))}
-						</LUIGroup>
-					) : null}
-					{isExpanded && linkedNotes.length > 0 ? (
-						<LUIGroup title="Notes" headerTextSize="sm">
-							{linkedNotes.map((note) => (
-								<div
-									key={note.id}
-									className={`h-max w-full border text-xs ${
-										theme === LTHEME.DARK
-											? "border-neutral-600 text-neutral-300"
-											: "border-neutral-400 text-neutral-700"
-									} my-0.5 rounded-lg p-2`}
-								>
-									<Markdown
-										urlTransform={safeUrlTransform}
-										components={safeMarkdownComponents}
-									>
-										{note.content}
-									</Markdown>
-								</div>
-							))}
-						</LUIGroup>
-					) : null}
-					{!isExpanded ? (
-						<div
-							className={`absolute right-0 bottom-0 flex h-max w-max items-center justify-end overflow-hidden opacity-0 transition-all duration-300 group-hover:opacity-100`}
-						>
-							<div
-								className={`h-max text-xs leading-none ${
-									theme === LTHEME.DARK
-										? "border-neutral-700 text-neutral-300"
-										: "border-neutral-300 text-neutral-700"
-								} rounded-t-sm border-x border-t px-2 py-1`}
-							>
-								Expand
-							</div>
-						</div>
-					) : null}
-					{isExpanded ? (
-						<LUIWebPreview previewBlob={preview} url={save.url} />
-					) : null}
-					{isExpanded ? (
-						<div
-							className={`max-h flex w-full justify-end gap-x-1`}
-						>
-							<div
-								className={`h-max w-max text-xs ${theme === LTHEME.DARK ? "bg-white text-black" : "bg-black text-white"} cursor-pointer rounded-full px-2 py-1 active:scale-95`}
-								onClick={handleDelete}
-							>
-								Delete
-							</div>
-							<div
-								className={`h-max w-max text-xs ${theme === LTHEME.DARK ? "bg-white text-black" : "bg-black text-white"} cursor-pointer rounded-full px-2 py-1 active:scale-95`}
-								onClick={handleExpand}
-							>
-								Collapse
-							</div>
+								</span>
+							) : null}
+							{linkedNotes.length > 0 ? (
+								<span className="inline-flex items-center gap-x-0.5">
+									<LUIThemedIcon
+										Icon={NoteIcon}
+										color="currentColor"
+										weight="regular"
+										className="size-3.5"
+									/>
+									{linkedNotes.length}
+								</span>
+							) : null}
 						</div>
 					) : null}
 				</div>
-				{isExpanded && !disableNavs ? (
-					<div
-						className={`flex h-20 w-max shrink-0 items-center justify-center`}
+
+				<span
+					aria-hidden
+					className={`mt-1 flex size-6 shrink-0 items-center justify-center ${
+						isDark ? "text-neutral-500" : "text-neutral-400"
+					}`}
+				>
+					<LUIThemedIcon
+						Icon={CaretDownIcon}
+						color="currentColor"
+						weight="regular"
+						className={`size-3.5 transition-transform duration-150 ${isExpanded ? "rotate-180" : ""}`}
+					/>
+				</span>
+			</div>
+
+			<AnimatePresence initial={false}>
+				{isExpanded ? (
+					<motion.div
+						initial={{ opacity: 0, height: 0 }}
+						animate={{ opacity: 1, height: "auto" }}
+						exit={{ opacity: 0, height: 0 }}
+						transition={{ duration: 0.16, ease: "easeOut" }}
+						className="overflow-hidden"
 					>
 						<div
-							className={`h-max w-max cursor-pointer opacity-15 transition-all duration-100 hover:opacity-100`}
-							onClick={handleEdit}
+							className={`flex flex-col gap-y-2 border-t px-3 pt-2.5 pb-3 ${
+								isDark
+									? "border-neutral-800"
+									: "border-neutral-200"
+							}`}
 						>
-							<LUIThemedIcon
-								Icon={ArrowSquareRightIcon}
-								color={
-									theme === LTHEME.DARK ? "white" : "black"
-								}
-								weight="fill"
-								className="size-12"
+							<LUIWebPreview
+								previewBlob={preview}
+								saveId={save.id}
+								url={save.url}
 							/>
+							{linkedTasks.length > 0 ? (
+								<LUIGroup
+									title={`${linkedTasks.length} Task${linkedTasks.length === 1 ? "" : "s"}`}
+									headerTextSize="sm"
+								>
+									{linkedTasks.map((task) => (
+										<LUILink
+											key={task.id}
+											content={task.information}
+											navigateTo={"/task/" + task.id}
+											hoverBackground={
+												isDark
+													? "bg-neutral-800"
+													: "bg-neutral-200"
+											}
+											disableNavs={disableNavs}
+										/>
+									))}
+								</LUIGroup>
+							) : null}
+							{linkedReminders.length > 0 ? (
+								<LUIGroup
+									title={`${linkedReminders.length} Reminder${linkedReminders.length === 1 ? "" : "s"}`}
+									headerTextSize="sm"
+								>
+									{linkedReminders.map((reminder) => (
+										<LUILink
+											key={reminder.id}
+											content={reminder.message}
+											navigateTo={
+												"/reminder/" + reminder.id
+											}
+											hoverBackground={
+												isDark
+													? "bg-neutral-800"
+													: "bg-neutral-200"
+											}
+											disableNavs={disableNavs}
+										/>
+									))}
+								</LUIGroup>
+							) : null}
+							{linkedNotes.length > 0 ? (
+								<LUIGroup
+									title={`${linkedNotes.length} Note${linkedNotes.length === 1 ? "" : "s"}`}
+									headerTextSize="sm"
+								>
+									{linkedNotes.map((note) =>
+										note.locked ? (
+											<button
+												key={note.id}
+												type="button"
+												disabled={disableNavs}
+												onClick={() =>
+													!disableNavs &&
+													go(
+														`/note/${note.id}`,
+														"forward",
+													)
+												}
+												className={`my-1 flex w-full cursor-pointer items-center gap-x-2 rounded-xl border p-2.5 text-left text-xs transition-colors disabled:cursor-default ${
+													isDark
+														? "border-neutral-800 bg-black/40 text-neutral-300 hover:border-neutral-700"
+														: "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300"
+												}`}
+											>
+												<LUIThemedIcon
+													Icon={LockIcon}
+													color="currentColor"
+													weight="fill"
+													className="size-3.5 shrink-0 text-[var(--ll-accent)]"
+												/>
+												<span className="truncate font-medium">
+													{note.title ||
+														"Locked note"}
+												</span>
+											</button>
+										) : (
+											<div
+												key={note.id}
+												className={`my-1 rounded-xl border p-2.5 text-xs ${
+													isDark
+														? "border-neutral-800 bg-black/40 text-neutral-200"
+														: "border-neutral-200 bg-white text-neutral-800"
+												}`}
+											>
+												<Markdown
+													urlTransform={
+														safeUrlTransform
+													}
+													components={{
+														img: SafeMarkdownImage,
+														a: SafeMarkdownLink,
+													}}
+												>
+													{note.content}
+												</Markdown>
+											</div>
+										),
+									)}
+								</LUIGroup>
+							) : null}
+							<div className="flex w-full flex-wrap items-center gap-1.5 pt-1">
+								{!disableNavs ? (
+									<LUIPillButton
+										label="Edit"
+										ariaLabel="Edit save"
+										onClick={handleEdit}
+									/>
+								) : null}
+								<LUIPillButton
+									label={
+										save.archived ? "Unarchive" : "Archive"
+									}
+									ariaLabel={
+										save.archived
+											? "Unarchive save"
+											: "Archive save"
+									}
+									onClick={handleToggleArchive}
+								/>
+								<div className="flex grow justify-end gap-x-1.5">
+									<LUIDeleteButton
+										onDelete={() =>
+											send("save.update", {
+												id: save.id,
+												saved: false,
+											})
+										}
+										failureMessage="Couldn't remove this save."
+									/>
+									<LUIPillButton
+										label="Collapse"
+										onClick={handleExpand}
+									/>
+								</div>
+							</div>
 						</div>
-					</div>
+					</motion.div>
 				) : null}
-			</div>
+			</AnimatePresence>
 		</div>
 	);
 };

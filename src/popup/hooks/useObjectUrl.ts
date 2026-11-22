@@ -1,23 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { toSafeImageBlob } from "../../utils/safeImageBlob";
 
 export const useObjectUrl = (
 	blob: Blob | null | undefined,
 ): string | undefined => {
-	const [objectUrl, setObjectUrl] = useState<string | undefined>();
+	const objectUrl = useMemo(
+		() => (blob ? URL.createObjectURL(toSafeImageBlob(blob)) : undefined),
+		[blob],
+	);
 
 	useEffect(() => {
-		if (!blob) {
-			setObjectUrl(undefined);
-			return;
-		}
-
-		const nextUrl = URL.createObjectURL(toSafeImageBlob(blob));
-		setObjectUrl(nextUrl);
+		if (!objectUrl) return;
 		return () => {
-			URL.revokeObjectURL(nextUrl);
+			URL.revokeObjectURL(objectUrl);
 		};
-	}, [blob]);
+	}, [objectUrl]);
 
 	return objectUrl;
 };

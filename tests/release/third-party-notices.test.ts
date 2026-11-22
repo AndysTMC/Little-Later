@@ -1,10 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
 	packageDirOf,
 	readBundledPackage,
@@ -14,6 +20,18 @@ import {
 } from "../../scripts/third-party-notices";
 
 const project = { name: "Little Later", version: "9.9.9", license: "MIT" };
+const tempDirs: Array<string> = [];
+const makeTempDir = (): string => {
+	const dir = mkdtempSync(join(tmpdir(), "notices-"));
+	tempDirs.push(dir);
+	return dir;
+};
+
+afterEach(() => {
+	for (const dir of tempDirs.splice(0)) {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
 
 describe("packageDirOf", () => {
 	it("finds hoisted, scoped and Bun-isolated packages", () => {
@@ -41,7 +59,7 @@ describe("packageDirOf", () => {
 
 describe("readBundledPackage", () => {
 	it("reads license metadata and every license or notice file", () => {
-		const dir = mkdtempSync(join(tmpdir(), "notices-"));
+		const dir = makeTempDir();
 		mkdirSync(join(dir, "lib"));
 		writeFileSync(
 			join(dir, "package.json"),
@@ -66,7 +84,7 @@ describe("readBundledPackage", () => {
 	});
 
 	it("skips license directories and follows linked license files", () => {
-		const dir = mkdtempSync(join(tmpdir(), "notices-"));
+		const dir = makeTempDir();
 		writeFileSync(
 			join(dir, "package.json"),
 			JSON.stringify({ name: "pkg", version: "1.0.0", license: "MIT" }),
@@ -77,6 +95,19 @@ describe("readBundledPackage", () => {
 		symlinkSync(join(dir, "real-license.txt"), join(dir, "LICENSE"));
 
 		expect(readBundledPackage(dir).licenseText).toBe("Linked MIT text");
+	});
+
+	it("ignores null or primitive entries in legacy licenses arrays", () => {
+		const dir = makeTempDir();
+		writeFileSync(
+			join(dir, "package.json"),
+			JSON.stringify({
+				name: "pkg",
+				version: "1.0.0",
+				licenses: [null, "MIT", { type: "ISC" }],
+			}),
+		);
+		expect(readBundledPackage(dir).license).toBe("ISC");
 	});
 });
 
@@ -118,5 +149,20 @@ describe("renderers", () => {
 		expect(renderSbom(project, [...packages].reverse())).toBe(
 			renderSbom(project, packages),
 		);
+	});
+
+	it("preserves balanced compound SPDX parentheses in CycloneDX expressions", () => {
+		const sbom = JSON.parse(
+			renderSbom(project, [
+				{
+					name: "compound",
+					version: "1.0.0",
+					license: "(MIT) OR (Apache-2.0)",
+				},
+			]),
+		);
+		expect(sbom.components[0].licenses).toEqual([
+			{ expression: "(MIT) OR (Apache-2.0)" },
+		]);
 	});
 });

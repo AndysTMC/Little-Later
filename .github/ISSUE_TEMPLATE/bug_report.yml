@@ -32,7 +32,7 @@ body:
       id: browser
       attributes:
           label: Browser and version
-          placeholder: Chrome 141 on macOS 15
+          placeholder: Chrome 144 on macOS 15
       validations:
           required: true
     - type: dropdown
@@ -48,7 +48,7 @@ body:
       id: logs
       attributes:
           label: Errors or screenshots
-          description: Errors from the popup's or service worker's DevTools console help most.
+          description: Errors from the popup's, side panel's, or service worker's DevTools console help most.
     - type: textarea
       id: diagnosis
       attributes:

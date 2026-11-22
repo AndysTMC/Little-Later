@@ -60,3 +60,46 @@ describe("local Ollama detection", () => {
 		expect(isLocalOllamaUrl("")).toBe(false);
 	});
 });
+
+// Where the assistant's data goes is a property of the model, not only the
+// provider: Ollama serves cloud models through its local address too.
+describe("where a model runs", () => {
+	it("marks Ollama's cloud models, and only those", async () => {
+		const { isCloudModel } = await import("../../src/services/ai/config");
+		const { LAI_PROVIDERS } = await import("little-shared/enums");
+		expect(isCloudModel(LAI_PROVIDERS.OLLAMA, "gpt-oss:120b-cloud")).toBe(
+			true,
+		);
+		expect(isCloudModel(LAI_PROVIDERS.OLLAMA, "llama3.2:3b")).toBe(false);
+		expect(isCloudModel(LAI_PROVIDERS.LM_STUDIO, "x-cloud")).toBe(false);
+	});
+
+	it("says where the messages and records go", async () => {
+		const { describeProcessing } =
+			await import("../../src/services/ai/config");
+		const { LAI_PROVIDERS } = await import("little-shared/enums");
+		const local = {
+			provider: LAI_PROVIDERS.OLLAMA,
+			baseUrl: "",
+			model: "llama3.2",
+		};
+		expect(describeProcessing(local)).toContain("on this computer");
+		// LM Studio can serve a local request from a linked remote machine.
+		const lmStudio = describeProcessing({
+			...local,
+			provider: LAI_PROVIDERS.LM_STUDIO,
+		});
+		expect(lmStudio).not.toContain("stay here");
+		expect(lmStudio).toContain("depends on your LM Studio setup");
+		expect(
+			describeProcessing({ ...local, model: "gemma4:31b-cloud" }),
+		).toContain("Ollama's servers");
+		expect(
+			describeProcessing({
+				provider: LAI_PROVIDERS.CUSTOM,
+				baseUrl: "https://api.example.com/v1",
+				model: "m",
+			}),
+		).toContain("api.example.com");
+	});
+});

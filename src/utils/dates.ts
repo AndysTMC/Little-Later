@@ -29,10 +29,11 @@ export const lastSeenInfo = (ms: number, now: number = Date.now()): string => {
 	const date = zoned(ms).toPlainDate();
 	const today = zoned(now).toPlainDate();
 	const days = today.since(date).days;
+	if (days < 0) return prettyDate(ms, now);
 	if (days === 0) return "Today";
 	if (days === 1) return "Yesterday";
 	// Weeks start on Sunday.
-	if (days >= 0 && days < (today.dayOfWeek % 7) + 1) {
+	if (days < (today.dayOfWeek % 7) + 1) {
 		return `Current week on ${prettyDate(ms, now)}`;
 	}
 	if (date.year === today.year && date.month === today.month) {
@@ -116,9 +117,13 @@ export const prettyRule = (rule: RecurrenceRule): string => {
 			case "monthly":
 				return rule.byMonthDay ? ` on ${ordinal(rule.byMonthDay)}` : "";
 			case "yearly":
-				return rule.byMonth && rule.byMonthDay
-					? ` on ${ordinal(rule.byMonthDay)} of ${MONTH_NAMES[rule.byMonth - 1]}`
-					: "";
+				if (rule.byMonth && rule.byMonthDay) {
+					return ` on ${ordinal(rule.byMonthDay)} of ${MONTH_NAMES[rule.byMonth - 1]}`;
+				}
+				if (rule.byMonth) {
+					return ` in ${MONTH_NAMES[rule.byMonth - 1]}`;
+				}
+				return rule.byMonthDay ? ` on ${ordinal(rule.byMonthDay)}` : "";
 		}
 	})();
 	return `${every}${on} at ${prettyTime({ hour, minute })}`;

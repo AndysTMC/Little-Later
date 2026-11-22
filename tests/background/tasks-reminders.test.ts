@@ -136,6 +136,54 @@ describe("tasks", () => {
 		});
 	});
 
+	// An edit that sends the schedule back unchanged, keys in any order, is
+	// no change: an overdue occurrence stays overdue rather than moving on.
+	it("keeps an overdue occurrence when the same schedule is sent again", async () => {
+		const { id } = await run<{ id: string }>("task.create", {
+			information: "Stand-up",
+			schedule: { kind: "recurring", rule: daily },
+		});
+		const [before] = await db.tasks.toArray();
+		clock = at(`2026-03-10T12:00[${NY}]`);
+		const reordered = Object.fromEntries(Object.entries(daily).reverse());
+		await run("task.update", {
+			id,
+			label: "Team",
+			schedule: { rule: reordered, kind: "recurring" },
+		});
+		const [after] = await db.tasks.toArray();
+		expect(after.dueAt).toBe(before.dueAt);
+		expect(after.occursOn).toBe(before.occursOn);
+
+		// A real change still moves it.
+		await run("task.update", {
+			id,
+			schedule: { kind: "recurring", rule: { ...daily, time: "10:00" } },
+		});
+		const [changed] = await db.tasks.toArray();
+		expect(changed.dueAt).toBe(at(`2026-03-11T10:00[${NY}]`));
+	});
+
+	it("keeps when a task's reminder last fired across an edit of its text", async () => {
+		const due = at(`2026-03-08T09:00[${NY}]`);
+		const { id } = await run<{ id: string }>("task.create", {
+			information: "Pay rent",
+			schedule: { kind: "due", at: due },
+			reminder: "normal",
+		});
+		const [reminder] = await db.reminders.toArray();
+		// It went off at its time and is spent.
+		await db.reminders.update(reminder.id, {
+			lastFiredAt: due,
+			nextFireAt: 0,
+		});
+		clock = due + 5 * MINUTE;
+		await run("task.update", { id, information: "Pay the rent" });
+		const [after] = await db.reminders.toArray();
+		expect(after.lastFiredAt).toBe(due);
+		expect(after.nextFireAt).toBe(0);
+	});
+
 	it("recomputes a floating recurring deadline in the device's zone", async () => {
 		zone = "Europe/Berlin";
 		const { id } = await run<{ id: string }>("task.create", {
@@ -277,7 +325,7 @@ describe("tasks", () => {
 		const { id } = await run<{ id: string }>("task.create", {
 			information: "Read it",
 			schedule: { kind: "anytime" },
-			saveId,
+			saveIds: [saveId],
 		});
 		expect(await db.links.count()).toBe(1);
 		await run("task.delete", { id });
@@ -288,9 +336,59 @@ describe("tasks", () => {
 			await dispatch("task.create", {
 				information: "x",
 				schedule: { kind: "anytime" },
-				saveId: "missing",
+				saveIds: ["missing"],
 			}),
 		).toMatchObject({ ok: false, error: { code: "rejected" } });
+	});
+
+	// A record and its saves change in one command, so a failure leaves
+	// nothing half done, and a retry cannot make a second record.
+	it("sets its saves in the same command, all or nothing", async () => {
+		const save = async (url: string) =>
+			(
+				await run<{ id: string }>("save.capture", {
+					url,
+					title: url,
+					saved: true,
+				})
+			).id;
+		const a = await save("https://a.test/");
+		const b = await save("https://b.test/");
+		const c = await save("https://c.test/");
+		const linkedTo = async (fromId: string) =>
+			(await db.links.toArray())
+				.filter((link) => link.fromId === fromId)
+				.map((link) => link.toId)
+				.sort();
+
+		expect(
+			await dispatch("task.create", {
+				information: "x",
+				schedule: { kind: "anytime" },
+				saveIds: [a, "missing"],
+			}),
+		).toMatchObject({ ok: false });
+		expect(await db.tasks.count()).toBe(0);
+		expect(await db.links.count()).toBe(0);
+
+		const { id } = await run<{ id: string }>("task.create", {
+			information: "Read them",
+			schedule: { kind: "anytime" },
+			saveIds: [a, b],
+		});
+		expect(await linkedTo(id)).toEqual([a, b].sort());
+		await run("task.update", { id, saveIds: [b, c] });
+		expect(await linkedTo(id)).toEqual([b, c].sort());
+
+		// Only links to saves are the set's business.
+		const { id: reminder } = await run<{ id: string }>("reminder.create", {
+			message: "Look",
+			target: clock + 60 * MINUTE,
+			saveIds: [a],
+		});
+		await run("link.create", { fromId: reminder, toId: id });
+		await run("reminder.update", { id: reminder, saveIds: [] });
+		expect(await linkedTo(reminder)).toEqual([id]);
 	});
 });
 

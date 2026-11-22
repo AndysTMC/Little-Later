@@ -1,4 +1,4 @@
-import { LDate, LTime } from "little-shared/types";
+import { LDate } from "little-shared/types";
 import { deviceZone } from "../../../../utils/dates";
 
 export type LDateMatchCriteria = {
@@ -11,8 +11,7 @@ export type LDateMatchCriteria = {
 };
 
 const DATE_REGEX =
-	/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})([+-])(\d{2}):(\d{2})$/;
-const TIME_REGEX = /^(\d{2}):(\d{2}):(\d{2})([+-])(\d{2}):(\d{2})$/;
+	/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:(Z)|([+-])(\d{2}):(\d{2}))$/;
 
 const parseDateParts = (value: string) => {
 	const match = DATE_REGEX.exec(value);
@@ -28,6 +27,7 @@ const parseDateParts = (value: string) => {
 		hourRaw,
 		minuteRaw,
 		secondRaw,
+		utcMarker,
 		,
 		offsetHourRaw,
 		offsetMinuteRaw,
@@ -39,8 +39,8 @@ const parseDateParts = (value: string) => {
 	const hour = Number.parseInt(hourRaw, 10);
 	const minute = Number.parseInt(minuteRaw, 10);
 	const second = Number.parseInt(secondRaw, 10);
-	const offsetHour = Number.parseInt(offsetHourRaw, 10);
-	const offsetMinute = Number.parseInt(offsetMinuteRaw, 10);
+	const offsetHour = utcMarker ? 0 : Number.parseInt(offsetHourRaw, 10);
+	const offsetMinute = utcMarker ? 0 : Number.parseInt(offsetMinuteRaw, 10);
 
 	if (
 		month < 1 ||
@@ -61,6 +61,12 @@ const parseDateParts = (value: string) => {
 		return undefined;
 	}
 
+	try {
+		Temporal.PlainDate.from({ year, month, day }, { overflow: "reject" });
+	} catch {
+		return undefined;
+	}
+
 	return {
 		year,
 		month,
@@ -71,47 +77,8 @@ const parseDateParts = (value: string) => {
 	};
 };
 
-const parseTimeParts = (value: string) => {
-	const match = TIME_REGEX.exec(value);
-	if (!match) {
-		return undefined;
-	}
-	const [, hourRaw, minuteRaw, secondRaw, , offsetHourRaw, offsetMinuteRaw] =
-		match;
-
-	const hour = Number.parseInt(hourRaw, 10);
-	const minute = Number.parseInt(minuteRaw, 10);
-	const second = Number.parseInt(secondRaw, 10);
-	const offsetHour = Number.parseInt(offsetHourRaw, 10);
-	const offsetMinute = Number.parseInt(offsetMinuteRaw, 10);
-
-	if (
-		hour < 0 ||
-		hour > 23 ||
-		minute < 0 ||
-		minute > 59 ||
-		second < 0 ||
-		second > 59 ||
-		offsetHour < 0 ||
-		offsetHour > 23 ||
-		offsetMinute < 0 ||
-		offsetMinute > 59
-	) {
-		return undefined;
-	}
-
-	return {
-		hour,
-		minute,
-		second,
-	};
-};
-
 export const isValidLDateString = (value: unknown): value is LDate =>
 	typeof value === "string" && parseDateParts(value) !== undefined;
-
-export const isValidLTimeString = (value: unknown): value is LTime =>
-	typeof value === "string" && parseTimeParts(value) !== undefined;
 
 export const normalizeDateMatchCriteria = (
 	value: unknown,
@@ -142,25 +109,27 @@ export const toModelDate = (ms: number): LDate =>
 export const fromModelDate = (value: LDate): number =>
 	Temporal.Instant.from(value).epochMilliseconds;
 
-// Compares the candidate's date parts, in the device's zone, with the
-// filter's as written. Without criteria the two must be the same instant.
+// Compares both candidate and filter date parts in the device's zone.
+// Without criteria the two must be the same instant.
 export const dateMatchesCriteria = (
 	candidate: number,
 	filterDate: LDate,
 	criteria?: LDateMatchCriteria,
 ): boolean => {
 	const candidateParts = parseDateParts(toModelDate(candidate));
-	const filterParts = parseDateParts(filterDate);
-	if (!candidateParts || !filterParts) {
+	if (!candidateParts || !parseDateParts(filterDate)) {
+		return false;
+	}
+	const filterMs = fromModelDate(filterDate);
+	const filterParts = parseDateParts(toModelDate(filterMs));
+	if (!filterParts) {
 		return false;
 	}
 
 	const hasScopedCriteria =
 		criteria && Object.values(criteria).some((value) => value === true);
 	if (!hasScopedCriteria) {
-		return (
-			Math.floor(candidate / 1000) * 1000 === fromModelDate(filterDate)
-		);
+		return Math.floor(candidate / 1000) * 1000 === filterMs;
 	}
 
 	if (criteria.year && candidateParts.year !== filterParts.year) {

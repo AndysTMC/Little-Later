@@ -4,9 +4,9 @@ const cleanPreviewLine = (line: string): string => {
 	return line
 		.replace(/^#{1,6}\s+/, "")
 		.replace(/^\s*>\s?/, "")
+		.replace(/^\s*[-*+]\s+\[[ xX]\]\s+/, "")
 		.replace(/^\s*[-*+]\s+/, "")
 		.replace(/^\s*\d+\.\s+/, "")
-		.replace(/^\s*-\s\[[ xX]\]\s+/, "")
 		.replace(/[*_~`]/g, "")
 		.trim();
 };

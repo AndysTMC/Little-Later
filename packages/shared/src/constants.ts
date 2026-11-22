@@ -1,24 +1,12 @@
 import { LAI_PROVIDERS } from "./enums.js";
-import { LDB, LUserSettings, LVaultDataPostDecryptTables } from "./types.js";
+import { LUserSettings } from "./types.js";
 
-export const LTIME_LANGUAGE = "en";
-
-export const LDATE_LANGUAGE = "en";
-
-export const LEMPTY_PASSWORD = "EMPTY_PASSWORD";
-
-export const LEMPTY_VAULT_DATA_POST_DECRYPT = {
-	get value(): LVaultDataPostDecryptTables {
-		return {
-			linkTbl: [],
-			noteTbl: [],
-			reminderTbl: [],
-			taskTbl: [],
-			vbmPreviewTbl: [],
-			visualBMTbl: [],
-		};
-	},
-};
+// Where Ollama and LM Studio listen on this machine by default. A custom
+// provider brings its own URL.
+export const LLOCAL_AI_BASE_URLS = {
+	[LAI_PROVIDERS.OLLAMA]: "http://127.0.0.1:11434/v1",
+	[LAI_PROVIDERS.LM_STUDIO]: "http://127.0.0.1:1234/v1",
+} as const;
 
 export const LMIN_VBM_LIMIT = 1000;
 export const LMAX_VBM_LIMIT = 2000;
@@ -29,7 +17,9 @@ export const LINITIAL_MISC_SETTINGS = {
 	get value() {
 		return {
 			VBMLimit: 1000,
-			VBMSameOriginLimit: 1,
+			// More than one, so a second page on a site does not push the
+			// first out of history.
+			VBMSameOriginLimit: 5,
 		};
 	},
 };
@@ -39,7 +29,7 @@ export const LINITIAL_USER_SETTINGS = {
 		return {
 			ai: {
 				provider: LAI_PROVIDERS.OLLAMA,
-				baseUrl: "http://127.0.0.1:11434/v1",
+				baseUrl: LLOCAL_AI_BASE_URLS[LAI_PROVIDERS.OLLAMA],
 				apiKey: "",
 				model: "",
 			},
@@ -48,22 +38,6 @@ export const LINITIAL_USER_SETTINGS = {
 			},
 			misc: LINITIAL_MISC_SETTINGS.value,
 		} as LUserSettings;
-	},
-};
-
-export const LEMPTY_DB = {
-	get value(): LDB {
-		return {
-			linkTbl: [],
-			noteTbl: [],
-			reminderTbl: [],
-			taskTbl: [],
-			userProfileTbl: [],
-			userSettingsTbl: [],
-			userVaultTbl: [],
-			vbmPreviewTbl: [],
-			visualBMTbl: [],
-		};
 	},
 };
 
@@ -76,7 +50,5 @@ export const LMAX_TASK_INFORMATION_LENGTH = 256;
 export const LMAX_TASK_LABEL_LENGTH = 20;
 
 export const LNONE = "None";
-
-export const LTIME_FORMAT = "HH:mm:ssZ";
 
 export const LDATE_FORMAT = "YYYY-MM-DDTHH:mm:ssZ";

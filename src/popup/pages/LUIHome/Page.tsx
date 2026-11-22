@@ -1,14 +1,15 @@
-import { useLittleTransition } from "../../hooks/useLittleTransition";
+import { usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
-import { LTHEME, LLOWER_HOME_NAV_ROUTES } from "little-shared/enums";
-import { motion } from "framer-motion";
+import { LTHEME } from "little-shared/enums";
+import { AnimatePresence, motion } from "framer-motion";
 import { LUIHomeNav } from "../../components/LUINavs/LUIHomeNav/Component";
-import { Outlet, useLocation, useNavigate } from "react-router";
-import { useEffect, useContext, useRef } from "react";
-import { HomeContext } from "../../contexts/Home";
+import { useLocation, useOutlet } from "react-router";
+import { useState } from "react";
+import { pageVariants, readMove } from "../../../route-transitions";
 import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
 import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
 import {
+	useImages,
 	useLinks,
 	useNotes,
 	useReminders,
@@ -17,132 +18,98 @@ import {
 } from "../../hooks/useRecords";
 import type { HomeData } from "../../records";
 import { LUILoading } from "../../components/LUILoading/Component";
+import { LUINotificationsOff } from "../../components/LUINotificationsOff/Component";
+import {
+	useNotificationsAllowed,
+	useRefusedReminderToasts,
+} from "../../hooks/useNotificationProblems";
 
 const Page = () => {
 	const { theme } = useTheme();
-	const navigate = useNavigate();
 	const location = useLocation();
-	const { entry } = useLittleTransition({});
+	const pageMotion = usePageMotion();
 
 	const currentUserProfile = useCurrentUserProfile();
 	const userSettings = useCurrentUserSettings();
 	const links = useLinks();
 	const notes = useNotes();
+	const images = useImages();
 	const reminders = useReminders();
 	const tasks = useTasks();
 	const pages = useSaves();
-	const hasLoadedOnce = useRef(false);
-	if (
-		!hasLoadedOnce.current &&
-		currentUserProfile &&
-		userSettings &&
-		links &&
-		notes &&
-		reminders &&
-		tasks &&
-		pages
-	) {
-		hasLoadedOnce.current = true;
+	const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+	const notificationsAllowed = useNotificationsAllowed();
+	useRefusedReminderToasts(currentUserProfile?.id, reminders);
+	const allReady =
+		currentUserProfile !== undefined &&
+		userSettings !== undefined &&
+		links !== undefined &&
+		notes !== undefined &&
+		images !== undefined &&
+		reminders !== undefined &&
+		tasks !== undefined &&
+		pages !== undefined;
+	if (allReady && !hasLoadedOnce) {
+		setHasLoadedOnce(true);
 	}
-	const {
-		setActiveRoute,
-		homeNavigation,
-		homeSubNavigation,
-		setShouldHomeNavigate,
-		setShouldHomeSubNavigate,
-		shouldHomeNavigate,
-		shouldHomeSubNavigate,
-		setHomeNavigation,
-		setHomeSubNavigation,
-	} = useContext(HomeContext);
-
-	useEffect(() => {
-		if (!shouldHomeNavigate || !homeNavigation.navigateTo) return;
-		if (!homeNavigation.exit) return;
-		navigate(homeNavigation.navigateTo, homeNavigation.navigateOptions);
-		setShouldHomeNavigate(false);
-	}, [homeNavigation, navigate, setShouldHomeNavigate, shouldHomeNavigate]);
-
-	useEffect(() => {
-		if (!shouldHomeSubNavigate || !homeSubNavigation.navigateTo) return;
-		if (!homeSubNavigation.exit) return;
-		navigate(
-			homeSubNavigation.navigateTo,
-			homeSubNavigation.navigateOptions,
-		);
-		setShouldHomeSubNavigate(false);
-	}, [
-		homeSubNavigation,
-		navigate,
-		setShouldHomeSubNavigate,
-		shouldHomeSubNavigate,
-	]);
-
-	useEffect(() => {
-		setHomeNavigation({
-			navigateTo: null,
-			navigateOptions: {},
-			exit: {},
-		});
-		setHomeSubNavigation({
-			navigateTo: null,
-			navigateOptions: {},
-			exit: {},
-		});
-		if (location.pathname.endsWith(LLOWER_HOME_NAV_ROUTES.HISTORY)) {
-			setActiveRoute(LLOWER_HOME_NAV_ROUTES.HISTORY);
-		} else if (
-			location.pathname.endsWith(LLOWER_HOME_NAV_ROUTES.NEW_TASK)
-		) {
-			setActiveRoute(LLOWER_HOME_NAV_ROUTES.NEW_TASK);
-		} else if (
-			location.pathname.endsWith(LLOWER_HOME_NAV_ROUTES.NEW_REMINDER)
-		) {
-			setActiveRoute(LLOWER_HOME_NAV_ROUTES.NEW_REMINDER);
-		} else {
-			setActiveRoute(LLOWER_HOME_NAV_ROUTES.SELF);
-		}
-	}, [
-		location.pathname,
-		setActiveRoute,
-		setHomeNavigation,
-		setHomeSubNavigation,
-	]);
+	// The panel whose move has finished: Home's own on first open, then
+	// each panel's as it opens.
+	const [settledPath, setSettledPath] = useState<string | null>(null);
+	const settle = (definition: unknown) => {
+		if (definition === "animate") setSettledPath(location.pathname);
+	};
+	const data = {
+		currentUserProfile,
+		userSettings,
+		links,
+		notes,
+		images,
+		reminders,
+		tasks,
+		pages,
+		ready: settledPath === location.pathname,
+	} as HomeData;
+	const panel = useOutlet(data);
+	// A panel opening or closing moves within Home; Home itself stays.
+	const panelMove = readMove(location.state);
 
 	return (
 		<motion.div
 			className={` ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} h-full w-full select-none`}
-			{...entry}
-			{...homeNavigation.exit}
+			{...pageMotion}
+			onAnimationComplete={settle}
 		>
-			{currentUserProfile === undefined ||
-			userSettings === undefined ||
-			links === undefined ||
-			notes === undefined ||
-			reminders === undefined ||
-			tasks === undefined ||
-			pages === undefined ? (
-				!hasLoadedOnce.current ? (
+			{!allReady ? (
+				!hasLoadedOnce ? (
 					<LUILoading />
 				) : null
 			) : (
 				<div
 					className={`relative flex h-full w-full flex-col overflow-y-hidden`}
 				>
-					<div className={`w-full grow overflow-y-hidden`}>
-						<Outlet
-							context={
-								{
-									currentUserProfile,
-									userSettings,
-									links,
-									notes,
-									reminders,
-									tasks,
-									pages,
-								} satisfies HomeData
-							}
-						/>
+					{notificationsAllowed ? null : <LUINotificationsOff />}
+					{/* Clipped both ways: with only one axis hidden, the
+					    other scrolls, and a panel sliding sideways showed a
+					    scrollbar. */}
+					<div className={`w-full grow overflow-hidden`}>
+						<AnimatePresence
+							mode="wait"
+							initial={false}
+							custom={panelMove}
+						>
+							<motion.div
+								key={location.pathname}
+								className="h-full w-full"
+								variants={pageVariants}
+								custom={panelMove}
+								initial="initial"
+								animate="animate"
+								exit="exit"
+								onAnimationComplete={settle}
+							>
+								{panel}
+							</motion.div>
+						</AnimatePresence>
 					</div>
 					<LUIHomeNav />
 				</div>

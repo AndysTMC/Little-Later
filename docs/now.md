@@ -1,21 +1,20 @@
 ---
 type: now
-updated: 2026-10-29
-horizon: 2026-10-29 → 2026-11-12
+updated: 2026-11-22
+horizon: 2026-11-22 → 2026-12-06
 ---
 
 # Now
 
 ## Focus
 
-Storage format v1 (decisions 0010–0012) is on `dev`: per-record encryption under wrapped profile keys, the service worker as the only writer, the Temporal time model and `.lldat` format 3 backups. Next is release 3.0.0, then `defineTool` for AI tools.
+Major feature and hardening work landed on `dev` (#67): LittleAI side panel with worker runs, model search, hybrid retrieval, and loopback MCP; encrypted Images vault (Dexie v3); password-locked notes; cross-record `#tags`; passkey/security-key two-factor unlock; unified design language with accent theming; and Data & Privacy / AI Settings reorganisation. Preparing the next release from `dev` to `main` once open dependency updates and docs land.
 
 ## Next
 
-- Prepare release 3.0.0 from the `Unreleased` changelog section.
-- Build AI tools on the worker commands with `defineTool`.
-- Decide the product direction for AI features.
-- Decisions 0008 (open-source workflow) and 0009 (supply chain and licensing) are `proposed`.
+- Cut the next release PR (`dev` → `main`) with version bump (`manifest.json`, `package.json`, `packages/shared/package.json`) and `CHANGELOG.md` release heading.
+- Review and decide whether to mark proposed decisions `0008`, `0009`, and `0013`–`0018` as `accepted` (with the `human-accepted` PR label).
+- Recompute floating schedules when a page opens; the alarm, start-up, idle and after-command triggers from decision 0011 are in place.
 
 ## Blocked
 

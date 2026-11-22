@@ -1,21 +1,18 @@
-import { motion } from "framer-motion";
-import { entryTransitions, exitTransitions } from "../../../route-transitions";
+import { useMemo } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
-import { useLittleTransition } from "../../hooks/useLittleTransition";
-import { useLocation, useNavigate, useOutletContext } from "react-router";
+import { useLocation, useOutletContext } from "react-router";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { LUIBasicNav } from "../LUINavs/LUIBasicNav/Component";
 import { LUITaskForm } from "../LUITaskForm/Component";
 import type { HomeData } from "../../records";
+import { collectProfileTags } from "../../../utils/tags";
 
 const Component = () => {
-	const { links, reminders, pages } = useOutletContext<HomeData>();
+	const { links, notes, reminders, tasks, pages } =
+		useOutletContext<HomeData>();
 	const { theme } = useTheme();
-	const { entry, exit } = useLittleTransition({
-		transitionName: "subEntryTransition",
-		defaultExit: exitTransitions.slideUpToDown,
-	});
-	const navigate = useNavigate();
+	const go = useMoveNavigate();
 	const location = useLocation();
 	const prelinkedSaveId =
 		typeof location.state?.passedSaveId === "string"
@@ -23,26 +20,28 @@ const Component = () => {
 			: undefined;
 
 	const additionalSubmitCallback = () => {
-		navigate("/home", {
-			state: { subEntryTransition: entryTransitions.slideUp },
-		});
+		// The panel closes over the list.
+		go("/home", "sink");
 	};
-	const saves = pages.filter((page) => page.saved);
+	const saves = useMemo(() => pages.filter((page) => page.saved), [pages]);
+	const tagSuggestions = useMemo(
+		() => collectProfileTags([saves, tasks, reminders, notes]),
+		[saves, tasks, reminders, notes],
+	);
 	return (
-		<motion.div
+		<div
 			className={`flex h-full w-full flex-col overflow-y-hidden select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"}`}
-			{...entry}
-			{...exit}
 		>
 			<LUIBasicNav goBackDisabled />
 			<LUITaskForm
 				links={links}
 				reminders={reminders}
 				saves={saves}
+				tagSuggestions={tagSuggestions}
 				prelinkedSaveId={prelinkedSaveId}
 				additionalSubmitCallback={additionalSubmitCallback}
 			/>
-		</motion.div>
+		</div>
 	);
 };
 

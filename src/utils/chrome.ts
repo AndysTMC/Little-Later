@@ -39,15 +39,6 @@ export const getChromeStorageRecords = <
 				}
 			}
 		}
-		if (records.activeUserId !== undefined) {
-			const activeUserIdString = localStorage.getItem(
-				LCHROME_STORAGE_KEYS.ACTIVE_USER_ID,
-			);
-			if (activeUserIdString !== null) {
-				const parsed = Number.parseInt(activeUserIdString, 10);
-				result.activeUserId = Number.isFinite(parsed) ? parsed : null;
-			}
-		}
 		return Promise.resolve(result as T);
 	}
 	return new Promise<T>((resolve, reject) => {
@@ -81,16 +72,6 @@ export const setChromeStorageRecords = (
 				JSON.stringify(records.toasts),
 			);
 		}
-		if (records.activeUserId !== undefined) {
-			if (records.activeUserId === null) {
-				localStorage.removeItem(LCHROME_STORAGE_KEYS.ACTIVE_USER_ID);
-			} else {
-				localStorage.setItem(
-					LCHROME_STORAGE_KEYS.ACTIVE_USER_ID,
-					String(records.activeUserId),
-				);
-			}
-		}
 		window.dispatchEvent(new Event("little-storage-change"));
 
 		return Promise.resolve();
@@ -106,26 +87,12 @@ export const setChromeStorageRecords = (
 	});
 };
 
-export const getActiveWebDetails = async (): Promise<{
-	url: string | undefined;
-	title: string | undefined;
-}> => {
-	let url: string | undefined;
-	let title: string | undefined;
-	try {
-		const tab = await getActiveTab();
-		url = tab?.url;
-		title = tab?.title;
-	} catch {
-		url = window.location.href;
-		title = window.document.title;
-	}
-	return { url, title };
-};
-
 export const getActiveTab = (): Promise<chrome.tabs.Tab | undefined> => {
+	if (typeof chrome === "undefined" || !chrome.tabs?.query) {
+		return Promise.resolve(undefined);
+	}
 	return new Promise((resolve) => {
-		chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+		chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
 			if (chrome.runtime.lastError) {
 				console.error(
 					"Error getting active tab:",

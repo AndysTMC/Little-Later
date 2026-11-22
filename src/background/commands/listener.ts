@@ -6,6 +6,9 @@ export type CommandMessage = {
 	type: typeof COMMAND_MESSAGE;
 	name: string;
 	input: unknown;
+	// The profile, and unlock, the command is for (DispatchOptions).
+	profileId?: string;
+	unlockId?: string;
 };
 
 const isCommandMessage = (message: unknown): message is CommandMessage =>
@@ -58,7 +61,16 @@ export const listenForCommands = (dispatch: Dispatch): void => {
 			sendResponse(refused);
 			return false;
 		}
-		void dispatch(message.name, message.input).then(sendResponse);
+		void dispatch(message.name, message.input, {
+			profileId:
+				typeof message.profileId === "string"
+					? message.profileId
+					: undefined,
+			unlockId:
+				typeof message.unlockId === "string"
+					? message.unlockId
+					: undefined,
+		}).then(sendResponse);
 		// Keeps the channel open for the asynchronous reply.
 		return true;
 	});

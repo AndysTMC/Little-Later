@@ -9,37 +9,69 @@ import { useProfileKeys } from "./useSession";
 const usePreview = (saveId: string | undefined, enabled: boolean) => {
 	const keys = useProfileKeys();
 	const profileId = keys?.profileId;
-	const row = useLiveQuery(
-		async (): Promise<AssetRow | null | undefined> =>
+	const loaded = useLiveQuery(
+		async (): Promise<
+			| { profileId: string; saveId: string; row: AssetRow | null }
+			| undefined
+		> =>
 			!enabled || profileId === undefined || saveId === undefined
 				? undefined
-				: ((await littleDB.assets
-						.where("[profileId+ownerId]")
-						.equals([profileId, saveId])
-						.filter((asset) => asset.kind === PREVIEW_KIND)
-						.first()) ?? null),
+				: {
+						profileId,
+						saveId,
+						row:
+							(await littleDB.assets
+								.where("[profileId+ownerId]")
+								.equals([profileId, saveId])
+								.filter((asset) => asset.kind === PREVIEW_KIND)
+								.first()) ?? null,
+					},
 		[profileId, saveId, enabled],
 		undefined,
 	);
+	const row =
+		loaded && loaded.profileId === profileId && loaded.saveId === saveId
+			? loaded.row
+			: undefined;
+	const scope =
+		profileId !== undefined && saveId !== undefined
+			? `${profileId}:${saveId}`
+			: null;
+	const [lastScope, setLastScope] = useState<string | null>(scope);
 	const [opened, setOpened] = useState<{ row: AssetRow; blob: Blob } | null>(
 		null,
 	);
+	if (lastScope !== scope) {
+		setLastScope(scope);
+		setOpened(null);
+	}
 	useEffect(() => {
 		if (!keys || !row) return;
 		let active = true;
-		void openAsset(keys, row.id, row.body).then((bytes) => {
-			if (active) {
-				setOpened({
-					row,
-					blob: new Blob([bytes.slice()], { type: PREVIEW_TYPE }),
-				});
-			}
-		});
+		openAsset(keys, row.id, row.body).then(
+			(bytes) => {
+				if (active) {
+					setOpened({
+						row,
+						blob: new Blob([bytes.slice()], { type: PREVIEW_TYPE }),
+					});
+				}
+			},
+			(error: unknown) => {
+				console.warn("Could not open a page preview.", error);
+			},
+		);
 		return () => {
 			active = false;
 		};
 	}, [keys, row]);
-	return row && opened?.row === row ? opened.blob : undefined;
+	// The save's last preview stays while a newer capture is opened, so a
+	// background capture does not flash the placeholder.
+	return row &&
+		opened?.row.ownerId === row.ownerId &&
+		opened.row.profileId === row.profileId
+		? opened.blob
+		: undefined;
 };
 
 export const useSavePreview = (saveId: string | undefined) =>

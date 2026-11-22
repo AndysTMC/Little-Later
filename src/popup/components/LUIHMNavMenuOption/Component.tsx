@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import { ReactElement } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
@@ -8,8 +7,6 @@ const Component = ({
 	className,
 	name,
 	icon,
-	isLast = false,
-	animationDelay = 0,
 	onClick,
 }: {
 	className?: string;
@@ -20,35 +17,23 @@ const Component = ({
 	onClick?: () => void;
 }) => {
 	const { theme } = useTheme();
+	const isDark = theme === LTHEME.DARK;
 	return (
-		<motion.button
+		<button
 			type="button"
 			className={twMerge(
-				`flex h-max w-full flex-col items-center justify-center ${
-					theme === LTHEME.DARK
-						? "bg-black hover:bg-neutral-800"
-						: "bg-white hover:bg-neutral-200"
+				`flex h-9 w-full cursor-pointer items-center justify-start gap-x-2.5 rounded-lg px-2.5 text-sm font-medium transition-colors ${
+					isDark
+						? "text-neutral-100 hover:bg-neutral-800"
+						: "text-neutral-900 hover:bg-neutral-200"
 				}`,
 				className,
 			)}
-			initial={{ opacity: 0, y: -10 }}
-			animate={{ opacity: 1, y: 0 }}
-			transition={{ duration: 0.1, delay: animationDelay }}
-			exit={{ opacity: 0, y: -10, transition: { duration: 0.1 } }}
 			onClick={onClick}
 		>
-			<div
-				className={`flex h-9 w-full cursor-pointer items-center justify-start gap-x-3 px-3 ${theme === LTHEME.DARK ? "text-white" : "text-black"} `}
-			>
-				{icon}
-				<span>{name}</span>
-			</div>
-			{!isLast ? (
-				<hr
-					className={`h-0 w-36 shadow-none ${theme === LTHEME.DARK ? "border-neutral-700" : "border-neutral-300"} `}
-				/>
-			) : null}
-		</motion.button>
+			{icon}
+			<span>{name}</span>
+		</button>
 	);
 };
 

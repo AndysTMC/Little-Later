@@ -1,12 +1,14 @@
 import Dexie, { type EntityTable } from "dexie";
+import { saveFile } from "../utils/saveFile";
 import type { KdfParams } from "little-shared/utils/envelope";
 import {
 	BACKUP_EXTENSION,
 	BackupError,
-	backupFileParts,
+	backupFileBlob,
+	chunkBlob,
 	encodeHeader,
 	newBackupKey,
-	readBackupFile,
+	readBackupParts,
 	sealChunk,
 	type BackupEntry,
 } from "../storage/backup";
@@ -19,6 +21,9 @@ import {
 import { littleDB } from "../storage/pageDB";
 import {
 	getSettings,
+	type ChatContent,
+	type ChatMessageContent,
+	type ImageContent,
 	type NoteContent,
 	type ReminderContent,
 	type SaveContent,
@@ -33,21 +38,49 @@ import { send } from "../utils/send";
 // writes, so the worker runs it, one staged chunk per command, while the
 // page that started it stays open.
 
-const unlockedKeys = async (): Promise<ProfileKeys> => {
+// `keysOf` gives the keys of the profile to export: the unlocked one, or,
+// for an AI request, the profile the request belongs to (ai/owner.ts).
+type KeysOf = () => Promise<ProfileKeys>;
+
+// An export reads with keys it took at the start. It checks between pages
+// that the same unlock is still active, so locking or re-unlocking stops it
+// and nothing is returned.
+const acquireExportKeys = async (
+	keysOf?: KeysOf,
+): Promise<{ keys: ProfileKeys; checkUnlocked: () => Promise<void> }> => {
+	if (keysOf) {
+		const keys = await keysOf();
+		return {
+			keys,
+			checkUnlocked: async () => {
+				const current = await keysOf();
+				if (current.profileId !== keys.profileId) {
+					throw new BackupError(
+						"The profile was locked, so the export stopped.",
+					);
+				}
+			},
+		};
+	}
 	const session = await sessionStore.get();
 	if (!session) {
 		throw new Error("Unlock a profile first.");
 	}
-	return importProfileKeys(session);
-};
-
-// An export reads with keys it took at the start. It checks between pages
-// that the profile is still the unlocked one, so locking stops it and
-// nothing is returned.
-const assertStillUnlocked = async (profileId: string): Promise<void> => {
-	if ((await sessionStore.get())?.profileId !== profileId) {
-		throw new BackupError("The profile was locked, so the export stopped.");
-	}
+	const keys = await importProfileKeys(session);
+	return {
+		keys,
+		checkUnlocked: async () => {
+			const current = await sessionStore.get();
+			if (
+				current?.profileId !== session.profileId ||
+				current.unlockId !== session.unlockId
+			) {
+				throw new BackupError(
+					"The profile was locked, so the export stopped.",
+				);
+			}
+		},
+	};
 };
 
 // Rows are read in pages, so a large profile is never all in memory twice.
@@ -59,6 +92,7 @@ const CHUNK_BYTES = 2 * 1024 * 1024;
 async function* ownRows<T extends { id: string }>(
 	table: EntityTable<T, "id">,
 	profileId: string,
+	checkUnlocked: () => Promise<void>,
 	index = "[profileId+keyId]",
 ): AsyncGenerator<T> {
 	const ids = (await table
@@ -71,7 +105,7 @@ async function* ownRows<T extends { id: string }>(
 				typeof table.bulkGet
 			>[0],
 		);
-		await assertStillUnlocked(profileId);
+		await checkUnlocked();
 		for (const row of rows) {
 			if (row) {
 				yield row;
@@ -80,10 +114,91 @@ async function* ownRows<T extends { id: string }>(
 	}
 }
 
+// Opens one record for the export. A backup must not leave records out
+// silently, so a record that cannot be opened stops it, naming the record.
+const openForExport = async <T>(
+	table: string,
+	id: string,
+	open: () => Promise<T>,
+): Promise<T> => {
+	try {
+		return await open();
+	} catch (error) {
+		console.error(`Couldn't open ${table} ${id} for the export.`, error);
+		throw new Error(
+			`A record in ${table} (${id}) can't be read, so the export stopped.`,
+			{ cause: error },
+		);
+	}
+};
+
+// The profile's records and links as they were at one moment. They are
+// read in one IndexedDB transaction, so an edit made while the export runs
+// is either wholly in it or wholly out: reading table by table let a note
+// and its link to a page in, without the page. Bodies are opened after the
+// transaction, which cannot wait for decryption. Only encrypted text is
+// held here; assets, the large part, are read afterwards, so the snapshot
+// notes which records had one: an asset gone by then means the profile
+// changed under the export.
+const recordsSnapshot = async (profileId: string) => {
+	const owned = <T>(
+		table: EntityTable<T & { id: string }, "id">,
+		index: string,
+	) =>
+		table
+			.where(index)
+			.between([profileId, Dexie.minKey], [profileId, Dexie.maxKey])
+			.toArray();
+	return littleDB.transaction(
+		"r",
+		[
+			littleDB.saves,
+			littleDB.notes,
+			littleDB.images,
+			littleDB.tasks,
+			littleDB.reminders,
+			littleDB.links,
+			littleDB.assets,
+			littleDB.chats,
+			littleDB.chatMessages,
+		],
+		async () => ({
+			saves: await owned(littleDB.saves, "[profileId+keyId]"),
+			notes: await owned(littleDB.notes, "[profileId+keyId]"),
+			images: await owned(littleDB.images, "[profileId+keyId]"),
+			tasks: await owned(littleDB.tasks, "[profileId+keyId]"),
+			reminders: await owned(littleDB.reminders, "[profileId+keyId]"),
+			links: await owned(littleDB.links, "[profileId+fromId]"),
+			chats: await owned(littleDB.chats, "[profileId+keyId]"),
+			// In the order they were written: a chat reads top to bottom.
+			chatMessages: (
+				await owned(littleDB.chatMessages, "[profileId+keyId]")
+			).sort((a, b) => a.createdAt - b.createdAt),
+			assetOwners: new Set(
+				(
+					(await littleDB.assets
+						.where("[profileId+ownerId]")
+						.between(
+							[profileId, Dexie.minKey],
+							[profileId, Dexie.maxKey],
+						)
+						.keys()) as unknown as Array<[string, string]>
+				).map(([, ownerId]) => ownerId),
+			),
+		}),
+	);
+};
+
+// The profile changed while the export read its assets. The export starts
+// again rather than write a record without its preview.
+class ExportChangedError extends Error {}
+const EXPORT_ATTEMPTS = 3;
+
 // Every record of the unlocked profile as backup entries, profile first.
 async function* profileEntries(
 	keys: ProfileKeys,
 	withAssets: boolean,
+	checkUnlocked: () => Promise<void>,
 ): AsyncGenerator<BackupEntry> {
 	const { profileId } = keys;
 	const profile = await littleDB.profiles.get(profileId);
@@ -113,7 +228,9 @@ async function* profileEntries(
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	});
-	for await (const row of ownRows(littleDB.saves, profileId)) {
+	const snapshot = await recordsSnapshot(profileId);
+	await checkUnlocked();
+	for (const row of snapshot.saves) {
 		yield {
 			table: "saves",
 			...times(row),
@@ -121,28 +238,32 @@ async function* profileEntries(
 			browsed: row.browsed === 1,
 			browsedAt: row.browsedAt,
 			privacy: row.privacy,
-			content: await openBody<SaveContent>(
-				keys,
-				"saves",
-				row.id,
-				row.body,
+			content: await openForExport("saves", row.id, () =>
+				openBody<SaveContent>(keys, "saves", row.id, row.body),
 			),
 		};
 	}
-	for await (const row of ownRows(littleDB.notes, profileId)) {
+	for (const row of snapshot.notes) {
 		yield {
 			table: "notes",
 			...times(row),
 			privacy: row.privacy,
-			content: await openBody<NoteContent>(
-				keys,
-				"notes",
-				row.id,
-				row.body,
+			content: await openForExport("notes", row.id, () =>
+				openBody<NoteContent>(keys, "notes", row.id, row.body),
 			),
 		};
 	}
-	for await (const row of ownRows(littleDB.tasks, profileId)) {
+	for (const row of snapshot.images) {
+		yield {
+			table: "images",
+			...times(row),
+			privacy: row.privacy,
+			content: await openForExport("images", row.id, () =>
+				openBody<ImageContent>(keys, "images", row.id, row.body),
+			),
+		};
+	}
+	for (const row of snapshot.tasks) {
 		yield {
 			table: "tasks",
 			...times(row),
@@ -152,15 +273,12 @@ async function* profileEntries(
 			done: row.done === 1,
 			finishedAt: row.finishedAt,
 			privacy: row.privacy,
-			content: await openBody<TaskContent>(
-				keys,
-				"tasks",
-				row.id,
-				row.body,
+			content: await openForExport("tasks", row.id, () =>
+				openBody<TaskContent>(keys, "tasks", row.id, row.body),
 			),
 		};
 	}
-	for await (const row of ownRows(littleDB.reminders, profileId)) {
+	for (const row of snapshot.reminders) {
 		yield {
 			table: "reminders",
 			...times(row),
@@ -169,19 +287,37 @@ async function* profileEntries(
 			lastFiredAt: row.lastFiredAt,
 			nextFireAt: row.nextFireAt,
 			privacy: row.privacy,
-			content: await openBody<ReminderContent>(
-				keys,
-				"reminders",
-				row.id,
-				row.body,
+			content: await openForExport("reminders", row.id, () =>
+				openBody<ReminderContent>(keys, "reminders", row.id, row.body),
 			),
 		};
 	}
-	for await (const row of ownRows(
-		littleDB.links,
-		profileId,
-		"[profileId+fromId]",
-	)) {
+	// Chats before their messages, so an import knows each message's chat.
+	for (const row of snapshot.chats) {
+		yield {
+			table: "chats",
+			...times(row),
+			content: await openForExport("chats", row.id, () =>
+				openBody<ChatContent>(keys, "chats", row.id, row.body),
+			),
+		};
+	}
+	for (const row of snapshot.chatMessages) {
+		yield {
+			table: "chatMessages",
+			...times(row),
+			chatId: row.chatId,
+			content: await openForExport("chatMessages", row.id, () =>
+				openBody<ChatMessageContent>(
+					keys,
+					"chatMessages",
+					row.id,
+					row.body,
+				),
+			),
+		};
+	}
+	for (const row of snapshot.links) {
 		yield {
 			table: "links",
 			id: row.id,
@@ -191,14 +327,41 @@ async function* profileEntries(
 		};
 	}
 	if (withAssets) {
-		for await (const row of ownRows(littleDB.assets, profileId)) {
+		// Only the assets of records in the snapshot: one added for a page
+		// saved after it would have nothing to belong to.
+		const inSnapshot = new Set(
+			[
+				snapshot.saves,
+				snapshot.notes,
+				snapshot.images,
+				snapshot.tasks,
+				snapshot.reminders,
+			]
+				.flat()
+				.map((row) => row.id),
+		);
+		const missing = new Set(
+			[...snapshot.assetOwners].filter((id) => inSnapshot.has(id)),
+		);
+		for await (const row of ownRows(
+			littleDB.assets,
+			profileId,
+			checkUnlocked,
+		)) {
+			if (!inSnapshot.has(row.ownerId)) continue;
+			missing.delete(row.ownerId);
 			yield {
 				table: "assets",
 				...times(row),
 				ownerId: row.ownerId,
 				kind: row.kind,
-				bytes: await openAsset(keys, row.id, row.body),
+				bytes: await openForExport("assets", row.id, () =>
+					openAsset(keys, row.id, row.body),
+				),
 			};
+		}
+		if (missing.size > 0) {
+			throw new ExportChangedError();
 		}
 	}
 }
@@ -215,6 +378,7 @@ const entrySize = (entry: BackupEntry): number =>
 export const createBackup = async (
 	password: string,
 	kdf?: KdfParams,
+	keysOf?: KeysOf,
 ): Promise<Blob> => {
 	// The imported profile opens with this password, so it follows the
 	// profile password rules (decision 0007, A1).
@@ -223,54 +387,72 @@ export const createBackup = async (
 			"Choose a backup password that doesn't start or end with a space.",
 		);
 	}
-	const keys = await unlockedKeys();
+	const { keys, checkUnlocked } = await acquireExportKeys(keysOf);
 	const { header, keys: backupKeys } = await newBackupKey(password, kdf);
-	const chunks: Array<Uint8Array> = [];
-	let pending: Array<BackupEntry> = [];
-	let pendingBytes = 0;
-	const flush = async (last: boolean) => {
-		chunks.push(
-			await sealChunk(backupKeys, header.backupId, chunks.length, {
-				last,
-				entries: pending,
-			}),
-		);
-		pending = [];
-		pendingBytes = 0;
-	};
-	for await (const entry of profileEntries(keys, true)) {
-		if (
-			pending.length > 0 &&
-			pendingBytes + entrySize(entry) > CHUNK_BYTES
-		) {
-			await flush(false);
+	// Each sealed chunk is handed to a Blob at once, so the export never
+	// holds the whole backup in memory (the browser may page it to disk).
+	const sealAll = async (): Promise<Array<Blob>> => {
+		const chunks: Array<Blob> = [];
+		let pending: Array<BackupEntry> = [];
+		let pendingBytes = 0;
+		const flush = async (last: boolean) => {
+			chunks.push(
+				chunkBlob(
+					await sealChunk(
+						backupKeys,
+						header.backupId,
+						chunks.length,
+						{ last, entries: pending },
+					),
+				),
+			);
+			pending = [];
+			pendingBytes = 0;
+		};
+		for await (const entry of profileEntries(keys, true, checkUnlocked)) {
+			if (
+				pending.length > 0 &&
+				pendingBytes + entrySize(entry) > CHUNK_BYTES
+			) {
+				await flush(false);
+			}
+			pending.push(entry);
+			pendingBytes += entrySize(entry);
 		}
-		pending.push(entry);
-		pendingBytes += entrySize(entry);
+		await flush(true);
+		return chunks;
+	};
+	for (let attempt = 1; ; attempt += 1) {
+		try {
+			const chunks = await sealAll();
+			await checkUnlocked();
+			return backupFileBlob(encodeHeader(header), chunks);
+		} catch (error) {
+			if (!(error instanceof ExportChangedError)) throw error;
+			if (attempt === EXPORT_ATTEMPTS) {
+				throw new BackupError(
+					"Pages kept changing while the backup was made, so it stopped. Try again.",
+				);
+			}
+		}
 	}
-	await flush(true);
-	await assertStillUnlocked(keys.profileId);
-	return new Blob(
-		backupFileParts(encodeHeader(header), chunks).map((part) =>
-			part.slice(),
-		),
-		{ type: "application/octet-stream" },
-	);
 };
 
 const isoOrNull = (ms: number): string | null =>
 	ms === 0 ? null : new Date(ms).toISOString();
 
 // Plain JSON for people to read: no images, no AI key (0010).
-export const createReadableExport = async (): Promise<unknown> => {
-	const keys = await unlockedKeys();
+export const createReadableExport = async (
+	keysOf?: KeysOf,
+): Promise<unknown> => {
+	const { keys, checkUnlocked } = await acquireExportKeys(keysOf);
 	const out: Record<string, unknown> = {
 		app: "Little Later",
 		exportedAt: new Date().toISOString(),
 	};
 	const listOf = (table: string) =>
 		((out[table] as Array<unknown> | undefined) ??= []) as Array<unknown>;
-	for await (const entry of profileEntries(keys, false)) {
+	for await (const entry of profileEntries(keys, false, checkUnlocked)) {
 		switch (entry.table) {
 			case "profile":
 				out.profile = { name: entry.name, prefs: entry.prefs };
@@ -331,36 +513,71 @@ export const createReadableExport = async (): Promise<unknown> => {
 					toId: entry.toId,
 				});
 				break;
+			case "chats":
+				listOf("chats").push({
+					id: entry.id,
+					title: entry.content.title,
+					messages: [],
+					createdAt: isoOrNull(entry.createdAt),
+					updatedAt: isoOrNull(entry.updatedAt),
+				});
+				break;
+			case "images":
+				listOf("images").push({
+					id: entry.id,
+					...entry.content,
+					createdAt: isoOrNull(entry.createdAt),
+					updatedAt: isoOrNull(entry.updatedAt),
+				});
+				break;
+			case "chatMessages": {
+				// Each message under its chat, which comes first.
+				const chat = (
+					listOf("chats") as Array<{
+						id: string;
+						messages: Array<unknown>;
+					}>
+				).find((candidate) => candidate.id === entry.chatId);
+				chat?.messages.push(
+					entry.content.role === "user"
+						? {
+								from: "you",
+								text: entry.content.text,
+								at: isoOrNull(entry.createdAt),
+							}
+						: {
+								from: "LittleAI",
+								text: entry.content.output.message,
+								at: isoOrNull(entry.createdAt),
+							},
+				);
+				break;
+			}
 			case "assets":
 				break;
 		}
 	}
-	await assertStillUnlocked(keys.profileId);
+	await checkUnlocked();
 	return out;
 };
 
-const download = (blob: Blob, filename: string): void => {
-	const url = URL.createObjectURL(blob);
-	const anchor = document.createElement("a");
-	anchor.href = url;
-	anchor.download = filename;
-	document.body.appendChild(anchor);
-	anchor.click();
-	document.body.removeChild(anchor);
-	URL.revokeObjectURL(url);
-};
-
-export const exportBackup = async (password: string): Promise<void> =>
-	download(
-		await createBackup(password),
+export const exportBackup = async (
+	password: string,
+	keysOf?: KeysOf,
+): Promise<void> =>
+	saveFile(
+		await createBackup(password, undefined, keysOf),
 		`Little-Later-Backup${BACKUP_EXTENSION}`,
 	);
 
-export const exportReadable = async (): Promise<void> =>
-	download(
-		new Blob([JSON.stringify(await createReadableExport(), null, 2)], {
-			type: "application/json",
-		}),
+export const exportReadable = async (keysOf?: KeysOf): Promise<void> =>
+	saveFile(
+		new Blob(
+			[JSON.stringify(await createReadableExport(keysOf), null, 2)],
+			{
+				type: "application/json",
+			},
+		),
 		"Little-Later-Readable.json",
 	);
 
@@ -370,25 +587,45 @@ export const exportReadable = async (): Promise<void> =>
 export const importBackup = async (
 	file: Blob,
 	password: string,
-	onProgress?: (done: number, total: number) => void,
-): Promise<void> => {
-	const { header, chunks } = readBackupFile(
-		new Uint8Array(await file.arrayBuffer()),
-	);
-	const { jobId } = await send("backup.importBegin", {
-		header: await staging.put(header.slice()),
-		password,
-	});
+): Promise<{ skippedLinks: number }> => {
+	// Read and staged a chunk at a time, never the whole file at once.
+	const parts = readBackupParts(file);
+	const first = await parts.next();
+	if (first.done || first.value.kind !== "header") {
+		throw new BackupError("This backup is damaged.");
+	}
+	const stagedHeader = await staging.put(first.value.bytes.slice());
+	let jobId: string;
 	try {
-		for (const [index, chunk] of chunks.entries()) {
-			const { done } = await send("backup.importChunk", {
-				jobId,
-				chunk: await staging.put(chunk.slice()),
-			});
-			onProgress?.(index + 1, chunks.length);
+		({ jobId } = await send("backup.importBegin", {
+			header: stagedHeader,
+			password,
+		}));
+	} catch (error) {
+		await staging.discard(stagedHeader).catch(() => undefined);
+		throw error;
+	}
+	try {
+		for await (const part of parts) {
+			if (part.kind !== "chunk") {
+				throw new BackupError("This backup is damaged.");
+			}
+			const stagedChunk = await staging.put(part.bytes.slice());
+			let done: boolean;
+			let skippedLinks: number;
+			try {
+				({ done, skippedLinks } = await send("backup.importChunk", {
+					jobId,
+					chunk: stagedChunk,
+					more: part.hasMore,
+				}));
+			} catch (error) {
+				await staging.discard(stagedChunk).catch(() => undefined);
+				throw error;
+			}
 			// The last chunk says so inside its sealed content.
 			if (done) {
-				return;
+				return { skippedLinks };
 			}
 		}
 		throw new BackupError("This backup is incomplete.");

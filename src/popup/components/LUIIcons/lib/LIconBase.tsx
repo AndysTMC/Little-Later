@@ -36,6 +36,7 @@ const LIconBase = forwardRef<SVGSVGElement, LIconBaseProps>((props, ref) => {
 			stroke={color ?? contextColor}
 			viewBox="0 0 256 256"
 			transform={mirrored || contextMirrored ? "scale(-1, 1)" : undefined}
+			aria-hidden={alt ? undefined : true}
 			{...restContext}
 			{...restProps}
 		>

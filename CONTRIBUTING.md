@@ -19,7 +19,7 @@ The rest of this guide is for the team. To build Little Later from source for yo
 
 ## Set up
 
-You need [Bun](https://bun.sh) 1.3 or later, and Node.js 22 or later for the test runner.
+You need [Bun](https://bun.sh) 1.3.11 or later, and Node.js 22 or later for the test runner.
 
 ```sh
 bun install
@@ -27,7 +27,7 @@ bun run build:shared
 bun run dev
 ```
 
-Load `dist/` as an unpacked extension from `chrome://extensions` with Developer mode on. While `bun run dev` is running, `dist/` loads the code from the dev server and reloads on change, so it stops working when you stop the server. For a build that runs on its own, use `bun run build` and load `dist/` again.
+Load `dist-dev/` as an unpacked extension from `chrome://extensions` with Developer mode on. While `bun run dev` is running, `dist-dev/` loads the code from the dev server and reloads on change, so it stops working when you stop the server. For a build that runs on its own, use `bun run build` and load `dist/` again.
 
 The end-to-end tests need Playwright's Chromium. Install it once, and again after a Playwright update in `bun.lock`:
 
@@ -52,9 +52,11 @@ CI runs all of these, so run them before you push:
 bun run format:check
 bun run lint
 bun run typecheck
+python3 scripts/lint_knowledge.py --strict
 bun run test
 bun run build
 bun run test:e2e
+bun run test:ext
 ```
 
 New behaviour needs a test. A change to stored data needs a migration and a test that runs it.

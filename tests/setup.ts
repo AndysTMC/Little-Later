@@ -2,7 +2,7 @@ import { Temporal as TemporalPolyfill } from "@js-temporal/polyfill";
 import { Blob as NodeBlob } from "node:buffer";
 
 // jsdom's Blob has no arrayBuffer() and cannot be structured-cloned by
-// fake-indexeddb, so vault encrypt/decrypt tests would store empty objects.
+// fake-indexeddb, so tests that store encrypted records would store empty objects.
 // Prefer the Node/Bun Blob implementation in every test environment.
 const probe = new NodeBlob([new Uint8Array([1])]);
 if (typeof probe.arrayBuffer === "function") {
@@ -54,7 +54,7 @@ class TestFileReader {
 			if (fakeBytes) {
 				this.result =
 					mode === "arrayBuffer"
-						? fakeBytes.buffer.slice(
+						? (fakeBytes.buffer as ArrayBuffer).slice(
 								fakeBytes.byteOffset,
 								fakeBytes.byteOffset + fakeBytes.byteLength,
 							)
@@ -84,7 +84,8 @@ const fileReaderUnderstandsNodeBlob = (): boolean => {
 	}
 	try {
 		const reader = new FileReader();
-		reader.readAsArrayBuffer(probe);
+		// Node's Blob, which jsdom's FileReader may not accept.
+		reader.readAsArrayBuffer(probe as unknown as Blob);
 		return true;
 	} catch {
 		return false;

@@ -1,0 +1,203 @@
+{
+	"name": "little",
+	"version": 2,
+	"password": "fixture-password",
+	"stores": {
+		"profiles": "id",
+		"avatars": "profileId",
+		"saves": "id, &[profileId+urlKey], [profileId+originKey], [profileId+saved+browsedAt], [profileId+browsed+browsedAt], [profileId+keyId]",
+		"notes": "id, [profileId+updatedAt], [profileId+keyId]",
+		"tasks": "id, [profileId+done+dueAt], [profileId+keyId]",
+		"reminders": "id, [profileId+nextFireAt], [profileId+keyId]",
+		"links": "id, [profileId+fromId], [profileId+toId]",
+		"assets": "id, [profileId+ownerId], [profileId+keyId]",
+		"settings": "id, [profileId+keyId]",
+		"jobs": "id",
+		"chats": "id, [profileId+updatedAt], [profileId+keyId]",
+		"chatMessages": "id, [chatId+createdAt], [profileId+keyId]"
+	},
+	"tables": {
+		"profiles": [
+			{
+				"id": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"name": "Fixture V2",
+				"createdAt": 1795176000000,
+				"protection": "password",
+				"keys": [
+					{
+						"keyId": 1,
+						"wrapped": {
+							"keyId": 1,
+							"kdf": {
+								"name": "PBKDF2-SHA-256",
+								"iterations": 600000,
+								"salt": {
+									"$bytes": "J3x35DFMtQEiU+dh9lnQ3w=="
+								}
+							},
+							"iv": {
+								"$bytes": "4n9f2rOI83OXNatH"
+							},
+							"ciphertext": {
+								"$bytes": "B++UrVWKFyyOjMBLEMbwBmDQt/vcIobr2BxejZo9BRbUVPA0RUDJsxKBqQYTBzgN"
+							}
+						}
+					}
+				],
+				"currentKeyId": 1,
+				"indexKey": {
+					"$bytes": "TExFAQFmP6iKPYk/9Nj30vnLTHs0pGV7bsyXHXiIDPGbinpudRvw4gDQKzJKWmJuN4K+PfY0p3yF6lBJg7KiUXo="
+				},
+				"prefs": {
+					"theme": "dark",
+					"autoLockMinutes": 20,
+					"accent": "teal"
+				}
+			}
+		],
+		"avatars": [],
+		"saves": [
+			{
+				"id": "18e5cfd9-b108-4159-863c-2fd63f7d4d08",
+				"profileId": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQE9qaP+eGDdnOKez9toqGXfvIWIUl5axEx1qPs4QY5VoYXLNC25JqM/SvDQxmSQopnHsn+j3EIAQznHug2xxRTVk19/uNYbbsVmz6c83eTGfcu329T5SRqhejlpYBsqNg=="
+				},
+				"createdAt": 1795176000000,
+				"updatedAt": 1795176000000,
+				"urlKey": "0eaf7028af457dfd40aca3a6beef246b7495c334482f62bc2861f253e96908a8",
+				"originKey": "c4c5880a203f141a97d3dd68f3739f90970471acbba68555feb9da8366a24cf5",
+				"saved": 1,
+				"browsed": 1,
+				"browsedAt": 1795176000000,
+				"privacy": "private"
+			}
+		],
+		"notes": [
+			{
+				"id": "ee75fe7a-d917-4e04-8a8e-f423a4297d8f",
+				"profileId": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQEb26X3bo0Ee0TFs+eGggWmH2UHyblymy+PfIb9LOsmCqH9CZSYHZ1089TmeNVy6/v8uN8="
+				},
+				"createdAt": 1795176000000,
+				"updatedAt": 1795176000000,
+				"privacy": "private"
+			}
+		],
+		"tasks": [
+			{
+				"id": "6675061f-a020-43cf-8a2e-410d27ea7525",
+				"profileId": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQGLrTkv4+dT4H8O/1nb2acWfziCo00fvYvLgZAmII4GAUCIYI2Y4byJvHhb0wJCVGQTwiHnewnjt7Er9QwZ++RwjFjkcGu3ynRbjhxrPBg="
+				},
+				"createdAt": 1795176000000,
+				"updatedAt": 1795176000000,
+				"schedule": {
+					"kind": "anytime"
+				},
+				"dueAt": 0,
+				"occursOn": null,
+				"done": 0,
+				"finishedAt": 0,
+				"privacy": "private"
+			}
+		],
+		"reminders": [
+			{
+				"id": "0f986324-e160-4715-bef4-57817d370c6f",
+				"profileId": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQFZiYG7HMn02UyVO6AyaDNEafkPUVGAlE22gMRFbGSTCU1jy0HVEy0XPQCJobBI07B/JdmmPTDP"
+				},
+				"createdAt": 1795176000000,
+				"updatedAt": 1795176000000,
+				"target": 1795179600000,
+				"escalation": null,
+				"lastFiredAt": 0,
+				"nextFireAt": 1795179600000,
+				"privacy": "private"
+			}
+		],
+		"links": [
+			{
+				"id": "1c1e1ce1-0458-4478-a133-94dde80999ad",
+				"profileId": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"fromId": "6675061f-a020-43cf-8a2e-410d27ea7525",
+				"toId": "18e5cfd9-b108-4159-863c-2fd63f7d4d08",
+				"createdAt": 1795176000000
+			},
+			{
+				"id": "408a6d8e-67bb-4579-ae23-f2b588fd75d8",
+				"profileId": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"fromId": "0f986324-e160-4715-bef4-57817d370c6f",
+				"toId": "18e5cfd9-b108-4159-863c-2fd63f7d4d08",
+				"createdAt": 1795176000000
+			},
+			{
+				"id": "99094d22-be61-45a2-b122-5e10684a4776",
+				"profileId": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"fromId": "ee75fe7a-d917-4e04-8a8e-f423a4297d8f",
+				"toId": "18e5cfd9-b108-4159-863c-2fd63f7d4d08",
+				"createdAt": 1795176000000
+			}
+		],
+		"assets": [
+			{
+				"id": "8526f22e-8abb-4ae7-804f-35174a1b36cc",
+				"profileId": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQEMbBYKfF4KSyH3dXFAxUGSomiYdoXZofji7jACJzxfhQ=="
+				},
+				"createdAt": 1795176000000,
+				"updatedAt": 1795176000000,
+				"ownerId": "18e5cfd9-b108-4159-863c-2fd63f7d4d08",
+				"kind": "preview"
+			}
+		],
+		"settings": [],
+		"jobs": [],
+		"chats": [
+			{
+				"id": "89a4cdd2-6cc3-40ce-b9aa-9215af05e169",
+				"profileId": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQHK4/vdN+vtxLvg6LLGbdNbo5h99dvUfy5Cto6d6TDcLAqTbNwLmDeNKZ7skUGk1xU="
+				},
+				"createdAt": 1795176000000,
+				"updatedAt": 1795176000001
+			}
+		],
+		"chatMessages": [
+			{
+				"id": "3c5ea77f-f40e-4754-a161-ea8fe0a5c969",
+				"profileId": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"chatId": "89a4cdd2-6cc3-40ce-b9aa-9215af05e169",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQFkz1qCB2PcD7yjcQKNFD4oDECvmfj8E619ZeF/KL94YjzwgtmU4++QlzXpjLGhnN/8LME48DwglQ9eh8Mz7gk="
+				},
+				"createdAt": 1795176000000,
+				"updatedAt": 1795176000000
+			},
+			{
+				"id": "70d3fd87-3bf7-4c29-86bc-0809bafcb3df",
+				"profileId": "63ea6681-f238-4ddb-837a-3ff33ad2bfb0",
+				"chatId": "89a4cdd2-6cc3-40ce-b9aa-9215af05e169",
+				"keyId": 1,
+				"body": {
+					"$bytes": "TExFAQHwo1H6+U/ASfpKvVH7UYyP73836PfCTcNC+D5JgvXT9YQAIiJ/gi5CSjpODbPImNiA5x07+YLy34CVAFv+YrbXQhGWC+e4DWv9donzr4Fawptw0dhNCZNFChHRZ6d+4WA3mN474j3OE8G2WomE3DIdNgydXA=="
+				},
+				"createdAt": 1795176000001,
+				"updatedAt": 1795176000001
+			}
+		]
+	}
+}
