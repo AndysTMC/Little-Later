@@ -46,6 +46,13 @@
         "vitest": "^5.0.5",
       },
     },
+    "packages/mcp-bridge": {
+      "name": "little-later-mcp-bridge",
+      "version": "3.0.1",
+      "bin": {
+        "little-later-mcp": "./src/cli.ts",
+      },
+    },
     "packages/shared": {
       "name": "little-shared",
       "version": "3.0.1",
@@ -569,6 +576,8 @@
     "lightningcss-win32-arm64-msvc": ["lightningcss-win32-arm64-msvc@1.33.0", "", { "os": "win32", "cpu": "arm64" }, "sha512-1K+MPfLSFVpphzpdbfkhlWk6wBrTObBzS2T6db10PNOZgR9GoVsAWzwNyuhUYYbTp23j+4RrncfujZ4uAzXvwA=="],
 
     "lightningcss-win32-x64-msvc": ["lightningcss-win32-x64-msvc@1.33.0", "", { "os": "win32", "cpu": "x64" }, "sha512-OlEICDx/Xl0FqSp4bry8zFnCvGpig3Gl4gCquvYwHuqJKEC1+n9NgDniFvqHGmMv1ZkqDJrDqKKSykTDX+ehuA=="],
+
+    "little-later-mcp-bridge": ["little-later-mcp-bridge@workspace:packages/mcp-bridge"],
 
     "little-shared": ["little-shared@workspace:packages/shared"],
 
