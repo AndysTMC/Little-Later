@@ -361,7 +361,6 @@ const Component = ({
 								/>
 								<div className="flex grow justify-end gap-x-1.5">
 									<LUIDeleteButton
-										subject={save.customName}
 										onDelete={() =>
 											send("save.update", {
 												id: save.id,

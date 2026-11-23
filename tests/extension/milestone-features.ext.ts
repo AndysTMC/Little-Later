@@ -80,10 +80,15 @@ test("saves Active/Archived filter, cross-record tags, and Images tab work end-t
 		tags: ["design"],
 	});
 
-	// Saves tab shows active save and tag filter chip.
+	// Saves tab shows active save and clickable tag chip that searches across records.
 	await tab(page, "Saves").click();
 	await expect(page.getByText("Design System")).toBeVisible();
-	await expect(button(page, "#design")).toBeVisible();
+	await expect(button(page, "Filter by tag design")).toBeVisible();
+	await button(page, "Filter by tag design").click();
+	await expect(page.getByText("Design System")).toBeVisible();
+	await expect(page.getByText("Brand mark")).toBeVisible();
+	await button(page, "Clear search").click();
+	await expect(tab(page, "Saves")).toBeVisible();
 
 	// Archive the save -> disappears from Active, appears under Archived.
 	await button(page, /Design System/).click();

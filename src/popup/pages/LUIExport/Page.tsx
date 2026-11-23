@@ -91,7 +91,7 @@ const Page = () => {
 				<div className={`relative flex h-max w-full flex-col gap-y-2`}>
 					<div className="relative z-40">
 						<LUISettingSelect
-							label="Choose export format"
+							label="Choose Export Format"
 							value={exportType}
 							options={exportOptions}
 							onChange={setExportType}
