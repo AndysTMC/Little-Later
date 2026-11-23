@@ -33,7 +33,7 @@
 		"README.md"
 	],
 	"bin": {
-		"little-later-mcp": "./dist/cli.mjs"
+		"little-later-mcp": "dist/cli.mjs"
 	},
 	"scripts": {
 		"build": "bun build ./src/cli.ts --target=node --outfile=./dist/cli.mjs",
