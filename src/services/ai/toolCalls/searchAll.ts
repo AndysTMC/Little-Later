@@ -109,6 +109,7 @@ const toolCall = async (
 					save.title,
 					save.url,
 					...(save.tags ?? []),
+					save.snapshot?.slice(0, 2_000) ?? "",
 				].join(" "),
 			safeLimit,
 		),

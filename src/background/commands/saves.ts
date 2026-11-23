@@ -19,6 +19,15 @@ import {
 } from "./registry";
 
 const MAX_TITLE_LENGTH = 1_000;
+const MAX_SNAPSHOT_LENGTH = 15_000;
+
+const optionalSnapshot = (value: unknown): string | undefined => {
+	if (value === undefined || value === null) return undefined;
+	const text = asString(value, "snapshot")
+		.trim()
+		.slice(0, MAX_SNAPSHOT_LENGTH);
+	return text !== "" ? text : undefined;
+};
 
 export const asWebUrl = (value: unknown): string => {
 	const url = asString(value, "url");
@@ -100,6 +109,7 @@ export const saveCapture = defineCommand({
 			url,
 			title: asTitle(record.title),
 			saved: optionalBoolean(record.saved, "saved"),
+			snapshot: optionalSnapshot(record.snapshot),
 		};
 	},
 	run: async (ctx, input) => {
@@ -117,9 +127,11 @@ export const saveCapture = defineCommand({
 		if (existing) {
 			const content = await openSave(keys, existing);
 			const existingTags = content.tags ?? [];
+			const snapshot = input.snapshot ?? content.snapshot;
 			const preservedMeta = {
 				...(content.archived ? { archived: true } : {}),
 				...(existingTags.length > 0 ? { tags: existingTags } : {}),
+				...(snapshot ? { snapshot } : {}),
 			};
 			const sealed = await sealBody<SaveContent>(
 				keys,
@@ -167,6 +179,7 @@ export const saveCapture = defineCommand({
 			title,
 			customName: title,
 			...(untitled ? { provisional: true as const } : {}),
+			...(input.snapshot ? { snapshot: input.snapshot } : {}),
 		});
 		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {
 			await removeRecords(ctx.db, keys.profileId, evict);
@@ -200,6 +213,7 @@ export const saveUpdate = defineCommand({
 			browsed: optionalBoolean(record.browsed, "browsed"),
 			archived: optionalBoolean(record.archived, "archived"),
 			tags: optionalTags(record.tags),
+			snapshot: optionalSnapshot(record.snapshot),
 			customName:
 				record.customName === undefined
 					? undefined
@@ -225,6 +239,7 @@ export const saveUpdate = defineCommand({
 		const content = await openSave(keys, row);
 		const archived = input.archived ?? Boolean(content.archived);
 		const tags = input.tags ?? content.tags ?? [];
+		const snapshot = input.snapshot ?? content.snapshot;
 		const sealed = await sealBody<SaveContent>(keys, "saves", row.id, {
 			url: content.url,
 			title: content.title,
@@ -239,6 +254,7 @@ export const saveUpdate = defineCommand({
 				: { customName: input.customName }),
 			...(archived ? { archived: true } : {}),
 			...(tags.length > 0 ? { tags } : {}),
+			...(snapshot ? { snapshot } : {}),
 		});
 		const now = ctx.now();
 		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {

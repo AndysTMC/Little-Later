@@ -7,7 +7,10 @@ import { existsSync, rmSync, symlinkSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	callBridgeTool,
 	isJsonRpcNotification,
+	parseCliArgs,
+	parseReminderTime,
 	startStdioServer,
 } from "../../packages/mcp-bridge/src/cli";
 import { getBridgeEndpoint } from "../../packages/mcp-bridge/src/nativeHost";
@@ -194,5 +197,91 @@ describe("MCP bridge stdio CLI", () => {
 			stderr = (error as { stderr?: string }).stderr?.toString() ?? "";
 		}
 		expect(stderr).toContain("Usage:");
+	});
+
+	it("parses relative and ISO reminder times cleanly", () => {
+		const now = Date.UTC(2026, 10, 23, 10, 0, 0);
+		expect(parseReminderTime("30m", now)).toBe(now + 30 * 60_000);
+		expect(parseReminderTime("2h", now)).toBe(now + 2 * 3_600_000);
+		expect(parseReminderTime("1h30m", now)).toBe(now + 90 * 60_000);
+		expect(parseReminderTime("+1d", now)).toBe(now + 24 * 3_600_000);
+		expect(parseReminderTime("in 1w", now)).toBe(now + 7 * 24 * 3_600_000);
+		expect(parseReminderTime("2026-11-24T12:00:00Z", now)).toBe(
+			Date.UTC(2026, 10, 24, 12, 0, 0),
+		);
+		// Past timestamps and garbage are rejected.
+		expect(parseReminderTime("2026-11-22T00:00:00Z", now)).toBeNull();
+		expect(parseReminderTime("not-a-time", now)).toBeNull();
+	});
+
+	it("parses CLI flags, repeated tags, and boolean options", () => {
+		const parsed = parseCliArgs([
+			"Review",
+			"PR",
+			"--tag",
+			"dev",
+			"--tag=urgent",
+			"--priority",
+			"high",
+			"--json",
+		]);
+		expect(parsed.positional).toEqual(["Review", "PR"]);
+		expect(parsed.flags.get("tag")).toEqual(["dev", "urgent"]);
+		expect(parsed.flags.get("priority")).toEqual(["high"]);
+		expect(parsed.booleans.has("json")).toBe(true);
+	});
+
+	it("invokes MCP tools directly via callBridgeTool over the local socket", async () => {
+		const endpoint = join(tmpdir(), `ll-mcp-call-${randomUUID()}.sock`);
+		const server = createServer((socket) => {
+			let buf = "";
+			socket.on("data", (chunk) => {
+				buf += chunk.toString("utf8");
+				const nl = buf.indexOf("\n");
+				if (nl !== -1) {
+					const req = JSON.parse(buf.slice(0, nl)) as {
+						id: number;
+						params: {
+							name: string;
+							arguments: Record<string, unknown>;
+						};
+					};
+					socket.write(
+						`${JSON.stringify({
+							jsonrpc: "2.0",
+							id: req.id,
+							result: {
+								content: [
+									{
+										type: "text",
+										text: JSON.stringify({
+											tool: req.params.name,
+											args: req.params.arguments,
+										}),
+									},
+								],
+							},
+						})}\n`,
+					);
+				}
+			});
+		});
+		await new Promise<void>((resolveListen) =>
+			server.listen(endpoint, resolveListen),
+		);
+		cleanups.push(() => {
+			server.close();
+			rmSync(endpoint, { force: true });
+		});
+
+		const result = await callBridgeTool(
+			"search_all",
+			{ query: "architecture", tag: "docs" },
+			endpoint,
+		);
+		expect(result).toEqual({
+			tool: "search_all",
+			args: { query: "architecture", tag: "docs" },
+		});
 	});
 });

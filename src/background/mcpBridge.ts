@@ -527,6 +527,7 @@ export const handleExternalMcpRequest = async ({
 									s.title,
 									s.url,
 									...(s.tags ?? []),
+									s.snapshot?.slice(0, 2_000) ?? "",
 								].join(" "),
 							),
 							tasks: pick(tasks, (t) =>

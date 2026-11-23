@@ -59,6 +59,8 @@ export const searchSaves = (saves: ReadonlyArray<Save>, word: string) =>
 		(save) =>
 			save.saved &&
 			(includes(save.customName + save.url + save.title, word) ||
+				(save.snapshot !== undefined &&
+					includes(save.snapshot, word)) ||
 				recordMatchesTagWord(save.tags, word)),
 	);
 

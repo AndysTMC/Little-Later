@@ -5,6 +5,11 @@ import { capitalize } from "little-shared/utils/misc";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { exportBackup, exportReadable } from "../../../services/backup";
+import {
+	exportBookmarksHtml,
+	exportCalendarIcs,
+	exportObsidianMarkdown,
+} from "../../../services/portable";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
 import { LUISettingSelect } from "../../components/LUISettingRow/Component";
@@ -15,15 +20,23 @@ import { createToast } from "../../../services/toasts";
 import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
 import { send } from "../../../utils/send";
 
+type ExportFormat = LEXPORT_TYPE | "markdown" | "calendar" | "bookmarks";
+
 const Page = () => {
 	const { theme } = useTheme();
 	const pageMotion = usePageMotion();
 	const userSettings = useCurrentUserSettings();
-	const exportOptions = Object.values(LEXPORT_TYPE).map((value) => ({
-		value,
-		label: capitalize(value),
-	}));
-	const [exportType, setExportType] = useState<LEXPORT_TYPE>(
+	const exportOptions: ReadonlyArray<{ value: ExportFormat; label: string }> =
+		[
+			...Object.values(LEXPORT_TYPE).map((value) => ({
+				value: value as ExportFormat,
+				label: capitalize(value),
+			})),
+			{ value: "markdown", label: "Markdown (Obsidian)" },
+			{ value: "calendar", label: "Calendar (.ics)" },
+			{ value: "bookmarks", label: "Bookmarks (.html)" },
+		];
+	const [exportType, setExportType] = useState<ExportFormat>(
 		LEXPORT_TYPE.IMPORTABLE,
 	);
 	const [backupPassword, setBackupPassword] = useState("");
@@ -40,8 +53,14 @@ const Page = () => {
 						},
 					}).catch(() => undefined);
 				}
-			} else {
+			} else if (exportType === LEXPORT_TYPE.READABLE) {
 				await exportReadable();
+			} else if (exportType === "markdown") {
+				await exportObsidianMarkdown();
+			} else if (exportType === "calendar") {
+				await exportCalendarIcs();
+			} else {
+				await exportBookmarksHtml();
 			}
 			await createToast("Export started.", LTOAST_TYPE.SUCCESS);
 		} catch (error) {
@@ -94,6 +113,24 @@ const Page = () => {
 								}
 							/>
 						</>
+					) : exportType === "markdown" ? (
+						<LUINote className="w-full">
+							Exports unlocked notes and saves with YAML
+							frontmatter and #tags for Obsidian or Markdown
+							tools. Locked notes and API keys are excluded.
+						</LUINote>
+					) : exportType === "calendar" ? (
+						<LUINote className="w-full">
+							Exports due/recurring tasks and reminders as an
+							iCalendar (.ics) file for Google Calendar, Apple
+							Calendar, or Thunderbird.
+						</LUINote>
+					) : exportType === "bookmarks" ? (
+						<LUINote className="w-full">
+							Exports saved pages in standard Netscape Bookmark
+							HTML format with tags for browsers, Raindrop, or
+							Pocket.
+						</LUINote>
 					) : (
 						<LUINote className="w-full">
 							Readable exports are plaintext and omit your AI API

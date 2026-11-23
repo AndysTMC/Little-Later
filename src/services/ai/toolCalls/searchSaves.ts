@@ -12,7 +12,13 @@ import {
 import type { AIOwner } from "../owner";
 
 const saveSearchText = (save: Save): string =>
-	[save.customName, save.title, save.url, ...(save.tags ?? [])].join(" ");
+	[
+		save.customName,
+		save.title,
+		save.url,
+		...(save.tags ?? []),
+		save.snapshot?.slice(0, 2_000) ?? "",
+	].join(" ");
 
 const toolCall = async (
 	owner: AIOwner,
