@@ -23,6 +23,8 @@ import { LUIEmptyState } from "../LUIEmptyState/Component";
 import { LUIDeleteButton } from "../LUIDeleteButton/Component";
 import { LUITagChips } from "../LUITagChips/Component";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
+import { usePagination } from "../../hooks/usePagination";
+import { LUIPagination } from "../LUIPagination/Component";
 
 const IMAGE_SLOT = "images.upload";
 
@@ -76,6 +78,7 @@ const ImageCard = ({
 						<img
 							src={url}
 							alt={image.title}
+							loading="lazy"
 							className="h-full w-full object-cover"
 							draggable={false}
 						/>
@@ -182,6 +185,14 @@ const Component = ({
 	const sortedImages = useMemo(
 		() => [...images].sort((a, b) => b.updatedAt - a.updatedAt),
 		[images],
+	);
+
+	const { startIndex, endIndex, batchCount, currentBatch, onBatchChange } =
+		usePagination(sortedImages.length, 20);
+
+	const paginationImages = useMemo(
+		() => sortedImages.slice(startIndex, endIndex),
+		[sortedImages, startIndex, endIndex],
 	);
 
 	// Ingest images returned from the shared /pick-file upload screen.
@@ -293,15 +304,24 @@ const Component = ({
 				className,
 			)}
 		>
-			<div className="mx-auto flex h-10 w-full max-w-3xl shrink-0 items-center justify-between px-4">
-				<span
-					className={`text-xs font-medium ${
-						isDark ? "text-neutral-400" : "text-neutral-500"
-					}`}
-				>
-					{sortedImages.length} image
-					{sortedImages.length === 1 ? "" : "s"}
-				</span>
+			<div className="mx-auto flex w-full max-w-3xl shrink-0 flex-wrap items-center justify-between gap-2 px-4 py-1.5">
+				<div className="flex items-center gap-x-2.5">
+					<span
+						className={`text-xs font-medium ${
+							isDark ? "text-neutral-400" : "text-neutral-500"
+						}`}
+					>
+						{sortedImages.length} image
+						{sortedImages.length === 1 ? "" : "s"}
+					</span>
+					{batchCount > 1 ? (
+						<LUIPagination
+							currentBatch={currentBatch}
+							batchCount={batchCount}
+							onBatchChange={onBatchChange}
+						/>
+					) : null}
+				</div>
 				<button
 					type="button"
 					aria-label="Add image"
@@ -323,12 +343,12 @@ const Component = ({
 				</button>
 			</div>
 
-			{sortedImages.length > 0 ? (
+			{paginationImages.length > 0 ? (
 				<div
-					className={`w-full grow overflow-y-auto px-4 pb-3 ${theme}-scrollbar`}
+					className={`w-full grow overflow-y-auto px-4 pb-24 ${theme}-scrollbar`}
 				>
 					<div className="mx-auto grid w-full max-w-3xl grid-cols-2 gap-2.5 min-[600px]:grid-cols-3">
-						{sortedImages.map((image) => (
+						{paginationImages.map((image) => (
 							<ImageCard
 								key={image.id}
 								image={image}

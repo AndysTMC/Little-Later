@@ -1,4 +1,5 @@
 import type { Note } from "../../../storage/repositories";
+import { normalizeTag } from "../../../utils/tags";
 import { IDJSONObjectInstruction } from "../config";
 import type { LittleAI } from "../main";
 import { searchNotes } from "../../../popup/records";
@@ -22,10 +23,14 @@ const toolCall = async (
 ): Promise<Array<Note>> => {
 	let notes = await readNotes(await owner.keys());
 	if (tag && tag.trim() !== "") {
-		const normalizedTag = tag.trim().toLowerCase().replace(/^#/, "");
-		notes = notes.filter((note) =>
-			(note.tags ?? []).some((t) => t.toLowerCase() === normalizedTag),
-		);
+		const normalizedTag = normalizeTag(tag);
+		if (normalizedTag) {
+			notes = notes.filter((note) =>
+				(note.tags ?? []).some(
+					(t) => t.toLowerCase() === normalizedTag,
+				),
+			);
+		}
 	}
 	if (query.trim() === "" || notes.length === 0) {
 		return notes;
@@ -47,8 +52,10 @@ const toolCall = async (
 			snippet: note.content.slice(0, 200),
 		}),
 	);
-	const response = await ai.getStructuredResponse(
-		`
+	let semanticNoteIds: Array<string> = [];
+	try {
+		const response = await ai.getStructuredResponse(
+			`
             Here is a list of notes in JSON format:
             ${JSON.stringify(semanticCandidates)}
 
@@ -56,9 +63,12 @@ const toolCall = async (
 
             Find all relevant ids of notes where the content, title, or tags match or relate to the query.
         `,
-		IDJSONObjectInstruction,
-	);
-	const semanticNoteIds = extractSemanticIds(response);
+			IDJSONObjectInstruction,
+		);
+		semanticNoteIds = extractSemanticIds(response);
+	} catch {
+		// Fall back to local BM25 + lexical hits if semantic re-ranking fails.
+	}
 	const fusedIds = rrfFuse([
 		bm25Hits.map((note) => note.id),
 		lexicalHits.map((note) => note.id),

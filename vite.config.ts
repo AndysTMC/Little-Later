@@ -55,5 +55,44 @@ export default defineConfig(({ command }) => ({
 		exclude: [...configDefaults.exclude, "artifacts/**"],
 		environment: "jsdom",
 		setupFiles: ["./tests/setup.ts"],
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: "dom",
+					environment: "jsdom",
+					include: [
+						"tests/popup/**/*.test.{ts,tsx}",
+						"tests/panel/**/*.test.{ts,tsx}",
+						"tests/notes/**/*.test.{ts,tsx}",
+						"tests/services/**/*.test.{ts,tsx}",
+						"tests/regressions.test.ts",
+						"tests/storage/session.test.ts",
+						"tests/utils/saveFile.test.ts",
+						"tests/utils/safe-image-blob.test.ts",
+					],
+				},
+			},
+			{
+				extends: true,
+				test: {
+					name: "node",
+					environment: "node",
+					include: ["tests/**/*.test.{ts,tsx}"],
+					exclude: [
+						...configDefaults.exclude,
+						"artifacts/**",
+						"tests/popup/**/*.test.{ts,tsx}",
+						"tests/panel/**/*.test.{ts,tsx}",
+						"tests/notes/**/*.test.{ts,tsx}",
+						"tests/services/**/*.test.{ts,tsx}",
+						"tests/regressions.test.ts",
+						"tests/storage/session.test.ts",
+						"tests/utils/saveFile.test.ts",
+						"tests/utils/safe-image-blob.test.ts",
+					],
+				},
+			},
+		],
 	},
 }));

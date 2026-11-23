@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { CheckIcon, CopyIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { LINITIAL_MISC_SETTINGS } from "little-shared/constants";
-import { LTHEME } from "little-shared/enums";
+import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import type { LExternalMcpMode, LUserSettings } from "little-shared/types";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
@@ -14,8 +14,12 @@ import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
 import { useLoading } from "../../hooks/useLoading";
 import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
+import { usePickedFile } from "../../hooks/usePickedFile";
 import { useTheme } from "../../hooks/useTheme";
+import { pickRoute } from "../../filePick";
 import { attempt } from "../../attempt";
+import { importBookmarksHtml } from "../../../services/portable";
+import { createToast } from "../../../services/toasts";
 import { send } from "../../../utils/send";
 import {
 	MAX_IGNORED_DOMAINS,
@@ -48,6 +52,9 @@ const BACKUP_REMINDER_OPTIONS: ReadonlyArray<{
 	{ value: 30, label: "Every 30 days" },
 ];
 
+const BOOKMARKS_PICK_SLOT = "bookmarks-html";
+const MAX_BOOKMARKS_HTML_BYTES = 5 * 1024 * 1024;
+
 const Page = () => {
 	const { theme } = useTheme();
 	const isDark = theme === LTHEME.DARK;
@@ -55,10 +62,56 @@ const Page = () => {
 	const go = useMoveNavigate();
 	const userSettings = useCurrentUserSettings();
 	const loading = useLoading([userSettings]);
+	const pickedBookmarks = usePickedFile(BOOKMARKS_PICK_SLOT);
+	const importingRef = useRef(false);
+	const [importingBookmarks, setImportingBookmarks] = useState(false);
 	const [ignoreInput, setIgnoreInput] = useState("");
 	const [copiedKey, setCopiedKey] = useState<"install" | "config" | null>(
 		null,
 	);
+	const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (copyTimerRef.current !== null) {
+				clearTimeout(copyTimerRef.current);
+			}
+		};
+	}, []);
+
+	useEffect(() => {
+		if (pickedBookmarks.files.length === 0 || importingRef.current) return;
+		importingRef.current = true;
+		setImportingBookmarks(true);
+		const file = pickedBookmarks.files[0]!;
+		void (async () => {
+			try {
+				const html = await file.blob.text();
+				const { imported, truncated } = await importBookmarksHtml(html);
+				const baseMsg =
+					imported === 1
+						? "Imported 1 bookmark."
+						: `Imported ${imported} bookmarks.`;
+				await createToast(
+					truncated > 0
+						? `${baseMsg} (${truncated} skipped over the 500-item limit.)`
+						: baseMsg,
+					LTOAST_TYPE.SUCCESS,
+				);
+			} catch (error) {
+				await createToast(
+					error instanceof Error
+						? error.message
+						: "Couldn't import bookmarks.",
+					LTOAST_TYPE.ERROR,
+				);
+			} finally {
+				await pickedBookmarks.remove(file.id);
+				importingRef.current = false;
+				setImportingBookmarks(false);
+			}
+		})();
+	}, [pickedBookmarks]);
 
 	const extensionId =
 		typeof chrome !== "undefined" && chrome.runtime?.id
@@ -83,13 +136,30 @@ const Page = () => {
 	);
 
 	const copyText = (key: "install" | "config", text: string) => {
-		if (!navigator.clipboard?.writeText) return;
-		void navigator.clipboard.writeText(text).then(() => {
-			setCopiedKey(key);
-			setTimeout(() => {
-				setCopiedKey((current) => (current === key ? null : current));
-			}, 1500);
-		});
+		if (!navigator.clipboard?.writeText) {
+			void createToast("Clipboard is unavailable.", LTOAST_TYPE.ERROR);
+			return;
+		}
+		void navigator.clipboard.writeText(text).then(
+			() => {
+				setCopiedKey(key);
+				if (copyTimerRef.current !== null) {
+					clearTimeout(copyTimerRef.current);
+				}
+				copyTimerRef.current = setTimeout(() => {
+					copyTimerRef.current = null;
+					setCopiedKey((current) =>
+						current === key ? null : current,
+					);
+				}, 1500);
+			},
+			() => {
+				void createToast(
+					"Couldn't copy to clipboard.",
+					LTOAST_TYPE.ERROR,
+				);
+			},
+		);
 	};
 
 	const misc: LUserSettings["misc"] =
@@ -179,11 +249,52 @@ const Page = () => {
 								<span
 									className={`text-sm font-medium ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
 								>
-									Encrypted backup
+									Encrypted backup & exports
 								</span>
 								<LUIPillButton
 									label="Export"
-									onClick={() => go("/export", "forward")}
+									onClick={() =>
+										go("/export", "forward", {
+											state: {
+												referrer: "/settings/privacy",
+											},
+										})
+									}
+								/>
+							</div>
+							<div className="flex items-center justify-between gap-x-3 py-1">
+								<span
+									className={`text-sm font-medium ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
+								>
+									Bookmarks HTML
+								</span>
+								<LUIPillButton
+									label={
+										importingBookmarks
+											? "Importing…"
+											: "Import"
+									}
+									disabled={importingBookmarks}
+									onClick={() =>
+										go(
+											pickRoute(
+												{
+													title: "Import bookmarks",
+													accepts:
+														"HTML bookmark export (.html), up to 5 MB",
+													types: null,
+													maxBytes:
+														MAX_BOOKMARKS_HTML_BYTES,
+													maxFiles: 1,
+													pasteHint:
+														"Drop or paste a bookmarks.html file",
+												},
+												BOOKMARKS_PICK_SLOT,
+												"/settings/privacy",
+											),
+											"forward",
+										)
+									}
 								/>
 							</div>
 						</div>
@@ -365,16 +476,26 @@ const Page = () => {
 										</span>
 										<LUIPillButton
 											label="Reconnect"
-											onClick={() =>
-												updateMisc(
-													{
-														externalMcpMode:
-															misc.externalMcpMode ??
-															"read",
-													},
-													"Couldn't reconnect external MCP.",
-												)
-											}
+											onClick={() => {
+												if (!userSettings) return;
+												void attempt(async () => {
+													await send(
+														"settings.update",
+														{
+															misc: {
+																...userSettings.misc,
+																externalMcpMode:
+																	misc.externalMcpMode ??
+																	"read",
+															},
+														},
+													);
+													await createToast(
+														"Reconnecting external MCP…",
+														LTOAST_TYPE.SUCCESS,
+													);
+												}, "Couldn't reconnect external MCP.");
+											}}
 										/>
 									</div>
 									<div className="flex flex-col gap-y-1">

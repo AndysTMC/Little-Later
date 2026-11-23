@@ -132,14 +132,26 @@ const History = ({
 		chat.title.toLowerCase().includes(query.trim().toLowerCase()),
 	);
 	return (
-		<div className="absolute inset-0 z-30 flex">
+		<div className="absolute inset-0 z-30 flex justify-end">
+			{/* The conversation behind, dimmed; a tap closes the list. */}
+			<motion.button
+				type="button"
+				tabIndex={-1}
+				aria-label="Close chats"
+				initial={{ opacity: 0 }}
+				animate={{ opacity: 1 }}
+				exit={{ opacity: 0 }}
+				transition={{ duration: 0.16 }}
+				onClick={onClose}
+				className="grow cursor-default bg-black/30"
+			/>
 			<motion.nav
 				aria-label="Chats"
-				initial={{ x: "-100%" }}
+				initial={{ x: "100%" }}
 				animate={{ x: 0 }}
-				exit={{ x: "-100%" }}
+				exit={{ x: "100%" }}
 				transition={{ duration: 0.2, ease: "easeOut" }}
-				className={`flex h-full w-[85%] max-w-80 flex-col border-r ${dark ? "border-neutral-800 bg-black text-white" : "border-neutral-200 bg-white text-black"}`}
+				className={`flex h-full w-[85%] max-w-80 flex-col border-l ${dark ? "border-neutral-800 bg-black text-white" : "border-neutral-200 bg-white text-black"}`}
 			>
 				<div className="flex h-14 shrink-0 items-center justify-between pr-2 pl-4">
 					<h2 className="text-lg font-semibold">Chats</h2>
@@ -190,17 +202,6 @@ const History = ({
 					</ul>
 				)}
 			</motion.nav>
-			{/* The conversation behind, dimmed; a tap closes the list. */}
-			<motion.button
-				type="button"
-				aria-label="Close chats"
-				tabIndex={-1}
-				initial={{ opacity: 0 }}
-				animate={{ opacity: 1 }}
-				exit={{ opacity: 0 }}
-				className="grow cursor-default bg-black/30"
-				onClick={onClose}
-			/>
 		</div>
 	);
 };

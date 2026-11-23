@@ -1,6 +1,7 @@
 import { LTASK_PRIORITY } from "little-shared/enums";
 import { LDate } from "little-shared/types";
 import type { Task } from "../../../storage/repositories";
+import { normalizeTag } from "../../../utils/tags";
 import type { TaskSchedule } from "../../../storage/schema";
 import { IDJSONObjectInstruction } from "../config";
 import type { LittleAI } from "../main";
@@ -46,10 +47,14 @@ const toolCall = async (
 	const tasks = await readTasks(await owner.keys());
 	let resultTasks = tasks.slice();
 	if (tag && tag.trim() !== "") {
-		const normalizedTag = tag.trim().toLowerCase().replace(/^#/, "");
-		resultTasks = resultTasks.filter((task) =>
-			(task.tags ?? []).some((t) => t.toLowerCase() === normalizedTag),
-		);
+		const normalizedTag = normalizeTag(tag);
+		if (normalizedTag) {
+			resultTasks = resultTasks.filter((task) =>
+				(task.tags ?? []).some(
+					(t) => t.toLowerCase() === normalizedTag,
+				),
+			);
+		}
 	}
 	if (priority) {
 		resultTasks = resultTasks.filter(
@@ -84,11 +89,14 @@ const toolCall = async (
 				),
 		);
 	}
-	if (query && resultTasks.length > 0) {
-		const lexicalHits = searchTasks(resultTasks, query);
-		const bm25Hits = hybridRank(resultTasks, query, taskSearchText).map(
-			(entry) => entry.item,
-		);
+	const trimmedQuery = query?.trim() ?? "";
+	if (trimmedQuery && resultTasks.length > 0) {
+		const lexicalHits = searchTasks(resultTasks, trimmedQuery);
+		const bm25Hits = hybridRank(
+			resultTasks,
+			trimmedQuery,
+			taskSearchText,
+		).map((entry) => entry.item);
 		const mergedLexical = pickSemanticCandidates(
 			bm25Hits,
 			lexicalHits,
@@ -104,18 +112,23 @@ const toolCall = async (
 			priority: task.priority,
 			tags: task.tags ?? [],
 		}));
-		const response = await ai.getStructuredResponse(
-			`
+		let semanticTaskIds: Array<string> = [];
+		try {
+			const response = await ai.getStructuredResponse(
+				`
                 Here is a list of tasks in JSON format:
                 ${JSON.stringify(tasksToSend)}
 
-                The user's query is: "${quoteForPrompt(query)}".
+                The user's query is: "${quoteForPrompt(trimmedQuery)}".
 
                 Find all relevant ids of tasks where the information, label, or tags match or relate to the query.
             `,
-			IDJSONObjectInstruction,
-		);
-		const semanticTaskIds = extractSemanticIds(response);
+				IDJSONObjectInstruction,
+			);
+			semanticTaskIds = extractSemanticIds(response);
+		} catch {
+			// Fall back to local BM25 + lexical hits if semantic re-ranking fails.
+		}
 		const fusedIds = rrfFuse([
 			bm25Hits.map((task) => task.id),
 			lexicalHits.map((task) => task.id),

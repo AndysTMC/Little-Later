@@ -26,7 +26,7 @@ const Component = ({ className }: { className?: string }) => {
 	);
 
 	const { startIndex, endIndex, batchCount, currentBatch, onBatchChange } =
-		usePagination(history.length, 5);
+		usePagination(history.length, 20);
 
 	const paginationHistory = useMemo(
 		() => history.slice(startIndex, endIndex) || [],
@@ -63,7 +63,17 @@ const Component = ({ className }: { className?: string }) => {
 								{/* Room for the page controls even before there is a
 							    second page: appearing later, they pushed the
 							    list down under the reader. */}
-								<div className="mx-auto flex h-max min-h-9 w-full max-w-3xl shrink-0 px-4 py-1">
+								<div className="mx-auto flex h-max min-h-9 w-full max-w-3xl shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 px-4 py-1">
+									<span
+										className={`text-xs font-medium ${
+											theme === LTHEME.DARK
+												? "text-neutral-400"
+												: "text-neutral-500"
+										}`}
+									>
+										{history.length} visit
+										{history.length === 1 ? "" : "s"}
+									</span>
 									<LUIPagination
 										currentBatch={currentBatch}
 										batchCount={batchCount}
@@ -71,7 +81,7 @@ const Component = ({ className }: { className?: string }) => {
 									/>
 								</div>
 								<div
-									className={`w-full grow overflow-y-auto ${theme}-scrollbar px-4`}
+									className={`w-full grow overflow-y-auto ${theme}-scrollbar px-4 pb-24`}
 								>
 									<div className="mx-auto flex w-full max-w-3xl flex-col gap-y-1">
 										{paginationHistory.map((visualBM) => (

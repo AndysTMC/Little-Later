@@ -1,4 +1,5 @@
 import type { Save } from "../../../storage/repositories";
+import { normalizeTag } from "../../../utils/tags";
 import { IDJSONObjectInstruction } from "../config";
 import type { LittleAI } from "../main";
 import { searchSaves } from "../../../popup/records";
@@ -12,7 +13,13 @@ import {
 import type { AIOwner } from "../owner";
 
 const saveSearchText = (save: Save): string =>
-	[save.customName, save.title, save.url, ...(save.tags ?? [])].join(" ");
+	[
+		save.customName,
+		save.title,
+		save.url,
+		...(save.tags ?? []),
+		save.snapshot?.slice(0, 2_000) ?? "",
+	].join(" ");
 
 const toolCall = async (
 	owner: AIOwner,
@@ -34,15 +41,21 @@ const toolCall = async (
 	);
 	let resultSaves = saves.slice();
 	if (tag && tag.trim() !== "") {
-		const normalizedTag = tag.trim().toLowerCase().replace(/^#/, "");
-		resultSaves = resultSaves.filter((save) =>
-			(save.tags ?? []).some((t) => t.toLowerCase() === normalizedTag),
-		);
+		const normalizedTag = normalizeTag(tag);
+		if (normalizedTag) {
+			resultSaves = resultSaves.filter((save) =>
+				(save.tags ?? []).some(
+					(t) => t.toLowerCase() === normalizedTag,
+				),
+			);
+		}
 	}
 	if (domain) {
 		const normalizedDomain = domain
 			.trim()
 			.toLowerCase()
+			.replace(/^https?:\/\//, "")
+			.replace(/\/.*$/, "")
 			.replace(/^\.+/, "");
 		resultSaves = resultSaves.filter((save) => {
 			try {
@@ -59,11 +72,14 @@ const toolCall = async (
 	if (url) {
 		resultSaves = resultSaves.filter((save) => save.url === url);
 	}
-	if (query && resultSaves.length > 0) {
-		const lexicalHits = searchSaves(resultSaves, query);
-		const bm25Hits = hybridRank(resultSaves, query, saveSearchText).map(
-			(entry) => entry.item,
-		);
+	const trimmedQuery = query?.trim() ?? "";
+	if (trimmedQuery && resultSaves.length > 0) {
+		const lexicalHits = searchSaves(resultSaves, trimmedQuery);
+		const bm25Hits = hybridRank(
+			resultSaves,
+			trimmedQuery,
+			saveSearchText,
+		).map((entry) => entry.item);
 		const mergedLexical = pickSemanticCandidates(
 			bm25Hits,
 			lexicalHits,
@@ -78,19 +94,25 @@ const toolCall = async (
 			title: save.title,
 			url: save.url,
 			tags: save.tags ?? [],
+			...(save.snapshot ? { snippet: save.snapshot.slice(0, 200) } : {}),
 		}));
-		const response = await ai.getStructuredResponse(
-			`
+		let semanticSaveIds: Array<string> = [];
+		try {
+			const response = await ai.getStructuredResponse(
+				`
                 Here is a list of saves in JSON format:
                 ${JSON.stringify(savesToSend)}
 
-                The user's query is: "${quoteForPrompt(query)}".
+                The user's query is: "${quoteForPrompt(trimmedQuery)}".
 
-                Find all relevant ids of saves where the name, title, URL, or tags match or relate to the query.
+                Find all relevant ids of saves where the name, title, URL, snippet, or tags match or relate to the query.
             `,
-			IDJSONObjectInstruction,
-		);
-		const semanticSaveIds = extractSemanticIds(response);
+				IDJSONObjectInstruction,
+			);
+			semanticSaveIds = extractSemanticIds(response);
+		} catch {
+			// Fall back to local BM25 + lexical hits if semantic re-ranking fails.
+		}
 		const fusedIds = rrfFuse([
 			bm25Hits.map((save) => save.id),
 			lexicalHits.map((save) => save.id),

@@ -39,6 +39,21 @@ Connect local MCP clients (Codex, Claude Desktop, Cursor, VS Code, or CLI agents
     }
     ```
 
+## Desktop CLI quick-capture & search
+
+Once the native host is installed and Little Later is unlocked, you can query or capture directly from your terminal, Raycast, Alfred, Rofi, or shell scripts (write commands require **Read & write** mode):
+
+```sh
+npx -y little-later-mcp search "design docs" --tag work
+npx -y little-later-mcp list tasks
+npx -y little-later-mcp add-note "Draft outline for Q4" --title "Q4" --tag work
+npx -y little-later-mcp add-task "Review PR #72" --priority high --tag dev
+npx -y little-later-mcp add-reminder "Standup" --at 30m
+npx -y little-later-mcp done <task-id>
+```
+
+Pass `--json` to `search`, `list`, or any `add-*` command for machine-readable output.
+
 ## Standalone binary (no Node.js required)
 
 Each GitHub Release also attaches standalone `little-later-mcp` binaries for Linux, macOS, and Windows:

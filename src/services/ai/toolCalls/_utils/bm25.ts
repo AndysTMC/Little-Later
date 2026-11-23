@@ -107,17 +107,31 @@ export const hybridRank = <T>(
 		bm25Scores.set(entry.item, entry.score);
 	}
 
+	const queryTokens = tokenize(trimmed).filter((token) => token.length >= 4);
 	const ranked: Array<RankedItem<T>> = [];
 	for (const item of items) {
 		const text = getText(item);
 		const lowerText = text.toLowerCase();
 		const bm25 = bm25Scores.get(item) ?? 0;
 		const exactBonus = lowerText.includes(lowerQuery) ? 1.25 : 0;
-		const tri =
-			lowerQuery.length >= 4
-				? trigramSimilarity(lowerQuery, lowerText.slice(0, 400))
-				: 0;
-		const fuzzyBonus = tri >= 0.16 ? tri * 1.5 : 0;
+		let fuzzyBonus = 0;
+		if (queryTokens.length > 0 && exactBonus === 0) {
+			const docTokens = tokenize(text.slice(0, 1_200)).slice(0, 160);
+			let bestAvg = 0;
+			for (const qToken of queryTokens) {
+				let best = 0;
+				for (const dToken of docTokens) {
+					if (Math.abs(dToken.length - qToken.length) > 4) continue;
+					const sim = trigramSimilarity(qToken, dToken);
+					if (sim > best) best = sim;
+				}
+				bestAvg += best;
+			}
+			const meanSim = bestAvg / queryTokens.length;
+			if (meanSim >= 0.35) {
+				fuzzyBonus = meanSim * 1.2;
+			}
+		}
 		const score = bm25 + exactBonus + fuzzyBonus;
 		if (score > 0) {
 			ranked.push({ item, score });

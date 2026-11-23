@@ -1,5 +1,5 @@
-import { createProfile, expect, sendCommand, test } from "./fixtures";
-import { button, seedSave, tab } from "./support";
+import { createProfile, expect, test } from "./fixtures";
+import { button, command, seedSave, tab } from "./support";
 
 const TINY_PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgAAIAAAUAAQ0KLbQAAAAASUVORK5CYII=";
@@ -68,22 +68,27 @@ test("saves Active/Archived filter, cross-record tags, and Images tab work end-t
 }) => {
 	const page = await createProfile(openPopup);
 
-	const saveId = await seedSave(page, "Design System");
-	await sendCommand(page, "save.update", {
+	const { id: saveId } = await seedSave(page, "Design System");
+	await command(page, "save.update", {
 		id: saveId,
 		tags: ["design"],
 	});
-	await sendCommand(page, "image.create", {
+	await command(page, "image.create", {
 		bytesBase64: TINY_PNG_BASE64,
 		mimeType: "image/png",
 		title: "Brand mark",
 		tags: ["design"],
 	});
 
-	// Saves tab shows active save and tag filter chip.
+	// Saves tab shows active save and clickable tag chip that searches across records.
 	await tab(page, "Saves").click();
 	await expect(page.getByText("Design System")).toBeVisible();
-	await expect(button(page, "#design")).toBeVisible();
+	await expect(button(page, "Filter by tag design")).toBeVisible();
+	await button(page, "Filter by tag design").click();
+	await expect(page.getByText("Design System")).toBeVisible();
+	await expect(page.getByText("Brand mark")).toBeVisible();
+	await button(page, "Clear search").click();
+	await expect(tab(page, "Saves")).toBeVisible();
 
 	// Archive the save -> disappears from Active, appears under Archived.
 	await button(page, /Design System/).click();

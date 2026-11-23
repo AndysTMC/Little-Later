@@ -1,8 +1,17 @@
-import { LTHEME } from "little-shared/enums";
+import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
-import { LockIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import {
+	CaretDownIcon,
+	CaretUpIcon,
+	CheckIcon,
+	CopyIcon,
+	LockIcon,
+	PlusIcon,
+	XIcon,
+} from "@phosphor-icons/react";
 import { twMerge } from "tailwind-merge";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createToast } from "../../../services/toasts";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIFeaturePageUD } from "../LUIFeaturePageUD/Component";
 import { LUITextInputT1 } from "../LUITextInput/Component";
@@ -51,6 +60,17 @@ const Component = ({
 	const [tags, setTags] = useState<Array<string>>(() => [
 		...(save.tags ?? []),
 	]);
+	const [snapshotOpen, setSnapshotOpen] = useState(false);
+	const [copiedSnapshot, setCopiedSnapshot] = useState(false);
+	const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (copyTimerRef.current !== null) {
+				clearTimeout(copyTimerRef.current);
+			}
+		};
+	}, []);
 
 	// Edits stay local until Update, then go out as commands, compared with
 	// what is stored then. Locked notes stay out of inline textareas so
@@ -176,6 +196,7 @@ const Component = ({
 					});
 				}
 			}
+			await createToast("Save updated.", LTOAST_TYPE.SUCCESS);
 		}, "Couldn't update this save.");
 	};
 
@@ -217,6 +238,126 @@ const Component = ({
 						onChange={setTags}
 						suggestions={tagSuggestions}
 					/>
+					{save.snapshot ? (
+						<div
+							className={`my-1 flex flex-col rounded-xl border ${
+								theme === LTHEME.DARK
+									? "border-neutral-800 bg-neutral-900/70"
+									: "border-neutral-200 bg-neutral-100/70"
+							}`}
+						>
+							<div className="flex items-center justify-between gap-x-2 px-3 py-2">
+								<button
+									type="button"
+									aria-expanded={snapshotOpen}
+									onClick={() =>
+										setSnapshotOpen((open) => !open)
+									}
+									className={`flex min-w-0 grow cursor-pointer items-center gap-x-1.5 text-left text-xs font-medium ${
+										theme === LTHEME.DARK
+											? "text-neutral-200"
+											: "text-neutral-800"
+									}`}
+								>
+									<LUIThemedIcon
+										Icon={
+											snapshotOpen
+												? CaretUpIcon
+												: CaretDownIcon
+										}
+										color="currentColor"
+										weight="bold"
+										className="size-3 shrink-0"
+									/>
+									<span className="truncate">
+										Offline article snapshot
+									</span>
+									<span
+										className={`shrink-0 text-[11px] font-normal ${
+											theme === LTHEME.DARK
+												? "text-neutral-400"
+												: "text-neutral-500"
+										}`}
+									>
+										({save.snapshot.length.toLocaleString()}{" "}
+										chars)
+									</span>
+								</button>
+								<button
+									type="button"
+									aria-label="Copy article snapshot"
+									onClick={() => {
+										if (!navigator.clipboard?.writeText) {
+											void createToast(
+												"Clipboard is unavailable.",
+												LTOAST_TYPE.ERROR,
+											);
+											return;
+										}
+										void navigator.clipboard
+											.writeText(save.snapshot ?? "")
+											.then(
+												() => {
+													setCopiedSnapshot(true);
+													if (
+														copyTimerRef.current !==
+														null
+													) {
+														clearTimeout(
+															copyTimerRef.current,
+														);
+													}
+													copyTimerRef.current =
+														setTimeout(() => {
+															copyTimerRef.current =
+																null;
+															setCopiedSnapshot(
+																false,
+															);
+														}, 1500);
+												},
+												() => {
+													void createToast(
+														"Couldn't copy snapshot.",
+														LTOAST_TYPE.ERROR,
+													);
+												},
+											);
+									}}
+									className={`inline-flex shrink-0 cursor-pointer items-center gap-x-1 rounded-lg px-2 py-0.5 text-[11px] font-medium transition-colors ${
+										theme === LTHEME.DARK
+											? "text-neutral-300 hover:bg-neutral-800"
+											: "text-neutral-700 hover:bg-neutral-200"
+									}`}
+								>
+									<LUIThemedIcon
+										Icon={
+											copiedSnapshot
+												? CheckIcon
+												: CopyIcon
+										}
+										color="currentColor"
+										weight="regular"
+										className="size-3"
+									/>
+									<span>
+										{copiedSnapshot ? "Copied" : "Copy"}
+									</span>
+								</button>
+							</div>
+							{snapshotOpen ? (
+								<div
+									className={`max-h-56 overflow-y-auto border-t px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap select-text ${
+										theme === LTHEME.DARK
+											? "border-neutral-800 text-neutral-300"
+											: "border-neutral-200 text-neutral-700"
+									}`}
+								>
+									{save.snapshot}
+								</div>
+							) : null}
+						</div>
+					) : null}
 					{lockedNotes.length > 0 ? (
 						<div className="my-1 flex flex-col gap-y-1">
 							{lockedNotes.map((note) => (

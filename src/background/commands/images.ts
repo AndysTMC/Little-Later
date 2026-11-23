@@ -42,12 +42,20 @@ const optionalTitle = (value: unknown): string | undefined => {
 };
 
 const optionalSourceUrl = (value: unknown): string | undefined => {
-	if (value === undefined || value === "") return undefined;
+	if (value === undefined) return undefined;
+	if (typeof value === "string" && value.trim() === "") return undefined;
 	return asWebUrl(value);
 };
 
+// Base64 expands bytes by 4/3 (plus padding), so reject obviously oversized
+// payloads before allocating the decoded Uint8Array.
+const MAX_BASE64_LENGTH = Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 8;
+
 const asImageBytes = (value: unknown): Uint8Array => {
 	const base64 = asString(value, "bytesBase64");
+	if (base64.length > MAX_BASE64_LENGTH) {
+		return fail("Image exceeds the 10 MB limit.");
+	}
 	let bytes: Uint8Array;
 	try {
 		bytes = fromBase64(base64);

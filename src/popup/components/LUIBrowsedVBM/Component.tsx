@@ -84,7 +84,7 @@ const Component = ({
 				saveId={visualBM.id}
 				url={visualBM.url}
 			/>
-			<div className="flex min-w-0 grow flex-col gap-y-1.5">
+			<div className="flex min-w-0 grow flex-col gap-y-1">
 				<div
 					className={`line-clamp-2 text-sm leading-snug font-semibold text-pretty break-words ${
 						isDark ? "text-neutral-100" : "text-neutral-900"
@@ -92,9 +92,19 @@ const Component = ({
 				>
 					{visualBM.customName || visualBM.title || visualBM.url}
 				</div>
+				{visualBM.url ? (
+					<div
+						title={visualBM.url}
+						className={`truncate text-xs ${
+							isDark ? "text-neutral-400" : "text-neutral-500"
+						}`}
+					>
+						{visualBM.url.replace(/^https?:\/\//i, "")}
+					</div>
+				) : null}
 				<div
 					className={`truncate text-xs ${
-						isDark ? "text-neutral-400" : "text-neutral-600"
+						isDark ? "text-neutral-500" : "text-neutral-500"
 					}`}
 				>
 					<span className="font-medium">

@@ -41,6 +41,7 @@ export const createPageCapture = ({
 	dispatch,
 	now,
 	screenshot,
+	readSnapshot,
 	isShowing = async () => true,
 }: {
 	db: LittleDB;
@@ -49,6 +50,7 @@ export const createPageCapture = ({
 	dispatch: Dispatch;
 	now: () => number;
 	screenshot: (windowId: number) => Promise<Uint8Array | undefined>;
+	readSnapshot?: (tab: CapturedTab) => Promise<string | undefined>;
 	// Whether the tab is still the one its window shows, at the same page.
 	// A screenshot is of whatever the window shows when it is taken, so a
 	// tab switched to meanwhile would give this page another page's look.
@@ -108,11 +110,20 @@ export const createPageCapture = ({
 			return null;
 		}
 		const bytes = await screenshotOf(tab);
+		const snapshot =
+			saved && readSnapshot
+				? await readSnapshot(tab).catch(() => undefined)
+				: undefined;
 		// Another profile may have been opened during the screenshot; the
 		// page belongs to the one that was browsing.
 		const result = await dispatch(
 			"save.capture",
-			{ url, title: tab.title?.trim() ?? "", saved },
+			{
+				url,
+				title: tab.title?.trim() ?? "",
+				saved,
+				...(snapshot ? { snapshot } : {}),
+			},
 			{ profileId: unlocked.profileId },
 		);
 		if (!result.ok) {
