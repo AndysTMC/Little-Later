@@ -1,4 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+	CaretDownIcon,
+	CheckIcon,
+	DownloadSimpleIcon,
+	MagnifyingGlassIcon,
+	TagIcon,
+	XIcon,
+} from "@phosphor-icons/react";
 import {
 	LHOME_MAIN_CONTENT,
 	LHOME_SEARCH_RESULT_TYPE,
@@ -39,9 +47,8 @@ import { LUINotes } from "../LUINotes/Component";
 import { LUINoteMini } from "../LUINoteMini/Component";
 import { LUIImageMini, LUIImages } from "../LUIImages/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
-import { LUINote } from "../LUINote/Component";
 import { LUIPillButton } from "../LUIPillButton/Component";
-import { collectProfileTags } from "../../../utils/tags";
+import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { useDraft } from "../../hooks/useDraft";
 
 type SearchResult = {
@@ -66,6 +73,8 @@ const Component = ({ className }: { className?: string }) => {
 		tasks,
 		pages,
 		ready: isReady,
+		navHidden = false,
+		showNav,
 	} = useOutletContext<HomeData>();
 
 	const saves = useMemo(() => pages.filter((page) => page.saved), [pages]);
@@ -96,25 +105,81 @@ const Component = ({ className }: { className?: string }) => {
 
 	const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
+	const [tagMenuOpen, setTagMenuOpen] = useState(false);
+	const [tagQuery, setTagQuery] = useState("");
+	const tagMenuRef = useRef<HTMLDivElement>(null);
 
-	const allTags = useMemo(
-		() =>
-			collectProfileTags([
-				saves,
-				tasks,
-				reminders,
-				unlinkedNotes,
-				images,
-			]),
-		[saves, tasks, reminders, unlinkedNotes, images],
-	);
+	useEffect(() => {
+		if (!tagMenuOpen) return;
+		const onMouseDown = (event: MouseEvent) => {
+			if (
+				tagMenuRef.current &&
+				!tagMenuRef.current.contains(event.target as Node)
+			) {
+				setTagMenuOpen(false);
+				setTagQuery("");
+			}
+		};
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				setTagMenuOpen(false);
+				setTagQuery("");
+			}
+		};
+		document.addEventListener("mousedown", onMouseDown);
+		document.addEventListener("keydown", onKeyDown);
+		return () => {
+			document.removeEventListener("mousedown", onMouseDown);
+			document.removeEventListener("keydown", onKeyDown);
+		};
+	}, [tagMenuOpen]);
+
+	// Compute tags and counts for the currently active tab (sorted naturally so
+	// #2 precedes #10), keeping the filter compact and relevant.
+	const currentTabItems = useMemo((): ReadonlyArray<{
+		tags?: Array<string>;
+	}> => {
+		if (currentContent === LHOME_MAIN_CONTENT.SAVES) return saves;
+		if (currentContent === LHOME_MAIN_CONTENT.TASKS) return tasks;
+		if (currentContent === LHOME_MAIN_CONTENT.REMINDERS) return reminders;
+		if (currentContent === LHOME_MAIN_CONTENT.NOTES) return unlinkedNotes;
+		return images;
+	}, [currentContent, saves, tasks, reminders, unlinkedNotes, images]);
+
+	const tabTagCounts = useMemo(() => {
+		const counts = new Map<string, number>();
+		for (const item of currentTabItems) {
+			for (const tag of item.tags ?? []) {
+				counts.set(tag, (counts.get(tag) ?? 0) + 1);
+			}
+		}
+		return Array.from(counts.entries())
+			.map(([tag, count]) => ({ tag, count }))
+			.sort((a, b) =>
+				a.tag.localeCompare(b.tag, undefined, {
+					numeric: true,
+					sensitivity: "base",
+				}),
+			);
+	}, [currentTabItems]);
+
 	const activeTag =
-		selectedTag !== null && allTags.includes(selectedTag)
+		selectedTag !== null &&
+		tabTagCounts.some((entry) => entry.tag === selectedTag)
 			? selectedTag
 			: null;
 	const toggleTag = (tag: string) => {
 		setSelectedTag((current) => (current === tag ? null : tag));
+		setTagMenuOpen(false);
+		setTagQuery("");
 	};
+	const visibleTagOptions = useMemo(() => {
+		const q = tagQuery.trim().toLowerCase().replace(/^#/, "");
+		if (!q) return tabTagCounts;
+		return tabTagCounts.filter((entry) =>
+			entry.tag.toLowerCase().includes(q),
+		);
+	}, [tabTagCounts, tagQuery]);
 
 	const filteredSaves = useMemo(
 		() =>
@@ -253,15 +318,17 @@ const Component = ({ className }: { className?: string }) => {
 	}, [searchQuery, saves, tasks, reminders, notes, images]);
 
 	const { startIndex, endIndex, currentBatch, batchCount, onBatchChange } =
-		usePagination(searchResults.length, 5);
+		usePagination(searchResults.length, 20);
 
 	const handleContentChange = (content: LHOME_MAIN_CONTENT) => {
 		setCurrentContent(content);
+		showNav?.();
 	};
 
 	const handleSearch = async (text: string): Promise<void> => {
 		setSearchQuery(text.trim());
 		onBatchChange(1);
+		showNav?.();
 	};
 
 	const paginationSearchResults = useMemo(
@@ -285,29 +352,6 @@ const Component = ({ className }: { className?: string }) => {
 					handleSearch={handleSearch}
 					setIsSearchFocused={setIsSearchFocused}
 				/>
-				{showBackupReminder ? (
-					<div className="mt-2">
-						<LUINote className="w-full">
-							<div className="flex flex-wrap items-center justify-between gap-2">
-								<span>
-									{lastBackupAt === 0
-										? "You haven't exported a backup yet."
-										: `It's been over ${backupReminderDays} days since your last backup.`}
-								</span>
-								<div className="flex shrink-0 items-center gap-1.5">
-									<LUIPillButton
-										label="Export"
-										onClick={() => go("/export", "forward")}
-									/>
-									<LUIPillButton
-										label="Dismiss"
-										onClick={() => setBackupDismissed(true)}
-									/>
-								</div>
-							</div>
-						</LUINote>
-					</div>
-				) : null}
 			</div>
 
 			<AnimatePresence mode="wait">
@@ -345,7 +389,7 @@ const Component = ({ className }: { className?: string }) => {
 								</div>
 
 								<div
-									className={`w-full grow overflow-y-auto ${theme}-scrollbar px-4 pb-2`}
+									className={`w-full grow overflow-y-auto ${theme}-scrollbar px-4 pb-24`}
 								>
 									<div className="mx-auto flex w-full max-w-3xl flex-col gap-y-2">
 										{paginationSearchResults.map(
@@ -460,46 +504,249 @@ const Component = ({ className }: { className?: string }) => {
 								currentContent={currentContent}
 								handleContentChange={handleContentChange}
 							/>
-							{allTags.length > 0 ? (
+							{tabTagCounts.length > 0 ? (
 								<div
-									role="group"
-									aria-label="Filter by tag"
-									className={`flex w-full items-center gap-1.5 overflow-x-auto px-4 pt-1 pb-1.5 ${theme}-thin-scrollbar`}
+									ref={tagMenuRef}
+									className="relative flex w-full items-center gap-1.5 px-4 pt-1 pb-1"
 								>
 									<button
 										type="button"
-										aria-pressed={activeTag === null}
-										onClick={() => setSelectedTag(null)}
-										className={`shrink-0 cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-											activeTag === null
+										aria-label="Filter by tag"
+										aria-haspopup="menu"
+										aria-expanded={tagMenuOpen}
+										onClick={() =>
+											setTagMenuOpen((open) => {
+												if (open) setTagQuery("");
+												return !open;
+											})
+										}
+										className={`inline-flex h-7 cursor-pointer items-center gap-x-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors ${
+											activeTag !== null
 												? "ll-accent-fill border-transparent"
 												: theme === LTHEME.DARK
-													? "border-neutral-800 bg-neutral-900 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200"
-													: "border-neutral-200 bg-neutral-100 text-neutral-600 hover:border-neutral-300 hover:text-neutral-900"
+													? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-neutral-700 hover:text-white"
+													: "border-neutral-200 bg-neutral-100 text-neutral-700 hover:border-neutral-300 hover:text-black"
 										}`}
 									>
-										All
+										<LUIThemedIcon
+											Icon={TagIcon}
+											color="currentColor"
+											weight="regular"
+											className="size-3.5 shrink-0"
+										/>
+										<span className="max-w-36 truncate">
+											{activeTag
+												? `#${activeTag}`
+												: `Tags (${tabTagCounts.length})`}
+										</span>
+										<LUIThemedIcon
+											Icon={CaretDownIcon}
+											color="currentColor"
+											weight="bold"
+											className={`size-3 shrink-0 transition-transform duration-150 ${tagMenuOpen ? "rotate-180" : ""}`}
+										/>
 									</button>
-									{allTags.map((tag) => {
-										const isSelected = activeTag === tag;
-										return (
-											<button
-												key={tag}
-												type="button"
-												aria-pressed={isSelected}
-												onClick={() => toggleTag(tag)}
-												className={`shrink-0 cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-													isSelected
-														? "ll-accent-fill border-transparent"
-														: theme === LTHEME.DARK
-															? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-neutral-700 hover:text-white"
-															: "border-neutral-200 bg-neutral-100 text-neutral-700 hover:border-neutral-300 hover:text-black"
+									{activeTag !== null ? (
+										<button
+											type="button"
+											aria-label="Clear tag filter"
+											onClick={() => setSelectedTag(null)}
+											className={`inline-flex size-6 cursor-pointer items-center justify-center rounded-full transition-colors ${
+												theme === LTHEME.DARK
+													? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+													: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
+											}`}
+										>
+											<LUIThemedIcon
+												Icon={XIcon}
+												color="currentColor"
+												weight="bold"
+												className="size-3"
+											/>
+										</button>
+									) : null}
+									<AnimatePresence>
+										{tagMenuOpen ? (
+											<motion.div
+												role="menu"
+												aria-label="Choose tag"
+												initial={{ opacity: 0, y: -4 }}
+												animate={{ opacity: 1, y: 0 }}
+												exit={{ opacity: 0, y: -4 }}
+												transition={{ duration: 0.12 }}
+												className={`absolute top-full left-4 z-30 mt-1 flex w-56 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border shadow-lg ${
+													theme === LTHEME.DARK
+														? "border-neutral-800 bg-neutral-900 text-neutral-100"
+														: "border-neutral-200 bg-white text-neutral-900"
 												}`}
 											>
-												#{tag}
-											</button>
-										);
-									})}
+												{tabTagCounts.length > 6 ? (
+													<div
+														className={`border-b p-1.5 ${
+															theme ===
+															LTHEME.DARK
+																? "border-neutral-800"
+																: "border-neutral-200"
+														}`}
+													>
+														<label
+															className={`ll-field flex h-8 items-center gap-x-1.5 rounded-lg border px-2 ${
+																theme ===
+																LTHEME.DARK
+																	? "border-neutral-800 bg-black/60"
+																	: "border-neutral-200 bg-neutral-100"
+															}`}
+														>
+															<LUIThemedIcon
+																Icon={
+																	MagnifyingGlassIcon
+																}
+																color="currentColor"
+																weight="regular"
+																className="size-3.5 shrink-0 opacity-60"
+															/>
+															<input
+																type="search"
+																autoFocus
+																aria-label="Filter tags"
+																placeholder="Search tags"
+																value={tagQuery}
+																onChange={(
+																	event,
+																) =>
+																	setTagQuery(
+																		event
+																			.target
+																			.value,
+																	)
+																}
+																className={`min-w-0 grow bg-transparent text-xs outline-none ${
+																	theme ===
+																	LTHEME.DARK
+																		? "text-neutral-100 placeholder:text-neutral-500"
+																		: "text-neutral-900 placeholder:text-neutral-500"
+																}`}
+															/>
+														</label>
+													</div>
+												) : null}
+												<div
+													className={`max-h-52 overflow-y-auto p-1 ${theme}-thin-scrollbar`}
+												>
+													{tagQuery.trim() === "" ? (
+														<button
+															type="button"
+															role="menuitemradio"
+															aria-checked={
+																activeTag ===
+																null
+															}
+															onClick={() => {
+																setSelectedTag(
+																	null,
+																);
+																setTagMenuOpen(
+																	false,
+																);
+																setTagQuery("");
+															}}
+															className={`flex w-full cursor-pointer items-center justify-between gap-x-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${
+																activeTag ===
+																null
+																	? "ll-accent-fill font-medium"
+																	: theme ===
+																		  LTHEME.DARK
+																		? "text-neutral-200 hover:bg-neutral-800"
+																		: "text-neutral-800 hover:bg-neutral-100"
+															}`}
+														>
+															<span>
+																All items
+															</span>
+															{activeTag ===
+															null ? (
+																<LUIThemedIcon
+																	Icon={
+																		CheckIcon
+																	}
+																	color="currentColor"
+																	weight="bold"
+																	className="size-3.5 shrink-0"
+																/>
+															) : null}
+														</button>
+													) : null}
+													{visibleTagOptions.length ===
+													0 ? (
+														<div
+															className={`px-2.5 py-2 text-xs ${
+																theme ===
+																LTHEME.DARK
+																	? "text-neutral-400"
+																	: "text-neutral-500"
+															}`}
+														>
+															No matching tags
+														</div>
+													) : (
+														visibleTagOptions.map(
+															({
+																tag,
+																count,
+															}) => {
+																const isSelected =
+																	activeTag ===
+																	tag;
+																return (
+																	<button
+																		key={
+																			tag
+																		}
+																		type="button"
+																		role="menuitemradio"
+																		aria-checked={
+																			isSelected
+																		}
+																		onClick={() =>
+																			toggleTag(
+																				tag,
+																			)
+																		}
+																		className={`flex w-full cursor-pointer items-center justify-between gap-x-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${
+																			isSelected
+																				? "ll-accent-fill font-medium"
+																				: theme ===
+																					  LTHEME.DARK
+																					? "text-neutral-200 hover:bg-neutral-800"
+																					: "text-neutral-800 hover:bg-neutral-100"
+																		}`}
+																	>
+																		<span className="truncate">
+																			#
+																			{
+																				tag
+																			}
+																		</span>
+																		<span
+																			className={`shrink-0 text-[11px] tabular-nums ${
+																				isSelected
+																					? "opacity-90"
+																					: "opacity-55"
+																			}`}
+																		>
+																			{
+																				count
+																			}
+																		</span>
+																	</button>
+																);
+															},
+														)
+													)}
+												</div>
+											</motion.div>
+										) : null}
+									</AnimatePresence>
 								</div>
 							) : null}
 						</div>
@@ -627,6 +874,63 @@ const Component = ({ className }: { className?: string }) => {
 					</motion.div>
 				)}
 			</AnimatePresence>
+			{showBackupReminder ? (
+				<div
+					role="status"
+					className={`absolute inset-x-0 bottom-16 z-10 border-t px-4 py-2 backdrop-blur-xs transition-transform duration-200 ease-out ${
+						navHidden
+							? "pointer-events-none translate-y-[calc(100%+4rem)]"
+							: "translate-y-0"
+					} ${
+						theme === LTHEME.DARK
+							? "border-neutral-800 bg-neutral-950/95 text-neutral-300"
+							: "border-neutral-200 bg-neutral-50/95 text-neutral-700"
+					}`}
+				>
+					<div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-x-2">
+						<div className="flex min-w-0 items-center gap-x-2 text-xs">
+							<LUIThemedIcon
+								Icon={DownloadSimpleIcon}
+								color="currentColor"
+								weight="regular"
+								className="size-4 shrink-0 opacity-70"
+							/>
+							<span className="truncate">
+								{lastBackupAt === 0
+									? "Back up your vault"
+									: `Backup overdue (${backupReminderDays}d+)`}
+							</span>
+						</div>
+						<div className="flex shrink-0 items-center gap-x-1.5">
+							<LUIPillButton
+								label="Export"
+								onClick={() =>
+									go("/export", "forward", {
+										state: { referrer: "/home" },
+									})
+								}
+							/>
+							<button
+								type="button"
+								aria-label="Dismiss backup reminder"
+								onClick={() => setBackupDismissed(true)}
+								className={`flex size-6 cursor-pointer items-center justify-center rounded-lg transition-colors ${
+									theme === LTHEME.DARK
+										? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+										: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
+								}`}
+							>
+								<LUIThemedIcon
+									Icon={XIcon}
+									color="currentColor"
+									weight="bold"
+									className="size-3.5"
+								/>
+							</button>
+						</div>
+					</div>
+				</div>
+			) : null}
 		</div>
 	);
 };

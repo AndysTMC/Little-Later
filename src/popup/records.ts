@@ -23,6 +23,10 @@ export type HomeData = {
 	pages: Array<Save>;
 	// The panel has finished moving in; heavy lists wait for it.
 	ready: boolean;
+	// True when the bottom Home navigation bar is hidden while scrolling a list.
+	navHidden?: boolean;
+	// Reveals the bottom Home navigation bar (e.g. on tab change).
+	showNav?: () => void;
 };
 
 // Records among `candidates` that link to `targetId`, such as the tasks

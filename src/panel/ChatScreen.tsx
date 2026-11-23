@@ -12,7 +12,6 @@ import {
 	ClockCounterClockwiseIcon,
 	GearSixIcon,
 	ListChecksIcon,
-	ListIcon,
 	MagnifyingGlassIcon,
 	NoteIcon,
 	NotePencilIcon,
@@ -1075,37 +1074,50 @@ const ChatScreen = ({
 				// While the chats list is open, nothing behind it can be
 				// reached: not by Tab, not by a screen reader.
 				inert={historyOpen}
-				className={`flex h-14 shrink-0 items-center gap-x-1 border-b px-2 ${dark ? "border-neutral-800 bg-black" : "border-neutral-200 bg-white"}`}
+				className={`flex h-14 shrink-0 items-center gap-x-2 border-b px-2 ${dark ? "border-neutral-800 bg-black" : "border-neutral-200 bg-white"}`}
 			>
 				{onBack ? (
-					<IconButton
-						label="Go back"
-						icon={ArrowLeftIcon}
+					<button
+						type="button"
+						aria-label="Go back"
 						onClick={onBack}
-					/>
-				) : null}
-				<IconButton
-					label="Chats"
-					icon={ListIcon}
-					buttonRef={chatsButton}
-					onClick={() => setShowHistory(true)}
-				/>
-				{!onBack ? (
+						className={`group flex h-10 shrink-0 cursor-pointer items-center gap-x-1.5 rounded-xl px-2.5 transition-colors ${
+							dark
+								? "text-neutral-200 hover:bg-neutral-900 hover:text-white"
+								: "text-neutral-700 hover:bg-neutral-100 hover:text-black"
+						}`}
+					>
+						<ArrowLeftIcon
+							aria-hidden
+							weight="regular"
+							className="size-5 transition-transform duration-150 group-hover:-translate-x-0.5"
+						/>
+						<span className="text-sm font-medium">Back</span>
+					</button>
+				) : (
 					<LUILogo className="ml-0.5 size-7 shrink-0" />
-				) : null}
+				)}
 				<h1 className="min-w-0 grow truncate px-1 text-base font-semibold">
 					{title ?? "LittleAI"}
 				</h1>
-				<IconButton
-					label="New chat"
-					icon={NotePencilIcon}
-					onClick={() => {
-						openChat(null);
-						setEditing(null);
-						setText("");
-						input.current?.focus();
-					}}
-				/>
+				<div className="flex shrink-0 items-center gap-x-1">
+					<IconButton
+						label="Chats"
+						icon={ClockCounterClockwiseIcon}
+						buttonRef={chatsButton}
+						onClick={() => setShowHistory(true)}
+					/>
+					<IconButton
+						label="New chat"
+						icon={NotePencilIcon}
+						onClick={() => {
+							openChat(null);
+							setEditing(null);
+							setText("");
+							input.current?.focus();
+						}}
+					/>
+				</div>
 			</header>
 			<div
 				inert={historyOpen}
