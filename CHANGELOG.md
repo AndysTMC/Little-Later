@@ -4,6 +4,27 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-11-23
+
+### Added
+
+- **Desktop CLI quick-capture & search (`little-later-mcp`):** Search, list, and create notes, tasks (`--due`, `--priority`, `--tag`), reminders (`--at`), and mark tasks done directly from the terminal or launchers via `npx -y little-later-mcp` or standalone release binaries, plus upgrade-safe Native Messaging host installation and auto-reconnect.
+- **Portable exports & bookmark import:** Export unlocked notes and saves as Obsidian-ready Markdown (`.md`) with YAML frontmatter, due/recurring tasks and reminders as iCalendar (`.ics`), and saved pages as Netscape Bookmarks (`.html`), and import browser bookmark HTML files via **Settings → Data & Privacy**.
+- **Encrypted offline article snapshots:** Save readable article text encrypted alongside saved pages so Little AI and local search can query full page content offline.
+- **Auto-hiding bottom navigation bar & expanded pagination:** List views smoothly hide the bottom navigation bar while scrolling down and restore it on slight upward scroll; pagination batch sizes increased to 20 for Saves, History, Search, and Images, and 25 for Notes, Finished Tasks, and Past Reminders.
+
+### Changed
+
+- **Renamed LittleAI to Little AI** across the UI, side panel, and settings, and replaced the Chats overlay drawer with a vertical slide swap below the pinned header (with a consistent `← Back` button and right-aligned history toggle).
+- **UI & visual density polish:** Retired the redundant task `Label` field in favor of `#tags` (preserving legacy labels in storage/backups), added inline `High`/`Low` priority badges on task cards, unified Home tag filtering into Search, switched tag input suggestions to type-to-suggest with `Tab` completion, displayed URLs on History cards, fixed 320px side-panel tab truncation, compacted no-preview Save cards, and moved the backup reminder to a subtle bottom strip.
+- **Little AI reliability:** Fixed strict OpenAI-compatible turn ordering after confirmed/cancelled tool calls, added `<think>` and code-fence stripping for structured responses on reasoning models, and expanded tool activity labels and confirmation summaries.
+
+### Security
+
+- Stripped saved AI preset API keys (`ai.presets[*].apiKey`) and links pointing from locked notes out of plaintext readable exports.
+- Hid the quick `Delete` action on locked note cards until unlocked with the profile password.
+- Bound context-menu writes (save image, save quote, note selection) to the originating unlocked profile session, validated image URL protocols and `Content-Length`, escaped Markdown links in saved quotes, blocked detaching task-owned reminders via `link.delete`, and fixed an `autoLock` idle queue race.
+
 ## [3.1.0] - 2026-11-22
 
 ### Added
