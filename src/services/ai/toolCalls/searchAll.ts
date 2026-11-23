@@ -13,6 +13,7 @@ import {
 	readTasks,
 } from "../records";
 import { hybridRank } from "./_utils/bm25";
+import { normalizeTag } from "../../../utils/tags";
 import type { AIOwner } from "../owner";
 
 export type FederatedSearchResult = {
@@ -25,7 +26,8 @@ export type FederatedSearchResult = {
 
 const matchesTag = (tags: Array<string> | undefined, tag?: string): boolean => {
 	if (!tag || tag.trim() === "") return true;
-	const target = tag.trim().toLowerCase().replace(/^#/, "");
+	const target = normalizeTag(tag);
+	if (!target) return true;
 	return (tags ?? []).some((item) => item.toLowerCase() === target);
 };
 

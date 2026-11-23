@@ -69,6 +69,15 @@ const Page = () => {
 	const [copiedKey, setCopiedKey] = useState<"install" | "config" | null>(
 		null,
 	);
+	const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (copyTimerRef.current !== null) {
+				clearTimeout(copyTimerRef.current);
+			}
+		};
+	}, []);
 
 	useEffect(() => {
 		if (pickedBookmarks.files.length === 0 || importingRef.current) return;
@@ -78,11 +87,15 @@ const Page = () => {
 		void (async () => {
 			try {
 				const html = await file.blob.text();
-				const { imported } = await importBookmarksHtml(html);
-				await createToast(
+				const { imported, truncated } = await importBookmarksHtml(html);
+				const baseMsg =
 					imported === 1
 						? "Imported 1 bookmark."
-						: `Imported ${imported} bookmarks.`,
+						: `Imported ${imported} bookmarks.`;
+				await createToast(
+					truncated > 0
+						? `${baseMsg} (${truncated} skipped over the 500-item limit.)`
+						: baseMsg,
 					LTOAST_TYPE.SUCCESS,
 				);
 			} catch (error) {
@@ -123,13 +136,30 @@ const Page = () => {
 	);
 
 	const copyText = (key: "install" | "config", text: string) => {
-		if (!navigator.clipboard?.writeText) return;
-		void navigator.clipboard.writeText(text).then(() => {
-			setCopiedKey(key);
-			setTimeout(() => {
-				setCopiedKey((current) => (current === key ? null : current));
-			}, 1500);
-		});
+		if (!navigator.clipboard?.writeText) {
+			void createToast("Clipboard is unavailable.", LTOAST_TYPE.ERROR);
+			return;
+		}
+		void navigator.clipboard.writeText(text).then(
+			() => {
+				setCopiedKey(key);
+				if (copyTimerRef.current !== null) {
+					clearTimeout(copyTimerRef.current);
+				}
+				copyTimerRef.current = setTimeout(() => {
+					copyTimerRef.current = null;
+					setCopiedKey((current) =>
+						current === key ? null : current,
+					);
+				}, 1500);
+			},
+			() => {
+				void createToast(
+					"Couldn't copy to clipboard.",
+					LTOAST_TYPE.ERROR,
+				);
+			},
+		);
 	};
 
 	const misc: LUserSettings["misc"] =
@@ -223,7 +253,13 @@ const Page = () => {
 								</span>
 								<LUIPillButton
 									label="Export"
-									onClick={() => go("/export", "forward")}
+									onClick={() =>
+										go("/export", "forward", {
+											state: {
+												referrer: "/settings/privacy",
+											},
+										})
+									}
 								/>
 							</div>
 							<div className="flex items-center justify-between gap-x-3 py-1">
@@ -440,16 +476,26 @@ const Page = () => {
 										</span>
 										<LUIPillButton
 											label="Reconnect"
-											onClick={() =>
-												updateMisc(
-													{
-														externalMcpMode:
-															misc.externalMcpMode ??
-															"read",
-													},
-													"Couldn't reconnect external MCP.",
-												)
-											}
+											onClick={() => {
+												if (!userSettings) return;
+												void attempt(async () => {
+													await send(
+														"settings.update",
+														{
+															misc: {
+																...userSettings.misc,
+																externalMcpMode:
+																	misc.externalMcpMode ??
+																	"read",
+															},
+														},
+													);
+													await createToast(
+														"Reconnecting external MCP…",
+														LTOAST_TYPE.SUCCESS,
+													);
+												}, "Couldn't reconnect external MCP.");
+											}}
 										/>
 									</div>
 									<div className="flex flex-col gap-y-1">

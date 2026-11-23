@@ -53,7 +53,8 @@ export const isUrlIgnored = (
 			if (
 				lowerUrl === pattern ||
 				lowerUrl.startsWith(`${pattern}/`) ||
-				lowerUrl.startsWith(`${pattern}?`)
+				lowerUrl.startsWith(`${pattern}?`) ||
+				lowerUrl.startsWith(`${pattern}#`)
 			) {
 				return true;
 			}

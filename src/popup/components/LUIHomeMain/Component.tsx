@@ -98,8 +98,15 @@ const Component = ({ className }: { className?: string }) => {
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
 	const allTags = useMemo(
-		() => collectProfileTags([saves, tasks, reminders, notes, images]),
-		[saves, tasks, reminders, notes, images],
+		() =>
+			collectProfileTags([
+				saves,
+				tasks,
+				reminders,
+				unlinkedNotes,
+				images,
+			]),
+		[saves, tasks, reminders, unlinkedNotes, images],
 	);
 	const activeTag =
 		selectedTag !== null && allTags.includes(selectedTag)
@@ -307,23 +314,35 @@ const Component = ({ className }: { className?: string }) => {
 				{isSearchFocused && searchQuery !== "" ? (
 					<motion.div
 						key="search"
-						className={`flex w-full grow flex-col gap-y-1 overflow-y-hidden ${theme}-scrollbar`}
+						className={`flex min-h-0 w-full grow flex-col gap-y-1 overflow-y-hidden ${theme}-scrollbar`}
 						initial={{ opacity: 0, y: -10 }}
 						animate={{ opacity: 1, y: 0 }}
 						exit={{ opacity: 0, y: -10 }}
 						transition={{ duration: 0.2 }}
 					>
 						{paginationSearchResults.length > 0 ? (
-							<div className="flex w-full flex-col gap-y-1 overflow-y-hidden">
-								{batchCount > 1 ? (
-									<div className="mx-auto flex h-max w-full max-w-3xl shrink-0 px-4 py-1">
+							<div className="flex min-h-0 w-full grow flex-col gap-y-1 overflow-y-hidden">
+								<div className="mx-auto flex h-max w-full max-w-3xl shrink-0 items-center justify-between gap-x-2 px-4 py-1">
+									<span
+										className={`text-xs font-medium ${
+											theme === LTHEME.DARK
+												? "text-neutral-400"
+												: "text-neutral-500"
+										}`}
+									>
+										{searchResults.length}{" "}
+										{searchResults.length === 1
+											? "result"
+											: "results"}
+									</span>
+									{batchCount > 1 ? (
 										<LUIPagination
 											currentBatch={currentBatch}
 											batchCount={batchCount}
 											onBatchChange={onBatchChange}
 										/>
-									</div>
-								) : null}
+									) : null}
+								</div>
 
 								<div
 									className={`w-full grow overflow-y-auto ${theme}-scrollbar px-4 pb-2`}

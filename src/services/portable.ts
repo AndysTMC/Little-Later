@@ -2,6 +2,7 @@ import type { RecurrenceRule } from "little-shared/utils/schedule";
 import { importProfileKeys } from "../storage/keys";
 import { littleDB } from "../storage/pageDB";
 import {
+	getSave,
 	listNotes,
 	listReminders,
 	listSaves,
@@ -44,6 +45,12 @@ const safeFileSlug = (name: string): string =>
 const yamlQuote = (value: string): string =>
 	`"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, " ")}"`;
 
+const singleLine = (value: string): string =>
+	value.replace(/[\r\n]+/g, " ").trim();
+
+const formatMarkdownUrl = (url: string): string =>
+	/[()\s<>]/.test(url) ? `<${url}>` : url;
+
 export const buildObsidianMarkdown = ({
 	saves,
 	notes,
@@ -58,24 +65,25 @@ export const buildObsidianMarkdown = ({
 	// Security invariant: never include locked notes in plaintext exports.
 	const unlockedNotes = notes.filter((note) => !note.locked);
 	const savedPages = saves.filter((save) => save.saved);
+	const cleanProfile = singleLine(profileName) || "Little Later";
 
 	const lines: Array<string> = [
 		"---",
 		"exported_from: Little Later",
-		`profile: ${yamlQuote(profileName)}`,
+		`profile: ${yamlQuote(cleanProfile)}`,
 		`exported_at: ${new Date(exportedAt).toISOString()}`,
 		`notes_count: ${unlockedNotes.length}`,
 		`saves_count: ${savedPages.length}`,
 		"---",
 		"",
-		`# ${profileName} — Little Later Export`,
+		`# ${cleanProfile} — Little Later Export`,
 		"",
 	];
 
 	if (unlockedNotes.length > 0) {
 		lines.push("## Notes", "");
 		for (const note of unlockedNotes) {
-			const heading = note.title?.trim() || "Untitled note";
+			const heading = singleLine(note.title ?? "") || "Untitled note";
 			lines.push(`### ${heading}`, "");
 			const meta: Array<string> = [
 				`Updated: ${new Date(note.updatedAt).toISOString().slice(0, 10)}`,
@@ -86,14 +94,21 @@ export const buildObsidianMarkdown = ({
 				);
 			}
 			lines.push(`_${meta.join(" · ")}_`, "");
-			lines.push(note.content.trim(), "", "---", "");
+			lines.push(
+				note.content.replace(/\r\n?/g, "\n").trim(),
+				"",
+				"---",
+				"",
+			);
 		}
 	}
 
 	if (savedPages.length > 0) {
 		lines.push("## Saves", "");
 		for (const save of savedPages) {
-			const title = save.customName?.trim() || save.title || save.url;
+			const title = singleLine(
+				save.customName?.trim() || save.title || save.url,
+			);
 			const safeTitle = title.replace(/[[\]]/g, "");
 			const tagSuffix =
 				save.tags && save.tags.length > 0
@@ -101,10 +116,13 @@ export const buildObsidianMarkdown = ({
 					: "";
 			const archivedBadge = save.archived ? " _(archived)_" : "";
 			lines.push(
-				`- [${safeTitle}](${save.url})${archivedBadge}${tagSuffix}`,
+				`- [${safeTitle}](${formatMarkdownUrl(save.url)})${archivedBadge}${tagSuffix}`,
 			);
 			if (save.snapshot && save.snapshot.trim() !== "") {
-				const excerpt = save.snapshot.trim().slice(0, 2_000);
+				const excerpt = save.snapshot
+					.replace(/\r\n?/g, "\n")
+					.trim()
+					.slice(0, 2_000);
 				lines.push(
 					"",
 					...excerpt.split("\n").map((row) => `  > ${row}`),
@@ -137,7 +155,7 @@ export const exportObsidianMarkdown = async (): Promise<void> => {
 const escapeIcsText = (value: string): string =>
 	value
 		.replace(/\\/g, "\\\\")
-		.replace(/\r?\n/g, "\\n")
+		.replace(/\r\n?|\n/g, "\\n")
 		.replace(/,/g, "\\,")
 		.replace(/;/g, "\\;");
 
@@ -150,12 +168,30 @@ const formatIcsUtc = (epochMs: number): string => {
 	);
 };
 
+const utf8Encoder = new TextEncoder();
+
+// Fold by UTF-8 octets (RFC 5545 §3.1) iterating full Unicode code points so
+// multi-byte characters and emoji surrogate pairs are never split.
 const foldIcsLine = (line: string): string => {
-	if (line.length <= 75) return line;
+	if (utf8Encoder.encode(line).length <= 75) return line;
 	const parts: Array<string> = [];
-	parts.push(line.slice(0, 75));
-	for (let i = 75; i < line.length; i += 74) {
-		parts.push(` ${line.slice(i, i + 74)}`);
+	let current = "";
+	let currentBytes = 0;
+	let limit = 75;
+	for (const char of line) {
+		const charBytes = utf8Encoder.encode(char).length;
+		if (currentBytes + charBytes > limit && current !== "") {
+			parts.push(current);
+			current = ` ${char}`;
+			currentBytes = 1 + charBytes;
+			limit = 75;
+		} else {
+			current += char;
+			currentBytes += charBytes;
+		}
+	}
+	if (current !== "") {
+		parts.push(current);
 	}
 	return parts.join("\r\n");
 };
@@ -219,7 +255,14 @@ export const buildCalendarIcs = ({
 			`PRIORITY:${icsPriority(task.priority)}`,
 		);
 		if (task.dueAt > 0) {
+			if (task.schedule.kind === "recurring") {
+				// RFC 5545 §3.8.5.3 requires DTSTART alongside RRULE.
+				lines.push(`DTSTART:${formatIcsUtc(task.dueAt)}`);
+			}
 			lines.push(`DUE:${formatIcsUtc(task.dueAt)}`);
+		}
+		if (task.done && task.finishedAt > 0) {
+			lines.push(`COMPLETED:${formatIcsUtc(task.finishedAt)}`);
 		}
 		if (task.schedule.kind === "recurring") {
 			lines.push(`RRULE:${buildRrule(task.schedule.rule)}`);
@@ -352,6 +395,7 @@ export type ParsedBookmark = {
 	url: string;
 	title: string;
 	tags: Array<string>;
+	archived?: boolean;
 };
 
 const isSafeWebUrl = (value: string): boolean => {
@@ -370,17 +414,30 @@ const IGNORED_FOLDERS = new Set([
 	"other bookmarks",
 	"little later bookmarks",
 	"little later saves",
+	"archived saves",
 ]);
 
-export const parseBookmarksHtml = (html: string): Array<ParsedBookmark> => {
+export type ParseBookmarksResult = {
+	bookmarks: Array<ParsedBookmark>;
+	truncated: number;
+};
+
+export const parseBookmarksHtmlDetailed = (
+	html: string,
+): ParseBookmarksResult => {
 	const doc = new DOMParser().parseFromString(html, "text/html");
 	const results: Array<ParsedBookmark> = [];
 	const seen = new Set<string>();
+	let truncated = 0;
 
-	const walk = (container: Element, folderTags: ReadonlyArray<string>) => {
-		let pendingFolder: string | null = null;
+	const walk = (
+		container: Element,
+		folderTags: ReadonlyArray<string>,
+		inArchived: boolean,
+		inheritedPending: string | null = null,
+	) => {
+		let pendingFolder: string | null = inheritedPending;
 		for (const child of Array.from(container.children)) {
-			if (results.length >= MAX_BOOKMARK_IMPORTS) return;
 			const tag = child.tagName.toUpperCase();
 			if (tag === "H3") {
 				pendingFolder = (child.textContent ?? "").trim();
@@ -390,6 +447,10 @@ export const parseBookmarksHtml = (html: string): Array<ParsedBookmark> => {
 				const href = (child.getAttribute("href") ?? "").trim();
 				if (!isSafeWebUrl(href) || seen.has(href)) continue;
 				seen.add(href);
+				if (results.length >= MAX_BOOKMARK_IMPORTS) {
+					truncated += 1;
+					continue;
+				}
 				const rawTags = (child.getAttribute("tags") ?? "")
 					.split(",")
 					.map((t) => t.trim())
@@ -401,17 +462,23 @@ export const parseBookmarksHtml = (html: string): Array<ParsedBookmark> => {
 				const title =
 					(child.textContent ?? "").trim().slice(0, 1_000) ||
 					new URL(href).hostname;
-				results.push({ url: href, title, tags: combinedTags });
+				results.push({
+					url: href,
+					title,
+					tags: combinedTags,
+					...(inArchived ? { archived: true } : {}),
+				});
 				continue;
 			}
 			if (tag === "DL") {
+				const lower = pendingFolder?.toLowerCase() ?? "";
+				const nextArchived = inArchived || lower === "archived saves";
 				const nextFolders =
-					pendingFolder &&
-					!IGNORED_FOLDERS.has(pendingFolder.toLowerCase())
+					pendingFolder && !IGNORED_FOLDERS.has(lower)
 						? [...folderTags, pendingFolder]
 						: folderTags;
 				pendingFolder = null;
-				walk(child, nextFolders);
+				walk(child, nextFolders, nextArchived);
 				continue;
 			}
 			// Netscape HTML often nests <H3> + <DL> or <A> inside <DT> / <P>.
@@ -419,49 +486,69 @@ export const parseBookmarksHtml = (html: string): Array<ParsedBookmark> => {
 				const h3 = child.querySelector(":scope > h3");
 				if (h3) {
 					const name = (h3.textContent ?? "").trim();
+					const lower = name.toLowerCase();
 					const nestedDl = child.querySelector(":scope > dl");
 					if (nestedDl) {
+						const nextArchived =
+							inArchived || lower === "archived saves";
 						const nextFolders =
-							name && !IGNORED_FOLDERS.has(name.toLowerCase())
+							name && !IGNORED_FOLDERS.has(lower)
 								? [...folderTags, name]
 								: folderTags;
-						walk(nestedDl, nextFolders);
+						walk(nestedDl, nextFolders, nextArchived);
+						// Also inspect any non-H3/DL siblings inside <DT>.
+						for (const sub of Array.from(child.children)) {
+							if (sub !== h3 && sub !== nestedDl) {
+								walk(sub, folderTags, inArchived);
+							}
+						}
 						continue;
 					}
 					pendingFolder = name;
 					continue;
 				}
-				walk(child, folderTags);
+				walk(child, folderTags, inArchived, pendingFolder);
+				pendingFolder = null;
 			}
 		}
 	};
 
 	if (doc.body) {
-		walk(doc.body, []);
+		walk(doc.body, [], false);
 	}
-	return results;
+	return { bookmarks: results, truncated };
 };
+
+export const parseBookmarksHtml = (html: string): Array<ParsedBookmark> =>
+	parseBookmarksHtmlDetailed(html).bookmarks;
 
 export const importBookmarksHtml = async (
 	html: string,
-): Promise<{ imported: number; skipped: number }> => {
-	const parsed = parseBookmarksHtml(html);
-	if (parsed.length === 0) {
+): Promise<{ imported: number; skipped: number; truncated: number }> => {
+	const { bookmarks, truncated } = parseBookmarksHtmlDetailed(html);
+	if (bookmarks.length === 0) {
 		throw new Error("No valid http/https bookmarks found in that file.");
 	}
+	const { keys } = await acquireKeys();
 	let imported = 0;
 	let skipped = 0;
-	for (const item of parsed) {
+	for (const item of bookmarks) {
 		try {
 			const captured = await send("save.capture", {
 				url: item.url,
 				title: item.title,
 				saved: true,
 			});
-			if (item.tags.length > 0 && captured.id) {
+			if (captured.id && (item.tags.length > 0 || item.archived)) {
+				const existing = await getSave(littleDB, keys, captured.id);
+				const mergedTags = normalizeTags([
+					...(existing?.tags ?? []),
+					...item.tags,
+				]).slice(0, MAX_TAGS_PER_RECORD);
 				await send("save.update", {
 					id: captured.id,
-					tags: item.tags,
+					...(mergedTags.length > 0 ? { tags: mergedTags } : {}),
+					...(item.archived ? { archived: true } : {}),
 				});
 			}
 			imported += 1;
@@ -469,5 +556,5 @@ export const importBookmarksHtml = async (
 			skipped += 1;
 		}
 	}
-	return { imported, skipped };
+	return { imported, skipped, truncated };
 };

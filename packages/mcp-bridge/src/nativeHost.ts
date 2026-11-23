@@ -91,14 +91,16 @@ export const startNativeHost = (): void => {
 
 	const server = createServer((socket) => {
 		let lineBuffer = "";
-		socket.on("close", () => {
+		const dropSocketPending = () => {
 			for (const [bridgeId, entry] of pending) {
 				if (entry.socket === socket) {
 					clearTimeout(entry.timeout);
 					pending.delete(bridgeId);
 				}
 			}
-		});
+		};
+		socket.on("error", dropSocketPending);
+		socket.on("close", dropSocketPending);
 		socket.on("data", (chunk: Buffer) => {
 			lineBuffer += chunk.toString("utf8");
 			const lines = lineBuffer.split("\n");
@@ -110,18 +112,44 @@ export const startNativeHost = (): void => {
 				try {
 					request = JSON.parse(trimmed);
 				} catch {
+					if (!socket.destroyed) {
+						socket.write(
+							`${JSON.stringify({
+								jsonrpc: "2.0",
+								id: null,
+								error: {
+									code: -32700,
+									message: "Parse error: invalid JSON.",
+								},
+							})}\n`,
+						);
+					}
 					continue;
 				}
+				const reqObj =
+					request && typeof request === "object"
+						? (request as {
+								id?: string | number | null;
+								method?: unknown;
+							})
+						: null;
+				const isNotification =
+					!reqObj ||
+					reqObj.id === undefined ||
+					(typeof reqObj.method === "string" &&
+						reqObj.method.startsWith("notifications/"));
 				const bridgeId = randomUUID();
+				if (isNotification) {
+					writeToChrome({ bridgeId, request });
+					continue;
+				}
 				const timeout = setTimeout(() => {
 					pending.delete(bridgeId);
 					if (!socket.destroyed) {
 						socket.write(
 							`${JSON.stringify({
 								jsonrpc: "2.0",
-								id:
-									(request as { id?: string | number | null })
-										.id ?? null,
+								id: reqObj.id ?? null,
 								error: {
 									code: -32002,
 									message:
@@ -135,6 +163,10 @@ export const startNativeHost = (): void => {
 				writeToChrome({ bridgeId, request });
 			}
 		});
+	});
+
+	server.on("error", () => {
+		process.exit(1);
 	});
 
 	let ownSocketIno: number | null = null;

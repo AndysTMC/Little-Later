@@ -1,4 +1,4 @@
-import { LTHEME } from "little-shared/enums";
+import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import {
 	CaretDownIcon,
@@ -10,7 +10,8 @@ import {
 	XIcon,
 } from "@phosphor-icons/react";
 import { twMerge } from "tailwind-merge";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createToast } from "../../../services/toasts";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIFeaturePageUD } from "../LUIFeaturePageUD/Component";
 import { LUITextInputT1 } from "../LUITextInput/Component";
@@ -61,6 +62,15 @@ const Component = ({
 	]);
 	const [snapshotOpen, setSnapshotOpen] = useState(false);
 	const [copiedSnapshot, setCopiedSnapshot] = useState(false);
+	const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (copyTimerRef.current !== null) {
+				clearTimeout(copyTimerRef.current);
+			}
+		};
+	}, []);
 
 	// Edits stay local until Update, then go out as commands, compared with
 	// what is stored then. Locked notes stay out of inline textareas so
@@ -186,6 +196,7 @@ const Component = ({
 					});
 				}
 			}
+			await createToast("Save updated.", LTOAST_TYPE.SUCCESS);
 		}, "Couldn't update this save.");
 	};
 
@@ -238,6 +249,7 @@ const Component = ({
 							<div className="flex items-center justify-between gap-x-2 px-3 py-2">
 								<button
 									type="button"
+									aria-expanded={snapshotOpen}
 									onClick={() =>
 										setSnapshotOpen((open) => !open)
 									}
@@ -275,20 +287,42 @@ const Component = ({
 									type="button"
 									aria-label="Copy article snapshot"
 									onClick={() => {
-										if (!navigator.clipboard?.writeText)
+										if (!navigator.clipboard?.writeText) {
+											void createToast(
+												"Clipboard is unavailable.",
+												LTOAST_TYPE.ERROR,
+											);
 											return;
+										}
 										void navigator.clipboard
 											.writeText(save.snapshot ?? "")
-											.then(() => {
-												setCopiedSnapshot(true);
-												setTimeout(
-													() =>
-														setCopiedSnapshot(
-															false,
-														),
-													1500,
-												);
-											});
+											.then(
+												() => {
+													setCopiedSnapshot(true);
+													if (
+														copyTimerRef.current !==
+														null
+													) {
+														clearTimeout(
+															copyTimerRef.current,
+														);
+													}
+													copyTimerRef.current =
+														setTimeout(() => {
+															copyTimerRef.current =
+																null;
+															setCopiedSnapshot(
+																false,
+															);
+														}, 1500);
+												},
+												() => {
+													void createToast(
+														"Couldn't copy snapshot.",
+														LTOAST_TYPE.ERROR,
+													);
+												},
+											);
 									}}
 									className={`inline-flex shrink-0 cursor-pointer items-center gap-x-1 rounded-lg px-2 py-0.5 text-[11px] font-medium transition-colors ${
 										theme === LTHEME.DARK

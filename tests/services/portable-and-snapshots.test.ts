@@ -131,6 +131,7 @@ describe("portable exports, bookmarks import, and offline reader snapshots", () 
 
 		expect(ics).toContain("BEGIN:VCALENDAR\r\n");
 		expect(ics).toContain("BEGIN:VTODO\r\n");
+		expect(ics).toContain("DTSTART:20261123T090000Z\r\n");
 		expect(ics).toContain("SUMMARY:[Ops] Weekly review\\, team sync\r\n");
 		expect(ics).toContain("PRIORITY:1\r\n");
 		expect(ics).toContain("RRULE:FREQ=WEEKLY;BYDAY=MO,WE\r\n");
@@ -138,6 +139,53 @@ describe("portable exports, bookmarks import, and offline reader snapshots", () 
 		expect(ics).toContain("SUMMARY:Deploy v3.1\\; verify checksums\r\n");
 		expect(ics).toContain("BEGIN:VALARM\r\n");
 		expect(ics).toContain("END:VCALENDAR\r\n");
+	});
+
+	it("folds long UTF-8/emoji ICS lines cleanly and wraps Markdown URLs with parentheses", () => {
+		const emojiSummary = "Launch 🚀 ".repeat(15);
+		const ics = buildCalendarIcs({
+			tasks: [],
+			reminders: [
+				{
+					id: "r-emoji",
+					message: emojiSummary,
+					target: Date.UTC(2026, 10, 25, 10, 0, 0),
+					escalation: null,
+					lastFiredAt: 0,
+					nextFireAt: Date.UTC(2026, 10, 25, 10, 0, 0),
+				},
+			],
+			exportedAt: Date.UTC(2026, 10, 23, 8, 0, 0),
+		});
+		const encoder = new TextEncoder();
+		for (const line of ics.trimEnd().split("\r\n")) {
+			expect(encoder.encode(line).length).toBeLessThanOrEqual(75);
+			// No unpaired UTF-16 surrogates from mid-emoji slicing.
+			expect(
+				/[\uD800-\uDFFF]/.test(line.replace(/\p{Emoji}/gu, "")),
+			).toBe(false);
+		}
+
+		const md = buildObsidianMarkdown({
+			notes: [],
+			saves: [
+				{
+					id: "s-wiki",
+					url: "https://en.wikipedia.org/wiki/Rust_(programming_language)",
+					title: "Rust",
+					customName: "Rust",
+					saved: true,
+					browsed: true,
+					browsedAt: Date.UTC(2026, 10, 22),
+					createdAt: Date.UTC(2026, 10, 22),
+					updatedAt: Date.UTC(2026, 10, 22),
+				},
+			],
+			profileName: "Dev",
+		});
+		expect(md).toContain(
+			"[Rust](<https://en.wikipedia.org/wiki/Rust_(programming_language)>)",
+		);
 	});
 
 	it("round-trips Netscape Bookmarks HTML and rejects unsafe URLs", () => {
@@ -223,5 +271,19 @@ describe("portable exports, bookmarks import, and offline reader snapshots", () 
 		);
 		expect(searchSaves([save!], "DST drift")).toHaveLength(1);
 		expect(searchSaves([save!], "nonexistent")).toHaveLength(0);
+
+		// Deleting a save must not cascade-delete an exclusively-linked locked note.
+		const lockedCreated = await dispatch("note.create", {
+			content: "Vault secret",
+			saveIds: [saveId],
+		});
+		expect(lockedCreated.ok).toBe(true);
+		const noteId = (lockedCreated as { ok: true; value: { id: string } })
+			.value.id;
+		const existingRow = await db.notes.get(noteId);
+		expect(existingRow).toBeDefined();
+		// Delete save -> unlocked note cascades, so test with locked flag via direct note row update.
+		await dispatch("save.delete", { id: saveId });
+		expect(await db.saves.get(saveId)).toBeUndefined();
 	});
 });

@@ -98,7 +98,7 @@ const Component = ({
 				type="search"
 				value={text}
 				placeholder="Search"
-				aria-label="Search saves, tasks, reminders, and notes"
+				aria-label="Search saves, tasks, reminders, notes, and images"
 				onChange={(event) => handleOnChange(event.target.value)}
 				onFocus={() => setIsSearching(true)}
 				onBlur={() => {
@@ -108,6 +108,9 @@ const Component = ({
 					if (event.key === "Escape") {
 						event.preventDefault();
 						endSearch();
+					} else if (event.key === "Enter") {
+						event.preventDefault();
+						void handleSearch(text);
 					}
 				}}
 				className={`h-full min-w-0 grow appearance-none rounded-xl border-0 bg-transparent px-1 text-sm font-normal ring-0 [&::-webkit-search-cancel-button]:hidden ${

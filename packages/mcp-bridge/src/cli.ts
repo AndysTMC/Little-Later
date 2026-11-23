@@ -288,6 +288,9 @@ const uninstallManifest = (): void => {
 		"mcp-bridge.mjs",
 		"mcp-bridge.js",
 		"mcp-bridge.cjs",
+		"little-later-mcp",
+		"little-later-mcp.exe",
+		"mcp.sock",
 	]) {
 		const filePath = join(appDir, name);
 		if (existsSync(filePath)) {
@@ -341,11 +344,25 @@ const checkStatus = (): void => {
 			settled = true;
 			clearTimeout(timer);
 			socket.end();
+			try {
+				const reply = JSON.parse(buffer.slice(0, newline)) as {
+					error?: { message?: string };
+				};
+				if (reply.error) {
+					console.error(
+						reply.error.message ??
+							"Little Later rejected the status ping.",
+					);
+					process.exit(1);
+				}
+			} catch {
+				// Ignore non-JSON reply.
+			}
 			console.log(`Connected to Little Later (${endpoint}).`);
 			process.exit(0);
 		}
 	});
-	socket.on("error", () => {
+	const onUnavailable = () => {
 		if (settled) return;
 		settled = true;
 		clearTimeout(timer);
@@ -353,7 +370,9 @@ const checkStatus = (): void => {
 			"Cannot reach Little Later. Make sure Chrome is open, your profile is unlocked, External agent MCP is enabled in Settings -> Data & Privacy, and the native host is installed.",
 		);
 		process.exit(1);
-	});
+	};
+	socket.on("error", onUnavailable);
+	socket.on("close", onUnavailable);
 };
 
 export const isJsonRpcNotification = (line: string): boolean => {
@@ -458,6 +477,13 @@ export const startStdioServer = (
 			if (trimmed !== "") {
 				sendToHost(trimmed);
 			}
+		}
+	});
+	input.on("end", () => {
+		const trailing = stdinBuffer.trim();
+		stdinBuffer = "";
+		if (trailing !== "") {
+			sendToHost(trailing);
 		}
 	});
 };
@@ -755,16 +781,29 @@ const runQuickCommand = async (
 		const information = positional.join(" ").trim();
 		if (!information) {
 			console.error(
-				"Usage: little-later-mcp add-task <information> [--label <label>] [--priority low|medium|high] [--tag <tag>...]",
+				"Usage: little-later-mcp add-task <information> [--label <label>] [--priority low|medium|high] [--due <30m|2h|1d|ISO-time>] [--tag <tag>...]",
 			);
 			process.exit(1);
 		}
 		const label = flags.get("label")?.[0];
 		const priority = flags.get("priority")?.[0]?.toLowerCase();
+		const dueSpec = flags.get("due")?.[0];
+		let dueAt: number | undefined;
+		if (dueSpec !== undefined) {
+			const parsedDue = parseReminderTime(dueSpec);
+			if (parsedDue === null) {
+				console.error(
+					"Invalid --due value. Use a future time like 30m, 2h, 1d, or an ISO timestamp.",
+				);
+				process.exit(1);
+			}
+			dueAt = parsedDue;
+		}
 		const result = await callBridgeTool("create_task", {
 			information,
 			...(label ? { label } : {}),
 			...(priority ? { priority } : {}),
+			...(dueAt !== undefined ? { dueAt } : {}),
 			...(tags.length > 0 ? { tags } : {}),
 		});
 		console.log(

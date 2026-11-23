@@ -262,6 +262,10 @@ const addEntry = async (
 			const content = record(entry.content);
 			const url = parsed(() => asWebUrl(content.url));
 			const tags = importTags(content.tags);
+			const snapshot =
+				typeof content.snapshot === "string"
+					? content.snapshot.trim().slice(0, 15_000)
+					: "";
 			rows.saves.push({
 				...row,
 				...(await sealBody(keys, "saves", row.id, {
@@ -273,6 +277,7 @@ const addEntry = async (
 						: {}),
 					...(content.archived === true ? { archived: true } : {}),
 					...(tags.length > 0 ? { tags } : {}),
+					...(snapshot !== "" ? { snapshot } : {}),
 				})),
 				urlKey: await urlKeyFor(keys.index, url),
 				originKey: await originKeyFor(keys.index, url),

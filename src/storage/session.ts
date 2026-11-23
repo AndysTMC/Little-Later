@@ -145,12 +145,16 @@ export const sessionStore: SessionStore =
 			? createMemorySessionStore()
 			: createWebSessionStore(sessionStorage);
 
+const BASE64_CHUNK_SIZE = 32_768;
+
 export const toBase64 = (bytes: Uint8Array): string => {
-	let binary = "";
-	for (const byte of bytes) {
-		binary += String.fromCharCode(byte);
+	const chunks: Array<string> = [];
+	for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
+		chunks.push(
+			String.fromCharCode(...bytes.subarray(i, i + BASE64_CHUNK_SIZE)),
+		);
 	}
-	return btoa(binary);
+	return btoa(chunks.join(""));
 };
 
 export const fromBase64 = (text: string): Uint8Array =>

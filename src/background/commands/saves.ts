@@ -3,6 +3,7 @@ import { originKeyFor, urlKeyFor } from "little-shared/utils/envelope";
 import { sealBody, type ProfileKeys } from "../../storage/keys";
 import {
 	getSettings,
+	openNote,
 	openSave,
 	type SaveContent,
 } from "../../storage/repositories";
@@ -21,12 +22,13 @@ import {
 const MAX_TITLE_LENGTH = 1_000;
 const MAX_SNAPSHOT_LENGTH = 15_000;
 
-const optionalSnapshot = (value: unknown): string | undefined => {
-	if (value === undefined || value === null) return undefined;
+const optionalSnapshot = (value: unknown): string | null | undefined => {
+	if (value === undefined) return undefined;
+	if (value === null) return null;
 	const text = asString(value, "snapshot")
 		.trim()
 		.slice(0, MAX_SNAPSHOT_LENGTH);
-	return text !== "" ? text : undefined;
+	return text !== "" ? text : null;
 };
 
 export const asWebUrl = (value: unknown): string => {
@@ -127,7 +129,10 @@ export const saveCapture = defineCommand({
 		if (existing) {
 			const content = await openSave(keys, existing);
 			const existingTags = content.tags ?? [];
-			const snapshot = input.snapshot ?? content.snapshot;
+			const snapshot =
+				input.snapshot === undefined
+					? content.snapshot
+					: (input.snapshot ?? undefined);
 			const preservedMeta = {
 				...(content.archived ? { archived: true } : {}),
 				...(existingTags.length > 0 ? { tags: existingTags } : {}),
@@ -150,7 +155,7 @@ export const saveCapture = defineCommand({
 						}
 					: {
 							url: content.url,
-							title,
+							title: untitled ? content.title : title,
 							customName: content.customName,
 							...(content.provisional
 								? { provisional: true as const }
@@ -239,7 +244,10 @@ export const saveUpdate = defineCommand({
 		const content = await openSave(keys, row);
 		const archived = input.archived ?? Boolean(content.archived);
 		const tags = input.tags ?? content.tags ?? [];
-		const snapshot = input.snapshot ?? content.snapshot;
+		const snapshot =
+			input.snapshot === undefined
+				? content.snapshot
+				: (input.snapshot ?? undefined);
 		const sealed = await sealBody<SaveContent>(keys, "saves", row.id, {
 			url: content.url,
 			title: content.title,
@@ -290,18 +298,34 @@ export const saveDelete = defineCommand({
 		if (!row || row.profileId !== keys.profileId) {
 			return null;
 		}
+		const linkedNoteIds = (
+			await ctx.db.links
+				.where("[profileId+toId]")
+				.equals([keys.profileId, row.id])
+				.toArray()
+		).map((link) => link.fromId);
+		const linkedNotes = await ctx.db.notes.bulkGet(linkedNoteIds);
+		// Open notes before starting the IndexedDB transaction (WebCrypto
+		// awaits close an active IDB transaction) so locked notes are never
+		// silently cascade-deleted.
+		const lockedNoteIds = new Set<string>();
+		for (const note of linkedNotes) {
+			if (!note) continue;
+			try {
+				const opened = await openNote(keys, note);
+				if (opened.locked) {
+					lockedNoteIds.add(note.id);
+				}
+			} catch {
+				lockedNoteIds.add(note.id);
+			}
+		}
 		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {
-			const noteIds = (
-				await ctx.db.links
-					.where("[profileId+toId]")
-					.equals([keys.profileId, row.id])
-					.toArray()
-			).map((link) => link.fromId);
-			const notes = await ctx.db.notes.bulkGet(noteIds);
 			const ownNoteIds: Array<string> = [];
-			for (const note of notes) {
+			for (const note of linkedNotes) {
 				if (
 					note &&
+					!lockedNoteIds.has(note.id) &&
 					(await ctx.db.links
 						.where("[profileId+fromId]")
 						.equals([keys.profileId, note.id])

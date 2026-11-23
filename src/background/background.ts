@@ -1,5 +1,5 @@
 import { currentOwner } from "../services/ai/owner";
-import { readPage } from "../services/ai/pages";
+import { readArticleSnapshot } from "../services/ai/pages";
 import { recoverInterrupted } from "../services/ai/runs";
 import { setLocalDispatch } from "../utils/send";
 import Dexie from "dexie";
@@ -229,13 +229,10 @@ const pageCapture = createPageCapture({
 		return dataUrl ? previewBytes(dataUrl) : undefined;
 	},
 	readSnapshot: async (tab) => {
-		if (tab.id === undefined || !tab.url) return undefined;
-		const content = await readPage({
-			tabId: tab.id,
-			url: tab.url,
-			title: tab.title ?? "",
-		});
-		return content.text || undefined;
+		if (tab.incognito || tab.id === undefined || !tab.url) {
+			return undefined;
+		}
+		return readArticleSnapshot(tab.id, tab.url);
 	},
 	isShowing: async (tab) => {
 		const [active] = await chrome.tabs.query({

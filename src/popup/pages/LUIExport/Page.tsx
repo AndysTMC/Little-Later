@@ -4,6 +4,7 @@ import { LEXPORT_TYPE, LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { capitalize } from "little-shared/utils/misc";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { useLocation } from "react-router";
 import { exportBackup, exportReadable } from "../../../services/backup";
 import {
 	exportBookmarksHtml,
@@ -25,7 +26,14 @@ type ExportFormat = LEXPORT_TYPE | "markdown" | "calendar" | "bookmarks";
 const Page = () => {
 	const { theme } = useTheme();
 	const pageMotion = usePageMotion();
+	const location = useLocation();
+	const referrer =
+		typeof (location.state as { referrer?: unknown } | null)?.referrer ===
+		"string"
+			? (location.state as { referrer: string }).referrer
+			: "/settings";
 	const userSettings = useCurrentUserSettings();
+	const lastBackupAt = userSettings?.misc.lastBackupAt ?? 0;
 	const exportOptions: ReadonlyArray<{ value: ExportFormat; label: string }> =
 		[
 			...Object.values(LEXPORT_TYPE).map((value) => ({
@@ -45,6 +53,7 @@ const Page = () => {
 		try {
 			if (exportType === LEXPORT_TYPE.IMPORTABLE) {
 				await exportBackup(backupPassword);
+				setBackupPassword("");
 				if (userSettings) {
 					void send("settings.update", {
 						misc: {
@@ -77,17 +86,26 @@ const Page = () => {
 			className={`flex h-full w-full flex-col select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} overflow-y-hidden`}
 			{...pageMotion}
 		>
-			<LUIBasicNav navigateTo="/settings" />
+			<LUIBasicNav navigateTo={referrer} />
 			<LUISettingsLayout pageName="Export">
 				<div className={`relative flex h-max w-full flex-col gap-y-2`}>
 					<div className="relative z-40">
 						<LUISettingSelect
-							label="Choose Export Format"
+							label="Choose export format"
 							value={exportType}
 							options={exportOptions}
 							onChange={setExportType}
 						/>
 					</div>
+					{lastBackupAt > 0 &&
+					exportType === LEXPORT_TYPE.IMPORTABLE ? (
+						<p
+							className={`text-xs ${theme === LTHEME.DARK ? "text-neutral-400" : "text-neutral-500"}`}
+						>
+							Last encrypted backup:{" "}
+							{new Date(lastBackupAt).toLocaleDateString()}
+						</p>
+					) : null}
 					{exportType === LEXPORT_TYPE.IMPORTABLE ? (
 						<>
 							<LUINote className="w-full">

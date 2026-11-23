@@ -271,7 +271,14 @@ const captureDeleteNoteUndo = async (
 	return {
 		label: "Delete note",
 		run: async () => {
-			await owner.send("note.create", { content: note.content, saveIds });
+			await owner.send("note.create", {
+				content: note.content,
+				...(note.title ? { title: note.title } : {}),
+				...(note.tags && note.tags.length > 0
+					? { tags: note.tags }
+					: {}),
+				saveIds,
+			});
 		},
 	};
 };
@@ -296,6 +303,9 @@ const captureDeleteReminderUndo = async (
 				message: reminder.message,
 				target: reminder.target,
 				escalate: reminder.escalation !== null,
+				...(reminder.tags && reminder.tags.length > 0
+					? { tags: reminder.tags }
+					: {}),
 				saveIds,
 			});
 			await relink(owner, created.id, otherIds);
@@ -354,6 +364,9 @@ const captureDeleteTaskUndo = async (
 					reminder && task.schedule.kind !== "anytime"
 						? reminderKind(reminder)
 						: null,
+				...(task.tags && task.tags.length > 0
+					? { tags: task.tags }
+					: {}),
 				saveIds,
 			});
 			if (task.done) {

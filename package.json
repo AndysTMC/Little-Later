@@ -24,7 +24,7 @@
 		"build:mcp": "bun run --cwd packages/mcp-bridge build",
 		"build": "bun run build:shared && tsc -b && vite build",
 		"preview": "vite preview",
-		"test": "bun run build:shared && vitest run --environment jsdom --mode testing --passWithNoTests tests",
+		"test": "bun run build:shared && vitest run --mode testing --passWithNoTests tests",
 		"test:e2e": "playwright test",
 		"test:ext": "bun run build && playwright test -c playwright.extension.config.ts",
 		"screenshots": "playwright test -c playwright.visual.config.ts",

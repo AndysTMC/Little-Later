@@ -5,11 +5,12 @@ import { importProfileKeys, type ProfileKeys } from "../storage/keys";
 import {
 	getSettings,
 	listImages,
+	listReminders,
+	listSaves,
+	listTasks,
 	openEach,
 	openNote,
 	openReminder,
-	openSave,
-	openTask,
 	type ImageRecord,
 	type Note,
 	type Reminder,
@@ -19,6 +20,7 @@ import {
 import type { LittleDB } from "../storage/schema";
 import type { SessionStore } from "../storage/session";
 import { hybridRank } from "../services/ai/toolCalls/_utils/bm25";
+import { normalizeTag } from "../utils/tags";
 import type { Dispatch } from "./commands/registry";
 
 export const EXTERNAL_MCP_HOST_NAME = "com.littlelater.mcp";
@@ -52,6 +54,7 @@ const MCP_TOOLS: ReadonlyArray<McpToolDef> = [
 			type: "object",
 			properties: {
 				includeArchived: { type: "boolean" },
+				includeSnapshot: { type: "boolean" },
 				tag: { type: "string" },
 				limit: { type: "integer" },
 			},
@@ -75,6 +78,7 @@ const MCP_TOOLS: ReadonlyArray<McpToolDef> = [
 		inputSchema: {
 			type: "object",
 			properties: {
+				includeFired: { type: "boolean" },
 				tag: { type: "string" },
 				limit: { type: "integer" },
 			},
@@ -133,7 +137,8 @@ const MCP_TOOLS: ReadonlyArray<McpToolDef> = [
 	},
 	{
 		name: "create_task",
-		description: "Create a new task in the unlocked profile.",
+		description:
+			"Create a new task in the unlocked profile (optional dueAt in epoch milliseconds).",
 		write: true,
 		inputSchema: {
 			type: "object",
@@ -141,6 +146,7 @@ const MCP_TOOLS: ReadonlyArray<McpToolDef> = [
 				information: { type: "string" },
 				label: { type: "string" },
 				priority: { type: "string", enum: ["low", "medium", "high"] },
+				dueAt: { type: "integer" },
 				tags: { type: "array", items: { type: "string" } },
 			},
 			required: ["information"],
@@ -213,17 +219,7 @@ const owned = (profileId: string) =>
 const readSavesFrom = async (
 	db: LittleDB,
 	keys: ProfileKeys,
-): Promise<Array<Save>> =>
-	(
-		await openEach(
-			"saves",
-			await db.saves
-				.where("[profileId+keyId]")
-				.between(...owned(keys.profileId))
-				.toArray(),
-			(row) => openSave(keys, row),
-		)
-	).filter((save) => save.saved);
+): Promise<Array<Save>> => listSaves(db, keys, true);
 
 // Security invariant: locked notes are strictly excluded from external MCP.
 const readUnlockedNotesFrom = async (
@@ -245,21 +241,23 @@ const readUnlockedNotesFrom = async (
 const readTasksFrom = async (
 	db: LittleDB,
 	keys: ProfileKeys,
-): Promise<Array<Task>> =>
-	openEach(
-		"tasks",
-		await db.tasks
-			.where("[profileId+keyId]")
-			.between(...owned(keys.profileId))
-			.toArray(),
-		(row) => openTask(keys, row),
-	);
+	includeFinished = true,
+): Promise<Array<Task>> => {
+	const open = await listTasks(db, keys, false);
+	if (!includeFinished) return open;
+	const finished = await listTasks(db, keys, true);
+	return [...open, ...finished];
+};
 
 const readRemindersFrom = async (
 	db: LittleDB,
 	keys: ProfileKeys,
-): Promise<Array<Reminder>> =>
-	openEach(
+	includeFired = false,
+): Promise<Array<Reminder>> => {
+	if (!includeFired) {
+		return listReminders(db, keys);
+	}
+	return openEach(
 		"reminders",
 		await db.reminders
 			.where("[profileId+keyId]")
@@ -267,6 +265,7 @@ const readRemindersFrom = async (
 			.toArray(),
 		(row) => openReminder(keys, row),
 	);
+};
 
 const readImagesFrom = async (
 	db: LittleDB,
@@ -278,10 +277,26 @@ const filterTag = <T extends { tags?: Array<string> }>(
 	tag: unknown,
 ): Array<T> => {
 	if (typeof tag !== "string" || tag.trim() === "") return items;
-	const target = tag.trim().toLowerCase().replace(/^#/, "");
+	const target = normalizeTag(tag);
+	if (!target) return items;
 	return items.filter((item) =>
 		(item.tags ?? []).some((t) => t.toLowerCase() === target),
 	);
+};
+
+const shapeSaveForMcp = (
+	save: Save,
+	includeSnapshot: boolean,
+): Record<string, unknown> => {
+	if (includeSnapshot || !save.snapshot) {
+		return save;
+	}
+	const { snapshot, ...rest } = save;
+	return {
+		...rest,
+		hasSnapshot: true,
+		snapshotExcerpt: snapshot.slice(0, 300),
+	};
 };
 
 const clampLimit = (value: unknown, fallback = 50): number => {
@@ -453,31 +468,28 @@ export const handleExternalMcpRequest = async ({
 			switch (toolName) {
 				case "list_saves": {
 					const includeArchived = Boolean(args.includeArchived);
+					const includeSnapshot = Boolean(args.includeSnapshot);
 					let saves = await readSavesFrom(db, keys);
 					if (!includeArchived) {
 						saves = saves.filter((save) => !save.archived);
 					}
-					saves = filterTag(saves, args.tag).slice(
-						0,
-						clampLimit(args.limit),
-					);
-					return ok(id, textToolResult(saves));
+					const picked = filterTag(saves, args.tag)
+						.slice(0, clampLimit(args.limit))
+						.map((save) => shapeSaveForMcp(save, includeSnapshot));
+					return ok(id, textToolResult(picked));
 				}
 				case "list_tasks": {
 					const includeFinished = args.includeFinished !== false;
-					let tasks = await readTasksFrom(db, keys);
-					if (!includeFinished) {
-						tasks = tasks.filter((task) => !task.done);
-					}
-					tasks = filterTag(tasks, args.tag).slice(
-						0,
-						clampLimit(args.limit),
-					);
+					const tasks = filterTag(
+						await readTasksFrom(db, keys, includeFinished),
+						args.tag,
+					).slice(0, clampLimit(args.limit));
 					return ok(id, textToolResult(tasks));
 				}
 				case "list_reminders": {
+					const includeFired = Boolean(args.includeFired);
 					const reminders = filterTag(
-						await readRemindersFrom(db, keys),
+						await readRemindersFrom(db, keys, includeFired),
 						args.tag,
 					).slice(0, clampLimit(args.limit));
 					return ok(id, textToolResult(reminders));
@@ -570,7 +582,10 @@ export const handleExternalMcpRequest = async ({
 								? args.tags
 								: undefined,
 						},
-						{ profileId: keys.profileId },
+						{
+							profileId: keys.profileId,
+							unlockId: unlocked.unlockId,
+						},
 					);
 					if (!result.ok) {
 						return fail(id, -32602, result.error.message);
@@ -584,6 +599,15 @@ export const handleExternalMcpRequest = async ({
 						args.priority === LTASK_PRIORITY.HIGH
 							? args.priority
 							: undefined;
+					const schedule =
+						typeof args.dueAt === "number" &&
+						Number.isFinite(args.dueAt) &&
+						args.dueAt > 0
+							? {
+									kind: "due" as const,
+									at: Math.trunc(args.dueAt),
+								}
+							: { kind: "anytime" as const };
 					const result = await dispatch(
 						"task.create",
 						{
@@ -593,13 +617,16 @@ export const handleExternalMcpRequest = async ({
 									? args.label
 									: undefined,
 							priority,
-							schedule: { kind: "anytime" },
+							schedule,
 							reminder: null,
 							tags: Array.isArray(args.tags)
 								? args.tags
 								: undefined,
 						},
-						{ profileId: keys.profileId },
+						{
+							profileId: keys.profileId,
+							unlockId: unlocked.unlockId,
+						},
 					);
 					if (!result.ok) {
 						return fail(id, -32602, result.error.message);
@@ -617,7 +644,10 @@ export const handleExternalMcpRequest = async ({
 								? args.tags
 								: undefined,
 						},
-						{ profileId: keys.profileId },
+						{
+							profileId: keys.profileId,
+							unlockId: unlocked.unlockId,
+						},
 					);
 					if (!result.ok) {
 						return fail(id, -32602, result.error.message);
@@ -628,7 +658,10 @@ export const handleExternalMcpRequest = async ({
 					const result = await dispatch(
 						"task.complete",
 						{ id: args.id },
-						{ profileId: keys.profileId },
+						{
+							profileId: keys.profileId,
+							unlockId: unlocked.unlockId,
+						},
 					);
 					if (!result.ok) {
 						return fail(id, -32602, result.error.message);
@@ -666,6 +699,7 @@ export const createNativeMcpBridge = ({
 	let port: chrome.runtime.Port | null = null;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	let reconnectAttempt = 0;
+	let syncGeneration = 0;
 
 	const clearReconnect = () => {
 		if (reconnectTimer !== null) {
@@ -675,6 +709,7 @@ export const createNativeMcpBridge = ({
 	};
 
 	const disconnect = () => {
+		syncGeneration += 1;
 		clearReconnect();
 		reconnectAttempt = 0;
 		if (port) {
@@ -704,7 +739,9 @@ export const createNativeMcpBridge = ({
 		if (typeof chrome === "undefined" || !chrome.runtime?.connectNative) {
 			return;
 		}
+		const gen = ++syncGeneration;
 		const unlocked = await session.get();
+		if (gen !== syncGeneration) return;
 		if (!unlocked) {
 			disconnect();
 			return;
@@ -713,9 +750,10 @@ export const createNativeMcpBridge = ({
 		try {
 			const keys = await importProfileKeys(unlocked);
 			const settings = await getSettings(db, keys);
+			if (gen !== syncGeneration) return;
 			mode = settings.misc.externalMcpMode ?? "off";
 		} catch {
-			disconnect();
+			if (gen === syncGeneration) disconnect();
 			return;
 		}
 		if (mode === "off") {

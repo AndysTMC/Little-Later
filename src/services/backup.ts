@@ -474,6 +474,10 @@ export const createReadableExport = async (
 				});
 				break;
 			case "notes":
+				// Security invariant: never leak locked notes into plaintext JSON exports.
+				if (entry.content.locked) {
+					break;
+				}
 				listOf("notes").push({
 					id: entry.id,
 					...entry.content,
