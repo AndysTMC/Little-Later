@@ -1,13 +1,43 @@
 {
-	"name": "little-later-mcp-bridge",
+	"name": "little-later-mcp",
 	"version": "3.1.0",
-	"private": true,
+	"private": false,
+	"license": "MIT",
 	"description": "Local MCP stdio <-> Chrome Native Messaging bridge for Little Later",
+	"author": "Thatikonda Mukesh",
+	"homepage": "https://github.com/AndysTMC/Little-Later#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/AndysTMC/Little-Later.git",
+		"directory": "packages/mcp-bridge"
+	},
+	"bugs": {
+		"url": "https://github.com/AndysTMC/Little-Later/issues"
+	},
+	"keywords": [
+		"mcp",
+		"model-context-protocol",
+		"little-later",
+		"chrome-extension",
+		"native-messaging",
+		"bookmarks",
+		"notes",
+		"tasks"
+	],
 	"type": "module",
+	"engines": {
+		"node": ">=18"
+	},
+	"files": [
+		"dist/cli.mjs",
+		"README.md"
+	],
 	"bin": {
-		"little-later-mcp": "./src/cli.ts"
+		"little-later-mcp": "./dist/cli.mjs"
 	},
 	"scripts": {
+		"build": "bun build ./src/cli.ts --target=node --outfile=./dist/cli.mjs",
+		"prepublishOnly": "bun run build",
 		"serve": "bun ./src/cli.ts serve",
 		"host": "bun ./src/cli.ts host"
 	}

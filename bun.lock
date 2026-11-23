@@ -47,15 +47,15 @@
       },
     },
     "packages/mcp-bridge": {
-      "name": "little-later-mcp-bridge",
-      "version": "3.0.1",
+      "name": "little-later-mcp",
+      "version": "3.1.0",
       "bin": {
-        "little-later-mcp": "./src/cli.ts",
+        "little-later-mcp": "./dist/cli.mjs",
       },
     },
     "packages/shared": {
       "name": "little-shared",
-      "version": "3.0.1",
+      "version": "3.1.0",
       "dependencies": {
         "@msgpack/msgpack": "^3.1.2",
       },
@@ -589,7 +589,7 @@
 
     "lightningcss-win32-x64-msvc": ["lightningcss-win32-x64-msvc@1.33.0", "", { "os": "win32", "cpu": "x64" }, "sha512-OlEICDx/Xl0FqSp4bry8zFnCvGpig3Gl4gCquvYwHuqJKEC1+n9NgDniFvqHGmMv1ZkqDJrDqKKSykTDX+ehuA=="],
 
-    "little-later-mcp-bridge": ["little-later-mcp-bridge@workspace:packages/mcp-bridge"],
+    "little-later-mcp": ["little-later-mcp@workspace:packages/mcp-bridge"],
 
     "little-shared": ["little-shared@workspace:packages/shared"],
 
