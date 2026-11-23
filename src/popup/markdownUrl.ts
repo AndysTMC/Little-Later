@@ -1,6 +1,6 @@
 import { defaultUrlTransform } from "react-markdown";
 
-const RASTER_DATA_IMAGE = /^data:image\/(png|jpeg|webp|gif)[;,]/i;
+const RASTER_DATA_IMAGE = /^data:image\/(png|jpeg|webp|gif|avif)[;,]/i;
 const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
 const currentOrigin = (): string =>

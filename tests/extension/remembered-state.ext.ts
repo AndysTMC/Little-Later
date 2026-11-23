@@ -125,7 +125,7 @@ test("new-profile text survives reopen but neither password field is remembered"
 	await expect(reopened.getByLabel("Confirm password")).toHaveValue("");
 });
 
-test("a new task restores label, priority, due date and reminder, and starts empty once saved", async ({
+test("a new task restores priority, due date and reminder, and starts empty once saved", async ({
 	openPopup,
 	serviceWorker,
 }) => {
@@ -134,7 +134,6 @@ test("a new task restores label, priority, due date and reminder, and starts emp
 	await page
 		.getByPlaceholder("Information")
 		.fill("Create the release checklist");
-	await page.getByPlaceholder("Label").fill("Release");
 	await option(page, "Priority", "High").click();
 	await option(page, "Type", "Due").click();
 	await expect(page.getByText("Deadline", { exact: true })).toBeVisible();
@@ -149,7 +148,6 @@ test("a new task restores label, priority, due date and reminder, and starts emp
 	await expect(restored.getByPlaceholder("Information")).toHaveValue(
 		"Create the release checklist",
 	);
-	await expect(restored.getByPlaceholder("Label")).toHaveValue("Release");
 	await expect(option(restored, "Priority", "High")).toBeChecked();
 	await expect(option(restored, "Type", "Due")).toBeChecked();
 	await expect(option(restored, "Reminder", "Normal")).toBeChecked();
@@ -165,7 +163,6 @@ test("a new task restores label, priority, due date and reminder, and starts emp
 	await expect(next.getByRole("tablist")).toBeVisible();
 	await button(next, "New task").click();
 	await expect(next.getByPlaceholder("Information")).toHaveValue("");
-	await expect(next.getByPlaceholder("Label")).toHaveValue("");
 });
 
 test("closing immediately after Create reopens on Home, not the form", async ({
@@ -218,16 +215,12 @@ test("editing an existing task and reminder restores both routes and their edits
 	await button(page, "Edit task").click();
 	await expect(page).toHaveURL(new RegExp("#/task/" + task.id + "$"));
 	await page.getByPlaceholder("Information").fill("Changed errand");
-	await page.getByPlaceholder("Label").fill("New task label");
 	await page.close();
 
 	const restoredTask = await openPopup("/");
 	await expect(restoredTask).toHaveURL(new RegExp("#/task/" + task.id + "$"));
 	await expect(restoredTask.getByPlaceholder("Information")).toHaveValue(
 		"Changed errand",
-	);
-	await expect(restoredTask.getByPlaceholder("Label")).toHaveValue(
-		"New task label",
 	);
 	await button(restoredTask, "Go back").click();
 	await tab(restoredTask, "Reminders").click();

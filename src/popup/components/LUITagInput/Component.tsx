@@ -111,7 +111,7 @@ const Component = ({
 								<LUIThemedIcon
 									Icon={XIcon}
 									color="currentColor"
-									weight="bold"
+									weight="regular"
 									className="size-2.5"
 								/>
 							</button>
@@ -154,10 +154,10 @@ const Component = ({
 								removeTag(tags[tags.length - 1]);
 							}
 						}}
-						className={`h-9 min-w-0 grow rounded-xl border px-3 text-xs transition-colors outline-none ${
+						className={`ll-field h-9 min-w-0 grow rounded-xl border px-3 text-xs transition-colors ${
 							isDark
-								? "border-neutral-700 bg-neutral-900 text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-400"
-								: "border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-600"
+								? "border-neutral-700 bg-neutral-900 text-neutral-100 placeholder:text-neutral-500"
+								: "border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
 						}`}
 					/>
 					<button
@@ -174,7 +174,7 @@ const Component = ({
 						<LUIThemedIcon
 							Icon={PlusIcon}
 							color="currentColor"
-							weight="bold"
+							weight="regular"
 							className="size-3.5"
 						/>
 						<span>Add</span>
@@ -192,6 +192,8 @@ const Component = ({
 						<button
 							key={tag}
 							type="button"
+							role="option"
+							aria-selected={false}
 							onMouseDown={(event) => event.preventDefault()}
 							onClick={() => addTag(tag)}
 							className={`cursor-pointer rounded-full border border-dashed px-2 py-0.5 text-[11px] transition-colors ${

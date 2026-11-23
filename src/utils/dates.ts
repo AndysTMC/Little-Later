@@ -29,12 +29,11 @@ export const lastSeenInfo = (ms: number, now: number = Date.now()): string => {
 	const date = zoned(ms).toPlainDate();
 	const today = zoned(now).toPlainDate();
 	const days = today.since(date).days;
-	if (days < 0) return prettyDate(ms, now);
-	if (days === 0) return "Today";
+	if (days <= 0) return "Today";
 	if (days === 1) return "Yesterday";
 	// Weeks start on Sunday.
 	if (days < (today.dayOfWeek % 7) + 1) {
-		return `Current week on ${prettyDate(ms, now)}`;
+		return "Current week";
 	}
 	if (date.year === today.year && date.month === today.month) {
 		return "Current Month";

@@ -86,7 +86,6 @@ const Component = ({
 				<div className="flex min-w-0 grow flex-col gap-y-1.5">
 					<button
 						type="button"
-						aria-label="Details"
 						aria-expanded={showDetails}
 						onClick={() => setShowDetails((open) => !open)}
 						className="flex w-full min-w-0 cursor-pointer flex-col gap-y-1 text-left"
@@ -164,10 +163,15 @@ const Component = ({
 							/>
 						</button>
 					) : null}
-					<span
-						aria-hidden
-						className={`flex size-6 items-center justify-center ${
-							isDark ? "text-neutral-500" : "text-neutral-400"
+					<button
+						type="button"
+						aria-label="Details"
+						aria-expanded={showDetails}
+						onClick={() => setShowDetails((open) => !open)}
+						className={`flex size-6 cursor-pointer items-center justify-center rounded-lg transition-colors ${
+							isDark
+								? "text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
+								: "text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700"
 						}`}
 					>
 						<LUIThemedIcon
@@ -176,7 +180,7 @@ const Component = ({
 							weight="regular"
 							className={`size-3.5 transition-transform duration-150 ${showDetails ? "rotate-180" : ""}`}
 						/>
-					</span>
+					</button>
 				</div>
 			</div>
 

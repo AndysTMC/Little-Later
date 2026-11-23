@@ -20,7 +20,7 @@ const Locked = () => {
 				Your profile is locked
 			</h1>
 			<LUINote>
-				Unlock it in Little Later, and LittleAI picks up here.
+				Unlock it in Little Later, and Little AI picks up here.
 			</LUINote>
 			<LUICUButton
 				name="Open Little Later"

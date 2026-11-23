@@ -558,12 +558,27 @@ export const followDeviceZone = async (
 		.filter((task) => task.done === 0 && typeof task.occursOn === "string")
 		.toArray();
 	for (const task of open) {
-		if (task.schedule.kind !== "recurring" || task.occursOn === null) {
+		if (
+			task.schedule.kind !== "recurring" ||
+			task.occursOn === null ||
+			task.schedule.rule.zone !== "floating"
+		) {
 			continue;
 		}
 		const { rule } = task.schedule;
 		const occursOn = Temporal.PlainDate.from(task.occursOn);
 		const dueAt = toInstant(occursOn, rule.time, resolveZone(rule, zone));
+		const existingReminder = await findTaskReminder(
+			db,
+			task.profileId,
+			task.id,
+		);
+		if (
+			dueAt === task.dueAt &&
+			(!existingReminder || existingReminder.target === task.dueAt)
+		) {
+			continue;
+		}
 		await db.transaction("rw", cascadeTables(db), async () => {
 			const reminder = await findTaskReminder(
 				db,

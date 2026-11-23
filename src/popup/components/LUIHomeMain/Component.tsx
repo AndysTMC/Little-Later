@@ -102,6 +102,11 @@ const Component = ({ className }: { className?: string }) => {
 		searchBarRef.current?.setQuery(`#${tag}`);
 	};
 
+	const activeSearchTag = useMemo(() => {
+		const match = /^#([a-z0-9-]+)$/i.exec(searchQuery.trim());
+		return match ? match[1].toLowerCase() : null;
+	}, [searchQuery]);
+
 	const searchResults = useMemo((): Array<SearchResult> => {
 		const query = searchQuery.trim();
 		if (!query) return [];
@@ -288,6 +293,12 @@ const Component = ({ className }: { className?: string }) => {
 															tasks={tasks}
 															key={`${result.type}-${result.data.id}`}
 															save={result.data}
+															activeTag={
+																activeSearchTag
+															}
+															onSelectTag={
+																searchByTag
+															}
 														/>
 													);
 												}
@@ -304,6 +315,12 @@ const Component = ({ className }: { className?: string }) => {
 															saves={saves}
 															key={`${result.type}-${result.data.id}`}
 															task={result.data}
+															activeTag={
+																activeSearchTag
+															}
+															onSelectTag={
+																searchByTag
+															}
 														/>
 													);
 												}
@@ -319,6 +336,12 @@ const Component = ({ className }: { className?: string }) => {
 															key={`${result.type}-${result.data.id}`}
 															reminder={
 																result.data
+															}
+															activeTag={
+																activeSearchTag
+															}
+															onSelectTag={
+																searchByTag
 															}
 														/>
 													);
@@ -339,6 +362,12 @@ const Component = ({ className }: { className?: string }) => {
 																)
 															}
 															showDelete={false}
+															activeTag={
+																activeSearchTag
+															}
+															onSelectTag={
+																searchByTag
+															}
 														/>
 													);
 												}
@@ -357,6 +386,12 @@ const Component = ({ className }: { className?: string }) => {
 																)
 															}
 															showDelete={false}
+															activeTag={
+																activeSearchTag
+															}
+															onSelectTag={
+																searchByTag
+															}
 														/>
 													);
 												}
@@ -544,7 +579,7 @@ const Component = ({ className }: { className?: string }) => {
 								type="button"
 								aria-label="Dismiss backup reminder"
 								onClick={() => setBackupDismissed(true)}
-								className={`flex size-6 cursor-pointer items-center justify-center rounded-lg transition-colors ${
+								className={`flex size-6 cursor-pointer items-center justify-center rounded-full transition-colors ${
 									theme === LTHEME.DARK
 										? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
 										: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
@@ -553,7 +588,7 @@ const Component = ({ className }: { className?: string }) => {
 								<LUIThemedIcon
 									Icon={XIcon}
 									color="currentColor"
-									weight="bold"
+									weight="regular"
 									className="size-3.5"
 								/>
 							</button>

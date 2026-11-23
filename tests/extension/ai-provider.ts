@@ -109,6 +109,6 @@ export const configureAI = async (page: Page, url: string) => {
 		},
 	});
 	await expect(
-		page.getByRole("button", { name: "Open LittleAI" }),
+		page.getByRole("button", { name: "Open Little AI" }),
 	).toBeVisible();
 };

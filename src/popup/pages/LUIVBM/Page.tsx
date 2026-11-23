@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { usePageMotion } from "../../hooks/usePageMove";
 import { LTHEME } from "little-shared/enums";
 import { motion } from "framer-motion";
@@ -8,6 +7,7 @@ import { LUIVBMForm } from "../../components/LUIVBMForm/Component";
 import {
 	useLinks,
 	useNotes,
+	useProfileTags,
 	useReminders,
 	useSaves,
 	useTasks,
@@ -16,7 +16,6 @@ import { useParams } from "react-router";
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
-import { collectProfileTags } from "../../../utils/tags";
 
 const Page = () => {
 	const { theme } = useTheme();
@@ -30,16 +29,7 @@ const Page = () => {
 	const tasks = useTasks();
 	const loading = useLoading([id, links, notes, reminders, pages, tasks]);
 	const save = pages?.find((page) => page.saved && page.id === id);
-	const tagSuggestions = useMemo(
-		() =>
-			collectProfileTags([
-				(pages ?? []).filter((page) => page.saved),
-				tasks ?? [],
-				reminders ?? [],
-				notes ?? [],
-			]),
-		[pages, tasks, reminders, notes],
-	);
+	const tagSuggestions = useProfileTags();
 
 	return (
 		<motion.div

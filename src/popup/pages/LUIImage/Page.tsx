@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { useParams } from "react-router";
 import { ImageIcon } from "@phosphor-icons/react";
@@ -8,6 +8,7 @@ import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import {
 	useImages,
 	useNotes,
+	useProfileTags,
 	useReminders,
 	useSaves,
 	useTasks,
@@ -27,7 +28,7 @@ import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
 import { attempt } from "../../attempt";
 import { send } from "../../../utils/send";
 import { saveFile } from "../../../utils/saveFile";
-import { collectProfileTags } from "../../../utils/tags";
+import { sameTags } from "../../../utils/tags";
 import type { ImageRecord } from "../../../storage/repositories";
 
 const openExternalUrl = (url: string) => {
@@ -39,9 +40,6 @@ const openExternalUrl = (url: string) => {
 };
 
 const MAX_TITLE_LENGTH = 120;
-
-const sameTags = (a: ReadonlyArray<string>, b: ReadonlyArray<string>) =>
-	a.length === b.length && a.every((tag, index) => tag === b[index]);
 
 const extensionForMime = (mimeType: string): string => {
 	switch (mimeType) {
@@ -113,7 +111,7 @@ const ImageDetail = ({
 			>
 				<div className="mx-auto flex w-full max-w-2xl flex-col gap-y-3">
 					<div
-						className={`flex max-h-72 w-full items-center justify-center overflow-hidden rounded-2xl border p-2 ${
+						className={`flex max-h-72 min-h-36 w-full items-center justify-center overflow-hidden rounded-2xl border p-2 ${
 							isDark
 								? "border-neutral-800 bg-neutral-950"
 								: "border-neutral-200 bg-neutral-100"
@@ -123,7 +121,7 @@ const ImageDetail = ({
 							<img
 								src={objectUrl}
 								alt={image.title}
-								className="max-h-64 w-auto rounded-xl object-contain"
+								className="max-h-64 min-h-24 w-auto rounded-xl object-contain"
 							/>
 						) : (
 							<div className="py-12 text-xs opacity-60">
@@ -205,18 +203,7 @@ const Page = () => {
 	const reminders = useReminders();
 	const loading = useLoading([id, images, pages, notes, tasks, reminders]);
 	const image = images?.find((item) => item.id === id);
-
-	const tagSuggestions = useMemo(
-		() =>
-			collectProfileTags([
-				(pages ?? []).filter((page) => page.saved),
-				tasks ?? [],
-				reminders ?? [],
-				notes ?? [],
-				images ?? [],
-			]),
-		[pages, tasks, reminders, notes, images],
-	);
+	const tagSuggestions = useProfileTags();
 
 	return (
 		<motion.div

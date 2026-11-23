@@ -26,13 +26,11 @@ import type { Note, Reminder, Save, Task } from "../../../storage/repositories";
 import type { LinkRow } from "../../../storage/schema";
 import { linkedTo } from "../../records";
 import { send } from "../../../utils/send";
+import { sameTags } from "../../../utils/tags";
 import { attempt } from "../../attempt";
 
 const MAX_NAME_LENGTH = 64;
 const NO_TAGS: Array<string> = [];
-
-const sameTags = (a: ReadonlyArray<string>, b: ReadonlyArray<string>) =>
-	a.length === b.length && a.every((tag, index) => tag === b[index]);
 
 // A note being edited: an existing one, or a new one without an id yet.
 type DraftNote = { key: string; id: string | null; content: string };
@@ -266,7 +264,7 @@ const Component = ({
 												: CaretDownIcon
 										}
 										color="currentColor"
-										weight="bold"
+										weight="regular"
 										className="size-3 shrink-0"
 									/>
 									<span className="truncate">
@@ -437,7 +435,7 @@ const Component = ({
 								<button
 									type="button"
 									aria-label="Delete note"
-									className={`flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors active:scale-95 ${
+									className={`flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors active:scale-95 ${
 										theme === LTHEME.DARK
 											? "text-neutral-400 hover:bg-neutral-800 hover:text-red-400"
 											: "text-neutral-500 hover:bg-neutral-100 hover:text-red-600"

@@ -4,18 +4,14 @@ import { LTHEME } from "little-shared/enums";
 import { useOutletContext } from "react-router";
 import { LUIBasicNav } from "../LUINavs/LUIBasicNav/Component";
 import { LUINoteDetailForm } from "../LUINoteDetailForm/Component";
+import { useProfileTags } from "../../hooks/useRecords";
 import type { HomeData } from "../../records";
-import { collectProfileTags } from "../../../utils/tags";
 
 const Component = () => {
-	const { currentUserProfile, links, notes, reminders, tasks, pages } =
-		useOutletContext<HomeData>();
+	const { currentUserProfile, links, pages } = useOutletContext<HomeData>();
 	const { theme } = useTheme();
 	const saves = useMemo(() => pages.filter((page) => page.saved), [pages]);
-	const tagSuggestions = useMemo(
-		() => collectProfileTags([saves, tasks, reminders, notes]),
-		[saves, tasks, reminders, notes],
-	);
+	const tagSuggestions = useProfileTags();
 
 	return (
 		<div

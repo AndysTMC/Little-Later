@@ -3,7 +3,6 @@ import { useTheme } from "../../hooks/useTheme";
 import { twMerge } from "tailwind-merge";
 import { LUIFeaturePageUD } from "../LUIFeaturePageUD/Component";
 import { LUITextArea } from "../LUITextArea/Component";
-import { LUITextInputT1 } from "../LUITextInput/Component";
 import { LUILabel } from "../LUILabel/Component";
 import { LUISelectT1 } from "../LUISelectT1/Component";
 import { LUIDateNumInput } from "../LUIDateNumInput/Component";
@@ -12,11 +11,7 @@ import { LUIVBMLinks } from "../LUIVBMLinks/Component";
 import { LUITagInput } from "../LUITagInput/Component";
 import { LUITimeInput } from "../LUITimeInput/Component";
 import { useContext, useEffect, useState } from "react";
-import {
-	LMAX_TASK_INFORMATION_LENGTH,
-	LMAX_TASK_LABEL_LENGTH,
-	LNONE,
-} from "little-shared/constants";
+import { LMAX_TASK_INFORMATION_LENGTH, LNONE } from "little-shared/constants";
 import type { Frequency, RecurrenceRule } from "little-shared/utils/schedule";
 import { LUICUButton } from "../LUICUButton/Component";
 import { LUINote } from "../LUINote/Component";
@@ -46,7 +41,6 @@ const REMINDER_KINDS: Array<ReminderKind> = ["normal", "escalating"];
 
 type Draft = {
 	information: string;
-	label: string;
 	priority: TaskPriority;
 	schedule: TaskSchedule;
 };
@@ -220,7 +214,6 @@ const Component = ({
 	const { clearDrafts } = useContext(UIStateContext);
 	const [draft, setDraft] = useDraft<Draft>(`${draftKey}.fields`, () => ({
 		information: task?.information ?? "",
-		label: task?.label ?? "",
 		priority: task?.priority ?? "medium",
 		schedule: task?.schedule ?? scheduleOf("anytime"),
 	}));
@@ -255,14 +248,9 @@ const Component = ({
 		value.length > LMAX_TASK_INFORMATION_LENGTH
 			? { success: false, error: "Information is too long" }
 			: { success: true, error: "" };
-	const validateLabel = (value: string) =>
-		value.length > LMAX_TASK_LABEL_LENGTH
-			? { success: false, error: "Label is too long" }
-			: { success: true, error: "" };
 	const isValid =
 		draft.information.trim() !== "" &&
-		validateInformation(draft.information).success &&
-		validateLabel(draft.label).success;
+		validateInformation(draft.information).success;
 
 	const handleSaveLinking = (saveId: string, flag: boolean) => {
 		setLinkedSaveIds((ids) =>
@@ -300,7 +288,6 @@ const Component = ({
 	const submit = async () => {
 		const content = {
 			information: draft.information,
-			label: draft.label,
 			priority: draft.priority,
 			tags,
 		};
@@ -351,24 +338,6 @@ const Component = ({
 		setDraft((current) => ({ ...current, information }));
 	};
 
-	const handleGenerateLabel = async () => {
-		if (!aiAssist) {
-			return;
-		}
-		const label = await aiAssist.write(draft.information, {
-			tone: "neutral",
-			format: "plain-text",
-			length: "short",
-			sharedContext:
-				"Generate a short label that summarizes the task information provided. (Max 5 words).",
-		});
-		const trimmed = label.trim().slice(0, LMAX_TASK_LABEL_LENGTH);
-		if (trimmed === "") {
-			return;
-		}
-		setDraft((current) => ({ ...current, label: trimmed }));
-	};
-
 	const { schedule } = draft;
 	return (
 		<div
@@ -394,25 +363,12 @@ const Component = ({
 						validate={validateInformation}
 						lengthLimit={LMAX_TASK_INFORMATION_LENGTH}
 					/>
-					<div className={`flex h-max w-full gap-x-2`}>
+					<div className="flex h-max w-full">
 						<LUIAIButton
 							name="Rephrase Information"
 							onClick={handleRephraseInformation}
 						/>
-						<LUIAIButton
-							name="Generate Label"
-							onClick={handleGenerateLabel}
-						/>
 					</div>
-					<LUITextInputT1
-						name="Label"
-						passedValue={draft.label}
-						onChange={(label) =>
-							setDraft((current) => ({ ...current, label }))
-						}
-						validate={validateLabel}
-						lengthLimit={LMAX_TASK_LABEL_LENGTH}
-					/>
 					<div
 						className={`my-2 flex h-max w-full flex-col gap-y-2.5`}
 					>

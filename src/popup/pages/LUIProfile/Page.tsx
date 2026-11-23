@@ -334,7 +334,7 @@ const Page = () => {
 
 							<div className="flex w-full flex-col gap-y-1">
 								<LUITextArea
-									name="About me (LittleAI instructions)"
+									name="About me (Little AI instructions)"
 									passedValue={instructions}
 									onChange={setInstructions}
 									lengthLimit={MAX_INSTRUCTIONS_LENGTH}
@@ -354,7 +354,7 @@ const Page = () => {
 											: "text-neutral-500"
 									}`}
 								>
-									Optional preferences shared with LittleAI
+									Optional preferences shared with Little AI
 									(e.g., tone, timezone, or preferred format).
 								</p>
 							</div>

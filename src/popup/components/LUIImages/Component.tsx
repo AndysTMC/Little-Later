@@ -238,35 +238,37 @@ const Component = ({
 		})();
 	}, [picked]);
 
-	const handlePasteFiles = async (files: Array<File>) => {
-		if (files.length === 0 || busy) return;
-		setBusy(true);
-		try {
-			let savedCount = 0;
-			for (const file of files) {
-				if (await saveBlobAsImage(file, file.name, file.type)) {
-					savedCount += 1;
-				}
-			}
-			if (savedCount > 0) {
-				await createToast(
-					savedCount === 1
-						? "Image saved."
-						: `${savedCount} images saved.`,
-					LTOAST_TYPE.SUCCESS,
-				);
-			}
-		} catch (error) {
-			await createToast(
-				error instanceof Error ? error.message : "Couldn't save image.",
-				LTOAST_TYPE.ERROR,
-			);
-		} finally {
-			setBusy(false);
-		}
-	};
-
 	useEffect(() => {
+		const handlePasteFiles = async (files: Array<File>) => {
+			if (files.length === 0 || busy) return;
+			setBusy(true);
+			try {
+				let savedCount = 0;
+				for (const file of files) {
+					if (await saveBlobAsImage(file, file.name, file.type)) {
+						savedCount += 1;
+					}
+				}
+				if (savedCount > 0) {
+					await createToast(
+						savedCount === 1
+							? "Image saved."
+							: `${savedCount} images saved.`,
+						LTOAST_TYPE.SUCCESS,
+					);
+				}
+			} catch (error) {
+				await createToast(
+					error instanceof Error
+						? error.message
+						: "Couldn't save image.",
+					LTOAST_TYPE.ERROR,
+				);
+			} finally {
+				setBusy(false);
+			}
+		};
+
 		const onPaste = (event: ClipboardEvent) => {
 			const target = event.target as HTMLElement | null;
 			if (
@@ -291,7 +293,7 @@ const Component = ({
 		};
 		window.addEventListener("paste", onPaste);
 		return () => window.removeEventListener("paste", onPaste);
-	});
+	}, [busy]);
 
 	const handleOpenUploadScreen = () => {
 		go(pickRoute(IMAGE_PICK_REQUEST, IMAGE_SLOT, "/home"), "outOf");
@@ -336,7 +338,7 @@ const Component = ({
 					<LUIThemedIcon
 						Icon={PlusIcon}
 						color="currentColor"
-						weight="bold"
+						weight="regular"
 						className="size-3.5"
 					/>
 					<span>{busy ? "Saving…" : "Add image"}</span>

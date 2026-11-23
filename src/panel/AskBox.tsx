@@ -162,7 +162,7 @@ export const QuestionBox = ({
 	useNumberKeys(choices, active);
 	return (
 		<Shell
-			label="LittleAI's question"
+			label="Little AI's question"
 			icon={QuestionIcon}
 			title={question.question}
 			onDismiss={onDismiss}

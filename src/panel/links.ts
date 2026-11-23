@@ -9,4 +9,5 @@ const openTab = (path: string) => {
 	}
 };
 
-export const openAISettings = () => openTab("index.html#/settings/ai");
+export const openAISettings = () =>
+	openTab("index.html?surface=tab#/settings/ai");

@@ -88,8 +88,11 @@ const Component = ({
 				? `${prettyRule(task.schedule.rule)} · ${prettyDate(task.dueAt)}`
 				: null;
 	const taskTags = task.tags ?? [];
+	const showLegacyLabel = task.label !== "" && taskTags.length === 0;
+	const showPriority = task.priority !== "medium";
 	const hasMeta =
-		task.label !== "" ||
+		showLegacyLabel ||
+		showPriority ||
 		scheduleSummary !== null ||
 		linkedSaves.length > 0 ||
 		linkedReminderKind !== undefined;
@@ -142,6 +145,7 @@ const Component = ({
 
 				<div
 					className="flex min-w-0 grow cursor-pointer flex-col gap-y-1.5"
+					aria-expanded={isExpanded}
 					{...pressable(handleExpand)}
 				>
 					<div
@@ -162,7 +166,20 @@ const Component = ({
 
 					{hasMeta ? (
 						<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-							{task.label !== "" ? (
+							{showPriority ? (
+								<span
+									className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+										task.priority === "high"
+											? "ll-accent-fill"
+											: isDark
+												? "bg-neutral-800 text-neutral-400"
+												: "bg-neutral-200 text-neutral-600"
+									}`}
+								>
+									{capitalize(task.priority)}
+								</span>
+							) : null}
+							{showLegacyLabel ? (
 								<span
 									className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
 										isDark
@@ -254,7 +271,8 @@ const Component = ({
 					) : null}
 					<span
 						aria-hidden
-						className={`flex size-6 items-center justify-center ${
+						onClick={handleExpand}
+						className={`flex size-6 cursor-pointer items-center justify-center ${
 							isDark ? "text-neutral-500" : "text-neutral-400"
 						}`}
 					>

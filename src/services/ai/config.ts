@@ -2,7 +2,7 @@ import { LLOCAL_AI_BASE_URLS } from "little-shared/constants";
 import { LAI_PROVIDERS } from "little-shared/enums";
 import { LAISettings } from "little-shared/types";
 
-export const baseUrls = new Map<string, string>([
+const baseUrls = new Map<string, string>([
 	...Object.entries(LLOCAL_AI_BASE_URLS),
 	[LAI_PROVIDERS.CUSTOM, ""],
 ]);
@@ -262,16 +262,6 @@ export const CLOUD_PROVIDER_PRESETS: ReadonlyArray<{
 	{ name: "Together", baseUrl: "https://api.together.xyz/v1" },
 	{ name: "Mistral", baseUrl: "https://api.mistral.ai/v1" },
 	{ name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1" },
-];
-
-export const CUSTOM_PROVIDER_PRESETS: ReadonlyArray<{
-	name: string;
-	baseUrl: string;
-}> = [
-	...CLOUD_PROVIDER_PRESETS,
-	...LOCAL_PROVIDER_PRESETS.filter(
-		(preset) => preset.provider === LAI_PROVIDERS.CUSTOM,
-	).map(({ name, baseUrl }) => ({ name, baseUrl })),
 ];
 
 export type AIConnectionTestResult = {
