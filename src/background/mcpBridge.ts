@@ -319,26 +319,51 @@ export const handleExternalMcpRequest = async ({
 	session: SessionStore;
 	dispatch: Dispatch;
 	request: JsonRpcRequest;
-}): Promise<JsonRpcResponse> => {
+}): Promise<JsonRpcResponse | null> => {
+	const isNotification =
+		request.id === undefined ||
+		(typeof request.method === "string" &&
+			request.method.startsWith("notifications/"));
 	const id = request.id ?? null;
 	const method = request.method;
 
 	if (method === "initialize") {
+		const requestedVersion =
+			typeof request.params?.protocolVersion === "string" &&
+			request.params.protocolVersion.trim() !== ""
+				? request.params.protocolVersion
+				: "2024-11-05";
+		const version =
+			typeof chrome !== "undefined" && chrome.runtime?.getManifest
+				? chrome.runtime.getManifest().version
+				: "3.1.0";
 		return ok(id, {
-			protocolVersion: "2024-11-05",
+			protocolVersion: requestedVersion,
 			capabilities: {
 				tools: {},
 				resources: {},
 			},
 			serverInfo: {
 				name: "little-later",
-				version: "3.0.1",
+				version,
 			},
 		});
 	}
 
-	if (method === "notifications/initialized" || method === "ping") {
+	if (isNotification) {
+		return null;
+	}
+
+	if (method === "ping") {
 		return ok(id, {});
+	}
+
+	if (method === "prompts/list") {
+		return ok(id, { prompts: [] });
+	}
+
+	if (method === "resources/templates/list") {
+		return ok(id, { resourceTemplates: [] });
 	}
 
 	const unlocked = await session.get();
@@ -356,7 +381,7 @@ export const handleExternalMcpRequest = async ({
 		return fail(
 			id,
 			-32003,
-			"External agent MCP access is disabled in Little Later Security Settings.",
+			"External agent MCP access is disabled in Little Later Data & Privacy settings.",
 		);
 	}
 
@@ -420,7 +445,7 @@ export const handleExternalMcpRequest = async ({
 			return fail(
 				id,
 				-32003,
-				"Write access is disabled. Switch External agent MCP to Read & write in Security Settings.",
+				"Write access is disabled. Switch External agent MCP to Read & write in Data & Privacy settings.",
 			);
 		}
 
@@ -624,6 +649,8 @@ export const handleExternalMcpRequest = async ({
 	return fail(id, -32601, `Method not supported: ${String(method ?? "")}`);
 };
 
+const RECONNECT_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
+
 // Manages the optional Chrome Native Messaging port to the local MCP bridge.
 // Connects only when a profile is unlocked AND externalMcpMode !== "off".
 export const createNativeMcpBridge = ({
@@ -636,8 +663,19 @@ export const createNativeMcpBridge = ({
 	dispatch: Dispatch;
 }) => {
 	let port: chrome.runtime.Port | null = null;
+	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let reconnectAttempt = 0;
+
+	const clearReconnect = () => {
+		if (reconnectTimer !== null) {
+			clearTimeout(reconnectTimer);
+			reconnectTimer = null;
+		}
+	};
 
 	const disconnect = () => {
+		clearReconnect();
+		reconnectAttempt = 0;
 		if (port) {
 			try {
 				port.disconnect();
@@ -646,6 +684,19 @@ export const createNativeMcpBridge = ({
 			}
 			port = null;
 		}
+	};
+
+	const scheduleReconnect = () => {
+		clearReconnect();
+		const delay =
+			RECONNECT_DELAYS_MS[
+				Math.min(reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)
+			];
+		reconnectAttempt += 1;
+		reconnectTimer = setTimeout(() => {
+			reconnectTimer = null;
+			void sync();
+		}, delay);
 	};
 
 	const sync = async (): Promise<void> => {
@@ -673,12 +724,14 @@ export const createNativeMcpBridge = ({
 		if (port) {
 			return;
 		}
+		clearReconnect();
 		try {
 			const nextPort = chrome.runtime.connectNative(
 				EXTERNAL_MCP_HOST_NAME,
 			);
 			port = nextPort;
 			nextPort.onMessage.addListener((rawMessage: unknown) => {
+				reconnectAttempt = 0;
 				if (!rawMessage || typeof rawMessage !== "object") return;
 				const envelope = rawMessage as {
 					bridgeId?: string;
@@ -692,6 +745,7 @@ export const createNativeMcpBridge = ({
 					dispatch,
 					request,
 				}).then((response) => {
+					if (response === null) return;
 					try {
 						nextPort.postMessage(
 							envelope.bridgeId
@@ -709,10 +763,12 @@ export const createNativeMcpBridge = ({
 				void chrome.runtime.lastError;
 				if (port === nextPort) {
 					port = null;
+					scheduleReconnect();
 				}
 			});
 		} catch {
 			port = null;
+			scheduleReconnect();
 		}
 	};
 
