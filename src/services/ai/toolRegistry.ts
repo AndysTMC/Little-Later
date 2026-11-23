@@ -721,9 +721,7 @@ const toolDefinitions: Array<ToolDefinition> = [
 				);
 			}
 			const information = requireString(args.information, "information");
-			const label =
-				asTrimmedString(args.label) ??
-				summarizeInlineText(information, 20);
+			const label = asTrimmedString(args.label) ?? "";
 			// Unset, the task gets the same default as one made in the popup.
 			const priority = asEnum(args.priority, [
 				LTASK_PRIORITY.LOW,
@@ -742,8 +740,9 @@ const toolDefinitions: Array<ToolDefinition> = [
 				tags,
 			});
 			await action();
+			const summary = label || summarizeInlineText(information, 40);
 			return {
-				message: `Created task "${label}".`,
+				message: `Created task "${summary}".`,
 				expression: LFACE_EXPRESSION.SLIGHTLY_SMILING,
 			};
 		},

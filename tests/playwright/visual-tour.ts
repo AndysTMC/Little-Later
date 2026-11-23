@@ -257,12 +257,16 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await capture(
 		page,
 		"32-ai-panel",
-		page.getByRole("textbox", { name: "Ask LittleAI" }),
+		page.getByRole("textbox", { name: "Ask Little AI" }),
 	);
 	await page.goto("/#/settings");
 	await capture(page, "33-settings", page.getByText("Getting Started"));
 	await page.goto("/#/settings/ai");
-	await capture(page, "34-settings-ai", page.getByText("AI Provider"));
+	await capture(
+		page,
+		"34-settings-ai",
+		page.getByText("Provider & connection"),
+	);
 	await page.goto("/#/settings/security");
 	await capture(
 		page,
@@ -342,7 +346,7 @@ test("capture every popup screen and edge state", async ({ page }) => {
 	await capture(
 		page,
 		"49-ai-panel-dark",
-		page.getByRole("textbox", { name: "Ask LittleAI" }),
+		page.getByRole("textbox", { name: "Ask Little AI" }),
 	);
 	await page.goto("/#/note/" + ids.noteId);
 	await capture(page, "50-note-dark", page.getByText("Project notes"));
@@ -418,12 +422,12 @@ test("capture every popup screen and edge state", async ({ page }) => {
 		[
 			"/sidepanel.html",
 			"65-ai-panel-green",
-			page.getByRole("textbox", { name: "Ask LittleAI" }),
+			page.getByRole("textbox", { name: "Ask Little AI" }),
 		],
 		[
 			"/#/settings/ai",
 			"66-settings-ai-green",
-			page.getByText("AI Provider"),
+			page.getByText("Provider & connection"),
 		],
 		[
 			"/#/export",

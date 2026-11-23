@@ -8,6 +8,7 @@ import { LTHEME } from "little-shared/enums";
 import {
 	useLinks,
 	useNotes,
+	useProfileTags,
 	useReminders,
 	useSaves,
 	useTasks,
@@ -23,7 +24,6 @@ import { LUICUButton } from "../../components/LUICUButton/Component";
 import { LUINote as LUINoteCallout } from "../../components/LUINote/Component";
 import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import { send } from "../../../utils/send";
-import { collectProfileTags } from "../../../utils/tags";
 
 const LockedNoteGate = ({
 	title,
@@ -151,16 +151,7 @@ const Page = () => {
 		() => (pages ?? []).filter((page) => page.saved),
 		[pages],
 	);
-	const tagSuggestions = useMemo(
-		() =>
-			collectProfileTags([
-				savedPages,
-				tasks ?? [],
-				reminders ?? [],
-				notes ?? [],
-			]),
-		[savedPages, tasks, reminders, notes],
-	);
+	const tagSuggestions = useProfileTags();
 
 	const needsPassword =
 		note !== undefined &&

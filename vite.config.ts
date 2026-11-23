@@ -4,9 +4,9 @@ import { configDefaults, defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
 import { ManifestV3Export, crx } from "@crxjs/vite-plugin";
-import manifestJson from "./manifest.json";
-import packageJson from "./package.json";
-import { thirdPartyNotices } from "./scripts/third-party-notices";
+import manifestJson from "./manifest.json" with { type: "json" };
+import packageJson from "./package.json" with { type: "json" };
+import { thirdPartyNotices } from "./scripts/third-party-notices.ts";
 
 const manifest = manifestJson as ManifestV3Export;
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -14,7 +14,7 @@ const sharedSrc = path.resolve(projectRoot, "packages/shared/src");
 
 export default defineConfig(({ command }) => ({
 	plugins: [
-		react(),
+		react({ disableOxcRecommendation: true }),
 		tailwindcss(),
 		crx({ manifest }),
 		thirdPartyNotices(

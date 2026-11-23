@@ -221,7 +221,7 @@ describe("Milestone 4 — Agent trajectory evals, hybrid retrieval & MCP securit
 		expect(pending.confirmation?.items).toHaveLength(2);
 		expect(pending.confirmation?.items[0]?.summary).toContain("repeats:");
 		expect(pending.confirmation?.items[1]?.summary).toContain(
-			"LittleAI memories",
+			"Little AI memories",
 		);
 
 		// Nothing persisted before confirmation.

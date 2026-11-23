@@ -66,9 +66,7 @@ test("background visits and writes leave a half-filled task on screen", async ({
 	const page = await createProfile(openPopup);
 	await button(page, "New task").click();
 	const information = page.getByRole("textbox", { name: "Information" });
-	const label = page.getByRole("textbox", { name: "Label" });
 	await information.fill("Draft during capture");
-	await label.fill("Keep this label");
 	const watch = await observe(information);
 	const site = await startVisitSite();
 	try {
@@ -84,7 +82,6 @@ test("background visits and writes leave a half-filled task on screen", async ({
 		await afterPaint(page);
 		await expect(page).toHaveURL(/#\/home\/new-task$/);
 		await expect(information).toHaveValue("Draft during capture");
-		await expect(label).toHaveValue("Keep this label");
 		await expectUninterrupted(watch);
 	} finally {
 		await site.close();

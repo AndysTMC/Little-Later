@@ -1,8 +1,20 @@
+import {
+	CheckCircleIcon,
+	InfoIcon,
+	WarningCircleIcon,
+	XCircleIcon,
+} from "@phosphor-icons/react";
 import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LToast } from "little-shared/types";
-import { LTOAST_TYPE_TO_ICON } from "../../../constants";
 import { twMerge } from "tailwind-merge";
+
+const LTOAST_TYPE_TO_ICON = {
+	[LTOAST_TYPE.SUCCESS]: CheckCircleIcon,
+	[LTOAST_TYPE.ERROR]: XCircleIcon,
+	[LTOAST_TYPE.INFO]: InfoIcon,
+	[LTOAST_TYPE.WARNING]: WarningCircleIcon,
+};
 
 const Component = ({
 	className,

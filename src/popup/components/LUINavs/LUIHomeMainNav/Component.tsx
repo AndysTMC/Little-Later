@@ -106,7 +106,7 @@ const Component = ({
 				{isAISettingsConfigured(aiSettings) ? (
 					<button
 						type="button"
-						aria-label="Open LittleAI"
+						aria-label="Open Little AI"
 						className={`h-max w-max cursor-pointer rounded-full p-1 active:scale-90 ${
 							theme === LTHEME.DARK
 								? "hover:bg-neutral-800"
@@ -209,7 +209,6 @@ const Component = ({
 										className="size-5"
 									/>
 								}
-								animationDelay={0.1}
 								onClick={handleProfile}
 							/>
 							<LUIHMNavMenuOption
@@ -220,7 +219,6 @@ const Component = ({
 										className="size-5"
 									/>
 								}
-								animationDelay={0.2}
 								onClick={handleSettings}
 							/>
 							<LUIHMNavMenuOption
@@ -231,8 +229,6 @@ const Component = ({
 										className="size-5"
 									/>
 								}
-								isLast={true}
-								animationDelay={0.3}
 								onClick={handleLock}
 							/>
 						</motion.div>

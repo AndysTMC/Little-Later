@@ -270,13 +270,13 @@ const collectLocalAIEndpoints = async (): Promise<Array<URL>> => {
 let headerRuleChain: Promise<void> = Promise.resolve();
 const configureLocalAIRequestHeaders = (): Promise<void> => {
 	const next = headerRuleChain.then(async () => {
-		const rules = [
-			buildLocalAIOriginRule(
-				await collectLocalAIEndpoints(),
-				chrome.runtime.id,
-			),
-		];
 		try {
+			const rules = [
+				buildLocalAIOriginRule(
+					await collectLocalAIEndpoints(),
+					chrome.runtime.id,
+				),
+			];
 			await chrome.declarativeNetRequest.updateDynamicRules({
 				removeRuleIds: [LOCAL_AI_ORIGIN_RULE_ID],
 				addRules: rules,
@@ -374,11 +374,12 @@ const notifyContextAction = async (message: string): Promise<void> => {
 const createNote = async (
 	content: string,
 	profileId?: string,
+	unlockId?: string,
 ): Promise<void> => {
 	const result = await dispatchCommand(
 		"note.create",
 		{ content },
-		profileId ? { profileId } : undefined,
+		profileId ? { profileId, unlockId } : undefined,
 	);
 	if (!result.ok) {
 		throw new Error(result.error.message);
@@ -413,10 +414,15 @@ const inferImageTitle = (srcUrl: string, tabTitle?: string): string => {
 };
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-	if (!(await sessionStore.get())) {
+	const unlocked = await sessionStore.get();
+	if (!unlocked) {
 		await notifyContextAction("Unlock a profile first.");
 		return;
 	}
+	const ownerOpts = {
+		profileId: unlocked.profileId,
+		unlockId: unlocked.unlockId,
+	};
 	if (info.menuItemId === "saveImageToLittleLater") {
 		const srcUrl = info.srcUrl;
 		if (!srcUrl) {
@@ -424,9 +430,30 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 			return;
 		}
 		try {
+			const parsedSrc = new URL(srcUrl);
+			if (
+				parsedSrc.protocol !== "http:" &&
+				parsedSrc.protocol !== "https:" &&
+				parsedSrc.protocol !== "data:"
+			) {
+				await notifyContextAction(
+					"Only web or data-URI images can be saved.",
+				);
+				return;
+			}
 			const response = await fetch(srcUrl);
 			if (!response.ok) {
 				throw new Error(`HTTP ${response.status}`);
+			}
+			const contentLength = Number(
+				response.headers.get("content-length"),
+			);
+			if (
+				Number.isFinite(contentLength) &&
+				contentLength > MAX_IMAGE_BYTES
+			) {
+				await notifyContextAction("Image is empty or over 10 MB.");
+				return;
 			}
 			const blob = await response.blob();
 			const rawType = (blob.type || "").toLowerCase().split(";")[0];
@@ -444,12 +471,16 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 			}
 			const sourceUrl =
 				tab?.url && /^https?:\/\//i.test(tab.url) ? tab.url : undefined;
-			const result = await dispatchCommand("image.create", {
-				bytesBase64: toBase64(bytes),
-				mimeType,
-				title: inferImageTitle(srcUrl, tab?.title),
-				sourceUrl,
-			});
+			const result = await dispatchCommand(
+				"image.create",
+				{
+					bytesBase64: toBase64(bytes),
+					mimeType,
+					title: inferImageTitle(srcUrl, tab?.title),
+					sourceUrl,
+				},
+				ownerOpts,
+			);
 			if (!result.ok) {
 				throw new Error(result.error.message);
 			}
@@ -471,17 +502,26 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 					tab?.url && /^https?:\/\//i.test(tab.url)
 						? tab.url
 						: undefined;
-				const pageTitle = tab?.title?.trim() || pageUrl || "Source";
-				const content = pageUrl
-					? `${quote}\n\n— [${pageTitle}](${pageUrl})`
+				const rawTitle = tab?.title?.trim() || pageUrl || "Source";
+				const safeTitle =
+					rawTitle.replace(/[\\[\]\r\n]+/g, " ").trim() || "Source";
+				const safeUrl = pageUrl
+					?.replace(/\(/g, "%28")
+					.replace(/\)/g, "%29");
+				const content = safeUrl
+					? `${quote}\n\n— [${safeTitle}](${safeUrl})`
 					: quote;
 				let saveIds: Array<string> | undefined;
 				if (pageUrl) {
-					const captured = await dispatchCommand("save.capture", {
-						url: pageUrl,
-						title: tab?.title,
-						saved: true,
-					});
+					const captured = await dispatchCommand(
+						"save.capture",
+						{
+							url: pageUrl,
+							title: tab?.title,
+							saved: true,
+						},
+						ownerOpts,
+					);
 					if (
 						captured.ok &&
 						captured.value &&
@@ -492,11 +532,15 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 						saveIds = [captured.value.id];
 					}
 				}
-				const created = await dispatchCommand("note.create", {
-					content,
-					tags: ["highlight"],
-					saveIds,
-				});
+				const created = await dispatchCommand(
+					"note.create",
+					{
+						content,
+						tags: ["highlight"],
+						saveIds,
+					},
+					ownerOpts,
+				);
 				if (!created.ok) {
 					throw new Error(created.error.message);
 				}
@@ -521,7 +565,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 	} else if (info.menuItemId === "noteThis") {
 		if (tab?.id !== undefined && info.selectionText) {
 			try {
-				await createNote(info.selectionText);
+				await createNote(
+					info.selectionText,
+					unlocked.profileId,
+					unlocked.unlockId,
+				);
 				await notifyContextAction("Selection saved as a note.");
 			} catch (error) {
 				console.error(

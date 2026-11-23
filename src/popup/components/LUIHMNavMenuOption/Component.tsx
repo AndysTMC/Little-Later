@@ -12,8 +12,6 @@ const Component = ({
 	className?: string;
 	name: string;
 	icon: ReactElement;
-	isLast?: boolean;
-	animationDelay?: number;
 	onClick?: () => void;
 }) => {
 	const { theme } = useTheme();
@@ -21,6 +19,7 @@ const Component = ({
 	return (
 		<button
 			type="button"
+			role="menuitem"
 			className={twMerge(
 				`flex h-9 w-full cursor-pointer items-center justify-start gap-x-2.5 rounded-lg px-2.5 text-sm font-medium transition-colors ${
 					isDark

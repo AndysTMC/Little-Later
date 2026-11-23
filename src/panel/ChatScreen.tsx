@@ -654,7 +654,7 @@ const Composer = ({
 						<button
 							type="button"
 							aria-label={`Use this page: ${page.title}`}
-							title="LittleAI reads this page when you send"
+							title="Little AI reads this page when you send"
 							onClick={() => setPageAttached(true)}
 							className={`flex max-w-full cursor-pointer items-center gap-x-1.5 rounded-lg border border-dashed px-2 py-1 text-xs transition-colors ${dark ? "border-neutral-700 text-neutral-400 hover:text-white" : "border-neutral-300 text-neutral-500 hover:text-black"}`}
 						>
@@ -674,7 +674,7 @@ const Composer = ({
 			<textarea
 				ref={inputRef}
 				data-testid="ai-assist-input"
-				aria-label="Ask LittleAI"
+				aria-label="Ask Little AI"
 				placeholder={placeholder}
 				rows={1}
 				disabled={locked}
@@ -1047,7 +1047,7 @@ const ChatScreen = ({
 					: question
 						? "Or type your own answer"
 						: started
-							? "Reply to LittleAI"
+							? "Reply to Little AI"
 							: "Ask about your saves, tasks, notes, images or this page"
 			}
 			page={page}
@@ -1071,16 +1071,13 @@ const ChatScreen = ({
 			className={`relative flex h-full w-full flex-col overflow-hidden ${dark ? "bg-black text-white" : "bg-white text-black"}`}
 		>
 			<header
-				// While the chats list is open, nothing behind it can be
-				// reached: not by Tab, not by a screen reader.
-				inert={historyOpen}
 				className={`flex h-14 shrink-0 items-center gap-x-2 border-b px-2 ${dark ? "border-neutral-800 bg-black" : "border-neutral-200 bg-white"}`}
 			>
 				{onBack ? (
 					<button
 						type="button"
 						aria-label="Go back"
-						onClick={onBack}
+						onClick={historyOpen ? closeHistory : onBack}
 						className={`group flex h-10 shrink-0 cursor-pointer items-center gap-x-1.5 rounded-xl px-2.5 transition-colors ${
 							dark
 								? "text-neutral-200 hover:bg-neutral-900 hover:text-white"
@@ -1098,19 +1095,23 @@ const ChatScreen = ({
 					<LUILogo className="ml-0.5 size-7 shrink-0" />
 				)}
 				<h1 className="min-w-0 grow truncate px-1 text-base font-semibold">
-					{title ?? "LittleAI"}
+					{historyOpen ? "Chats" : (title ?? "Little AI")}
 				</h1>
 				<div className="flex shrink-0 items-center gap-x-1">
 					<IconButton
 						label="Chats"
 						icon={ClockCounterClockwiseIcon}
+						active={historyOpen}
 						buttonRef={chatsButton}
-						onClick={() => setShowHistory(true)}
+						onClick={() =>
+							historyOpen ? closeHistory() : setShowHistory(true)
+						}
 					/>
 					<IconButton
 						label="New chat"
 						icon={NotePencilIcon}
 						onClick={() => {
+							setShowHistory(false);
 							openChat(null);
 							setEditing(null);
 							setText("");
@@ -1119,254 +1120,294 @@ const ChatScreen = ({
 					/>
 				</div>
 			</header>
-			<div
-				inert={historyOpen}
-				className="mx-auto flex min-h-0 w-full max-w-3xl grow flex-col"
-			>
-				{started ? (
-					<>
-						<div
-							ref={scroller}
-							role="log"
-							aria-label="Conversation"
-							onScroll={(event) => {
-								const element = event.currentTarget;
-								if (element.scrollTop < 80) showEarlier();
-								setAtBottom(
-									element.scrollHeight -
-										element.scrollTop -
-										element.clientHeight <
-										48,
-								);
+			<div className="flex min-h-0 w-full grow flex-col overflow-hidden">
+				<AnimatePresence mode="wait" initial={false}>
+					{historyOpen && chats ? (
+						<History
+							key="history"
+							chats={chats}
+							currentId={chatId}
+							onOpen={(id) => {
+								openChat(id);
+								setEditing(null);
+								closeHistory();
 							}}
-							className={`flex min-h-0 grow flex-col gap-y-5 overflow-x-hidden overflow-y-auto px-4 pt-4 pb-6 ${theme}-scrollbar`}
+							onDeleted={(id) => {
+								if (id === chatId) openChat(null);
+							}}
+						/>
+					) : (
+						<motion.div
+							key="conversation"
+							initial={{ opacity: 0, y: 12 }}
+							animate={{ opacity: 1, y: 0 }}
+							exit={{ opacity: 0, y: -12 }}
+							transition={{ duration: 0.16, ease: "easeOut" }}
+							className="mx-auto flex min-h-0 w-full max-w-3xl grow flex-col"
 						>
-							{hasEarlier ? (
-								<div className="flex justify-center">
-									<TextAction
-										label="Show earlier messages"
-										icon={ArrowUpIcon}
-										onClick={showEarlier}
-									/>
-								</div>
-							) : null}
-							{messages?.map((message, index) => (
-								<motion.div
-									key={message.id}
-									initial={
-										message.createdAt > shownSince
-											? { opacity: 0, y: 6 }
-											: false
-									}
-									animate={{ opacity: 1, y: 0 }}
-									transition={{ duration: 0.18 }}
-								>
-									{message.role === "user" ? (
-										<Said
-											message={message}
-											canEdit={
-												!running &&
-												!approval &&
-												message.id === lastSaid?.id
-											}
-											onEdit={() => edit(message)}
-										/>
-									) : (
-										<Answer
-											chatId={message.chatId}
-											output={message.output}
-											isLatest={index === lastIndex}
-											idle={!running}
-											docked={
-												index === lastIndex &&
-												Boolean(approval || question)
-											}
-											onRegenerate={
-												index === lastIndex && lastSaid
-													? () => void regenerate()
-													: null
-											}
-											onOpenSettings={onOpenSettings}
-										/>
-									)}
-								</motion.div>
-							))}
-							{status ? <Activity status={status} /> : null}
-						</div>
-						<div className="relative shrink-0 px-3 pb-3">
-							<AnimatePresence>
-								{!atBottom ? (
-									<motion.button
-										type="button"
-										aria-label="Jump to latest"
-										initial={{ opacity: 0, y: 6 }}
-										animate={{ opacity: 1, y: 0 }}
-										exit={{ opacity: 0, y: 6 }}
-										onClick={scrollToEnd}
-										className={`absolute -top-11 left-1/2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border shadow-sm transition-colors ${dark ? "border-neutral-800 bg-neutral-900 text-neutral-200 hover:bg-neutral-800" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100"}`}
-									>
-										<ArrowDownIcon
-											weight="bold"
-											className="size-4"
-										/>
-									</motion.button>
-								) : null}
-							</AnimatePresence>
-							<div className="flex flex-col gap-y-2">
-								<AnimatePresence>
-									{approval && chatId ? (
-										<ApprovalBox
-											key="approval"
-											confirmation={approval}
-											active={!showHistory}
-											onConfirm={(password) =>
-												void attempt(() =>
-													send("ai.confirm", {
-														chatId,
-														password,
-													}),
-												)
-											}
-											onCancel={() =>
-												void attempt(() =>
-													send("ai.cancel", {
-														chatId,
-													}),
-												)
-											}
-										/>
-									) : question && last ? (
-										<QuestionBox
-											key={`question-${last.id}`}
-											question={question}
-											active={!showHistory}
-											onAnswer={(answer) =>
-												void sendNow(answer)
-											}
-											onSomethingElse={() =>
-												input.current?.focus()
-											}
-											onDismiss={() =>
-												setDismissed(last.id)
-											}
-										/>
-									) : null}
-								</AnimatePresence>
-								{editing ? (
+							{started ? (
+								<>
 									<div
-										className={`flex items-center justify-between px-2 text-xs ${dark ? "text-neutral-400" : "text-neutral-500"}`}
+										ref={scroller}
+										role="log"
+										aria-label="Conversation"
+										onScroll={(event) => {
+											const element = event.currentTarget;
+											if (element.scrollTop < 80)
+												showEarlier();
+											setAtBottom(
+												element.scrollHeight -
+													element.scrollTop -
+													element.clientHeight <
+													48,
+											);
+										}}
+										className={`flex min-h-0 grow flex-col gap-y-5 overflow-x-hidden overflow-y-auto px-4 pt-4 pb-6 ${theme}-scrollbar`}
 									>
-										<span className="flex items-center gap-x-1.5">
-											<PencilSimpleIcon
-												aria-hidden
-												className="size-3.5"
-											/>
-											Editing your message: sending
-											replaces it and what followed.
-										</span>
-										<button
-											type="button"
-											className={`cursor-pointer rounded-lg px-2 py-0.5 font-medium transition-colors ${dark ? "hover:bg-neutral-800 hover:text-white" : "hover:bg-neutral-200 hover:text-black"}`}
-											onClick={() => {
-												setEditing(null);
-												setText("");
-											}}
-										>
-											Cancel
-										</button>
+										{hasEarlier ? (
+											<div className="flex justify-center">
+												<TextAction
+													label="Show earlier messages"
+													icon={ArrowUpIcon}
+													onClick={showEarlier}
+												/>
+											</div>
+										) : null}
+										{messages?.map((message, index) => (
+											<motion.div
+												key={message.id}
+												initial={
+													message.createdAt >
+													shownSince
+														? { opacity: 0, y: 6 }
+														: false
+												}
+												animate={{ opacity: 1, y: 0 }}
+												transition={{ duration: 0.18 }}
+											>
+												{message.role === "user" ? (
+													<Said
+														message={message}
+														canEdit={
+															!running &&
+															!approval &&
+															message.id ===
+																lastSaid?.id
+														}
+														onEdit={() =>
+															edit(message)
+														}
+													/>
+												) : (
+													<Answer
+														chatId={message.chatId}
+														output={message.output}
+														isLatest={
+															index === lastIndex
+														}
+														idle={!running}
+														docked={
+															index ===
+																lastIndex &&
+															Boolean(
+																approval ||
+																question,
+															)
+														}
+														onRegenerate={
+															index ===
+																lastIndex &&
+															lastSaid
+																? () =>
+																		void regenerate()
+																: null
+														}
+														onOpenSettings={
+															onOpenSettings
+														}
+													/>
+												)}
+											</motion.div>
+										))}
+										{status ? (
+											<Activity status={status} />
+										) : null}
 									</div>
-								) : null}
-								{composer}
-							</div>
-						</div>
-					</>
-				) : (
-					// A new chat: a greeting, the box in the middle, ideas.
-					<div
-						className={`flex grow flex-col justify-center gap-y-5 overflow-y-auto px-4 pb-8 ${theme}-scrollbar`}
-					>
-						<div className="flex flex-col items-center gap-y-3 text-center">
-							<div className="relative flex items-center justify-center">
-								<LUILogo className="size-12" />
-								<span
-									aria-hidden
-									className="ll-accent-fill absolute -right-1 -bottom-1 flex size-5 items-center justify-center rounded-full"
+									<div className="relative shrink-0 px-3 pb-3">
+										<AnimatePresence>
+											{!atBottom ? (
+												<motion.button
+													type="button"
+													aria-label="Jump to latest"
+													initial={{
+														opacity: 0,
+														y: 6,
+													}}
+													animate={{
+														opacity: 1,
+														y: 0,
+													}}
+													exit={{ opacity: 0, y: 6 }}
+													onClick={scrollToEnd}
+													className={`absolute -top-11 left-1/2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border shadow-sm transition-colors ${dark ? "border-neutral-800 bg-neutral-900 text-neutral-200 hover:bg-neutral-800" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100"}`}
+												>
+													<ArrowDownIcon
+														weight="bold"
+														className="size-4"
+													/>
+												</motion.button>
+											) : null}
+										</AnimatePresence>
+										<div className="flex flex-col gap-y-2">
+											<AnimatePresence>
+												{approval && chatId ? (
+													<ApprovalBox
+														key="approval"
+														confirmation={approval}
+														active={!showHistory}
+														onConfirm={(password) =>
+															void attempt(() =>
+																send(
+																	"ai.confirm",
+																	{
+																		chatId,
+																		password,
+																	},
+																),
+															)
+														}
+														onCancel={() =>
+															void attempt(() =>
+																send(
+																	"ai.cancel",
+																	{
+																		chatId,
+																	},
+																),
+															)
+														}
+													/>
+												) : question && last ? (
+													<QuestionBox
+														key={`question-${last.id}`}
+														question={question}
+														active={!showHistory}
+														onAnswer={(answer) =>
+															void sendNow(answer)
+														}
+														onSomethingElse={() =>
+															input.current?.focus()
+														}
+														onDismiss={() =>
+															setDismissed(
+																last.id,
+															)
+														}
+													/>
+												) : null}
+											</AnimatePresence>
+											{editing ? (
+												<div
+													className={`flex items-center justify-between px-2 text-xs ${dark ? "text-neutral-400" : "text-neutral-500"}`}
+												>
+													<span className="flex items-center gap-x-1.5">
+														<PencilSimpleIcon
+															aria-hidden
+															className="size-3.5"
+														/>
+														Editing your message:
+														sending replaces it and
+														what followed.
+													</span>
+													<button
+														type="button"
+														className={`cursor-pointer rounded-lg px-2 py-0.5 font-medium transition-colors ${dark ? "hover:bg-neutral-800 hover:text-white" : "hover:bg-neutral-200 hover:text-black"}`}
+														onClick={() => {
+															setEditing(null);
+															setText("");
+														}}
+													>
+														Cancel
+													</button>
+												</div>
+											) : null}
+											{composer}
+										</div>
+									</div>
+								</>
+							) : (
+								// A new chat: a greeting, the box in the middle, ideas.
+								<div
+									className={`flex grow flex-col justify-center gap-y-5 overflow-y-auto px-4 pb-8 ${theme}-scrollbar`}
 								>
-									<SparkleIcon
-										weight="fill"
-										className="size-3"
-									/>
-								</span>
-							</div>
-							<h2 className="text-2xl font-semibold tracking-tight">
-								{greetingName
-									? `What can I help with, ${greetingName}?`
-									: "What can I help with?"}
-							</h2>
-						</div>
-						{composer}
-						<div className="grid grid-cols-1 gap-2.5 min-[320px]:grid-cols-2">
-							{(page
-								? [
-										{
-											icon: BrowserIcon,
-											text: "Summarize this page.",
-											withPage: true,
-										},
-										...ideas.slice(0, 3),
-									]
-								: ideas
-							).map((idea) => (
-								<button
-									key={idea.text}
-									type="button"
-									className={`flex cursor-pointer flex-col items-start gap-y-2 rounded-2xl border p-3.5 text-left text-sm transition-all active:scale-[0.99] ${dark ? "border-neutral-800 bg-neutral-900 text-neutral-200 hover:bg-neutral-800" : "border-neutral-200 bg-neutral-100 text-neutral-800 hover:bg-neutral-200"}`}
-									onClick={() => {
-										const withPage =
-											"withPage" in idea &&
-											idea.withPage &&
-											page;
-										if (withPage) setPageAttached(true);
-										void sendNow(idea.text, {
-											page: withPage
-												? {
-														tabId: page.tabId,
-														title: page.title,
-														url: page.url,
-													}
-												: undefined,
-										});
-									}}
-								>
-									<idea.icon
-										aria-hidden
-										className={`size-4 ${dark ? "text-neutral-400" : "text-neutral-500"}`}
-									/>
-									{idea.text}
-								</button>
-							))}
-						</div>
-					</div>
-				)}
+									<div className="flex flex-col items-center gap-y-3 text-center">
+										<div className="relative flex items-center justify-center">
+											<LUILogo className="size-12" />
+											<span
+												aria-hidden
+												className="ll-accent-fill absolute -right-1 -bottom-1 flex size-5 items-center justify-center rounded-full"
+											>
+												<SparkleIcon
+													weight="fill"
+													className="size-3"
+												/>
+											</span>
+										</div>
+										<h2 className="text-2xl font-semibold tracking-tight">
+											{greetingName
+												? `What can I help with, ${greetingName}?`
+												: "What can I help with?"}
+										</h2>
+									</div>
+									{composer}
+									<div className="grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2">
+										{(page
+											? [
+													{
+														icon: BrowserIcon,
+														text: "Summarize this page.",
+														withPage: true,
+													},
+													...ideas.slice(0, 3),
+												]
+											: ideas
+										).map((idea) => (
+											<button
+												key={idea.text}
+												type="button"
+												className={`flex cursor-pointer flex-col items-start gap-y-2 rounded-2xl border p-3.5 text-left text-sm transition-all active:scale-[0.99] ${dark ? "border-neutral-800 bg-neutral-900 text-neutral-200 hover:bg-neutral-800" : "border-neutral-200 bg-neutral-100 text-neutral-800 hover:bg-neutral-200"}`}
+												onClick={() => {
+													const withPage =
+														"withPage" in idea &&
+														idea.withPage &&
+														page;
+													if (withPage)
+														setPageAttached(true);
+													void sendNow(idea.text, {
+														page: withPage
+															? {
+																	tabId: page.tabId,
+																	title: page.title,
+																	url: page.url,
+																}
+															: undefined,
+													});
+												}}
+											>
+												<idea.icon
+													aria-hidden
+													className={`size-4 ${dark ? "text-neutral-400" : "text-neutral-500"}`}
+												/>
+												{idea.text}
+											</button>
+										))}
+									</div>
+								</div>
+							)}
+						</motion.div>
+					)}
+				</AnimatePresence>
 			</div>
-			<AnimatePresence>
-				{showHistory && chats ? (
-					<History
-						key="history"
-						chats={chats}
-						currentId={chatId}
-						onOpen={(id) => {
-							openChat(id);
-							setEditing(null);
-							closeHistory();
-						}}
-						onClose={closeHistory}
-						onDeleted={(id) => {
-							if (id === chatId) openChat(null);
-						}}
-					/>
-				) : null}
-			</AnimatePresence>
 		</div>
 	);
 };

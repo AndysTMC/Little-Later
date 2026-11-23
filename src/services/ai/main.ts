@@ -442,21 +442,43 @@ const describePendingAction = async (
 	switch (toolName) {
 		case "create_task": {
 			const rule = args.recurrence as RecurrenceRule | undefined;
-			return `Create task${quoted(args.label ?? args.information)}${changes(
+			const tags = Array.isArray(args.tags)
+				? args.tags
+						.filter(
+							(tag): tag is string =>
+								typeof tag === "string" && tag.trim() !== "",
+						)
+						.map((tag) => `#${tag}`)
+						.join(" ")
+				: undefined;
+			return `Create task${quoted(args.information ?? args.label)}${changes(
 				[
+					["label", args.label],
 					["due", args.deadlineDate],
 					["repeats", rule ? prettyRule(rule) : undefined],
 					["priority", args.priority],
+					["tags", tags],
 				],
 			)}`;
 		}
-		case "update_task":
+		case "update_task": {
+			const tags = Array.isArray(args.tags)
+				? args.tags
+						.filter(
+							(tag): tag is string =>
+								typeof tag === "string" && tag.trim() !== "",
+						)
+						.map((tag) => `#${tag}`)
+						.join(" ")
+				: undefined;
 			return `Update ${await taskName()}${changes([
 				["text", args.information],
 				["label", args.label],
 				["priority", args.priority],
 				["due", args.deadlineDate],
+				["tags", tags],
 			])}`;
+		}
 		case "save_active_web_page":
 			return args.title || args.url
 				? `Save current page${quoted(args.title || args.url)}`
@@ -498,11 +520,26 @@ const describePendingAction = async (
 		case "unlink_records":
 			return `Unlink record ${String(args.fromId ?? "")} from ${String(args.toId ?? "")}`;
 		case "remember_fact":
-			return `Save to LittleAI memories:${quoted(args.text, 120)}`;
-		case "forget_fact":
-			return args.query
-				? `Forget memory matching${quoted(args.query, 80)}`
-				: "Forget a saved LittleAI memory";
+			return `Save to Little AI memories:${quoted(args.text, 120)}`;
+		case "forget_fact": {
+			if (args.query) {
+				return `Forget memory matching${quoted(args.query, 80)}`;
+			}
+			if (id !== undefined) {
+				try {
+					const settings = await readSettings(await owner.keys());
+					const found = settings.ai.memories?.find(
+						(m) => m.id === id,
+					);
+					if (found) {
+						return `Forget memory:${quoted(found.text, 80)}`;
+					}
+				} catch {
+					// Fall back to generic label.
+				}
+			}
+			return "Forget a saved Little AI memory";
+		}
 		case "export_data":
 			return args.type === LEXPORT_TYPE.IMPORTABLE
 				? "Export an importable backup"
@@ -1587,13 +1624,18 @@ export class OpenAICompatibleAI extends LittleAI {
 		}
 
 		this.registerUndoActions(undoActions);
+		const finalMessage =
+			messages.length > 0
+				? messages.join("\n")
+				: hasToolError
+					? "The confirmed action failed."
+					: "Done.";
+		this.messages.push({
+			role: "assistant",
+			content: finalMessage,
+		});
 		return {
-			message:
-				messages.length > 0
-					? messages.join("\n")
-					: hasToolError
-						? "The confirmed action failed."
-						: "Done.",
+			message: finalMessage,
 			actions: [],
 			expression: hasToolError ? LFACE_EXPRESSION.FROWNING : expression,
 		};
@@ -1615,8 +1657,13 @@ export class OpenAICompatibleAI extends LittleAI {
 			});
 		}
 		this.pendingMutations = null;
+		const cancelMessage = "Cancelled. Nothing was changed.";
+		this.messages.push({
+			role: "assistant",
+			content: cancelMessage,
+		});
 		return {
-			message: "Cancelled. Nothing was changed.",
+			message: cancelMessage,
 			actions: [],
 			expression: LFACE_EXPRESSION.FROWNING,
 		};
@@ -2165,7 +2212,11 @@ export class OpenAICompatibleAI extends LittleAI {
 				response_format: { type: "json_object" },
 			});
 			const rawContent = completion.choices[0].message.content || "{}";
-			return safeJSONParse(rawContent, {});
+			const cleaned = sanitizeAssistantContent(rawContent)
+				.replace(/^```(?:json)?\s*/i, "")
+				.replace(/\s*```$/i, "")
+				.trim();
+			return safeJSONParse(cleaned || "{}", {});
 		} catch (error: unknown) {
 			if (
 				error instanceof ProfileChangedError ||

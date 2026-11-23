@@ -244,7 +244,7 @@ test("the text caret is drawn in the accent, in a dark theme too", async ({
 	await expect.poll(caret).toBe(accent);
 	// The AI box is in LittleAI's side panel.
 	const panel = await openPanel();
-	await panel.getByRole("textbox", { name: "Ask LittleAI" }).focus();
+	await panel.getByRole("textbox", { name: "Ask Little AI" }).focus();
 	await expect
 		.poll(() =>
 			panel.evaluate(
@@ -279,7 +279,7 @@ test("Side panel setting switches between Everything, AI only, and None and open
 		await button(page, "Go back").click();
 		await button(page, "Go back").click();
 		await expect(page).toHaveURL(/#\/home$/);
-		await button(page, "Open LittleAI").click();
+		await button(page, "Open Little AI").click();
 		await expect(page).toHaveURL(/#\/ai$/);
 		await expect(page.getByTestId("ai-assist-input")).toBeVisible();
 		await button(page, "Go back").click();

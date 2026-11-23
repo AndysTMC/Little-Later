@@ -27,7 +27,8 @@ import {
 	testAIConnection,
 	type AIConnectionTestResult,
 } from "../../../services/ai/config";
-import { CheckCircleIcon, CircleIcon, TrashIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon, CircleIcon, XIcon } from "@phosphor-icons/react";
+import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import { useDebouncedSave } from "../../hooks/useDebouncedSave";
 import { useSettingDraft } from "../../hooks/useSettingDraft";
 
@@ -714,6 +715,9 @@ const Page = () => {
 													<button
 														type="button"
 														key={modelName}
+														aria-pressed={
+															isSelected
+														}
 														data-testid="ai-model-option"
 														data-model-name={
 															modelName
@@ -766,12 +770,20 @@ const Page = () => {
 															</span>
 														) : null}
 														{isSelected ? (
-															<CheckCircleIcon
+															<LUIThemedIcon
+																Icon={
+																	CheckCircleIcon
+																}
+																color="currentColor"
 																weight="fill"
 																className="size-4 shrink-0 text-[var(--ll-accent)]"
 															/>
 														) : (
-															<CircleIcon
+															<LUIThemedIcon
+																Icon={
+																	CircleIcon
+																}
+																color="currentColor"
 																weight="regular"
 																className={`size-4 shrink-0 ${
 																	isDark
@@ -827,21 +839,22 @@ const Page = () => {
 									}`}
 								>
 									Save provider and model combinations to
-									switch quickly from LittleAI chat.
+									switch quickly from Little AI chat.
 								</div>
 								<div className="flex items-center gap-2">
 									<input
 										type="text"
 										value={presetName}
 										maxLength={60}
+										aria-label="Preset label (optional)"
 										placeholder="Label (optional)"
 										onChange={(event) =>
 											setPresetName(event.target.value)
 										}
 										className={`ll-field h-9 min-w-0 grow rounded-xl border px-3 text-xs ${
 											isDark
-												? "border-neutral-800 bg-neutral-900 text-white placeholder:text-neutral-500"
-												: "border-neutral-200 bg-neutral-100 text-black placeholder:text-neutral-500"
+												? "border-neutral-700 bg-neutral-900 text-white placeholder:text-neutral-500"
+												: "border-neutral-300 bg-neutral-100 text-black placeholder:text-neutral-500"
 										}`}
 									/>
 									<LUIPillButton
@@ -929,13 +942,15 @@ const Page = () => {
 																		preset.id,
 																	)
 																}
-																className={`flex size-7 cursor-pointer items-center justify-center rounded-lg transition-colors ${
+																className={`flex size-7 cursor-pointer items-center justify-center rounded-full transition-colors ${
 																	isDark
-																		? "text-neutral-400 hover:bg-neutral-800 hover:text-red-400"
-																		: "text-neutral-500 hover:bg-neutral-200 hover:text-red-600"
+																		? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+																		: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
 																}`}
 															>
-																<TrashIcon
+																<LUIThemedIcon
+																	Icon={XIcon}
+																	color="currentColor"
 																	weight="regular"
 																	className="size-3.5"
 																/>
@@ -955,7 +970,7 @@ const Page = () => {
 										isDark ? "text-white" : "text-black"
 									}`}
 								>
-									LittleAI memories
+									Little AI memories
 								</div>
 								{(aiSettings?.memories ?? []).length === 0 ? (
 									<div
@@ -965,7 +980,7 @@ const Page = () => {
 												: "border-neutral-200 bg-neutral-100 text-neutral-600"
 										}`}
 									>
-										No saved memories yet. Ask LittleAI to
+										No saved memories yet. Ask Little AI to
 										remember a preference or project fact
 										and confirm to save it here.
 									</div>
@@ -992,19 +1007,21 @@ const Page = () => {
 													</span>
 													<button
 														type="button"
-														aria-label="Forget memory"
+														aria-label={`Forget memory: ${memory.text}`}
 														onClick={() =>
 															handleDeleteMemory(
 																memory.id,
 															)
 														}
-														className={`flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors ${
+														className={`flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors ${
 															isDark
-																? "text-neutral-400 hover:bg-neutral-800 hover:text-red-400"
-																: "text-neutral-500 hover:bg-neutral-200 hover:text-red-600"
+																? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+																: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
 														}`}
 													>
-														<TrashIcon
+														<LUIThemedIcon
+															Icon={XIcon}
+															color="currentColor"
 															weight="regular"
 															className="size-3.5"
 														/>
@@ -1057,7 +1074,7 @@ const Page = () => {
 									}`}
 								>
 									Connect a local Streamable HTTP MCP server
-									for extra tools in LittleAI. Every external
+									for extra tools in Little AI. Every external
 									tool call asks for your approval first.
 								</div>
 							</div>

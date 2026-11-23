@@ -5,7 +5,7 @@ import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { twMerge } from "tailwind-merge";
 import { isFirstTimeUser } from "../../../services/settings";
 import { createToast } from "../../../services/toasts";
-import { LTOAST_TYPE } from "little-shared/enums";
+import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import type { UserProfile } from "../../hooks/useUserProfiles";
 import { send } from "../../../utils/send";
 import { useUserAvatar } from "../../hooks/useUserAvatar";
@@ -88,6 +88,7 @@ const Component = ({
 					<LUIThemedIcon
 						Icon={UserCircleIcon}
 						weight="fill"
+						passedTheme={LTHEME.LIGHT}
 						className="size-24"
 					/>
 				)}

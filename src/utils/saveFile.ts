@@ -24,7 +24,7 @@ type FileMessage =
 export class NoPageToSaveError extends Error {
 	constructor() {
 		super(
-			"There was no Little Later page open to save the file. Open LittleAI and try again.",
+			"There was no Little Later page open to save the file. Open Little AI and try again.",
 		);
 		this.name = "NoPageToSaveError";
 	}
