@@ -2,10 +2,20 @@ import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
 import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import {
+	useEffect,
+	useImperativeHandle,
+	useRef,
+	useState,
+	type RefObject,
+} from "react";
 import { twMerge } from "tailwind-merge";
 
 const SEARCH_DELAY_MS = 300;
+
+export type SearchBarHandle = {
+	setQuery: (query: string) => void;
+};
 
 // Searching starts when the box gets focus and ends with the clear button,
 // Escape, or leaving an empty box. Ending it clears the text and results.
@@ -13,10 +23,12 @@ const Component = ({
 	className,
 	handleSearch,
 	setIsSearchFocused,
+	searchBarRef,
 }: {
 	className?: string;
 	handleSearch: (text: string) => Promise<void>;
 	setIsSearchFocused?: (isFocused: boolean) => void;
+	searchBarRef?: RefObject<SearchBarHandle | null>;
 }) => {
 	const { theme } = useTheme();
 	const [text, setText] = useState<string>("");
@@ -60,6 +72,16 @@ const Component = ({
 		inputRef.current?.blur();
 		void handleSearch("");
 	};
+
+	useImperativeHandle(searchBarRef, () => ({
+		setQuery: (query: string) => {
+			cancelPendingSearch();
+			setText(query);
+			setIsSearching(true);
+			inputRef.current?.focus();
+			void handleSearch(query);
+		},
+	}));
 
 	const isDark = theme === LTHEME.DARK;
 	return (

@@ -1,12 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-	CaretDownIcon,
-	CheckIcon,
-	DownloadSimpleIcon,
-	MagnifyingGlassIcon,
-	TagIcon,
-	XIcon,
-} from "@phosphor-icons/react";
+import { useMemo, useRef, useState } from "react";
+import { DownloadSimpleIcon, XIcon } from "@phosphor-icons/react";
 import {
 	LHOME_MAIN_CONTENT,
 	LHOME_SEARCH_RESULT_TYPE,
@@ -31,7 +24,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { AnimatePresence, motion } from "framer-motion";
 import { useOutletContext } from "react-router";
 import { useMoveNavigate } from "../../hooks/usePageMove";
-import { LUISearchBar } from "../LUISearchBar/Component";
+import { LUISearchBar, type SearchBarHandle } from "../LUISearchBar/Component";
 import { LUIHomeMainNav } from "../LUINavs/LUIHomeMainNav/Component";
 import { LUIVBMMini } from "../LUIVBMMini/Component";
 import { LUITaskMini } from "../LUITaskMini/Component";
@@ -102,126 +95,12 @@ const Component = ({ className }: { className?: string }) => {
 			mountedAt - lastBackupAt >= backupReminderDays * 86_400_000);
 
 	const [searchQuery, setSearchQuery] = useState("");
-
 	const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
-	const [selectedTag, setSelectedTag] = useState<string | null>(null);
-	const [tagMenuOpen, setTagMenuOpen] = useState(false);
-	const [tagQuery, setTagQuery] = useState("");
-	const tagMenuRef = useRef<HTMLDivElement>(null);
+	const searchBarRef = useRef<SearchBarHandle | null>(null);
 
-	useEffect(() => {
-		if (!tagMenuOpen) return;
-		const onMouseDown = (event: MouseEvent) => {
-			if (
-				tagMenuRef.current &&
-				!tagMenuRef.current.contains(event.target as Node)
-			) {
-				setTagMenuOpen(false);
-				setTagQuery("");
-			}
-		};
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				setTagMenuOpen(false);
-				setTagQuery("");
-			}
-		};
-		document.addEventListener("mousedown", onMouseDown);
-		document.addEventListener("keydown", onKeyDown);
-		return () => {
-			document.removeEventListener("mousedown", onMouseDown);
-			document.removeEventListener("keydown", onKeyDown);
-		};
-	}, [tagMenuOpen]);
-
-	// Compute tags and counts for the currently active tab (sorted naturally so
-	// #2 precedes #10), keeping the filter compact and relevant.
-	const currentTabItems = useMemo((): ReadonlyArray<{
-		tags?: Array<string>;
-	}> => {
-		if (currentContent === LHOME_MAIN_CONTENT.SAVES) return saves;
-		if (currentContent === LHOME_MAIN_CONTENT.TASKS) return tasks;
-		if (currentContent === LHOME_MAIN_CONTENT.REMINDERS) return reminders;
-		if (currentContent === LHOME_MAIN_CONTENT.NOTES) return unlinkedNotes;
-		return images;
-	}, [currentContent, saves, tasks, reminders, unlinkedNotes, images]);
-
-	const tabTagCounts = useMemo(() => {
-		const counts = new Map<string, number>();
-		for (const item of currentTabItems) {
-			for (const tag of item.tags ?? []) {
-				counts.set(tag, (counts.get(tag) ?? 0) + 1);
-			}
-		}
-		return Array.from(counts.entries())
-			.map(([tag, count]) => ({ tag, count }))
-			.sort((a, b) =>
-				a.tag.localeCompare(b.tag, undefined, {
-					numeric: true,
-					sensitivity: "base",
-				}),
-			);
-	}, [currentTabItems]);
-
-	const activeTag =
-		selectedTag !== null &&
-		tabTagCounts.some((entry) => entry.tag === selectedTag)
-			? selectedTag
-			: null;
-	const toggleTag = (tag: string) => {
-		setSelectedTag((current) => (current === tag ? null : tag));
-		setTagMenuOpen(false);
-		setTagQuery("");
+	const searchByTag = (tag: string) => {
+		searchBarRef.current?.setQuery(`#${tag}`);
 	};
-	const visibleTagOptions = useMemo(() => {
-		const q = tagQuery.trim().toLowerCase().replace(/^#/, "");
-		if (!q) return tabTagCounts;
-		return tabTagCounts.filter((entry) =>
-			entry.tag.toLowerCase().includes(q),
-		);
-	}, [tabTagCounts, tagQuery]);
-
-	const filteredSaves = useMemo(
-		() =>
-			activeTag
-				? saves.filter((save) => (save.tags ?? []).includes(activeTag))
-				: saves,
-		[saves, activeTag],
-	);
-	const filteredTasks = useMemo(
-		() =>
-			activeTag
-				? tasks.filter((task) => (task.tags ?? []).includes(activeTag))
-				: tasks,
-		[tasks, activeTag],
-	);
-	const filteredReminders = useMemo(
-		() =>
-			activeTag
-				? reminders.filter((reminder) =>
-						(reminder.tags ?? []).includes(activeTag),
-					)
-				: reminders,
-		[reminders, activeTag],
-	);
-	const filteredNotes = useMemo(
-		() =>
-			activeTag
-				? unlinkedNotes.filter((note) =>
-						(note.tags ?? []).includes(activeTag),
-					)
-				: unlinkedNotes,
-		[unlinkedNotes, activeTag],
-	);
-	const filteredImages = useMemo(
-		() =>
-			activeTag
-				? images.filter((image) =>
-						(image.tags ?? []).includes(activeTag),
-					)
-				: images,
-		[images, activeTag],
-	);
 
 	const searchResults = useMemo((): Array<SearchResult> => {
 		const query = searchQuery.trim();
@@ -351,6 +230,7 @@ const Component = ({ className }: { className?: string }) => {
 				<LUISearchBar
 					handleSearch={handleSearch}
 					setIsSearchFocused={setIsSearchFocused}
+					searchBarRef={searchBarRef}
 				/>
 			</div>
 
@@ -504,251 +384,6 @@ const Component = ({ className }: { className?: string }) => {
 								currentContent={currentContent}
 								handleContentChange={handleContentChange}
 							/>
-							{tabTagCounts.length > 0 ? (
-								<div
-									ref={tagMenuRef}
-									className="relative flex w-full items-center gap-1.5 px-4 pt-1 pb-1"
-								>
-									<button
-										type="button"
-										aria-label="Filter by tag"
-										aria-haspopup="menu"
-										aria-expanded={tagMenuOpen}
-										onClick={() =>
-											setTagMenuOpen((open) => {
-												if (open) setTagQuery("");
-												return !open;
-											})
-										}
-										className={`inline-flex h-7 cursor-pointer items-center gap-x-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors ${
-											activeTag !== null
-												? "ll-accent-fill border-transparent"
-												: theme === LTHEME.DARK
-													? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-neutral-700 hover:text-white"
-													: "border-neutral-200 bg-neutral-100 text-neutral-700 hover:border-neutral-300 hover:text-black"
-										}`}
-									>
-										<LUIThemedIcon
-											Icon={TagIcon}
-											color="currentColor"
-											weight="regular"
-											className="size-3.5 shrink-0"
-										/>
-										<span className="max-w-36 truncate">
-											{activeTag
-												? `#${activeTag}`
-												: `Tags (${tabTagCounts.length})`}
-										</span>
-										<LUIThemedIcon
-											Icon={CaretDownIcon}
-											color="currentColor"
-											weight="bold"
-											className={`size-3 shrink-0 transition-transform duration-150 ${tagMenuOpen ? "rotate-180" : ""}`}
-										/>
-									</button>
-									{activeTag !== null ? (
-										<button
-											type="button"
-											aria-label="Clear tag filter"
-											onClick={() => setSelectedTag(null)}
-											className={`inline-flex size-6 cursor-pointer items-center justify-center rounded-full transition-colors ${
-												theme === LTHEME.DARK
-													? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
-													: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
-											}`}
-										>
-											<LUIThemedIcon
-												Icon={XIcon}
-												color="currentColor"
-												weight="bold"
-												className="size-3"
-											/>
-										</button>
-									) : null}
-									<AnimatePresence>
-										{tagMenuOpen ? (
-											<motion.div
-												role="menu"
-												aria-label="Choose tag"
-												initial={{ opacity: 0, y: -4 }}
-												animate={{ opacity: 1, y: 0 }}
-												exit={{ opacity: 0, y: -4 }}
-												transition={{ duration: 0.12 }}
-												className={`absolute top-full left-4 z-30 mt-1 flex w-56 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border shadow-lg ${
-													theme === LTHEME.DARK
-														? "border-neutral-800 bg-neutral-900 text-neutral-100"
-														: "border-neutral-200 bg-white text-neutral-900"
-												}`}
-											>
-												{tabTagCounts.length > 6 ? (
-													<div
-														className={`border-b p-1.5 ${
-															theme ===
-															LTHEME.DARK
-																? "border-neutral-800"
-																: "border-neutral-200"
-														}`}
-													>
-														<label
-															className={`ll-field flex h-8 items-center gap-x-1.5 rounded-lg border px-2 ${
-																theme ===
-																LTHEME.DARK
-																	? "border-neutral-800 bg-black/60"
-																	: "border-neutral-200 bg-neutral-100"
-															}`}
-														>
-															<LUIThemedIcon
-																Icon={
-																	MagnifyingGlassIcon
-																}
-																color="currentColor"
-																weight="regular"
-																className="size-3.5 shrink-0 opacity-60"
-															/>
-															<input
-																type="search"
-																autoFocus
-																aria-label="Filter tags"
-																placeholder="Search tags"
-																value={tagQuery}
-																onChange={(
-																	event,
-																) =>
-																	setTagQuery(
-																		event
-																			.target
-																			.value,
-																	)
-																}
-																className={`min-w-0 grow bg-transparent text-xs outline-none ${
-																	theme ===
-																	LTHEME.DARK
-																		? "text-neutral-100 placeholder:text-neutral-500"
-																		: "text-neutral-900 placeholder:text-neutral-500"
-																}`}
-															/>
-														</label>
-													</div>
-												) : null}
-												<div
-													className={`max-h-52 overflow-y-auto p-1 ${theme}-thin-scrollbar`}
-												>
-													{tagQuery.trim() === "" ? (
-														<button
-															type="button"
-															role="menuitemradio"
-															aria-checked={
-																activeTag ===
-																null
-															}
-															onClick={() => {
-																setSelectedTag(
-																	null,
-																);
-																setTagMenuOpen(
-																	false,
-																);
-																setTagQuery("");
-															}}
-															className={`flex w-full cursor-pointer items-center justify-between gap-x-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${
-																activeTag ===
-																null
-																	? "ll-accent-fill font-medium"
-																	: theme ===
-																		  LTHEME.DARK
-																		? "text-neutral-200 hover:bg-neutral-800"
-																		: "text-neutral-800 hover:bg-neutral-100"
-															}`}
-														>
-															<span>
-																All items
-															</span>
-															{activeTag ===
-															null ? (
-																<LUIThemedIcon
-																	Icon={
-																		CheckIcon
-																	}
-																	color="currentColor"
-																	weight="bold"
-																	className="size-3.5 shrink-0"
-																/>
-															) : null}
-														</button>
-													) : null}
-													{visibleTagOptions.length ===
-													0 ? (
-														<div
-															className={`px-2.5 py-2 text-xs ${
-																theme ===
-																LTHEME.DARK
-																	? "text-neutral-400"
-																	: "text-neutral-500"
-															}`}
-														>
-															No matching tags
-														</div>
-													) : (
-														visibleTagOptions.map(
-															({
-																tag,
-																count,
-															}) => {
-																const isSelected =
-																	activeTag ===
-																	tag;
-																return (
-																	<button
-																		key={
-																			tag
-																		}
-																		type="button"
-																		role="menuitemradio"
-																		aria-checked={
-																			isSelected
-																		}
-																		onClick={() =>
-																			toggleTag(
-																				tag,
-																			)
-																		}
-																		className={`flex w-full cursor-pointer items-center justify-between gap-x-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${
-																			isSelected
-																				? "ll-accent-fill font-medium"
-																				: theme ===
-																					  LTHEME.DARK
-																					? "text-neutral-200 hover:bg-neutral-800"
-																					: "text-neutral-800 hover:bg-neutral-100"
-																		}`}
-																	>
-																		<span className="truncate">
-																			#
-																			{
-																				tag
-																			}
-																		</span>
-																		<span
-																			className={`shrink-0 text-[11px] tabular-nums ${
-																				isSelected
-																					? "opacity-90"
-																					: "opacity-55"
-																			}`}
-																		>
-																			{
-																				count
-																			}
-																		</span>
-																	</button>
-																);
-															},
-														)
-													)}
-												</div>
-											</motion.div>
-										) : null}
-									</AnimatePresence>
-								</div>
-							) : null}
 						</div>
 						{isReady ? (
 							<div className="w-full grow overflow-y-hidden">
@@ -771,10 +406,9 @@ const Component = ({ className }: { className?: string }) => {
 												links={links}
 												notes={notes}
 												reminders={reminders}
-												saves={filteredSaves}
+												saves={saves}
 												tasks={tasks}
-												activeTag={activeTag}
-												onSelectTag={toggleTag}
+												onSelectTag={searchByTag}
 											/>
 										</motion.div>
 									)}
@@ -796,9 +430,8 @@ const Component = ({ className }: { className?: string }) => {
 												links={links}
 												reminders={reminders}
 												saves={saves}
-												tasks={filteredTasks}
-												activeTag={activeTag}
-												onSelectTag={toggleTag}
+												tasks={tasks}
+												onSelectTag={searchByTag}
 											/>
 										</motion.div>
 									)}
@@ -818,11 +451,10 @@ const Component = ({ className }: { className?: string }) => {
 										>
 											<LUIReminders
 												links={links}
-												reminders={filteredReminders}
+												reminders={reminders}
 												saves={saves}
 												tasks={tasks}
-												activeTag={activeTag}
-												onSelectTag={toggleTag}
+												onSelectTag={searchByTag}
 											/>
 										</motion.div>
 									)}
@@ -841,9 +473,8 @@ const Component = ({ className }: { className?: string }) => {
 											transition={{ duration: 0.2 }}
 										>
 											<LUINotes
-												notes={filteredNotes}
-												activeTag={activeTag}
-												onSelectTag={toggleTag}
+												notes={unlinkedNotes}
+												onSelectTag={searchByTag}
 											/>
 										</motion.div>
 									)}
@@ -862,9 +493,8 @@ const Component = ({ className }: { className?: string }) => {
 											transition={{ duration: 0.2 }}
 										>
 											<LUIImages
-												images={filteredImages}
-												activeTag={activeTag}
-												onSelectTag={toggleTag}
+												images={images}
+												onSelectTag={searchByTag}
 											/>
 										</motion.div>
 									)}
