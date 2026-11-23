@@ -146,7 +146,6 @@ const Component = ({
 						ref={toggleRef}
 						type="button"
 						aria-label="Open profile menu"
-						aria-haspopup="menu"
 						aria-expanded={isMenuOpen}
 						className={`h-max w-max rounded-full border-4 bg-transparent ${
 							isMenuOpen
@@ -181,7 +180,7 @@ const Component = ({
 				<AnimatePresence>
 					{isMenuOpen ? (
 						<motion.div
-							role="menu"
+							aria-label="Profile menu"
 							className={`flex h-max w-full flex-col gap-y-0.5 rounded-xl border p-1 shadow-lg ${
 								theme === LTHEME.DARK
 									? "border-neutral-800 bg-neutral-900"
