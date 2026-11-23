@@ -159,10 +159,10 @@ test("a profile name typed just before the popup closes is kept and saved", asyn
 	const page = await createProfile(openPopup);
 	await button(page, "Open profile menu").click();
 	await button(page, "Profile").click();
-	await page.clock.install();
-	await page
-		.getByPlaceholder("Name", { exact: true })
-		.fill("Close right away");
+	const nameInput = page.getByPlaceholder("Name", { exact: true });
+	await expect(nameInput).toBeVisible();
+	await page.clock.install({ time: Date.now() });
+	await nameInput.fill("Close right away");
 	await page.close();
 	const reopened = await openPopup("/");
 	await expect(reopened).toHaveURL(/#\/profile$/);
