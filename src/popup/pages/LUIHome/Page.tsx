@@ -4,7 +4,7 @@ import { LTHEME } from "little-shared/enums";
 import { AnimatePresence, motion } from "framer-motion";
 import { LUIHomeNav } from "../../components/LUINavs/LUIHomeNav/Component";
 import { useLocation, useOutlet } from "react-router";
-import { useState } from "react";
+import { useCallback, useRef, useState, type UIEvent } from "react";
 import { pageVariants, readMove } from "../../../route-transitions";
 import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
 import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
@@ -58,6 +58,38 @@ const Page = () => {
 	const settle = (definition: unknown) => {
 		if (definition === "animate") setSettledPath(location.pathname);
 	};
+
+	const isListRoute =
+		location.pathname === "/home" || location.pathname === "/home/history";
+	const [hiddenOnPath, setHiddenOnPath] = useState<string | null>(null);
+	const navHidden = isListRoute && hiddenOnPath === location.pathname;
+	const lastScrollRef = useRef<{ target: HTMLElement | null; top: number }>({
+		target: null,
+		top: 0,
+	});
+	const showNav = useCallback(() => {
+		setHiddenOnPath(null);
+	}, []);
+	const handleScrollCapture = (event: UIEvent<HTMLDivElement>) => {
+		if (!isListRoute) return;
+		const target = event.target;
+		if (!(target instanceof HTMLElement)) return;
+		if (target.closest('[role="menu"]')) return;
+		if (target.scrollHeight <= target.clientHeight + 32) return;
+		const top = Math.max(0, target.scrollTop);
+		if (lastScrollRef.current.target !== target) {
+			lastScrollRef.current = { target, top };
+			return;
+		}
+		const delta = top - lastScrollRef.current.top;
+		lastScrollRef.current.top = top;
+		if (top <= 16 || delta < -4) {
+			setHiddenOnPath(null);
+		} else if (delta > 8 && top > 48) {
+			setHiddenOnPath(location.pathname);
+		}
+	};
+
 	const data = {
 		currentUserProfile,
 		userSettings,
@@ -68,6 +100,8 @@ const Page = () => {
 		tasks,
 		pages,
 		ready: settledPath === location.pathname,
+		navHidden,
+		showNav,
 	} as HomeData;
 	const panel = useOutlet(data);
 	// A panel opening or closing moves within Home; Home itself stays.
@@ -91,7 +125,10 @@ const Page = () => {
 					{/* Clipped both ways: with only one axis hidden, the
 					    other scrolls, and a panel sliding sideways showed a
 					    scrollbar. */}
-					<div className={`w-full grow overflow-hidden`}>
+					<div
+						className={`w-full grow overflow-hidden`}
+						onScrollCapture={handleScrollCapture}
+					>
 						<AnimatePresence
 							mode="wait"
 							initial={false}
@@ -111,7 +148,20 @@ const Page = () => {
 							</motion.div>
 						</AnimatePresence>
 					</div>
-					<LUIHomeNav />
+					<div
+						onFocusCapture={showNav}
+						className={
+							isListRoute
+								? `absolute inset-x-0 bottom-0 z-20 transition-transform duration-200 ease-out ${
+										navHidden
+											? "pointer-events-none translate-y-full"
+											: "translate-y-0"
+									}`
+								: "z-20 shrink-0"
+						}
+					>
+						<LUIHomeNav />
+					</div>
 				</div>
 			)}
 		</motion.div>

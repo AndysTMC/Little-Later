@@ -72,8 +72,8 @@ const Component = ({
 							key={tab.content}
 							className={`flex h-full cursor-pointer items-center justify-center gap-x-1.5 rounded-lg transition-colors duration-150 ${
 								isActive
-									? "ll-accent-fill min-w-0 grow px-3"
-									: `w-12 shrink-0 ${
+									? "ll-accent-fill min-w-0 grow px-2.5 min-[380px]:px-3"
+									: `w-9 shrink-0 min-[380px]:w-12 ${
 											isDark
 												? "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
 												: "text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900"

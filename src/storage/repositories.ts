@@ -51,6 +51,7 @@ export type SaveContent = {
 	provisional?: true;
 	archived?: boolean;
 	tags?: Array<string>;
+	snapshot?: string;
 };
 export type NoteContent = {
 	content: string;
@@ -80,10 +81,15 @@ export type Note = NoteContent & {
 // records and golden backups.
 export const toSave = (row: SaveRow, content: SaveContent): Save => {
 	const tags = normalizeTags(content.tags);
+	const snapshot =
+		typeof content.snapshot === "string" && content.snapshot.trim() !== ""
+			? content.snapshot
+			: undefined;
 	return {
 		...content,
 		...(content.archived ? { archived: true } : {}),
 		...(tags.length > 0 ? { tags } : {}),
+		...(snapshot ? { snapshot } : {}),
 		id: row.id,
 		saved: row.saved === 1,
 		browsed: row.browsed === 1,

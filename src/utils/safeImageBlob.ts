@@ -3,6 +3,7 @@ const RENDERABLE_IMAGE_TYPES = new Set([
 	"image/png",
 	"image/webp",
 	"image/gif",
+	"image/avif",
 ]);
 
 export const isRenderableImageType = (type: string): boolean =>

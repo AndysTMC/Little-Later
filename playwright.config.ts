@@ -14,6 +14,7 @@ export default defineConfig({
 		// project's, an old build's) would be tested instead, as happened
 		// with 4173.
 		baseURL: "http://127.0.0.1:4175",
+		channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
 		headless: true,
 		trace: "retain-on-failure",
 	},

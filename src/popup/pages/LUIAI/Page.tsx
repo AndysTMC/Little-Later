@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { LTHEME } from "little-shared/enums";
 import { ChatScreen, type Surface } from "../../../panel/ChatScreen";
+import { Locked } from "../../../panel/Locked";
 import { listenForFiles } from "../../../utils/saveFile";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
@@ -30,7 +31,9 @@ const Page = () => {
 		>
 			{keys === undefined ? (
 				<LUILoading />
-			) : keys === null ? null : (
+			) : keys === null ? (
+				<Locked />
+			) : (
 				<ChatScreen
 					key={keys.profileId}
 					keys={keys}

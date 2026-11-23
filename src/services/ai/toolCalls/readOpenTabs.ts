@@ -35,7 +35,7 @@ const toolCall = async (limit = 25): Promise<Array<OpenTabSummary>> => {
 	const tabs = await queryFocusedTabs();
 	const results: Array<OpenTabSummary> = [];
 	for (const tab of tabs) {
-		if (!tab.url || !/^https?:\/\//i.test(tab.url)) {
+		if (tab.incognito || !tab.url || !/^https?:\/\//i.test(tab.url)) {
 			continue;
 		}
 		results.push({

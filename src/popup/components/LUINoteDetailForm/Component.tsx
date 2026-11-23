@@ -10,7 +10,9 @@ import { twMerge } from "tailwind-merge";
 import { useNavigate } from "react-router";
 import { LTHEME } from "little-shared/enums";
 import { useTheme } from "../../hooks/useTheme";
+import { useMoveNavigate } from "../../hooks/usePageMove";
 import { send } from "../../../utils/send";
+import { sameTags } from "../../../utils/tags";
 import { LUIFeaturePageUD } from "../LUIFeaturePageUD/Component";
 import { LUICUButton } from "../LUICUButton/Component";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
@@ -51,9 +53,6 @@ import { LUIPillButton } from "../LUIPillButton/Component";
 const NO_LINKS: Array<LinkRow> = [];
 const NO_SAVES: Array<Save> = [];
 const NO_TAGS: Array<string> = [];
-
-const sameTags = (a: ReadonlyArray<string>, b: ReadonlyArray<string>) =>
-	a.length === b.length && a.every((tag, index) => tag === b[index]);
 
 type ToolbarAction = {
 	id: NoteFormattingAction;
@@ -105,6 +104,7 @@ const Component = ({
 	const { theme } = useTheme();
 	const isDark = theme === LTHEME.DARK;
 	const navigate = useNavigate();
+	const go = useMoveNavigate();
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	const storedLocked = Boolean(note.locked);
@@ -682,7 +682,7 @@ const Component = ({
 										}`}
 									>
 										Requires your profile password to open
-										and stays hidden from LittleAI.
+										and stays hidden from Little AI.
 									</span>
 								</div>
 								<button
@@ -717,8 +717,17 @@ const Component = ({
 									<LUIPillButton
 										label="Set password"
 										onClick={() =>
-											navigate(
+											go(
 												"/settings/security/password",
+												"forward",
+												{
+													state: {
+														referrer:
+															note.id !== null
+																? `/note/${note.id}`
+																: "/home/new-note",
+													},
+												},
 											)
 										}
 									/>
@@ -734,10 +743,10 @@ const Component = ({
 									onChange={(event) =>
 										setTitle(event.target.value)
 									}
-									className={`h-9 w-full rounded-xl border px-3 text-xs transition-colors outline-none ${
+									className={`ll-field h-9 w-full rounded-xl border px-3 text-xs transition-colors ${
 										isDark
-											? "border-neutral-700 bg-neutral-950 text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-400"
-											: "border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-600"
+											? "border-neutral-700 bg-neutral-950 text-neutral-100 placeholder:text-neutral-500"
+											: "border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400"
 									}`}
 								/>
 							) : null}
@@ -820,7 +829,7 @@ const Component = ({
 					</div>
 				)}
 			</div>
-			{viewMode === "edit" ? (
+			{viewMode === "edit" || hasChanges ? (
 				<div className="mx-auto flex h-16 w-full max-w-3xl shrink-0 items-center justify-center px-4 pt-1 pb-2">
 					<LUICUButton
 						name={note.id === null ? "Create" : "Update"}

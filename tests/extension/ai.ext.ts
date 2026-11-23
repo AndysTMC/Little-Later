@@ -15,7 +15,7 @@ import {
 // tab here; the profile is unlocked in the popup page, as a person would.
 
 const ask = async (panel: Page, text: string) => {
-	const input = panel.getByRole("textbox", { name: "Ask LittleAI" });
+	const input = panel.getByRole("textbox", { name: "Ask Little AI" });
 	await input.fill(text);
 	await input.press("Enter");
 };
@@ -48,7 +48,7 @@ test("the first prompt reaches the provider immediately and uses the loopback Or
 			.toBe(true);
 		// The popup's AI button is there once AI is set up.
 		await goHome(home);
-		await expect(button(home, "Open LittleAI")).toBeVisible();
+		await expect(button(home, "Open Little AI")).toBeVisible();
 		const panel = await openPanel();
 		await ask(panel, "First prompt immediately after opening");
 		await expect(
@@ -191,7 +191,7 @@ test("asking without a configured provider reports an actionable failure", async
 }) => {
 	const home = await createProfile(openPopup);
 	// No provider: the popup offers no AI button.
-	await expect(button(home, "Open LittleAI")).toHaveCount(0);
+	await expect(button(home, "Open Little AI")).toHaveCount(0);
 	const panel = await openPanel();
 	await ask(panel, "A question without a provider");
 	await expect(
@@ -247,7 +247,7 @@ test("chats are listed, renamed and deleted from the history", async ({
 		).toBeVisible();
 		await button(panel, "New chat").click();
 		await expect(
-			panel.getByRole("textbox", { name: "Ask LittleAI" }),
+			panel.getByRole("textbox", { name: "Ask Little AI" }),
 		).toBeVisible();
 		await ask(panel, "Plan the trip");
 		await expect(panel.getByText("Plan the trip")).toBeVisible();
@@ -281,7 +281,7 @@ test("the panel asks to unlock in the popup while the profile is locked", async 
 	const page = await createProfile(openPopup);
 	const panel = await openPanel();
 	await expect(
-		panel.getByRole("textbox", { name: "Ask LittleAI" }),
+		panel.getByRole("textbox", { name: "Ask Little AI" }),
 	).toBeVisible();
 	await lock(page);
 	await expect(panel.getByText("Your profile is locked")).toBeVisible();
@@ -606,7 +606,7 @@ test("an edit the worker refuses leaves the question and answer in place", async
 		await expect(
 			panel.getByText("Pong from the local fixture."),
 		).toBeVisible();
-		const input = panel.getByRole("textbox", { name: "Ask LittleAI" });
+		const input = panel.getByRole("textbox", { name: "Ask Little AI" });
 		await input.press("ArrowUp");
 		await input.fill("x".repeat(100_001));
 		await input.press("Enter");
@@ -635,7 +635,7 @@ test("the last message is edited with ↑, and an answer regenerated", async ({
 		await expect(
 			panel.getByText("Pong from the local fixture."),
 		).toBeVisible();
-		const input = panel.getByRole("textbox", { name: "Ask LittleAI" });
+		const input = panel.getByRole("textbox", { name: "Ask Little AI" });
 		await input.press("ArrowUp");
 		await expect(input).toHaveValue("Frist question");
 		await expect(panel.getByText(/Editing your message/)).toBeVisible();
@@ -669,7 +669,7 @@ test("Enter that ends an IME composition doesn't send", async ({
 		const page = await createProfile(openPopup);
 		await configureAI(page, provider.url);
 		const panel = await openPanel();
-		const input = panel.getByRole("textbox", { name: "Ask LittleAI" });
+		const input = panel.getByRole("textbox", { name: "Ask Little AI" });
 		await input.fill("にほんご");
 		// The Enter that picks a word in a Japanese, Chinese or Korean IME.
 		await input.dispatchEvent("keydown", {
@@ -704,7 +704,7 @@ test("a question from LittleAI is answered from the box above the input", async 
 		await configureAI(page, provider.url);
 		const panel = await openPanel();
 		await ask(panel, "Add milk to my list");
-		const box = panel.getByRole("region", { name: "LittleAI's question" });
+		const box = panel.getByRole("region", { name: "Little AI's question" });
 		const log = panel.getByRole("log", { name: "Conversation" });
 		await expect(box.getByText("Which list?")).toBeVisible();
 		// Asked once: in the box while it waits, not again above it.

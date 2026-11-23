@@ -30,8 +30,8 @@ const Component = ({
 			<div
 				className={`min-h-0 w-full grow overflow-y-auto rounded-2xl border p-4 ${
 					isDark
-						? "border-neutral-800 bg-neutral-900/50"
-						: "border-neutral-200 bg-neutral-100/50"
+						? "border-neutral-800 bg-neutral-900/70"
+						: "border-neutral-200 bg-neutral-100/70"
 				} ${theme}-scrollbar`}
 			>
 				{children}

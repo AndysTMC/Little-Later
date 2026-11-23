@@ -8,6 +8,8 @@ import { send } from "../../../utils/send";
 import { useMoveNavigate } from "../../hooks/usePageMove";
 import { LUINoteMini } from "../LUINoteMini/Component";
 import { LUIEmptyState } from "../LUIEmptyState/Component";
+import { usePagination } from "../../hooks/usePagination";
+import { LUIPagination } from "../LUIPagination/Component";
 
 const Component = ({
 	className,
@@ -45,6 +47,19 @@ const Component = ({
 		[notes, effectiveFilter],
 	);
 
+	const { startIndex, endIndex, batchCount, currentBatch, onBatchChange } =
+		usePagination(sortedNotes.length, 25);
+
+	const paginationNotes = useMemo(
+		() => sortedNotes.slice(startIndex, endIndex),
+		[sortedNotes, startIndex, endIndex],
+	);
+
+	const handleFilterChange = (nextFilter: "all" | "locked") => {
+		setFilter(nextFilter);
+		onBatchChange(1);
+	};
+
 	return (
 		<motion.div
 			className={twMerge(
@@ -53,15 +68,24 @@ const Component = ({
 			)}
 		>
 			{notes.length > 0 ? (
-				<div className="mx-auto flex h-10 w-full max-w-3xl shrink-0 items-center justify-between px-4">
-					<span
-						className={`text-xs font-medium ${
-							isDark ? "text-neutral-400" : "text-neutral-500"
-						}`}
-					>
-						{sortedNotes.length} note
-						{sortedNotes.length === 1 ? "" : "s"}
-					</span>
+				<div className="mx-auto flex w-full max-w-3xl shrink-0 flex-wrap items-center justify-between gap-2 px-4 py-1.5">
+					<div className="flex items-center gap-x-2.5">
+						<span
+							className={`text-xs font-medium ${
+								isDark ? "text-neutral-400" : "text-neutral-500"
+							}`}
+						>
+							{sortedNotes.length} note
+							{sortedNotes.length === 1 ? "" : "s"}
+						</span>
+						{batchCount > 1 ? (
+							<LUIPagination
+								currentBatch={currentBatch}
+								batchCount={batchCount}
+								onBatchChange={onBatchChange}
+							/>
+						) : null}
+					</div>
 					{lockedCount > 0 ? (
 						<div
 							role="group"
@@ -79,7 +103,7 @@ const Component = ({
 										key={mode}
 										type="button"
 										aria-pressed={selected}
-										onClick={() => setFilter(mode)}
+										onClick={() => handleFilterChange(mode)}
 										className={`h-6 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-colors ${
 											selected
 												? "ll-accent-fill"
@@ -99,12 +123,12 @@ const Component = ({
 				</div>
 			) : null}
 
-			{sortedNotes.length > 0 ? (
+			{paginationNotes.length > 0 ? (
 				<div
-					className={`w-full grow overflow-y-auto px-4 pb-3 ${theme}-scrollbar`}
+					className={`w-full grow overflow-y-auto px-4 pb-24 ${theme}-scrollbar`}
 				>
 					<div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-2.5 min-[560px]:grid-cols-2">
-						{sortedNotes.map((note) => (
+						{paginationNotes.map((note) => (
 							<LUINoteMini
 								key={note.id}
 								note={note}

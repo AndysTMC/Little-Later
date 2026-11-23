@@ -452,6 +452,7 @@ export const createReadableExport = async (
 	};
 	const listOf = (table: string) =>
 		((out[table] as Array<unknown> | undefined) ??= []) as Array<unknown>;
+	const lockedNoteIds = new Set<string>();
 	for await (const entry of profileEntries(keys, false, checkUnlocked)) {
 		switch (entry.table) {
 			case "profile":
@@ -459,7 +460,17 @@ export const createReadableExport = async (
 				break;
 			case "settings": {
 				const { ai } = await getSettings(littleDB, keys);
-				out.settings = { misc: entry.misc, ai: { ...ai, apiKey: "" } };
+				out.settings = {
+					misc: entry.misc,
+					ai: {
+						...ai,
+						apiKey: "",
+						presets: (ai.presets ?? []).map((preset) => ({
+							...preset,
+							apiKey: "",
+						})),
+					},
+				};
 				break;
 			}
 			case "saves":
@@ -474,6 +485,11 @@ export const createReadableExport = async (
 				});
 				break;
 			case "notes":
+				// Security invariant: never leak locked notes into plaintext JSON exports.
+				if (entry.content.locked) {
+					lockedNoteIds.add(entry.id);
+					break;
+				}
 				listOf("notes").push({
 					id: entry.id,
 					...entry.content,
@@ -508,6 +524,9 @@ export const createReadableExport = async (
 				});
 				break;
 			case "links":
+				if (lockedNoteIds.has(entry.fromId)) {
+					break;
+				}
 				listOf("links").push({
 					fromId: entry.fromId,
 					toId: entry.toId,

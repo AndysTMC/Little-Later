@@ -17,6 +17,7 @@ export const IconButton = ({
 	icon: Icon,
 	onClick,
 	size = "md",
+	active = false,
 	className,
 	buttonRef,
 }: {
@@ -24,6 +25,7 @@ export const IconButton = ({
 	icon: IconComponentType;
 	onClick: () => void;
 	size?: "sm" | "md";
+	active?: boolean;
 	className?: string;
 	buttonRef?: React.Ref<HTMLButtonElement>;
 }) => {
@@ -33,10 +35,17 @@ export const IconButton = ({
 			ref={buttonRef}
 			type="button"
 			aria-label={label}
+			aria-pressed={active || undefined}
 			title={label}
 			onClick={onClick}
 			className={twMerge(
-				`flex shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors ${size === "sm" ? "size-7" : "size-9"} ${dark ? "text-neutral-300 hover:bg-neutral-900 hover:text-white" : "text-neutral-600 hover:bg-neutral-100 hover:text-black"}`,
+				`flex shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors ${size === "sm" ? "size-7" : "size-9"} ${
+					active
+						? "ll-accent-fill"
+						: dark
+							? "text-neutral-300 hover:bg-neutral-900 hover:text-white"
+							: "text-neutral-600 hover:bg-neutral-100 hover:text-black"
+				}`,
 				className,
 			)}
 		>

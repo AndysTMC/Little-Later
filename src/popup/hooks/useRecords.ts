@@ -1,8 +1,9 @@
 import Dexie from "dexie";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { openBody, type ProfileKeys } from "../../storage/keys";
 import { littleDB } from "../../storage/pageDB";
+import { collectProfileTags } from "../../utils/tags";
 import {
 	toImage,
 	toNote,
@@ -254,3 +255,20 @@ export const useReminders = (): Array<Reminder> | undefined =>
 // Links are plain: ids only (decision 0010).
 export const useLinks = (): Array<LinkRow> | undefined =>
 	useContext(RecordsContext).links;
+
+// All tags used across the unlocked profile's saved records, by frequency.
+export const useProfileTags = (): Array<string> => {
+	const { saves, tasks, reminders, notes, images } =
+		useContext(RecordsContext);
+	return useMemo(
+		() =>
+			collectProfileTags([
+				(saves ?? []).filter((save) => save.saved),
+				tasks ?? [],
+				reminders ?? [],
+				notes ?? [],
+				images ?? [],
+			]),
+		[saves, tasks, reminders, notes, images],
+	);
+};

@@ -106,7 +106,7 @@ const Component = ({
 				{isAISettingsConfigured(aiSettings) ? (
 					<button
 						type="button"
-						aria-label="Open LittleAI"
+						aria-label="Open Little AI"
 						className={`h-max w-max cursor-pointer rounded-full p-1 active:scale-90 ${
 							theme === LTHEME.DARK
 								? "hover:bg-neutral-800"
@@ -146,7 +146,6 @@ const Component = ({
 						ref={toggleRef}
 						type="button"
 						aria-label="Open profile menu"
-						aria-haspopup="menu"
 						aria-expanded={isMenuOpen}
 						className={`h-max w-max rounded-full border-4 bg-transparent ${
 							isMenuOpen
@@ -181,7 +180,7 @@ const Component = ({
 				<AnimatePresence>
 					{isMenuOpen ? (
 						<motion.div
-							role="menu"
+							aria-label="Profile menu"
 							className={`flex h-max w-full flex-col gap-y-0.5 rounded-xl border p-1 shadow-lg ${
 								theme === LTHEME.DARK
 									? "border-neutral-800 bg-neutral-900"
@@ -209,7 +208,6 @@ const Component = ({
 										className="size-5"
 									/>
 								}
-								animationDelay={0.1}
 								onClick={handleProfile}
 							/>
 							<LUIHMNavMenuOption
@@ -220,7 +218,6 @@ const Component = ({
 										className="size-5"
 									/>
 								}
-								animationDelay={0.2}
 								onClick={handleSettings}
 							/>
 							<LUIHMNavMenuOption
@@ -231,8 +228,6 @@ const Component = ({
 										className="size-5"
 									/>
 								}
-								isLast={true}
-								animationDelay={0.3}
 								onClick={handleLock}
 							/>
 						</motion.div>

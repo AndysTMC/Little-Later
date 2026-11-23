@@ -93,7 +93,7 @@ export const recoverInterrupted = async (): Promise<void> => {
 				role: "assistant",
 				output: {
 					message:
-						"Interrupted: Chrome stopped LittleAI before it finished. What it had done is listed above; ask again to carry on.",
+						"Interrupted: Chrome stopped Little AI before it finished. What it had done is listed above; ask again to carry on.",
 					expression: LFACE_EXPRESSION.FROWNING,
 					...(status.steps.length > 0 ? { steps: status.steps } : {}),
 				},
@@ -155,7 +155,7 @@ const clientFor = async (
 	clients.delete(chatId);
 	if (continuing) {
 		throw new RunError(
-			"This request expired when LittleAI restarted or its AI settings changed. Ask again.",
+			"This request expired when Little AI restarted or its AI settings changed. Ask again.",
 		);
 	}
 	const client = await LittleAI.getLAIAssistInstance(owner, connection);
@@ -194,7 +194,7 @@ const begin = (
 	continuing = false,
 ): void => {
 	if (active.has(chatId)) {
-		throw new RunError("LittleAI is still answering in this chat.");
+		throw new RunError("Little AI is still answering in this chat.");
 	}
 	const controller = new AbortController();
 	active.set(chatId, controller);

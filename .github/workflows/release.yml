@@ -113,6 +113,16 @@ jobs:
                   # The build writes a CycloneDX SBOM of the bundled packages.
                   cp dist/sbom.cdx.json "dist-release/Little-Later-${VERSION}.cdx.json"
 
+                  # Standalone MCP bridge binaries (no repo clone, Bun, or Node required).
+                  bun build packages/mcp-bridge/src/cli.ts --compile --target=bun-linux-x64 \
+                    --outfile "dist-release/little-later-mcp-${VERSION}-linux-x64"
+                  bun build packages/mcp-bridge/src/cli.ts --compile --target=bun-darwin-arm64 \
+                    --outfile "dist-release/little-later-mcp-${VERSION}-macos-arm64"
+                  bun build packages/mcp-bridge/src/cli.ts --compile --target=bun-darwin-x64 \
+                    --outfile "dist-release/little-later-mcp-${VERSION}-macos-x64"
+                  bun build packages/mcp-bridge/src/cli.ts --compile --target=bun-windows-x64 \
+                    --outfile "dist-release/little-later-mcp-${VERSION}-windows-x64.exe"
+
                   cd dist-release
                   for file in *; do
                     if [[ -f "$file" && ! "$file" =~ \.sha256$ ]]; then
@@ -134,6 +144,7 @@ jobs:
                       dist-release/*.zip
                       dist-release/*.crx
                       dist-release/*.cdx.json
+                      dist-release/little-later-mcp-*
 
             # Ship the signed attestation with the release, so it can be
             # verified offline: gh attestation verify --bundle <file>.

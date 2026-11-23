@@ -4,9 +4,9 @@ import { configDefaults, defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
 import { ManifestV3Export, crx } from "@crxjs/vite-plugin";
-import manifestJson from "./manifest.json";
-import packageJson from "./package.json";
-import { thirdPartyNotices } from "./scripts/third-party-notices";
+import manifestJson from "./manifest.json" with { type: "json" };
+import packageJson from "./package.json" with { type: "json" };
+import { thirdPartyNotices } from "./scripts/third-party-notices.ts";
 
 const manifest = manifestJson as ManifestV3Export;
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -14,7 +14,7 @@ const sharedSrc = path.resolve(projectRoot, "packages/shared/src");
 
 export default defineConfig(({ command }) => ({
 	plugins: [
-		react(),
+		react({ disableOxcRecommendation: true }),
 		tailwindcss(),
 		crx({ manifest }),
 		thirdPartyNotices(
@@ -55,5 +55,44 @@ export default defineConfig(({ command }) => ({
 		exclude: [...configDefaults.exclude, "artifacts/**"],
 		environment: "jsdom",
 		setupFiles: ["./tests/setup.ts"],
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: "dom",
+					environment: "jsdom",
+					include: [
+						"tests/popup/**/*.test.{ts,tsx}",
+						"tests/panel/**/*.test.{ts,tsx}",
+						"tests/notes/**/*.test.{ts,tsx}",
+						"tests/services/**/*.test.{ts,tsx}",
+						"tests/regressions.test.ts",
+						"tests/storage/session.test.ts",
+						"tests/utils/saveFile.test.ts",
+						"tests/utils/safe-image-blob.test.ts",
+					],
+				},
+			},
+			{
+				extends: true,
+				test: {
+					name: "node",
+					environment: "node",
+					include: ["tests/**/*.test.{ts,tsx}"],
+					exclude: [
+						...configDefaults.exclude,
+						"artifacts/**",
+						"tests/popup/**/*.test.{ts,tsx}",
+						"tests/panel/**/*.test.{ts,tsx}",
+						"tests/notes/**/*.test.{ts,tsx}",
+						"tests/services/**/*.test.{ts,tsx}",
+						"tests/regressions.test.ts",
+						"tests/storage/session.test.ts",
+						"tests/utils/saveFile.test.ts",
+						"tests/utils/safe-image-blob.test.ts",
+					],
+				},
+			},
+		],
 	},
 }));

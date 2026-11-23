@@ -221,7 +221,7 @@ describe("Milestone 4 — Agent trajectory evals, hybrid retrieval & MCP securit
 		expect(pending.confirmation?.items).toHaveLength(2);
 		expect(pending.confirmation?.items[0]?.summary).toContain("repeats:");
 		expect(pending.confirmation?.items[1]?.summary).toContain(
-			"LittleAI memories",
+			"Little AI memories",
 		);
 
 		// Nothing persisted before confirmation.
@@ -266,6 +266,29 @@ describe("Milestone 4 — Agent trajectory evals, hybrid retrieval & MCP securit
 			locked: true,
 		});
 
+		// MCP handshake: initialize negotiates protocolVersion, notifications
+		// return null (no JSON-RPC response).
+		const initRes = await handleExternalMcpRequest({
+			db: littleDB,
+			session: sessionStore,
+			dispatch,
+			request: {
+				id: 0,
+				method: "initialize",
+				params: { protocolVersion: "2025-03-26" },
+			},
+		});
+		expect(
+			(initRes?.result as { protocolVersion?: string })?.protocolVersion,
+		).toBe("2025-03-26");
+		const notifRes = await handleExternalMcpRequest({
+			db: littleDB,
+			session: sessionStore,
+			dispatch,
+			request: { method: "notifications/initialized" },
+		});
+		expect(notifRes).toBeNull();
+
 		// Default mode is "off".
 		const blocked = await handleExternalMcpRequest({
 			db: littleDB,
@@ -273,7 +296,7 @@ describe("Milestone 4 — Agent trajectory evals, hybrid retrieval & MCP securit
 			dispatch,
 			request: { id: 1, method: "tools/list" },
 		});
-		expect(blocked.error?.code).toBe(-32003);
+		expect(blocked?.error?.code).toBe(-32003);
 
 		// Enable "read" mode.
 		const keys = await owner.keys();
@@ -289,7 +312,7 @@ describe("Milestone 4 — Agent trajectory evals, hybrid retrieval & MCP securit
 			request: { id: 2, method: "tools/list" },
 		});
 		const toolNames = (
-			readTools.result as { tools: Array<{ name: string }> }
+			readTools?.result as { tools: Array<{ name: string }> }
 		).tools.map((t) => t.name);
 		expect(toolNames).toContain("list_notes");
 		expect(toolNames).not.toContain("create_note");
@@ -305,7 +328,7 @@ describe("Milestone 4 — Agent trajectory evals, hybrid retrieval & MCP securit
 				params: { name: "list_notes", arguments: {} },
 			},
 		});
-		const serialized = JSON.stringify(notesRes.result);
+		const serialized = JSON.stringify(notesRes?.result);
 		expect(serialized).toContain("Public hello");
 		expect(serialized).not.toContain("NEVER_EXPOSE_THIS");
 
@@ -323,7 +346,7 @@ describe("Milestone 4 — Agent trajectory evals, hybrid retrieval & MCP securit
 				},
 			},
 		});
-		expect(deniedWrite.error?.code).toBe(-32003);
+		expect(deniedWrite?.error?.code).toBe(-32003);
 
 		// Switch to "write" mode -> write succeeds via dispatcher.
 		await dispatch("settings.update", {
@@ -342,7 +365,7 @@ describe("Milestone 4 — Agent trajectory evals, hybrid retrieval & MCP securit
 				},
 			},
 		});
-		expect(createdRes.error).toBeUndefined();
+		expect(createdRes?.error).toBeUndefined();
 		const allNotes = await listNotes(littleDB, keys);
 		expect(
 			allNotes.some((note) => note.content === "Created by external MCP"),
@@ -356,6 +379,6 @@ describe("Milestone 4 — Agent trajectory evals, hybrid retrieval & MCP securit
 			dispatch,
 			request: { id: 6, method: "tools/list" },
 		});
-		expect(whileLocked.error?.code).toBe(-32001);
+		expect(whileLocked?.error?.code).toBe(-32001);
 	});
 });

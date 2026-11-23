@@ -1,19 +1,25 @@
 import { randomUUID } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	statSync,
+	unlinkSync,
+} from "node:fs";
 import { createServer, type Socket } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 export const NATIVE_HOST_NAME = "com.littlelater.mcp";
+const MAX_NATIVE_MESSAGE_BYTES = 64 * 1024 * 1024;
 
 export const getBridgeEndpoint = (): string => {
 	if (process.platform === "win32") {
 		return "\\\\.\\pipe\\little-later-mcp";
 	}
-	const runtimeDir = process.env.XDG_RUNTIME_DIR;
-	if (runtimeDir) {
-		return join(runtimeDir, "little-later-mcp.sock");
-	}
+	// Avoid XDG_RUNTIME_DIR: MCP clients (e.g. Codex, Claude Desktop) often
+	// strip session env vars when spawning stdio servers, which would cause
+	// host and client to resolve different socket paths.
 	return join(homedir(), ".local", "share", "little-later", "mcp.sock");
 };
 
@@ -53,6 +59,10 @@ export const startNativeHost = (): void => {
 		chromeBuffer = Buffer.concat([chromeBuffer, chunk]);
 		while (chromeBuffer.length >= 4) {
 			const messageLength = chromeBuffer.readUInt32LE(0);
+			if (messageLength > MAX_NATIVE_MESSAGE_BYTES) {
+				chromeBuffer = Buffer.alloc(0);
+				break;
+			}
 			if (chromeBuffer.length < 4 + messageLength) {
 				break;
 			}
@@ -81,6 +91,16 @@ export const startNativeHost = (): void => {
 
 	const server = createServer((socket) => {
 		let lineBuffer = "";
+		const dropSocketPending = () => {
+			for (const [bridgeId, entry] of pending) {
+				if (entry.socket === socket) {
+					clearTimeout(entry.timeout);
+					pending.delete(bridgeId);
+				}
+			}
+		};
+		socket.on("error", dropSocketPending);
+		socket.on("close", dropSocketPending);
 		socket.on("data", (chunk: Buffer) => {
 			lineBuffer += chunk.toString("utf8");
 			const lines = lineBuffer.split("\n");
@@ -92,18 +112,44 @@ export const startNativeHost = (): void => {
 				try {
 					request = JSON.parse(trimmed);
 				} catch {
+					if (!socket.destroyed) {
+						socket.write(
+							`${JSON.stringify({
+								jsonrpc: "2.0",
+								id: null,
+								error: {
+									code: -32700,
+									message: "Parse error: invalid JSON.",
+								},
+							})}\n`,
+						);
+					}
 					continue;
 				}
+				const reqObj =
+					request && typeof request === "object"
+						? (request as {
+								id?: string | number | null;
+								method?: unknown;
+							})
+						: null;
+				const isNotification =
+					!reqObj ||
+					reqObj.id === undefined ||
+					(typeof reqObj.method === "string" &&
+						reqObj.method.startsWith("notifications/"));
 				const bridgeId = randomUUID();
+				if (isNotification) {
+					writeToChrome({ bridgeId, request });
+					continue;
+				}
 				const timeout = setTimeout(() => {
 					pending.delete(bridgeId);
 					if (!socket.destroyed) {
 						socket.write(
 							`${JSON.stringify({
 								jsonrpc: "2.0",
-								id:
-									(request as { id?: string | number | null })
-										.id ?? null,
+								id: reqObj.id ?? null,
 								error: {
 									code: -32002,
 									message:
@@ -119,12 +165,22 @@ export const startNativeHost = (): void => {
 		});
 	});
 
+	server.on("error", () => {
+		process.exit(1);
+	});
+
+	let ownSocketIno: number | null = null;
 	server.listen(endpoint, () => {
 		if (process.platform !== "win32") {
 			try {
 				chmodSync(endpoint, 0o600);
 			} catch {
 				// Ignore permission change errors on unsupported filesystems.
+			}
+			try {
+				ownSocketIno = statSync(endpoint).ino;
+			} catch {
+				ownSocketIno = null;
 			}
 		}
 	});
@@ -133,7 +189,15 @@ export const startNativeHost = (): void => {
 		server.close();
 		if (process.platform !== "win32" && existsSync(endpoint)) {
 			try {
-				unlinkSync(endpoint);
+				// Only unlink if the socket file is still the one this process
+				// created, so a shutting-down host never deletes a restarted
+				// host's live socket.
+				if (
+					ownSocketIno === null ||
+					statSync(endpoint).ino === ownSocketIno
+				) {
+					unlinkSync(endpoint);
+				}
 			} catch {
 				// Ignore cleanup errors.
 			}

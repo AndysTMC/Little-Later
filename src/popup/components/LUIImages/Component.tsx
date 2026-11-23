@@ -23,6 +23,8 @@ import { LUIEmptyState } from "../LUIEmptyState/Component";
 import { LUIDeleteButton } from "../LUIDeleteButton/Component";
 import { LUITagChips } from "../LUITagChips/Component";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
+import { usePagination } from "../../hooks/usePagination";
+import { LUIPagination } from "../LUIPagination/Component";
 
 const IMAGE_SLOT = "images.upload";
 
@@ -76,6 +78,7 @@ const ImageCard = ({
 						<img
 							src={url}
 							alt={image.title}
+							loading="lazy"
 							className="h-full w-full object-cover"
 							draggable={false}
 						/>
@@ -184,6 +187,14 @@ const Component = ({
 		[images],
 	);
 
+	const { startIndex, endIndex, batchCount, currentBatch, onBatchChange } =
+		usePagination(sortedImages.length, 20);
+
+	const paginationImages = useMemo(
+		() => sortedImages.slice(startIndex, endIndex),
+		[sortedImages, startIndex, endIndex],
+	);
+
 	// Ingest images returned from the shared /pick-file upload screen.
 	useEffect(() => {
 		if (picked.files.length === 0 || consumingRef.current) return;
@@ -227,35 +238,37 @@ const Component = ({
 		})();
 	}, [picked]);
 
-	const handlePasteFiles = async (files: Array<File>) => {
-		if (files.length === 0 || busy) return;
-		setBusy(true);
-		try {
-			let savedCount = 0;
-			for (const file of files) {
-				if (await saveBlobAsImage(file, file.name, file.type)) {
-					savedCount += 1;
-				}
-			}
-			if (savedCount > 0) {
-				await createToast(
-					savedCount === 1
-						? "Image saved."
-						: `${savedCount} images saved.`,
-					LTOAST_TYPE.SUCCESS,
-				);
-			}
-		} catch (error) {
-			await createToast(
-				error instanceof Error ? error.message : "Couldn't save image.",
-				LTOAST_TYPE.ERROR,
-			);
-		} finally {
-			setBusy(false);
-		}
-	};
-
 	useEffect(() => {
+		const handlePasteFiles = async (files: Array<File>) => {
+			if (files.length === 0 || busy) return;
+			setBusy(true);
+			try {
+				let savedCount = 0;
+				for (const file of files) {
+					if (await saveBlobAsImage(file, file.name, file.type)) {
+						savedCount += 1;
+					}
+				}
+				if (savedCount > 0) {
+					await createToast(
+						savedCount === 1
+							? "Image saved."
+							: `${savedCount} images saved.`,
+						LTOAST_TYPE.SUCCESS,
+					);
+				}
+			} catch (error) {
+				await createToast(
+					error instanceof Error
+						? error.message
+						: "Couldn't save image.",
+					LTOAST_TYPE.ERROR,
+				);
+			} finally {
+				setBusy(false);
+			}
+		};
+
 		const onPaste = (event: ClipboardEvent) => {
 			const target = event.target as HTMLElement | null;
 			if (
@@ -280,7 +293,7 @@ const Component = ({
 		};
 		window.addEventListener("paste", onPaste);
 		return () => window.removeEventListener("paste", onPaste);
-	});
+	}, [busy]);
 
 	const handleOpenUploadScreen = () => {
 		go(pickRoute(IMAGE_PICK_REQUEST, IMAGE_SLOT, "/home"), "outOf");
@@ -293,15 +306,24 @@ const Component = ({
 				className,
 			)}
 		>
-			<div className="mx-auto flex h-10 w-full max-w-3xl shrink-0 items-center justify-between px-4">
-				<span
-					className={`text-xs font-medium ${
-						isDark ? "text-neutral-400" : "text-neutral-500"
-					}`}
-				>
-					{sortedImages.length} image
-					{sortedImages.length === 1 ? "" : "s"}
-				</span>
+			<div className="mx-auto flex w-full max-w-3xl shrink-0 flex-wrap items-center justify-between gap-2 px-4 py-1.5">
+				<div className="flex items-center gap-x-2.5">
+					<span
+						className={`text-xs font-medium ${
+							isDark ? "text-neutral-400" : "text-neutral-500"
+						}`}
+					>
+						{sortedImages.length} image
+						{sortedImages.length === 1 ? "" : "s"}
+					</span>
+					{batchCount > 1 ? (
+						<LUIPagination
+							currentBatch={currentBatch}
+							batchCount={batchCount}
+							onBatchChange={onBatchChange}
+						/>
+					) : null}
+				</div>
 				<button
 					type="button"
 					aria-label="Add image"
@@ -316,19 +338,19 @@ const Component = ({
 					<LUIThemedIcon
 						Icon={PlusIcon}
 						color="currentColor"
-						weight="bold"
+						weight="regular"
 						className="size-3.5"
 					/>
 					<span>{busy ? "Saving…" : "Add image"}</span>
 				</button>
 			</div>
 
-			{sortedImages.length > 0 ? (
+			{paginationImages.length > 0 ? (
 				<div
-					className={`w-full grow overflow-y-auto px-4 pb-3 ${theme}-scrollbar`}
+					className={`w-full grow overflow-y-auto px-4 pb-24 ${theme}-scrollbar`}
 				>
 					<div className="mx-auto grid w-full max-w-3xl grid-cols-2 gap-2.5 min-[600px]:grid-cols-3">
-						{sortedImages.map((image) => (
+						{paginationImages.map((image) => (
 							<ImageCard
 								key={image.id}
 								image={image}

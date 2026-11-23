@@ -44,10 +44,16 @@ export const createAutoLock = ({
 	};
 
 	const start = () => {
+		let currentState: "active" | "idle" | "locked" = "active";
 		idle.onStateChanged.addListener((state) => {
+			currentState = state;
 			if (state === "idle" || state === "locked") {
+				const triggerState = state;
 				// Queued, so a command already running finishes first.
 				void queue(async () => {
+					if (triggerState === "idle" && currentState === "active") {
+						return;
+					}
 					const unlocked = await session.get();
 					await session.clear();
 					if (unlocked) {

@@ -12,8 +12,6 @@ const Component = ({
 	className?: string;
 	name: string;
 	icon: ReactElement;
-	isLast?: boolean;
-	animationDelay?: number;
 	onClick?: () => void;
 }) => {
 	const { theme } = useTheme();

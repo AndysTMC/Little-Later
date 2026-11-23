@@ -5,12 +5,11 @@ import { useLocation, useOutletContext } from "react-router";
 import { useMoveNavigate } from "../../hooks/usePageMove";
 import { LUIBasicNav } from "../LUINavs/LUIBasicNav/Component";
 import { LUITaskForm } from "../LUITaskForm/Component";
+import { useProfileTags } from "../../hooks/useRecords";
 import type { HomeData } from "../../records";
-import { collectProfileTags } from "../../../utils/tags";
 
 const Component = () => {
-	const { links, notes, reminders, tasks, pages } =
-		useOutletContext<HomeData>();
+	const { links, reminders, pages } = useOutletContext<HomeData>();
 	const { theme } = useTheme();
 	const go = useMoveNavigate();
 	const location = useLocation();
@@ -24,10 +23,7 @@ const Component = () => {
 		go("/home", "sink");
 	};
 	const saves = useMemo(() => pages.filter((page) => page.saved), [pages]);
-	const tagSuggestions = useMemo(
-		() => collectProfileTags([saves, tasks, reminders, notes]),
-		[saves, tasks, reminders, notes],
-	);
+	const tagSuggestions = useProfileTags();
 	return (
 		<div
 			className={`flex h-full w-full flex-col overflow-y-hidden select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"}`}

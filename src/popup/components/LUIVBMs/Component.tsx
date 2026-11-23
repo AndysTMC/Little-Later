@@ -46,7 +46,7 @@ const Component = ({
 		effectiveView === "archived" ? archivedSaves : activeSaves;
 
 	const { startIndex, endIndex, batchCount, currentBatch, onBatchChange } =
-		usePagination(visibleSaves.length, 5);
+		usePagination(visibleSaves.length, 20);
 
 	const paginationSaves = useMemo(() => {
 		return [...visibleSaves]
@@ -127,7 +127,7 @@ const Component = ({
 					className={`flex h-full w-full flex-col gap-y-1 overflow-y-hidden`}
 				>
 					<div
-						className={`w-full grow overflow-y-auto ${theme}-scrollbar px-4 pt-1`}
+						className={`w-full grow overflow-y-auto ${theme}-scrollbar px-4 pt-1 pb-24`}
 					>
 						<div className="mx-auto flex w-full max-w-3xl flex-col gap-y-2">
 							{paginationSaves.map((save) => (

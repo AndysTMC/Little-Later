@@ -9,6 +9,7 @@ import { useParams } from "react-router";
 import {
 	useLinks,
 	useNotes,
+	useProfileTags,
 	useReminders,
 	useSaves,
 	useTasks,
@@ -16,7 +17,6 @@ import {
 import { useLoading } from "../../hooks/useLoading";
 import { LUILoading } from "../../components/LUILoading/Component";
 import { LUIEmptyState } from "../../components/LUIEmptyState/Component";
-import { collectProfileTags } from "../../../utils/tags";
 
 const Page = () => {
 	const { theme } = useTheme();
@@ -33,16 +33,7 @@ const Page = () => {
 		() => (pages ?? []).filter((page) => page.saved),
 		[pages],
 	);
-	const tagSuggestions = useMemo(
-		() =>
-			collectProfileTags([
-				savedPages,
-				tasks ?? [],
-				reminders ?? [],
-				notes ?? [],
-			]),
-		[savedPages, tasks, reminders, notes],
-	);
+	const tagSuggestions = useProfileTags();
 
 	return (
 		<motion.div

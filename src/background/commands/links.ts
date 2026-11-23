@@ -102,6 +102,14 @@ export const linkDelete = defineCommand({
 	parse: parseEnds,
 	run: async (ctx, input) => {
 		const keys = await ctx.keys();
+		const from = await kindOf(ctx.db, keys, input.fromId);
+		const to = await kindOf(ctx.db, keys, input.toId);
+		if (from === "reminder" && to === "task") {
+			throw new CommandError(
+				"rejected",
+				"Change or remove this reminder on its task.",
+			);
+		}
 		await ctx.db.links
 			.where("[profileId+fromId]")
 			.equals([keys.profileId, input.fromId])

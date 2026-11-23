@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { PlusIcon, XIcon } from "@phosphor-icons/react";
+import { CheckIcon, CopyIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { LINITIAL_MISC_SETTINGS } from "little-shared/constants";
-import { LTHEME } from "little-shared/enums";
+import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import type { LExternalMcpMode, LUserSettings } from "little-shared/types";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUISettingsLayout } from "../../components/LUISettingsLayout/Component";
@@ -14,8 +14,12 @@ import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
 import { useLoading } from "../../hooks/useLoading";
 import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
+import { usePickedFile } from "../../hooks/usePickedFile";
 import { useTheme } from "../../hooks/useTheme";
+import { pickRoute } from "../../filePick";
 import { attempt } from "../../attempt";
+import { importBookmarksHtml } from "../../../services/portable";
+import { createToast } from "../../../services/toasts";
 import { send } from "../../../utils/send";
 import {
 	MAX_IGNORED_DOMAINS,
@@ -48,6 +52,9 @@ const BACKUP_REMINDER_OPTIONS: ReadonlyArray<{
 	{ value: 30, label: "Every 30 days" },
 ];
 
+const BOOKMARKS_PICK_SLOT = "bookmarks-html";
+const MAX_BOOKMARKS_HTML_BYTES = 5 * 1024 * 1024;
+
 const Page = () => {
 	const { theme } = useTheme();
 	const isDark = theme === LTHEME.DARK;
@@ -55,7 +62,105 @@ const Page = () => {
 	const go = useMoveNavigate();
 	const userSettings = useCurrentUserSettings();
 	const loading = useLoading([userSettings]);
+	const pickedBookmarks = usePickedFile(BOOKMARKS_PICK_SLOT);
+	const importingRef = useRef(false);
+	const [importingBookmarks, setImportingBookmarks] = useState(false);
 	const [ignoreInput, setIgnoreInput] = useState("");
+	const [copiedKey, setCopiedKey] = useState<"install" | "config" | null>(
+		null,
+	);
+	const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (copyTimerRef.current !== null) {
+				clearTimeout(copyTimerRef.current);
+			}
+		};
+	}, []);
+
+	useEffect(() => {
+		if (pickedBookmarks.files.length === 0 || importingRef.current) return;
+		importingRef.current = true;
+		setImportingBookmarks(true);
+		const file = pickedBookmarks.files[0]!;
+		void (async () => {
+			try {
+				const html = await file.blob.text();
+				const { imported, truncated } = await importBookmarksHtml(html);
+				const baseMsg =
+					imported === 1
+						? "Imported 1 bookmark."
+						: `Imported ${imported} bookmarks.`;
+				await createToast(
+					truncated > 0
+						? `${baseMsg} (${truncated} skipped over the 500-item limit.)`
+						: baseMsg,
+					LTOAST_TYPE.SUCCESS,
+				);
+			} catch (error) {
+				await createToast(
+					error instanceof Error
+						? error.message
+						: "Couldn't import bookmarks.",
+					LTOAST_TYPE.ERROR,
+				);
+			} finally {
+				await pickedBookmarks.remove(file.id);
+				importingRef.current = false;
+				setImportingBookmarks(false);
+			}
+		})();
+	}, [pickedBookmarks]);
+
+	const extensionId =
+		typeof chrome !== "undefined" && chrome.runtime?.id
+			? chrome.runtime.id
+			: "";
+	const OFFICIAL_EXTENSION_ID = "nchfnpignmgklabjemdobnanfickfbhl";
+	const installCommand =
+		extensionId === "" || extensionId === OFFICIAL_EXTENSION_ID
+			? "npx -y little-later-mcp install"
+			: `npx -y little-later-mcp install ${extensionId}`;
+	const mcpClientConfig = JSON.stringify(
+		{
+			mcpServers: {
+				"little-later": {
+					command: "npx",
+					args: ["-y", "little-later-mcp", "serve"],
+				},
+			},
+		},
+		null,
+		2,
+	);
+
+	const copyText = (key: "install" | "config", text: string) => {
+		if (!navigator.clipboard?.writeText) {
+			void createToast("Clipboard is unavailable.", LTOAST_TYPE.ERROR);
+			return;
+		}
+		void navigator.clipboard.writeText(text).then(
+			() => {
+				setCopiedKey(key);
+				if (copyTimerRef.current !== null) {
+					clearTimeout(copyTimerRef.current);
+				}
+				copyTimerRef.current = setTimeout(() => {
+					copyTimerRef.current = null;
+					setCopiedKey((current) =>
+						current === key ? null : current,
+					);
+				}, 1500);
+			},
+			() => {
+				void createToast(
+					"Couldn't copy to clipboard.",
+					LTOAST_TYPE.ERROR,
+				);
+			},
+		);
+	};
 
 	const misc: LUserSettings["misc"] =
 		userSettings?.misc ?? LINITIAL_MISC_SETTINGS.value;
@@ -144,11 +249,52 @@ const Page = () => {
 								<span
 									className={`text-sm font-medium ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
 								>
-									Encrypted backup
+									Encrypted backup & exports
 								</span>
 								<LUIPillButton
 									label="Export"
-									onClick={() => go("/export", "forward")}
+									onClick={() =>
+										go("/export", "forward", {
+											state: {
+												referrer: "/settings/privacy",
+											},
+										})
+									}
+								/>
+							</div>
+							<div className="flex items-center justify-between gap-x-3 py-1">
+								<span
+									className={`text-sm font-medium ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
+								>
+									Bookmarks HTML
+								</span>
+								<LUIPillButton
+									label={
+										importingBookmarks
+											? "Importing…"
+											: "Import"
+									}
+									disabled={importingBookmarks}
+									onClick={() =>
+										go(
+											pickRoute(
+												{
+													title: "Import bookmarks",
+													accepts:
+														"HTML bookmark export (.html), up to 5 MB",
+													types: null,
+													maxBytes:
+														MAX_BOOKMARKS_HTML_BYTES,
+													maxFiles: 1,
+													pasteHint:
+														"Drop or paste a bookmarks.html file",
+												},
+												BOOKMARKS_PICK_SLOT,
+												"/settings/privacy",
+											),
+											"forward",
+										)
+									}
 								/>
 							</div>
 						</div>
@@ -314,6 +460,145 @@ const Page = () => {
 									}, "Couldn't update external MCP access.");
 								}}
 							/>
+							{(misc.externalMcpMode ?? "off") !== "off" ? (
+								<div
+									className={`flex flex-col gap-y-2.5 rounded-xl border p-3 select-text ${
+										isDark
+											? "border-neutral-800 bg-neutral-900/70"
+											: "border-neutral-200 bg-neutral-100/70"
+									}`}
+								>
+									<div className="flex items-center justify-between gap-x-2">
+										<span
+											className={`text-xs font-semibold ${isDark ? "text-neutral-200" : "text-neutral-800"}`}
+										>
+											Connect an external agent
+										</span>
+										<LUIPillButton
+											label="Reconnect"
+											onClick={() => {
+												if (!userSettings) return;
+												void attempt(async () => {
+													await send(
+														"settings.update",
+														{
+															misc: {
+																...userSettings.misc,
+																externalMcpMode:
+																	misc.externalMcpMode ??
+																	"read",
+															},
+														},
+													);
+													await createToast(
+														"Reconnecting external MCP…",
+														LTOAST_TYPE.SUCCESS,
+													);
+												}, "Couldn't reconnect external MCP.");
+											}}
+										/>
+									</div>
+									<div className="flex flex-col gap-y-1">
+										<div className="flex items-center justify-between gap-x-2">
+											<span
+												className={`text-[11px] font-medium ${isDark ? "text-neutral-400" : "text-neutral-600"}`}
+											>
+												1. Register Chrome native host
+												(once)
+											</span>
+											<button
+												type="button"
+												aria-label="Copy install command"
+												onClick={() =>
+													copyText(
+														"install",
+														installCommand,
+													)
+												}
+												className={`inline-flex cursor-pointer items-center gap-x-1 rounded-lg px-2 py-0.5 text-[11px] font-medium transition-colors ${
+													isDark
+														? "text-neutral-300 hover:bg-neutral-800"
+														: "text-neutral-700 hover:bg-neutral-200"
+												}`}
+											>
+												<LUIThemedIcon
+													Icon={
+														copiedKey === "install"
+															? CheckIcon
+															: CopyIcon
+													}
+													color="currentColor"
+													weight="regular"
+													className="size-3"
+												/>
+												<span>
+													{copiedKey === "install"
+														? "Copied"
+														: "Copy"}
+												</span>
+											</button>
+										</div>
+										<code
+											className={`block overflow-x-auto rounded-lg px-2.5 py-1.5 font-mono text-[11px] whitespace-nowrap ${
+												isDark
+													? "bg-black/70 text-neutral-200"
+													: "bg-white text-neutral-800"
+											}`}
+										>
+											{installCommand}
+										</code>
+									</div>
+									<div className="flex flex-col gap-y-1">
+										<div className="flex items-center justify-between gap-x-2">
+											<span
+												className={`text-[11px] font-medium ${isDark ? "text-neutral-400" : "text-neutral-600"}`}
+											>
+												2. Add to your MCP client
+											</span>
+											<button
+												type="button"
+												aria-label="Copy MCP client config"
+												onClick={() =>
+													copyText(
+														"config",
+														mcpClientConfig,
+													)
+												}
+												className={`inline-flex cursor-pointer items-center gap-x-1 rounded-lg px-2 py-0.5 text-[11px] font-medium transition-colors ${
+													isDark
+														? "text-neutral-300 hover:bg-neutral-800"
+														: "text-neutral-700 hover:bg-neutral-200"
+												}`}
+											>
+												<LUIThemedIcon
+													Icon={
+														copiedKey === "config"
+															? CheckIcon
+															: CopyIcon
+													}
+													color="currentColor"
+													weight="regular"
+													className="size-3"
+												/>
+												<span>
+													{copiedKey === "config"
+														? "Copied"
+														: "Copy"}
+												</span>
+											</button>
+										</div>
+										<pre
+											className={`overflow-x-auto rounded-lg px-2.5 py-1.5 font-mono text-[11px] leading-relaxed ${
+												isDark
+													? "bg-black/70 text-neutral-200"
+													: "bg-white text-neutral-800"
+											}`}
+										>
+											{mcpClientConfig}
+										</pre>
+									</div>
+								</div>
+							) : null}
 							<LUINote className="w-full">
 								External MCP connects locally over Chrome Native
 								Messaging only while this profile is unlocked.

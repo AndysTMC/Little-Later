@@ -1,6 +1,7 @@
 import { LREMINDER_TYPE } from "little-shared/enums";
 import { LDate } from "little-shared/types";
 import type { Reminder } from "../../../storage/repositories";
+import { normalizeTag } from "../../../utils/tags";
 import { IDJSONObjectInstruction } from "../config";
 import type { LittleAI } from "../main";
 import { reminderKind, searchReminders } from "../../../popup/records";
@@ -44,12 +45,14 @@ const toolCall = async (
 	}
 	let resultReminders = reminders.slice();
 	if (tag && tag.trim() !== "") {
-		const normalizedTag = tag.trim().toLowerCase().replace(/^#/, "");
-		resultReminders = resultReminders.filter((reminder) =>
-			(reminder.tags ?? []).some(
-				(t) => t.toLowerCase() === normalizedTag,
-			),
-		);
+		const normalizedTag = normalizeTag(tag);
+		if (normalizedTag) {
+			resultReminders = resultReminders.filter((reminder) =>
+				(reminder.tags ?? []).some(
+					(t) => t.toLowerCase() === normalizedTag,
+				),
+			);
+		}
 	}
 	if (type) {
 		resultReminders = resultReminders.filter(
@@ -65,11 +68,12 @@ const toolCall = async (
 			),
 		);
 	}
-	if (query && resultReminders.length > 0) {
-		const lexicalHits = searchReminders(resultReminders, query);
+	const trimmedQuery = query?.trim() ?? "";
+	if (trimmedQuery && resultReminders.length > 0) {
+		const lexicalHits = searchReminders(resultReminders, trimmedQuery);
 		const bm25Hits = hybridRank(
 			resultReminders,
-			query,
+			trimmedQuery,
 			reminderSearchText,
 		).map((entry) => entry.item);
 		const mergedLexical = pickSemanticCandidates(
@@ -87,18 +91,23 @@ const toolCall = async (
 			targetDate: toModelDate(reminder.target),
 			tags: reminder.tags ?? [],
 		}));
-		const response = await ai.getStructuredResponse(
-			`
+		let semanticReminderIds: Array<string> = [];
+		try {
+			const response = await ai.getStructuredResponse(
+				`
                 Here is a list of reminders in JSON format:
                 ${JSON.stringify(remindersToSend)}
 
-                The user's query is: "${quoteForPrompt(query)}".
+                The user's query is: "${quoteForPrompt(trimmedQuery)}".
 
                 Find all relevant ids of reminders where the message or tags match or relate to the query.
             `,
-			IDJSONObjectInstruction,
-		);
-		const semanticReminderIds = extractSemanticIds(response);
+				IDJSONObjectInstruction,
+			);
+			semanticReminderIds = extractSemanticIds(response);
+		} catch {
+			// Fall back to local BM25 + lexical hits if semantic re-ranking fails.
+		}
 		const fusedIds = rrfFuse([
 			bm25Hits.map((reminder) => reminder.id),
 			lexicalHits.map((reminder) => reminder.id),

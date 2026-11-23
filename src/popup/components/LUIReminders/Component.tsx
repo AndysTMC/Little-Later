@@ -48,7 +48,7 @@ const Component = ({
 	);
 
 	const { startIndex, endIndex, currentBatch, batchCount, onBatchChange } =
-		usePagination(past.length, 20);
+		usePagination(past.length, 25);
 	const paginationPast = useMemo(
 		() => past.slice(startIndex, endIndex),
 		[past, startIndex, endIndex],
@@ -69,7 +69,7 @@ const Component = ({
 	return (
 		<motion.div
 			className={twMerge(
-				`flex h-full w-full flex-col select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} overflow-y-auto ${theme}-scrollbar px-4`,
+				`flex h-full w-full flex-col select-none ${theme === LTHEME.DARK ? "bg-black" : "bg-white"} overflow-y-auto ${theme}-scrollbar px-4 pb-24`,
 				className,
 			)}
 		>

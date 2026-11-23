@@ -18,25 +18,28 @@
 </div>
 
 <p align="center">
-	<img width="240" alt="Saved pages with previews" src="https://github.com/user-attachments/assets/6b833d48-c4b0-4548-b2b4-46a8e1b4b08c" />
-	<img width="240" alt="Tasks and reminders" src="https://github.com/user-attachments/assets/86e86c83-ce91-43fb-b48f-fa9e54b8f06a" />
-	<img width="240" alt="Notes" src="https://github.com/user-attachments/assets/cf5858e4-a7f6-4c20-b703-3b98b17c5c43" />
-	<img width="240" alt="AI assistant" src="https://github.com/user-attachments/assets/b6e3e9b0-b4c8-4698-bc10-b87b195a6734" />
+	<img width="260" alt="Saved pages with previews" src="./assets/screenshots/saves.png" />
+	<img width="260" alt="Tasks with priorities and tags" src="./assets/screenshots/tasks.png" />
+	<img width="260" alt="Reminders" src="./assets/screenshots/reminders.png" />
+	<br />
+	<img width="260" alt="Notes and locked notes" src="./assets/screenshots/notes.png" />
+	<img width="260" alt="Encrypted images vault" src="./assets/screenshots/images.png" />
+	<img width="260" alt="Little AI side panel" src="./assets/screenshots/little-ai.png" />
 </p>
 
 Little Later has no account, no server and no sync. Everything you save is stored in your browser profile and encrypted on disk. The only data that ever leaves your machine is what you choose to send to an AI provider you set up yourself.
 
 ## Features
 
-- **Saves and history.** Little Later keeps a history of the pages you visit, each with a screenshot preview. Save or archive pages, and exclude sites you do not want recorded in **Settings → Data & Privacy**.
-- **Tasks.** Tasks with no deadline, a due date, or a daily, weekly, monthly or yearly repeat. Overdue tasks move to a Missed group, and a task can carry its own reminder.
+- **Saves and history.** Little Later keeps a history of the pages you visit, each with a screenshot preview, URL, and optional encrypted offline article snapshot. Save or archive pages, and exclude sites you do not want recorded in **Settings → Data & Privacy**.
+- **Tasks.** Tasks with priority, no deadline, a due date, or a daily, weekly, monthly or yearly repeat. Overdue tasks move to a Missed group, and a task can carry its own reminder.
 - **Reminders.** Browser notifications at a set time, or escalating reminders that fire more often as the time gets close. Recurring times follow you when you change time zone.
-- **Notes and locked notes.** Markdown notes with edit and preview, plus password-locked notes that require re-verification to view and stay hidden from search, LittleAI and external MCP. Right-click selected text to save a note or quote.
+- **Notes and locked notes.** Markdown notes with edit and preview, plus password-locked notes that require re-verification to view and stay hidden from search, Little AI and external MCP. Right-click selected text to save a note or quote.
 - **Images.** Encrypted image vault: right-click any image to save it or upload from disk, tag it, view details and download later.
 - **Tags, links and search.** Organise saves, tasks, reminders, notes and images with `#tags`, link records together, and search across everything.
 - **Profiles and security.** Multiple profiles with accent themes (light or dark), optional password encryption and optional passkey or security-key two-factor unlock.
-- **Backups.** Export a profile as an encrypted `.lldat` backup you can import later, or as readable JSON.
-- **LittleAI (optional).** Side-panel AI assistant with searchable model switching, local or cloud providers, encrypted chat history, hybrid search and optional local MCP. Every write waits for your confirmation in the chat.
+- **Backups and portable exports.** Export a profile as an encrypted `.lldat` backup you can import later, or export readable JSON, Obsidian Markdown (`.md`), iCalendar (`.ics`), or Netscape Bookmarks (`.html`) — and import browser bookmarks HTML.
+- **Little AI & local MCP/CLI (optional).** Side-panel AI assistant with searchable model switching, local or cloud providers, encrypted chat history, hybrid search, optional local MCP, and the `little-later-mcp` bridge & terminal quick-capture CLI (`npx -y little-later-mcp`). Every write waits for your confirmation in the chat.
 
 ## Install
 
@@ -106,12 +109,12 @@ The full design, including exactly which fields stay readable, is in [decision 0
 | `idle`                            | Lock the profile when the screen locks or after the idle time you set            |
 | `contextMenus`                    | **Save page**, **Save image**, **Save quote**, **Note text** and AI note actions |
 | `declarativeNetRequest`           | Let the extension's own requests reach local AI servers on this machine          |
-| `sidePanel`, `scripting`          | Run LittleAI in Chrome's side panel and read the active page when you ask        |
+| `sidePanel`, `scripting`          | Run Little AI in Chrome's side panel and read the active page when you ask       |
 | `nativeMessaging` _(optional)_    | Opt-in local MCP bridge for external agents (**Settings → Data & Privacy**)      |
 
 ## AI assistant
 
-LittleAI is off until you configure it in **Settings → AI**. It supports **Local** servers ([Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai), Local vLLM, llama.cpp), **Cloud** presets (OpenAI, Gemini, Claude, OpenRouter, Groq, Together, Mistral, DeepSeek), and any **Custom** OpenAI-compatible API (`https` unless local). You can also connect a loopback-only local MCP server.
+Little AI is off until you configure it in **Settings → AI**. It supports **Local** servers ([Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai), Local vLLM, llama.cpp), **Cloud** presets (OpenAI, Gemini, Claude, OpenRouter, Groq, Together, Mistral, DeepSeek), and any **Custom** OpenAI-compatible API (`https` unless local). You can also connect a loopback-only local MCP server.
 
 Start the local server, load a model, then pick the provider and model in settings. Local servers reject requests from extension pages by default, so Little Later sends its own requests to them with a `127.0.0.1` origin; websites you visit do not get that header.
 

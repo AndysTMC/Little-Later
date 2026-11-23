@@ -52,6 +52,12 @@ export const collectProfileTags = (
 		.map(([tag]) => tag);
 };
 
+export const sameTags = (
+	a: ReadonlyArray<string>,
+	b: ReadonlyArray<string>,
+): boolean =>
+	a.length === b.length && a.every((tag, index) => tag === b[index]);
+
 export const recordMatchesTagWord = (
 	tags: ReadonlyArray<string> | undefined,
 	word: string,

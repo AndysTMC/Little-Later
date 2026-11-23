@@ -40,11 +40,4 @@ const useDraft = <T>(
 	return [value, set, clear];
 };
 
-// Whether something was remembered under `key` when the page opened.
-const useHasDraft = (key: string): boolean => {
-	const store = useContext(UIStateContext);
-	const [had] = useState(() => store.getDraft(key) !== undefined);
-	return had;
-};
-
-export { useDraft, useHasDraft };
+export { useDraft };

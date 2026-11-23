@@ -33,12 +33,12 @@ Titles are `text-2xl font-semibold tracking-tight`. Every scrollable region uses
 
 Saves, tasks, reminders, notes, and history entries share one `rounded-2xl` card grammar:
 
-- **Tasks (`LUITaskMini`):** Circular checkbox (`CheckIcon`, filled in `--ll-accent` when done) on the left in both states; title, label chip, schedule, and tag chips visible when collapsed; quiet Edit icon + chevron on the right; hairline-divided expanded drawer with links and actions.
+- **Tasks (`LUITaskMini`):** Circular checkbox (`CheckIcon`, filled in `--ll-accent` when done) on the left in both states; title, priority/legacy-label chip, schedule, and tag chips visible when collapsed; quiet Edit icon + chevron on the right; hairline-divided expanded drawer with links and actions.
 - **Reminders (`LUIReminderMini`):** Message visible on the primary line when collapsed, with target time, kind badge, and tag chips underneath; clickable card / Details toggle + quiet Edit icon; hairline-divided expanded drawer with links and Delete.
 - **Saves (`LUIVBMs` / `LUIVBMMini`):** Thumbnail + title + domain + tag chips + link counts when collapsed; `Active | Archived` filter when archived saves exist; hairline-divided expanded drawer with full preview (`Open page`, `View image`), links, `Archive`/`Unarchive`, and actions.
 - **Notes (`LUINotes` / `LUINoteMini`):** Clean single-column list (upgrading to a left-to-right 2-column grid on wide viewports) with `All | Locked` filter when locked notes exist; creating a new note lives in the bottom navigation bar (`History | New task | New reminder | New note`). Locked notes show only a lock badge, optional visible title, tags, and date until unlocked with the profile password, and re-lock on leave.
 - **Images (`LUIImages` / `/image/:id`):** Responsive 2-column encrypted thumbnail grid with `+ Add image` routing through the shared `/pick-file` screen and a detail viewer for title, tags, source URL, download, and delete.
-- **Tags (`LUITagChips` / `LUITagInput`):** Shared `#tag` pills across saves, tasks, reminders, notes, and images, with a horizontal tag filter row on Home whenever tags exist.
+- **Tags (`LUITagChips` / `LUITagInput`):** Shared `#tag` pills across saves, tasks, reminders, notes, and images; clicking any tag chip searches `#tag` in Home Search, and `LUITagInput` suggests matching existing tags while typing.
 - **History (`LUIBrowsedVBM`):** Same card surface, concise timestamp (`relative · date`), uniform row of `rounded-lg` icon buttons + unified Delete.
 
 ## Rows
@@ -60,7 +60,7 @@ Saves, tasks, reminders, notes, and history entries share one `rounded-2xl` card
 The button blocks a second press while its action runs and shows a spinner when it is slow.
 
 - Compact card actions (`LUIPillButton`) are `rounded-lg` with a calm neutral surface (never harsh inverted black/white).
-- An AI suggestion inside a form (Rephrase, Generate label) uses `LUIAIButton` (`rounded-xl`).
+- An AI suggestion inside a form (Rephrase) uses `LUIAIButton` (`rounded-xl`).
 - Text links are not used for actions.
 
 ## Fields

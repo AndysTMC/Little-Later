@@ -1,5 +1,19 @@
 import { Temporal as TemporalPolyfill } from "@js-temporal/polyfill";
 import { Blob as NodeBlob } from "node:buffer";
+import { webcrypto } from "node:crypto";
+
+(
+	globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
+
+// Vitest's vmThreads + jsdom sandbox omits crypto.subtle; wire Node's WebCrypto
+// so AES-GCM, HKDF, and PBKDF2 work identically across all pools.
+if (!globalThis.crypto?.subtle) {
+	Object.defineProperty(globalThis, "crypto", {
+		value: webcrypto,
+		configurable: true,
+	});
+}
 
 // jsdom's Blob has no arrayBuffer() and cannot be structured-cloned by
 // fake-indexeddb, so tests that store encrypted records would store empty objects.

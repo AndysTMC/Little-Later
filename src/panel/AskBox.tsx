@@ -64,12 +64,14 @@ const Option = ({
 const Shell = ({
 	label,
 	icon: Icon,
+	iconClassName,
 	title,
 	onDismiss,
 	children,
 }: {
 	label: string;
 	icon: typeof QuestionIcon;
+	iconClassName?: string;
 	title: string;
 	onDismiss?: () => void;
 	children: React.ReactNode;
@@ -89,7 +91,7 @@ const Shell = ({
 				<Icon
 					aria-hidden
 					weight="fill"
-					className="mt-0.5 size-5 shrink-0 text-[var(--ll-accent)]"
+					className={`mt-0.5 size-5 shrink-0 ${iconClassName ?? "text-[var(--ll-accent)]"}`}
 				/>
 				<h2 className="grow text-[15px] leading-snug font-medium">
 					{title}
@@ -124,7 +126,8 @@ const useNumberKeys = (choices: ReadonlyArray<() => void>, active = true) => {
 					target.closest("input, textarea, [contenteditable]")) ||
 				event.metaKey ||
 				event.ctrlKey ||
-				event.altKey
+				event.altKey ||
+				event.shiftKey
 			) {
 				return;
 			}
@@ -159,7 +162,7 @@ export const QuestionBox = ({
 	useNumberKeys(choices, active);
 	return (
 		<Shell
-			label="LittleAI's question"
+			label="Little AI's question"
 			icon={QuestionIcon}
 			title={question.question}
 			onDismiss={onDismiss}
@@ -210,6 +213,7 @@ export const ApprovalBox = ({
 		<Shell
 			label="Change waiting for approval"
 			icon={destructive ? TrashIcon : ShieldCheckIcon}
+			iconClassName={destructive ? "text-red-600" : undefined}
 			title={
 				destructive ? "Approve this deletion?" : "Approve this change?"
 			}
@@ -241,6 +245,7 @@ export const ApprovalBox = ({
 			{confirmation.requiresPassword ? (
 				<input
 					type="password"
+					autoFocus
 					aria-label="Backup password"
 					placeholder="Backup password"
 					autoComplete="off"
@@ -261,7 +266,7 @@ export const ApprovalBox = ({
 					}
 					disabled={!ready}
 					onClick={confirm}
-					className={`flex w-full cursor-pointer items-center gap-x-3 rounded-xl px-2 py-2 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${destructive ? "text-red-600" : ""} ${dark ? "hover:bg-neutral-800" : "hover:bg-neutral-200"}`}
+					className={`flex w-full cursor-pointer items-center gap-x-3 rounded-xl px-2 py-2 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${destructive ? "text-red-600" : ""} ${dark ? "hover:bg-neutral-800 focus-visible:bg-neutral-800" : "hover:bg-neutral-200 focus-visible:bg-neutral-200"}`}
 				>
 					<span
 						aria-hidden

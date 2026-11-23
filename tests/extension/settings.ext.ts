@@ -159,10 +159,10 @@ test("a profile name typed just before the popup closes is kept and saved", asyn
 	const page = await createProfile(openPopup);
 	await button(page, "Open profile menu").click();
 	await button(page, "Profile").click();
-	await page.clock.install();
-	await page
-		.getByPlaceholder("Name", { exact: true })
-		.fill("Close right away");
+	const nameInput = page.getByPlaceholder("Name", { exact: true });
+	await expect(nameInput).toBeVisible();
+	await page.clock.install({ time: Date.now() });
+	await nameInput.fill("Close right away");
 	await page.close();
 	const reopened = await openPopup("/");
 	await expect(reopened).toHaveURL(/#\/profile$/);
@@ -244,7 +244,7 @@ test("the text caret is drawn in the accent, in a dark theme too", async ({
 	await expect.poll(caret).toBe(accent);
 	// The AI box is in LittleAI's side panel.
 	const panel = await openPanel();
-	await panel.getByRole("textbox", { name: "Ask LittleAI" }).focus();
+	await panel.getByRole("textbox", { name: "Ask Little AI" }).focus();
 	await expect
 		.poll(() =>
 			panel.evaluate(
@@ -279,7 +279,7 @@ test("Side panel setting switches between Everything, AI only, and None and open
 		await button(page, "Go back").click();
 		await button(page, "Go back").click();
 		await expect(page).toHaveURL(/#\/home$/);
-		await button(page, "Open LittleAI").click();
+		await button(page, "Open Little AI").click();
 		await expect(page).toHaveURL(/#\/ai$/);
 		await expect(page.getByTestId("ai-assist-input")).toBeVisible();
 		await button(page, "Go back").click();

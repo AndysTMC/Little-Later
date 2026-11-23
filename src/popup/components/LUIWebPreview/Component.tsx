@@ -37,7 +37,12 @@ const Component = ({
 		<div
 			className={`z-0 flex h-full w-full items-center justify-center ${isDark ? "bg-neutral-900 text-neutral-600" : "bg-neutral-200 text-neutral-400"}`}
 		>
-			<ImageIcon weight="regular" className="size-8" />
+			<LUIThemedIcon
+				Icon={ImageIcon}
+				color="currentColor"
+				weight="regular"
+				className="size-8"
+			/>
 		</div>
 	);
 	const handleOpenSave = () => {
@@ -52,7 +57,7 @@ const Component = ({
 			chrome.runtime?.getURL
 		) {
 			window.open(
-				`${chrome.runtime.getURL("index.html")}#/preview/${encodeURIComponent(saveId)}`,
+				`${chrome.runtime.getURL("index.html")}?surface=tab#/preview/${encodeURIComponent(saveId)}`,
 				"_blank",
 				"noopener,noreferrer",
 			);
@@ -66,8 +71,8 @@ const Component = ({
 	if (scaleType === "short" || scaleType === "medium") {
 		const sizeClass =
 			scaleType === "short"
-				? "h-16 min-[380px]:h-20"
-				: "h-20 min-[380px]:h-24";
+				? "h-12 min-[380px]:h-16 min-[460px]:h-20"
+				: "h-14 min-[380px]:h-20 min-[460px]:h-24";
 		return (
 			<div
 				className={twMerge(
@@ -92,6 +97,45 @@ const Component = ({
 						className="size-5"
 					/>
 					<span className="text-xs font-medium">Open</span>
+				</button>
+			</div>
+		);
+	}
+
+	if (!previewUrl) {
+		return (
+			<div
+				className={twMerge(
+					`flex h-max w-full items-center justify-between gap-x-3 rounded-xl border px-3 py-2 ${frameBorder} ${
+						isDark
+							? "bg-neutral-900/60 text-neutral-400"
+							: "bg-neutral-200/60 text-neutral-500"
+					}`,
+					className,
+				)}
+			>
+				<div className="flex min-w-0 items-center gap-x-2 text-xs">
+					<LUIThemedIcon
+						Icon={ImageIcon}
+						color="currentColor"
+						weight="regular"
+						className="size-4 shrink-0"
+					/>
+					<span className="truncate">No page preview captured</span>
+				</div>
+				<button
+					type="button"
+					aria-label="Open page"
+					className="flex shrink-0 cursor-pointer items-center gap-x-1.5 rounded-lg bg-black/75 px-2.5 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition-colors hover:bg-black active:scale-95"
+					onClick={handleOpenSave}
+				>
+					<LUIThemedIcon
+						Icon={ArrowSquareOutIcon}
+						color="currentColor"
+						weight="regular"
+						className="size-3.5"
+					/>
+					<span>Open page</span>
 				</button>
 			</div>
 		);

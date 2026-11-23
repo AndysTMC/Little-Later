@@ -2,6 +2,10 @@
 // it is doing while it runs, and what it did once done.
 
 const STEPS: Record<string, { doing: string; done: string }> = {
+	search_all: {
+		doing: "Searching your records",
+		done: "Searched records",
+	},
 	search_notes: { doing: "Searching your notes", done: "Searched notes" },
 	search_tasks: { doing: "Searching your tasks", done: "Searched tasks" },
 	search_reminders: {
@@ -9,6 +13,11 @@ const STEPS: Record<string, { doing: string; done: string }> = {
 		done: "Searched reminders",
 	},
 	search_saves: { doing: "Searching your saves", done: "Searched saves" },
+	search_images: { doing: "Searching your images", done: "Searched images" },
+	read_open_tabs: {
+		doing: "Checking your open tabs",
+		done: "Checked open tabs",
+	},
 	get_recent_history: {
 		doing: "Reading your history",
 		done: "Read recent history",
@@ -58,6 +67,22 @@ const STEPS: Record<string, { doing: string; done: string }> = {
 		done: "Prepared a deletion",
 	},
 	delete_save: { doing: "Finding the save", done: "Prepared a removal" },
+	link_records: {
+		doing: "Linking records",
+		done: "Prepared a record link",
+	},
+	unlink_records: {
+		doing: "Unlinking records",
+		done: "Prepared a record unlink",
+	},
+	remember_fact: {
+		doing: "Saving a memory",
+		done: "Prepared a memory",
+	},
+	forget_fact: {
+		doing: "Finding the memory",
+		done: "Prepared a memory removal",
+	},
 	export_data: { doing: "Preparing an export", done: "Prepared an export" },
 	set_user_app_theme_pref: {
 		doing: "Changing the theme",
@@ -73,7 +98,8 @@ const STEPS: Record<string, { doing: string; done: string }> = {
 };
 
 const humanise = (name: string) => {
-	const words = name.replace(/_/g, " ").trim();
+	const cleaned = name.replace(/^mcp__/, "");
+	const words = cleaned.replace(/_/g, " ").trim();
 	return words.charAt(0).toUpperCase() + words.slice(1);
 };
 

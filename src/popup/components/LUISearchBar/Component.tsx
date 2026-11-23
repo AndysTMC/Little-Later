@@ -2,10 +2,20 @@ import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
 import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import {
+	useEffect,
+	useImperativeHandle,
+	useRef,
+	useState,
+	type RefObject,
+} from "react";
 import { twMerge } from "tailwind-merge";
 
 const SEARCH_DELAY_MS = 300;
+
+export type SearchBarHandle = {
+	setQuery: (query: string) => void;
+};
 
 // Searching starts when the box gets focus and ends with the clear button,
 // Escape, or leaving an empty box. Ending it clears the text and results.
@@ -13,10 +23,12 @@ const Component = ({
 	className,
 	handleSearch,
 	setIsSearchFocused,
+	searchBarRef,
 }: {
 	className?: string;
 	handleSearch: (text: string) => Promise<void>;
 	setIsSearchFocused?: (isFocused: boolean) => void;
+	searchBarRef?: RefObject<SearchBarHandle | null>;
 }) => {
 	const { theme } = useTheme();
 	const [text, setText] = useState<string>("");
@@ -61,6 +73,16 @@ const Component = ({
 		void handleSearch("");
 	};
 
+	useImperativeHandle(searchBarRef, () => ({
+		setQuery: (query: string) => {
+			cancelPendingSearch();
+			setText(query);
+			setIsSearching(true);
+			inputRef.current?.focus();
+			void handleSearch(query);
+		},
+	}));
+
 	const isDark = theme === LTHEME.DARK;
 	return (
 		<div
@@ -98,7 +120,7 @@ const Component = ({
 				type="search"
 				value={text}
 				placeholder="Search"
-				aria-label="Search saves, tasks, reminders, and notes"
+				aria-label="Search saves, tasks, reminders, notes, and images"
 				onChange={(event) => handleOnChange(event.target.value)}
 				onFocus={() => setIsSearching(true)}
 				onBlur={() => {
@@ -108,6 +130,9 @@ const Component = ({
 					if (event.key === "Escape") {
 						event.preventDefault();
 						endSearch();
+					} else if (event.key === "Enter") {
+						event.preventDefault();
+						void handleSearch(text);
 					}
 				}}
 				className={`h-full min-w-0 grow appearance-none rounded-xl border-0 bg-transparent px-1 text-sm font-normal ring-0 [&::-webkit-search-cancel-button]:hidden ${

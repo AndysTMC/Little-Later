@@ -155,7 +155,7 @@ const Component = ({
 				>
 					{getNoteCardTimeLabel(note.updatedAt)}
 				</div>
-				{showDelete ? (
+				{showDelete && !note.locked ? (
 					<div
 						className="shrink-0"
 						onClick={(event) => event.stopPropagation()}

@@ -1,4 +1,4 @@
-import { LTHEME } from "little-shared/enums";
+import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import type { Note, Reminder, Save, Task } from "../../../storage/repositories";
 import type { LinkRow } from "../../../storage/schema";
 import { linkedTo } from "../../records";
@@ -6,6 +6,8 @@ import { useState } from "react";
 import { useMoveNavigate } from "../../hooks/usePageMove";
 import { AnimatePresence, motion } from "framer-motion";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { createToast } from "../../../services/toasts";
 import { SafeMarkdownImage, SafeMarkdownLink } from "../../markdownSafety";
 import { safeUrlTransform } from "../../markdownUrl";
 import { twMerge } from "tailwind-merge";
@@ -99,30 +101,50 @@ const Component = ({
 					/>
 				) : null}
 
-				<div
-					className="flex min-w-0 grow cursor-pointer flex-col gap-y-1 py-0.5"
-					{...pressable(handleExpand)}
-				>
+				<div className="flex min-w-0 grow flex-col gap-y-1 py-0.5">
 					<div
-						className={`text-sm leading-snug font-semibold text-pretty break-words ${
-							isExpanded ? "" : "line-clamp-2"
-						} ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
+						className="flex min-w-0 cursor-pointer items-start gap-x-2"
+						aria-expanded={isExpanded}
+						{...pressable(handleExpand)}
 					>
-						{save.customName}
-					</div>
-					<div
-						className={`truncate text-xs ${
-							isDark ? "text-neutral-400" : "text-neutral-600"
-						}`}
-					>
-						{getDomainFromUrl(save.url)}
+						<div className="flex min-w-0 grow flex-col gap-y-1">
+							<div
+								className={`text-sm leading-snug font-semibold text-pretty break-words ${
+									isExpanded ? "" : "line-clamp-2"
+								} ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
+							>
+								{save.customName}
+							</div>
+							<div
+								className={`truncate text-xs ${
+									isDark
+										? "text-neutral-400"
+										: "text-neutral-600"
+								}`}
+							>
+								{getDomainFromUrl(save.url)}
+							</div>
+						</div>
+						<span
+							aria-hidden
+							className={`mt-0.5 flex size-6 shrink-0 items-center justify-center ${
+								isDark ? "text-neutral-500" : "text-neutral-400"
+							}`}
+						>
+							<LUIThemedIcon
+								Icon={CaretDownIcon}
+								color="currentColor"
+								weight="regular"
+								className={`size-3.5 transition-transform duration-150 ${isExpanded ? "rotate-180" : ""}`}
+							/>
+						</span>
 					</div>
 					{(save.tags?.length ?? 0) > 0 ? (
 						<LUITagChips
 							tags={save.tags ?? []}
 							activeTag={activeTag}
 							onSelect={onSelectTag}
-							className="mt-1"
+							className="mt-0.5"
 						/>
 					) : null}
 					{!isExpanded &&
@@ -170,20 +192,6 @@ const Component = ({
 						</div>
 					) : null}
 				</div>
-
-				<span
-					aria-hidden
-					className={`mt-1 flex size-6 shrink-0 items-center justify-center ${
-						isDark ? "text-neutral-500" : "text-neutral-400"
-					}`}
-				>
-					<LUIThemedIcon
-						Icon={CaretDownIcon}
-						color="currentColor"
-						weight="regular"
-						className={`size-3.5 transition-transform duration-150 ${isExpanded ? "rotate-180" : ""}`}
-					/>
-				</span>
 			</div>
 
 			<AnimatePresence initial={false}>
@@ -287,13 +295,14 @@ const Component = ({
 										) : (
 											<div
 												key={note.id}
-												className={`my-1 rounded-xl border p-2.5 text-xs ${
+												className={`ll-markdown my-1 rounded-xl border p-2.5 text-xs ${
 													isDark
 														? "border-neutral-800 bg-black/40 text-neutral-200"
 														: "border-neutral-200 bg-white text-neutral-800"
 												}`}
 											>
 												<Markdown
+													remarkPlugins={[remarkGfm]}
 													urlTransform={
 														safeUrlTransform
 													}
@@ -317,6 +326,28 @@ const Component = ({
 										onClick={handleEdit}
 									/>
 								) : null}
+								<LUIPillButton
+									label="Copy URL"
+									ariaLabel="Copy save URL"
+									onClick={() => {
+										if (!navigator.clipboard?.writeText)
+											return;
+										void navigator.clipboard
+											.writeText(save.url)
+											.then(
+												() =>
+													createToast(
+														"URL copied.",
+														LTOAST_TYPE.SUCCESS,
+													),
+												() =>
+													createToast(
+														"Couldn't copy URL.",
+														LTOAST_TYPE.ERROR,
+													),
+											);
+									}}
+								/>
 								<LUIPillButton
 									label={
 										save.archived ? "Unarchive" : "Archive"

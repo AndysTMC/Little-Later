@@ -109,6 +109,52 @@ export const readPage = async (page: PageRef): Promise<PageContent> => {
 	};
 };
 
+// Reads full cleaned article text for offline reader snapshots without
+// deducting the user's current text selection from the character budget.
+export const readArticleSnapshot = async (
+	tabId: number,
+	url: string,
+): Promise<string | undefined> => {
+	if (
+		typeof chrome === "undefined" ||
+		!chrome.scripting ||
+		!isReadablePage(url)
+	) {
+		return undefined;
+	}
+	const tab = await chrome.tabs.get(tabId).catch(() => null);
+	if (!tab || tab.incognito || tab.url !== url) {
+		return undefined;
+	}
+	try {
+		const [injection] = await chrome.scripting.executeScript({
+			target: { tabId },
+			func: (expected: string, limit: number) => {
+				if (location.href !== expected) return null;
+				const main =
+					document.querySelector("main, article, [role='main']") ??
+					document.body;
+				const rawText =
+					main && "innerText" in main
+						? String((main as HTMLElement).innerText ?? "")
+						: String(main?.textContent ?? "");
+				const text = rawText
+					.replace(/[ \t]+/g, " ")
+					.replace(/\n{3,}/g, "\n\n")
+					.trim();
+				return text.slice(0, limit);
+			},
+			args: [url, MAX_TEXT],
+		});
+		const text = injection?.result;
+		return typeof text === "string" && text.trim() !== ""
+			? text
+			: undefined;
+	} catch {
+		return undefined;
+	}
+};
+
 // The page's own words can't open or close the block that frames them.
 const unframed = (text: string) =>
 	text.replace(/<(\/?)attached_page/gi, "‹$1attached_page");
