@@ -24,6 +24,9 @@ export type UnlockedSession = {
 	// ends when the profile locks, even if the same profile is opened again
 	// before the work finishes (src/services/ai/owner.ts).
 	unlockId: string;
+	// True when unlock-time chat retention cleanup failed, gating chat
+	// history reads without blocking access to the rest of the profile.
+	chatHistoryBlocked?: boolean;
 };
 
 // The key material of a session, without what identifies the unlock.

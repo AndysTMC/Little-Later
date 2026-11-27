@@ -4,13 +4,13 @@ type: belief
 
 # Design rules
 
-How Little Later looks and behaves across the popup, full-extension side panel, and LittleAI. New screens reuse these parts; a new pattern needs a reason the existing ones cannot meet, recorded here. Components live in `src/popup/components/`.
+How Little Later looks and behaves across the popup, full-extension side panel, and Little AI. New screens reuse these parts; a new pattern needs a reason the existing ones cannot meet, recorded here. Components live in `src/popup/components/`.
 
 ## Geometry & surfaces
 
 Three radius tiers govern every element:
 
-- **`rounded-2xl` (16px):** All cards and containers (saves, tasks, reminders, notes, history entries, settings frame, LittleAI cards, composer, ask box). Cards keep the same shape when collapsed and expanded.
+- **`rounded-2xl` (16px):** All cards and containers (saves, tasks, reminders, notes, history entries, settings frame, Little AI cards, composer, ask box). Cards keep the same shape when collapsed and expanded.
 - **`rounded-xl` (12px):** All interactive rectangles (action buttons, search bar, fields, textareas, dropdowns, segmented controls, number steppers, preview thumbnails, toasts, menus).
 - **`rounded-full`:** Circular icon-only controls, avatars, and status/label chips.
 
@@ -18,14 +18,14 @@ Structural borders use `neutral-800` in dark (`neutral-200` in light); control b
 
 ## Pages
 
-There are four page layouts. Popup and side-panel pages start with `LUIBasicNav` (`← Back` on the left where there is somewhere to go back to, logo on the right). Standalone LittleAI has its own header (`src/panel/`).
+There are four page layouts. Popup and side-panel pages start with `LUIBasicNav` (`← Back` on the left where there is somewhere to go back to, logo on the right). Standalone Little AI has its own header (`src/panel/`).
 
-| Layout                             | Used for                                              | Parts                                                                                                                                              |
-| ---------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Settings (`LUISettingsLayout`)     | Settings and its pages, Profile, Export               | `text-2xl` title above a `rounded-2xl` surface card holding rows and notes                                                                         |
-| Identity (`LUIIdentityPage`)       | Unlock, Lock, the password, two-factor unlock changes | Centred `text-2xl` title, `size-24` avatar, one column of responsive `max-w-72` fields and buttons                                                 |
-| Record (`LUIFeaturePageUD` header) | Notes, tasks, reminders, saves, and Home's panels     | Compact icon + title pill on a hairline divider, then its form or list                                                                             |
-| LittleAI (`src/panel/`)            | The side panel, `/ai`, and the same page in a tab     | A header (Back when inline, chats, logo, title, new chat), the conversation, and the composer with in-chat searchable model switcher at the bottom |
+| Layout                             | Used for                                                                        | Parts                                                                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Settings (`LUISettingsLayout`)     | Settings and its pages (including the modular AI Settings hub), Profile, Export | `text-2xl` title above a `rounded-2xl` surface card holding rows and notes                                                                         |
+| Identity (`LUIIdentityPage`)       | Unlock, Lock, the password, two-factor unlock changes                           | Centred `text-2xl` title, `size-24` avatar, one column of responsive `max-w-72` fields and buttons                                                 |
+| Record (`LUIFeaturePageUD` header) | Notes, tasks, reminders, saves, and Home's panels                               | Compact icon + title pill on a hairline divider, then its form or list                                                                             |
+| Little AI (`src/panel/`)           | The side panel, `/ai`, and the same page in a tab                               | A header (Back when inline, chats, logo, title, new chat), the conversation, and the composer with in-chat searchable model switcher at the bottom |
 
 Titles are `text-2xl font-semibold tracking-tight`. Every scrollable region uses Little Later's themed scrollbar (configured globally on `#root`), never Chrome's native scrollbar.
 
@@ -70,14 +70,17 @@ The button blocks a second press while its action runs and shows a spinner when 
 
 ## Confirming & deleting
 
-- **Deleting a record** (note, task, reminder, save, history entry, LittleAI chat): `LUIDeleteButton` — a quiet ghost `"Delete"` text button with no icon that arms to solid red `"Confirm delete"` for four seconds; the second press deletes.
+- **Deleting a record** (note, task, reminder, save, history entry, Little AI chat): `LUIDeleteButton` — a quiet ghost `"Delete"` text button with no icon that arms to solid red `"Confirm delete"` for four seconds; the second press deletes.
 - **Detaching / removing from a list** (unlinking a save, removing a staged file): quiet ghost `XIcon` (`LUIUnlinker`, `LUIFileInput`), never `TrashIcon`.
 - **Something that needs the password** (deleting a profile, turning off two-factor unlock, removing a key): an identity screen with a `danger` button.
 - No browser dialogs (`confirm()`).
 
-## Notes, toasts & icons
+## Notes, toasts, tooltips & primitives
 
 - `LUINote`: an icon and quiet italic text below the rows or form it explains. A warning uses the warning icon and `role="alert"`.
+- `LUITooltip`: portal-rendered, viewport-clamped tooltip (`role="tooltip"` + `aria-describedby`). Appears only on icon-only, collapsed, or disabled controls where a short hint prevents confusion without clutter (never redundantly on buttons whose label is already visible). Opens after a `350ms` hover intent delay, opens immediately on keyboard focus, stays open while hovered or focused (WCAG 2.2), keeps a stable trigger mount across disabled-state transitions so keyboard focus is never dropped, and dismisses immediately on pointer press, Escape, scroll, or blur.
+- `LUIBadge`: standardized `rounded-full` status/metadata chip (`neutral`, `accent`, `muted`, `danger` tones; `xs` and `sm` sizes; optional leading icon).
+- `LUISectionHeader`: standardized section title with optional description and right-aligned action or count slot.
 - Toasts (`LUIToast`): responsive `w-[min(22rem,calc(100vw-2rem))] rounded-xl border shadow-lg` with semantic icon tint.
 - Icons: Phosphor icons throughout (`regular` weight for resting UI controls, `fill` for active/status states), tinted via `LUIThemedIcon`.
 
@@ -90,11 +93,12 @@ The button blocks a second press while its action runs and shows a spinner when 
 ## Focus & motion
 
 - Fields and dropdowns show focus as one accent ring on their own edge; buttons, rows and swatches show it outside their edge; the text caret is the accent.
-- Navigation carries directional moves (`src/route-transitions.ts`); card drawers expand smoothly (`160ms`); motion respects reduced motion.
+- Interactive icon controls and pills use `150ms` transitions and subtle tactile press feedback (`active:scale-95`).
+- Navigation carries symmetric directional moves (`src/route-transitions.ts`: `170ms` quint-out enter, `110ms` brisk exit, `±24px` slide or `0.96 ↔ 1.04` zoom); tabs, card drawers, popovers, sheets, content reveals, and toasts share the centralized `MOTION` timing tokens so motion feels smooth, snappy, and consistent across both the extension and Little AI. All transitions and animations respect `prefers-reduced-motion`.
 
-## LittleAI
+## Little AI
 
-LittleAI (`src/panel/`) shares the same palette, surfaces, focus ring, GFM markdown rendering, and unified `LUIDeleteButton` in chat history. Its compact controls (`src/panel/ui.tsx`) suit a denser chat layout while matching Little Later's identity (`LUILogo` / Back nav, `rounded-2xl` cards, accent Send button, docked `AskBox` for questions and confirmations).
+Little AI (`src/panel/`) shares the same palette, surfaces, focus ring, GFM markdown rendering, and unified `LUIDeleteButton` in chat history. Its compact controls (`src/panel/ui.tsx`) suit a denser chat layout while matching Little Later's identity (`LUILogo` / Back nav, `rounded-2xl` cards, accent Send button, docked `AskBox` for questions and confirmations).
 
 ## Windows & surfaces
 

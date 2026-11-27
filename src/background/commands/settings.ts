@@ -7,6 +7,7 @@ import {
 } from "little-shared/constants";
 import type {
 	LExternalMcpMode,
+	LAIMcpServer,
 	LAIMemory,
 	LAIPreset,
 	LAIVerbosity,
@@ -14,7 +15,7 @@ import type {
 import { sealBody } from "../../storage/keys";
 import { getSettings, type Settings } from "../../storage/repositories";
 import { normalizeIgnoredDomains } from "../../utils/ignoredUrls";
-import { asRecord, asString, defineCommand, fail } from "./registry";
+import { asBoolean, asRecord, asString, defineCommand, fail } from "./registry";
 
 const MAX_URL_LENGTH = 2_048;
 const MAX_KEY_LENGTH = 4_096;
@@ -23,6 +24,7 @@ const MAX_INSTRUCTIONS_LENGTH = 1_000;
 const MAX_PRESETS = 12;
 const MAX_MEMORIES = 50;
 const MAX_MEMORY_LENGTH = 280;
+const MAX_MCP_SERVERS = 10;
 
 const VERBOSITIES: ReadonlyArray<LAIVerbosity> = [
 	"concise",
@@ -67,9 +69,12 @@ const optionalVerbosity = (value: unknown): LAIVerbosity | undefined => {
 		: fail("verbosity must be concise, balanced, or detailed.");
 };
 
-const optionalLoopbackUrl = (value: unknown): string | undefined => {
+const optionalLoopbackUrl = (
+	value: unknown,
+	field = "mcpServerUrl",
+): string | undefined => {
 	if (value === undefined) return undefined;
-	const trimmed = bounded(value, "mcpServerUrl", MAX_URL_LENGTH).trim();
+	const trimmed = bounded(value, field, MAX_URL_LENGTH).trim();
 	if (trimmed === "") return "";
 	let parsed: URL;
 	try {
@@ -90,6 +95,31 @@ const optionalLoopbackUrl = (value: unknown): string | undefined => {
 		);
 	}
 	return trimmed;
+};
+
+const optionalMcpServers = (
+	value: unknown,
+): Array<LAIMcpServer> | undefined => {
+	if (value === undefined) return undefined;
+	if (!Array.isArray(value) || value.length > MAX_MCP_SERVERS) {
+		return fail(
+			`mcpServers must be a list of at most ${MAX_MCP_SERVERS} servers.`,
+		);
+	}
+	return value.map((entry) => {
+		const item = asRecord(entry);
+		const url = optionalLoopbackUrl(item.url, "mcpServer.url") ?? "";
+		if (url === "") {
+			fail("Each MCP server must include a local URL.");
+		}
+		return {
+			id: bounded(item.id, "mcpServer.id", 80),
+			name:
+				bounded(item.name, "mcpServer.name", 60).trim() || "Local MCP",
+			url,
+			enabled: asBoolean(item.enabled, "mcpServer.enabled"),
+		};
+	});
 };
 
 const optionalPresets = (value: unknown): Array<LAIPreset> | undefined => {
@@ -192,44 +222,116 @@ export const asMisc = (value: unknown): Settings["misc"] => {
 	) {
 		base.externalMcpMode = misc.externalMcpMode as LExternalMcpMode;
 	}
+	if (misc.externalMcpAllowHistory === true) {
+		base.externalMcpAllowHistory = true;
+	}
+	if (misc.externalMcpAllowDelete === true) {
+		base.externalMcpAllowDelete = true;
+	}
 	return base;
 };
 
-// Replaces the AI settings or the history limits of the unlocked profile.
+type McpServerOp =
+	| { op: "add"; server: LAIMcpServer }
+	| { op: "setEnabled"; id: string; enabled: boolean }
+	| { op: "remove"; id: string };
+
+type MemoryOp = { op: "add"; entry: LAIMemory } | { op: "remove"; id: string };
+
+const optionalMcpServerOp = (value: unknown): McpServerOp | undefined => {
+	if (value === undefined) return undefined;
+	const rec = asRecord(value);
+	const op = asString(rec.op, "mcpServerOp.op");
+	if (op === "add") {
+		const parsed = optionalMcpServers([rec.server]);
+		if (!parsed || parsed.length !== 1) {
+			return fail("mcpServerOp.server is invalid.");
+		}
+		return { op: "add", server: parsed[0]! };
+	}
+	if (op === "setEnabled") {
+		const id = bounded(rec.id, "mcpServerOp.id", 64).trim();
+		if (id === "") return fail("mcpServerOp.id is required.");
+		if (typeof rec.enabled !== "boolean") {
+			return fail("mcpServerOp.enabled must be a boolean.");
+		}
+		return { op: "setEnabled", id, enabled: rec.enabled };
+	}
+	if (op === "remove") {
+		const id = bounded(rec.id, "mcpServerOp.id", 64).trim();
+		if (id === "") return fail("mcpServerOp.id is required.");
+		return { op: "remove", id };
+	}
+	return fail("Unsupported mcpServerOp.");
+};
+
+const optionalMemoryOp = (value: unknown): MemoryOp | undefined => {
+	if (value === undefined) return undefined;
+	const rec = asRecord(value);
+	const op = asString(rec.op, "memoryOp.op");
+	if (op === "add") {
+		const parsed = optionalMemories([rec.entry]);
+		if (!parsed || parsed.length !== 1) {
+			return fail("memoryOp.entry is invalid.");
+		}
+		return { op: "add", entry: parsed[0]! };
+	}
+	if (op === "remove") {
+		const id = bounded(rec.id, "memoryOp.id", 64).trim();
+		if (id === "") return fail("memoryOp.id is required.");
+		return { op: "remove", id };
+	}
+	return fail("Unsupported memoryOp.");
+};
+
+type AIPatch = Partial<Settings["ai"]> & {
+	mcpServerOp?: McpServerOp;
+	memoryOp?: MemoryOp;
+};
+
+// Updates the AI settings (full or section-scoped partial patch) or history
+// limits of the unlocked profile inside the serialized write queue.
 // The row is sealed: it holds the AI provider's key (0010).
 export const settingsUpdate = defineCommand({
 	name: "settings.update",
 	parse: (input) => {
 		const record = asRecord(input);
-		const ai: Settings["ai"] | undefined =
+		const ai: AIPatch | undefined =
 			record.ai === undefined
 				? undefined
 				: (() => {
 						const ai = asRecord(record.ai);
-						const instructions =
-							ai.instructions === undefined
-								? undefined
-								: bounded(
-										ai.instructions,
-										"instructions",
-										MAX_INSTRUCTIONS_LENGTH,
-									);
-						const parsed: Settings["ai"] = {
-							provider: asProvider(ai.provider),
-							baseUrl: bounded(
+						const parsed: AIPatch = {};
+						if (ai.provider !== undefined) {
+							parsed.provider = asProvider(ai.provider);
+						}
+						if (ai.baseUrl !== undefined) {
+							parsed.baseUrl = bounded(
 								ai.baseUrl,
 								"baseUrl",
 								MAX_URL_LENGTH,
-							),
-							apiKey: bounded(
+							);
+						}
+						if (ai.apiKey !== undefined) {
+							parsed.apiKey = bounded(
 								ai.apiKey,
 								"apiKey",
 								MAX_KEY_LENGTH,
-							),
-							model: bounded(ai.model, "model", MAX_MODEL_LENGTH),
-						};
-						if (instructions !== undefined) {
-							parsed.instructions = instructions;
+							);
+						}
+						if (ai.model !== undefined) {
+							parsed.model = bounded(
+								ai.model,
+								"model",
+								MAX_MODEL_LENGTH,
+							);
+						}
+						if (ai.instructions !== undefined) {
+							parsed.instructions = bounded(
+								ai.instructions,
+								"instructions",
+								MAX_INSTRUCTIONS_LENGTH,
+							);
 						}
 						const verbosity = optionalVerbosity(ai.verbosity);
 						if (verbosity !== undefined) {
@@ -249,6 +351,18 @@ export const settingsUpdate = defineCommand({
 						if (mcpServerUrl !== undefined) {
 							parsed.mcpServerUrl = mcpServerUrl;
 						}
+						const mcpServers = optionalMcpServers(ai.mcpServers);
+						if (mcpServers !== undefined) {
+							parsed.mcpServers = mcpServers;
+						}
+						const mcpServerOp = optionalMcpServerOp(ai.mcpServerOp);
+						if (mcpServerOp !== undefined) {
+							parsed.mcpServerOp = mcpServerOp;
+						}
+						const memoryOp = optionalMemoryOp(ai.memoryOp);
+						if (memoryOp !== undefined) {
+							parsed.memoryOp = memoryOp;
+						}
 						return parsed;
 					})();
 		const misc =
@@ -261,10 +375,10 @@ export const settingsUpdate = defineCommand({
 		const nextAI: Settings["ai"] = input.ai
 			? (() => {
 					const merged: Settings["ai"] = {
-						provider: input.ai.provider,
-						baseUrl: input.ai.baseUrl,
-						apiKey: input.ai.apiKey,
-						model: input.ai.model,
+						provider: input.ai.provider ?? current.ai.provider,
+						baseUrl: input.ai.baseUrl ?? current.ai.baseUrl,
+						apiKey: input.ai.apiKey ?? current.ai.apiKey,
+						model: input.ai.model ?? current.ai.model,
 					};
 					const instructions =
 						input.ai.instructions !== undefined
@@ -278,15 +392,87 @@ export const settingsUpdate = defineCommand({
 					}
 					const presets = input.ai.presets ?? current.ai.presets;
 					if (presets && presets.length > 0) merged.presets = presets;
-					const memories = input.ai.memories ?? current.ai.memories;
+
+					let memories = input.ai.memories ?? current.ai.memories;
+					if (input.ai.memoryOp) {
+						const op = input.ai.memoryOp;
+						const baseMemories = [...(memories ?? [])];
+						if (op.op === "add") {
+							const normalizedText = op.entry.text.toLowerCase();
+							if (
+								!baseMemories.some(
+									(item) =>
+										item.id === op.entry.id ||
+										item.text.toLowerCase() ===
+											normalizedText,
+								)
+							) {
+								baseMemories.push(op.entry);
+							}
+							memories = baseMemories.slice(-MAX_MEMORIES);
+						} else if (op.op === "remove") {
+							memories = baseMemories.filter(
+								(item) => item.id !== op.id,
+							);
+						}
+					}
 					if (memories && memories.length > 0) {
 						merged.memories = memories;
 					}
-					const mcpServerUrl =
+
+					let mcpServerUrl =
 						input.ai.mcpServerUrl !== undefined
 							? input.ai.mcpServerUrl
 							: (current.ai.mcpServerUrl ?? "");
+					let mcpServers =
+						input.ai.mcpServers !== undefined
+							? input.ai.mcpServers
+							: current.ai.mcpServers;
+
+					if (input.ai.mcpServerOp) {
+						const op = input.ai.mcpServerOp;
+						const baseServers: Array<LAIMcpServer> = Array.isArray(
+							mcpServers,
+						)
+							? [...mcpServers]
+							: mcpServerUrl !== ""
+								? [
+										{
+											id: "legacy-local-mcp",
+											name: "Local MCP",
+											url: mcpServerUrl,
+											enabled: true,
+										},
+									]
+								: [];
+						mcpServerUrl = "";
+						if (op.op === "add") {
+							if (
+								baseServers.length < MAX_MCP_SERVERS &&
+								!baseServers.some(
+									(item) => item.id === op.server.id,
+								)
+							) {
+								baseServers.push(op.server);
+							}
+							mcpServers = baseServers;
+						} else if (op.op === "setEnabled") {
+							mcpServers = baseServers.map((item) =>
+								item.id === op.id
+									? { ...item, enabled: op.enabled }
+									: item,
+							);
+						} else if (op.op === "remove") {
+							mcpServers = baseServers.filter(
+								(item) => item.id !== op.id,
+							);
+						}
+					}
+
 					if (mcpServerUrl !== "") merged.mcpServerUrl = mcpServerUrl;
+					if (mcpServers && mcpServers.length > 0) {
+						merged.mcpServers = mcpServers;
+					}
 					return merged;
 				})()
 			: current.ai;

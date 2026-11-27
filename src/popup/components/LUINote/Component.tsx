@@ -5,9 +5,12 @@ import { useTheme } from "../../hooks/useTheme";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import type { IconComponentType } from "../../../types";
 
-// A short note beside a form or setting (docs/design.md, Notes): an icon
-// and quiet italic text. A warning is announced as an alert; anything else
-// is a status, read when it changes.
+/**
+ * Short contextual note beside a form or setting (docs/design.md, Notes):
+ * semantic icon paired with quiet italic copy.
+ *
+ * Warnings use `role="alert"`; informational notes use `role="status"`.
+ */
 const Component = ({
 	children,
 	warning = false,

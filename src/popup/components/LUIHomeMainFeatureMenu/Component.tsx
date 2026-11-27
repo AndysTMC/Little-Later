@@ -1,6 +1,7 @@
 import { LTHEME, LHOME_MAIN_CONTENT } from "little-shared/enums";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
+import { LUITooltip } from "../LUITooltip/Component";
 import { twMerge } from "tailwind-merge";
 import { LVBMIcon, LTaskIcon, LReminderIcon } from "../LUIIcons";
 import { ImageIcon, NotebookIcon } from "@phosphor-icons/react";
@@ -64,35 +65,47 @@ const Component = ({
 				{tabs.map((tab) => {
 					const isActive = currentContent === tab.content;
 					return (
-						<button
-							type="button"
-							role="tab"
-							aria-selected={isActive}
-							aria-label={tab.label}
+						<LUITooltip
 							key={tab.content}
-							className={`flex h-full cursor-pointer items-center justify-center gap-x-1.5 rounded-lg transition-colors duration-150 ${
+							content={tab.label}
+							placement="bottom"
+							disabled={isActive}
+							triggerClassName={
 								isActive
-									? "ll-accent-fill min-w-0 grow px-2.5 min-[380px]:px-3"
-									: `w-9 shrink-0 min-[380px]:w-12 ${
-											isDark
-												? "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
-												: "text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900"
-										}`
-							}`}
-							onClick={() => handleContentChange(tab.content)}
+									? "h-full min-w-0 grow"
+									: "h-full shrink-0"
+							}
+							triggerRole="none"
 						>
-							<LUIThemedIcon
-								Icon={tab.icon}
-								weight={isActive ? "fill" : "regular"}
-								color="currentColor"
-								className="size-4 shrink-0"
-							/>
-							{isActive ? (
-								<span className="truncate text-sm font-semibold whitespace-nowrap">
-									{tab.label}
-								</span>
-							) : null}
-						</button>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={isActive}
+								aria-label={tab.label}
+								className={`flex h-full cursor-pointer items-center justify-center gap-x-1.5 rounded-lg transition-all duration-150 active:scale-95 ${
+									isActive
+										? "ll-accent-fill w-full min-w-0 px-2.5 min-[380px]:px-3"
+										: `w-9 shrink-0 min-[380px]:w-12 ${
+												isDark
+													? "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
+													: "text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900"
+											}`
+								}`}
+								onClick={() => handleContentChange(tab.content)}
+							>
+								<LUIThemedIcon
+									Icon={tab.icon}
+									weight={isActive ? "fill" : "regular"}
+									color="currentColor"
+									className="size-4 shrink-0"
+								/>
+								{isActive ? (
+									<span className="truncate text-sm font-semibold whitespace-nowrap">
+										{tab.label}
+									</span>
+								) : null}
+							</button>
+						</LUITooltip>
 					);
 				})}
 			</div>

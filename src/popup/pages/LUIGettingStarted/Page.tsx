@@ -3,6 +3,7 @@ import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { useTheme } from "../../hooks/useTheme";
 import { LTHEME } from "little-shared/enums";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { EASE_OUT, MOTION } from "../../../route-transitions";
 import { LUIThemedIcon } from "../../components/LUIThemedIcon/Component";
 import {
 	ArrowRightIcon,
@@ -135,10 +136,9 @@ const DefaultGuide = ({
 		<motion.div
 			ref={containerRef}
 			className={`no-scrollbar flex h-full w-full flex-col overflow-y-auto`}
-			initial={{ opacity: 0, x: "-100%" }}
-			animate={{ opacity: 1, x: 0 }}
-			exit={{ opacity: 0, x: "-100%" }}
-			transition={{ duration: 0.4, type: "spring", bounce: 0.2 }}
+			initial={{ opacity: 0, x: 24 }}
+			animate={{ opacity: 1, x: 0, transition: MOTION.sheet }}
+			exit={{ opacity: 0, x: -24, transition: MOTION.sheetExit }}
 		>
 			{shouldDisplayFirst() ? (
 				<motion.div
@@ -146,9 +146,9 @@ const DefaultGuide = ({
 					initial={{ opacity: 0 }}
 					animate={{
 						opacity: 1,
-						transition: { duration: 0.4 },
+						transition: MOTION.reveal,
 					}}
-					exit={{ opacity: 0, transition: { duration: 0.4 } }}
+					exit={{ opacity: 0, transition: MOTION.tabExit }}
 				>
 					{shortQuote}
 				</motion.div>
@@ -159,9 +159,9 @@ const DefaultGuide = ({
 					initial={{ opacity: 0 }}
 					animate={{
 						opacity: 1,
-						transition: { duration: 0.4 },
+						transition: MOTION.reveal,
 					}}
-					exit={{ opacity: 0, transition: { duration: 0.4 } }}
+					exit={{ opacity: 0, transition: MOTION.tabExit }}
 				>
 					{longQuote}
 				</motion.div>
@@ -171,8 +171,8 @@ const DefaultGuide = ({
 					ref={illustrationsRef}
 					className="w-full shrink-0 overflow-visible"
 					initial={{ opacity: 0 }}
-					animate={{ opacity: 1, transition: { duration: 0.4 } }}
-					exit={{ opacity: 0, transition: { duration: 0.4 } }}
+					animate={{ opacity: 1, transition: MOTION.reveal }}
+					exit={{ opacity: 0, transition: MOTION.tabExit }}
 				>
 					{continuousIllustrations.length > 0 && !reduceMotion ? (
 						<div className="flex justify-end px-4">
@@ -241,20 +241,24 @@ const StartGuide = () => {
 	return (
 		<motion.div
 			className={`flex h-full w-full flex-col justify-center gap-y-3 px-4`}
-			initial={{ opacity: 0, x: "-100%" }}
-			animate={{ opacity: 1, x: 0 }}
-			exit={{ opacity: 0, x: "-100%" }}
-			transition={{ duration: 0.4, type: "spring", bounce: 0.2 }}
+			initial={{ opacity: 0, x: 24 }}
+			animate={{ opacity: 1, x: 0, transition: MOTION.sheet }}
+			exit={{ opacity: 0, x: -24, transition: MOTION.sheetExit }}
 		>
 			<div className="h-max w-full text-5xl leading-tight font-black tracking-tight sm:text-6xl">
 				<motion.div
 					className="text-neutral-500"
-					initial={{ opacity: 0 }}
+					initial={{ opacity: 0, y: 8 }}
 					animate={{
 						opacity: 1,
-						transition: { duration: 0.4, delay: 0.2 },
+						y: 0,
+						transition: {
+							duration: 0.28,
+							delay: 0.1,
+							ease: EASE_OUT,
+						},
 					}}
-					exit={{ opacity: 0, transition: { duration: 0.4 } }}
+					exit={{ opacity: 0, transition: MOTION.tabExit }}
 				>
 					Welcome
 				</motion.div>
@@ -264,12 +268,17 @@ const StartGuide = () => {
 							? "text-neutral-300"
 							: "text-neutral-700"
 					}
-					initial={{ opacity: 0 }}
+					initial={{ opacity: 0, y: 8 }}
 					animate={{
 						opacity: 1,
-						transition: { duration: 0.4, delay: 0.4 },
+						y: 0,
+						transition: {
+							duration: 0.28,
+							delay: 0.22,
+							ease: EASE_OUT,
+						},
 					}}
-					exit={{ opacity: 0, transition: { duration: 0.4 } }}
+					exit={{ opacity: 0, transition: MOTION.tabExit }}
 				>
 					to
 				</motion.div>
@@ -279,24 +288,34 @@ const StartGuide = () => {
 							? "text-neutral-100"
 							: "text-neutral-900"
 					}
-					initial={{ opacity: 0 }}
+					initial={{ opacity: 0, y: 8 }}
 					animate={{
 						opacity: 1,
-						transition: { duration: 0.4, delay: 0.6 },
+						y: 0,
+						transition: {
+							duration: 0.28,
+							delay: 0.34,
+							ease: EASE_OUT,
+						},
 					}}
-					exit={{ opacity: 0, transition: { duration: 0.4 } }}
+					exit={{ opacity: 0, transition: MOTION.tabExit }}
 				>
 					Little Later
 				</motion.div>
 			</div>
 			<motion.div
 				className="flex h-max flex-col justify-start"
-				initial={{ opacity: 0 }}
+				initial={{ opacity: 0, y: 6 }}
 				animate={{
 					opacity: 1,
-					transition: { duration: 0.4, delay: 1 },
+					y: 0,
+					transition: {
+						duration: 0.28,
+						delay: 0.5,
+						ease: EASE_OUT,
+					},
 				}}
-				exit={{ opacity: 0, transition: { duration: 0.4 } }}
+				exit={{ opacity: 0, transition: MOTION.tabExit }}
 			>
 				<div
 					className={`h-max w-full text-xl font-normal ${theme === LTHEME.DARK ? "text-neutral-400" : "text-neutral-500"}`}

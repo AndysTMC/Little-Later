@@ -3,6 +3,7 @@ import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LTHEME } from "little-shared/enums";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { MOTION } from "../../../route-transitions";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../hooks/useTheme";
 import { getDomainFromUrl } from "little-shared/utils/misc";
@@ -69,7 +70,7 @@ const Component = ({
 					<span>{showSaves ? "Close" : "Link"}</span>
 				</button>
 			</div>
-			<AnimatePresence>
+			<AnimatePresence initial={false}>
 				{showSaves ? (
 					<motion.div
 						className={`flex max-h-56 w-full flex-col gap-y-1.5 overflow-y-hidden rounded-xl border p-2 ${
@@ -77,11 +78,17 @@ const Component = ({
 								? "border-neutral-800 bg-neutral-950"
 								: "border-neutral-200 bg-neutral-50"
 						}`}
-						initial={{ opacity: 0 }}
+						initial={{ opacity: 0, y: -4 }}
 						animate={{
 							opacity: 1,
+							y: 0,
+							transition: MOTION.popover,
 						}}
-						exit={{ opacity: 0 }}
+						exit={{
+							opacity: 0,
+							y: -4,
+							transition: MOTION.popoverExit,
+						}}
 					>
 						<input
 							type="text"

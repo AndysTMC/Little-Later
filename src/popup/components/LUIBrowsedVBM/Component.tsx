@@ -9,6 +9,7 @@ import { useTheme } from "../../hooks/useTheme";
 import type { Save } from "../../../storage/repositories";
 import { LUIWebPreview } from "../LUIWebPreview/Component";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
+import { LUITooltip } from "../LUITooltip/Component";
 import { useLazySavePreview } from "../../hooks/useSavePreview";
 import { lastSeenInfo, prettyDate } from "../../../utils/dates";
 import { send } from "../../../utils/send";
@@ -60,7 +61,7 @@ const Component = ({
 
 	const { preview, elementRef } = useLazySavePreview(visualBM.id);
 
-	const actionBtn = `flex size-8 cursor-pointer items-center justify-center rounded-lg border transition-colors ${
+	const actionBtn = `flex size-8 cursor-pointer items-center justify-center rounded-lg border transition-all duration-150 active:scale-95 ${
 		isDark
 			? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800 hover:text-white"
 			: "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-200 hover:text-black"
@@ -114,58 +115,77 @@ const Component = ({
 					{prettyDate(visualBM.browsedAt)}
 				</div>
 				<div className="flex w-full flex-wrap items-center gap-1.5 pt-0.5">
-					<button
-						type="button"
-						aria-label={visualBM.saved ? "Saved" : "Save this page"}
-						className={
-							visualBM.saved
-								? "ll-accent-fill flex size-8 cursor-default items-center justify-center rounded-lg"
-								: actionBtn
-						}
-						onClick={!visualBM.saved ? handleSaveClick : undefined}
+					<LUITooltip
+						content={visualBM.saved ? "Saved" : "Save this page"}
+						placement="top"
 					>
-						{!isCreatingSave ? (
+						<button
+							type="button"
+							aria-label={
+								visualBM.saved ? "Saved" : "Save this page"
+							}
+							className={
+								visualBM.saved
+									? "ll-accent-fill flex size-8 cursor-default items-center justify-center rounded-lg"
+									: actionBtn
+							}
+							onClick={
+								!visualBM.saved ? handleSaveClick : undefined
+							}
+						>
+							{!isCreatingSave ? (
+								<LUIThemedIcon
+									Icon={LVBMIcon}
+									color="currentColor"
+									weight={visualBM.saved ? "fill" : "regular"}
+									className="size-4"
+								/>
+							) : (
+								<LUIThemedIcon
+									Icon={CircleNotchIcon}
+									color="currentColor"
+									weight="bold"
+									className="size-4 animate-spin"
+								/>
+							)}
+						</button>
+					</LUITooltip>
+					<LUITooltip
+						content="New task for this page"
+						placement="top"
+					>
+						<button
+							type="button"
+							aria-label="New task for this page"
+							className={actionBtn}
+							onClick={() => handleTaskClick(visualBM.url)}
+						>
 							<LUIThemedIcon
-								Icon={LVBMIcon}
+								Icon={LTaskIcon}
 								color="currentColor"
-								weight={visualBM.saved ? "fill" : "regular"}
+								weight="regular"
 								className="size-4"
 							/>
-						) : (
+						</button>
+					</LUITooltip>
+					<LUITooltip
+						content="New reminder for this page"
+						placement="top"
+					>
+						<button
+							type="button"
+							aria-label="New reminder for this page"
+							className={actionBtn}
+							onClick={() => handleReminderClick(visualBM.url)}
+						>
 							<LUIThemedIcon
-								Icon={CircleNotchIcon}
+								Icon={LReminderIcon}
 								color="currentColor"
-								weight="bold"
-								className="size-4 animate-spin"
+								weight="regular"
+								className="size-4"
 							/>
-						)}
-					</button>
-					<button
-						type="button"
-						aria-label="New task for this page"
-						className={actionBtn}
-						onClick={() => handleTaskClick(visualBM.url)}
-					>
-						<LUIThemedIcon
-							Icon={LTaskIcon}
-							color="currentColor"
-							weight="regular"
-							className="size-4"
-						/>
-					</button>
-					<button
-						type="button"
-						aria-label="New reminder for this page"
-						className={actionBtn}
-						onClick={() => handleReminderClick(visualBM.url)}
-					>
-						<LUIThemedIcon
-							Icon={LReminderIcon}
-							color="currentColor"
-							weight="regular"
-							className="size-4"
-						/>
-					</button>
+						</button>
+					</LUITooltip>
 					<div className="flex grow justify-end">
 						<LUIDeleteButton
 							subject="from history"

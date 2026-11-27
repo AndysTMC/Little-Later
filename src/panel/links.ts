@@ -11,3 +11,9 @@ const openTab = (path: string) => {
 
 export const openAISettings = () =>
 	openTab("index.html?surface=tab#/settings/ai");
+
+export const openAIProviderSettings = () =>
+	openTab("index.html?surface=tab#/settings/ai/provider");
+
+export const openAIMcpSettings = () =>
+	openTab("index.html?surface=tab#/settings/ai/mcp");

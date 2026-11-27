@@ -18,10 +18,11 @@ import {
 	getBridgeEndpoint,
 	startNativeHost,
 } from "./nativeHost";
+import pkg from "../package.json";
 
 // Fixed extension ID derived from Little Later's release signing key.
-export const OFFICIAL_EXTENSION_ID = "nchfnpignmgklabjemdobnanfickfbhl";
-const CLI_VERSION = "3.1.0";
+export const OFFICIAL_EXTENSION_ID = "jbmjjboeppfcjblnbiiaicoakpabghom";
+export const CLI_VERSION: string = pkg.version;
 
 const getAppDataDir = (): string => {
 	if (process.platform === "darwin") {
@@ -693,6 +694,148 @@ const formatSearchResult = (data: Record<string, unknown>): string => {
 	return sections.length > 0 ? sections.join("\n\n") : "No matching records.";
 };
 
+export const parseAddTaskScheduleFlags = (
+	flags: Map<string, Array<string>>,
+	now = Date.now(),
+): { dueAt?: number; recurrence?: Record<string, unknown> } => {
+	const dueSpec = flags.get("due")?.[0];
+	const repeatFreq = flags.get("repeat")?.[0]?.trim().toLowerCase();
+	const intervalRaw = flags.get("interval")?.[0];
+	const timeRaw = flags.get("time")?.[0];
+	const daysRaw = flags.get("days")?.[0];
+	const monthDayRaw = flags.get("month-day")?.[0];
+	const monthRaw = flags.get("month")?.[0];
+
+	if (repeatFreq !== undefined && dueSpec !== undefined) {
+		throw new Error("Cannot combine --due with --repeat.");
+	}
+	if (
+		repeatFreq === undefined &&
+		(intervalRaw !== undefined ||
+			timeRaw !== undefined ||
+			daysRaw !== undefined ||
+			monthDayRaw !== undefined ||
+			monthRaw !== undefined)
+	) {
+		throw new Error(
+			"Recurrence options (--interval, --time, --days, --month-day, --month) require --repeat.",
+		);
+	}
+
+	if (repeatFreq !== undefined) {
+		if (!["daily", "weekly", "monthly", "yearly"].includes(repeatFreq)) {
+			throw new Error(
+				"Invalid --repeat value. Use daily, weekly, monthly, or yearly.",
+			);
+		}
+		let interval = 1;
+		if (intervalRaw !== undefined) {
+			if (!/^\d+$/.test(intervalRaw.trim())) {
+				throw new Error(
+					"Invalid --interval value. Use an integer >= 1.",
+				);
+			}
+			interval = Number(intervalRaw.trim());
+			if (!Number.isSafeInteger(interval) || interval < 1) {
+				throw new Error(
+					"Invalid --interval value. Use an integer >= 1.",
+				);
+			}
+		}
+		const time = timeRaw !== undefined ? timeRaw.trim() : "09:00";
+		if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+			throw new Error('Invalid --time value. Use 24-hour "HH:MM".');
+		}
+		const dayMap: Record<string, number> = {
+			mon: 1,
+			monday: 1,
+			tue: 2,
+			tuesday: 2,
+			wed: 3,
+			wednesday: 3,
+			thu: 4,
+			thursday: 4,
+			fri: 5,
+			friday: 5,
+			sat: 6,
+			saturday: 6,
+			sun: 7,
+			sunday: 7,
+		};
+		let byWeekday: Array<number> | undefined;
+		if (daysRaw !== undefined) {
+			const tokens = daysRaw.split(",");
+			byWeekday = [];
+			for (const rawToken of tokens) {
+				const token = rawToken.trim().toLowerCase();
+				const mapped =
+					token in dayMap
+						? dayMap[token]
+						: /^[1-7]$/.test(token)
+							? Number(token)
+							: NaN;
+				if (!Number.isInteger(mapped) || mapped < 1 || mapped > 7) {
+					throw new Error(
+						`Invalid --days entry "${rawToken.trim()}". Use mon..sun or 1..7.`,
+					);
+				}
+				if (!byWeekday.includes(mapped)) {
+					byWeekday.push(mapped);
+				}
+			}
+		}
+		let byMonthDay: number | undefined;
+		if (monthDayRaw !== undefined) {
+			if (!/^-?\d+$/.test(monthDayRaw.trim())) {
+				throw new Error(
+					"Invalid --month-day value. Use 1..31 or -1 for the last day.",
+				);
+			}
+			byMonthDay = Number(monthDayRaw.trim());
+			if (
+				!Number.isSafeInteger(byMonthDay) ||
+				(byMonthDay !== -1 && (byMonthDay < 1 || byMonthDay > 31))
+			) {
+				throw new Error(
+					"Invalid --month-day value. Use 1..31 or -1 for the last day.",
+				);
+			}
+		}
+		let byMonth: number | undefined;
+		if (monthRaw !== undefined) {
+			if (!/^\d+$/.test(monthRaw.trim())) {
+				throw new Error("Invalid --month value. Use 1..12.");
+			}
+			byMonth = Number(monthRaw.trim());
+			if (!Number.isSafeInteger(byMonth) || byMonth < 1 || byMonth > 12) {
+				throw new Error("Invalid --month value. Use 1..12.");
+			}
+		}
+		return {
+			recurrence: {
+				freq: repeatFreq,
+				interval,
+				time,
+				...(byWeekday && byWeekday.length > 0 ? { byWeekday } : {}),
+				...(byMonthDay !== undefined ? { byMonthDay } : {}),
+				...(byMonth !== undefined ? { byMonth } : {}),
+			},
+		};
+	}
+
+	if (dueSpec !== undefined) {
+		const parsedDue = parseReminderTime(dueSpec, now);
+		if (parsedDue === null) {
+			throw new Error(
+				"Invalid --due value. Use a future time like 30m, 2h, 1d, or an ISO timestamp.",
+			);
+		}
+		return { dueAt: parsedDue };
+	}
+
+	return {};
+};
+
 const runQuickCommand = async (
 	command: string,
 	rawArgs: Array<string>,
@@ -781,35 +924,60 @@ const runQuickCommand = async (
 		const information = positional.join(" ").trim();
 		if (!information) {
 			console.error(
-				"Usage: little-later-mcp add-task <information> [--label <label>] [--priority low|medium|high] [--due <30m|2h|1d|ISO-time>] [--tag <tag>...]",
+				"Usage: little-later-mcp add-task <information> [--priority low|medium|high] [--due <30m|2h|1d|ISO-time>] [--repeat daily|weekly|monthly|yearly] [--interval <n>] [--time HH:MM] [--days mon,wed,fri] [--reminder normal|escalating] [--tag <tag>...]",
 			);
 			process.exit(1);
 		}
 		const label = flags.get("label")?.[0];
 		const priority = flags.get("priority")?.[0]?.toLowerCase();
-		const dueSpec = flags.get("due")?.[0];
+		const reminder = flags.get("reminder")?.[0]?.toLowerCase();
 		let dueAt: number | undefined;
-		if (dueSpec !== undefined) {
-			const parsedDue = parseReminderTime(dueSpec);
-			if (parsedDue === null) {
-				console.error(
-					"Invalid --due value. Use a future time like 30m, 2h, 1d, or an ISO timestamp.",
-				);
-				process.exit(1);
-			}
-			dueAt = parsedDue;
+		let recurrence: Record<string, unknown> | undefined;
+		try {
+			({ dueAt, recurrence } = parseAddTaskScheduleFlags(flags));
+		} catch (error) {
+			console.error(
+				error instanceof Error
+					? error.message
+					: "Invalid task schedule options.",
+			);
+			process.exit(1);
 		}
 		const result = await callBridgeTool("create_task", {
 			information,
 			...(label ? { label } : {}),
 			...(priority ? { priority } : {}),
 			...(dueAt !== undefined ? { dueAt } : {}),
+			...(recurrence ? { recurrence } : {}),
+			...(reminder ? { reminder } : {}),
 			...(tags.length > 0 ? { tags } : {}),
 		});
 		console.log(
 			asJson
 				? JSON.stringify(result, null, 2)
 				: `Created task (${String((result as { id?: string })?.id ?? "ok")}).`,
+		);
+		return;
+	}
+
+	if (command === "add-save") {
+		const url = positional[0]?.trim();
+		if (!url) {
+			console.error(
+				"Usage: little-later-mcp add-save <url> [--title <title>] [--tag <tag>...]",
+			);
+			process.exit(1);
+		}
+		const title = flags.get("title")?.[0];
+		const result = await callBridgeTool("create_save", {
+			url,
+			...(title ? { title, customName: title } : {}),
+			...(tags.length > 0 ? { tags } : {}),
+		});
+		console.log(
+			asJson
+				? JSON.stringify(result, null, 2)
+				: `Saved page (${String((result as { id?: string })?.id ?? "ok")}).`,
 		);
 		return;
 	}
@@ -848,6 +1016,25 @@ const runQuickCommand = async (
 		console.log(
 			asJson ? JSON.stringify(result, null, 2) : `Completed task ${id}.`,
 		);
+		return;
+	}
+
+	if (command === "reopen") {
+		const id = positional[0]?.trim();
+		if (!id) {
+			console.error("Usage: little-later-mcp reopen <task-id>");
+			process.exit(1);
+		}
+		const result = await callBridgeTool("reopen_task", { id });
+		console.log(
+			asJson ? JSON.stringify(result, null, 2) : `Reopened task ${id}.`,
+		);
+		return;
+	}
+
+	if (command === "overview") {
+		const result = await callBridgeTool("get_productivity_overview", {});
+		console.log(JSON.stringify(result, null, 2));
 	}
 };
 
@@ -859,20 +1046,26 @@ const USAGE = [
 	"  little-later-mcp uninstall",
 	"  little-later-mcp search <query> [--tag <tag>] [--limit <n>] [--json]",
 	"  little-later-mcp list <saves|tasks|reminders|notes|images> [--tag <tag>] [--all] [--json]",
+	"  little-later-mcp overview [--json]",
+	"  little-later-mcp add-save <url> [--title <title>] [--tag <tag>...]",
 	"  little-later-mcp add-note <content> [--title <title>] [--tag <tag>...]",
-	"  little-later-mcp add-task <information> [--label <label>] [--priority low|medium|high] [--tag <tag>...]",
+	"  little-later-mcp add-task <information> [--priority low|medium|high] [--due <spec>] [--repeat daily|weekly|monthly|yearly] [--time HH:MM] [--days mon,wed,fri] [--reminder normal|escalating] [--tag <tag>...]",
 	"  little-later-mcp add-reminder <message> --at <30m|2h|1d|ISO-time> [--escalate] [--tag <tag>...]",
 	"  little-later-mcp done <task-id>",
+	"  little-later-mcp reopen <task-id>",
 	"  little-later-mcp --version",
 ].join("\n");
 
 const QUICK_COMMANDS = new Set([
 	"search",
 	"list",
+	"overview",
+	"add-save",
 	"add-note",
 	"add-task",
 	"add-reminder",
 	"done",
+	"reopen",
 ]);
 
 const runCli = (): void => {

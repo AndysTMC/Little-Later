@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
 
+/**
+ * Clamps and slices a list of `itemCount` items into fixed-size batches.
+ * Automatically clamps the active batch when `itemCount` shrinks.
+ */
 const usePagination = (itemCount: number, itemsPerBatch: number) => {
 	const batchCount = useMemo(
 		() => Math.max(1, Math.ceil(itemCount / itemsPerBatch)),

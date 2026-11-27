@@ -1,4 +1,5 @@
 import { sealBody, type ProfileKeys } from "../../storage/keys";
+import { verifyPassword } from "../../storage/profiles";
 import { openNote, type NoteContent } from "../../storage/repositories";
 import type { LittleDB, NoteRow } from "../../storage/schema";
 import { cascadeTables, removeRecords } from "./cascade";
@@ -34,6 +35,28 @@ const optionalBoolean = (value: unknown, field: string) =>
 const optionalTitle = (value: unknown): string | undefined => {
 	if (value === undefined) return undefined;
 	return asString(value, "title").trim().slice(0, MAX_NOTE_TITLE_LENGTH);
+};
+
+const optionalPassword = (value: unknown): string | undefined =>
+	value === undefined ? undefined : asString(value, "password");
+
+const verifyLockedNotePassword = async (
+	db: LittleDB,
+	profileId: string,
+	password: string | undefined,
+	action: "change" | "delete",
+): Promise<void> => {
+	const profile = await db.profiles.get(profileId);
+	if (profile?.protection !== "password") {
+		return;
+	}
+	if (!password) {
+		throw new CommandError(
+			"rejected",
+			`Enter your profile password to ${action} a locked note.`,
+		);
+	}
+	await verifyPassword(db, profileId, password);
 };
 
 const assertPasswordForLockedNote = async (
@@ -127,6 +150,7 @@ export const noteUpdate = defineCommand({
 			tags: optionalTags(record.tags),
 			locked: optionalBoolean(record.locked, "locked"),
 			title: optionalTitle(record.title),
+			password: optionalPassword(record.password),
 		};
 	},
 	run: async (ctx, input) => {
@@ -134,6 +158,14 @@ export const noteUpdate = defineCommand({
 		const row = await getOwnNote(ctx.db, keys, input.id);
 		await assertOwnSaves(ctx.db, keys, input.saveIds);
 		const existing = await openNote(keys, row);
+		if (existing.locked) {
+			await verifyLockedNotePassword(
+				ctx.db,
+				keys.profileId,
+				input.password,
+				"change",
+			);
+		}
 		const locked = input.locked ?? Boolean(existing.locked);
 		if (locked) {
 			await assertPasswordForLockedNote(ctx.db, keys.profileId);
@@ -169,13 +201,28 @@ export const noteUpdate = defineCommand({
 
 export const noteDelete = defineCommand({
 	name: "note.delete",
-	parse: (input) => ({ id: asString(asRecord(input).id, "id") }),
+	parse: (input) => {
+		const record = asRecord(input);
+		return {
+			id: asString(record.id, "id"),
+			password: optionalPassword(record.password),
+		};
+	},
 	run: async (ctx, input) => {
 		const keys = await ctx.keys();
 		const row = await ctx.db.notes.get(input.id);
 		// Already gone counts as done, so a retried delete succeeds.
 		if (!row || row.profileId !== keys.profileId) {
 			return null;
+		}
+		const existing = await openNote(keys, row);
+		if (existing.locked) {
+			await verifyLockedNotePassword(
+				ctx.db,
+				keys.profileId,
+				input.password,
+				"delete",
+			);
 		}
 		await ctx.db.transaction("rw", cascadeTables(ctx.db), () =>
 			removeRecords(ctx.db, keys.profileId, [row.id]),
