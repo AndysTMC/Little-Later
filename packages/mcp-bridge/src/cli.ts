@@ -781,15 +781,53 @@ const runQuickCommand = async (
 		const information = positional.join(" ").trim();
 		if (!information) {
 			console.error(
-				"Usage: little-later-mcp add-task <information> [--label <label>] [--priority low|medium|high] [--due <30m|2h|1d|ISO-time>] [--tag <tag>...]",
+				"Usage: little-later-mcp add-task <information> [--priority low|medium|high] [--due <30m|2h|1d|ISO-time>] [--repeat daily|weekly|monthly|yearly] [--interval <n>] [--time HH:MM] [--days mon,wed,fri] [--reminder normal|escalating] [--tag <tag>...]",
 			);
 			process.exit(1);
 		}
 		const label = flags.get("label")?.[0];
 		const priority = flags.get("priority")?.[0]?.toLowerCase();
 		const dueSpec = flags.get("due")?.[0];
+		const repeatFreq = flags.get("repeat")?.[0]?.toLowerCase();
+		const reminder = flags.get("reminder")?.[0]?.toLowerCase();
 		let dueAt: number | undefined;
-		if (dueSpec !== undefined) {
+		let recurrence: Record<string, unknown> | undefined;
+		if (repeatFreq !== undefined) {
+			const intervalRaw = flags.get("interval")?.[0];
+			const interval = intervalRaw ? Number(intervalRaw) : 1;
+			const time = flags.get("time")?.[0] ?? "09:00";
+			const daysRaw = flags.get("days")?.[0];
+			const dayMap: Record<string, number> = {
+				mon: 1,
+				tue: 2,
+				wed: 3,
+				thu: 4,
+				fri: 5,
+				sat: 6,
+				sun: 7,
+			};
+			const byWeekday = daysRaw
+				? daysRaw
+						.split(",")
+						.map((token) => {
+							const t = token.trim().toLowerCase();
+							return dayMap[t.slice(0, 3)] ?? Number(t);
+						})
+						.filter((n) => Number.isInteger(n) && n >= 1 && n <= 7)
+				: undefined;
+			const monthDayRaw = flags.get("month-day")?.[0];
+			const monthRaw = flags.get("month")?.[0];
+			recurrence = {
+				freq: repeatFreq,
+				...(Number.isInteger(interval) && interval >= 1
+					? { interval }
+					: {}),
+				time,
+				...(byWeekday && byWeekday.length > 0 ? { byWeekday } : {}),
+				...(monthDayRaw ? { byMonthDay: Number(monthDayRaw) } : {}),
+				...(monthRaw ? { byMonth: Number(monthRaw) } : {}),
+			};
+		} else if (dueSpec !== undefined) {
 			const parsedDue = parseReminderTime(dueSpec);
 			if (parsedDue === null) {
 				console.error(
@@ -804,12 +842,36 @@ const runQuickCommand = async (
 			...(label ? { label } : {}),
 			...(priority ? { priority } : {}),
 			...(dueAt !== undefined ? { dueAt } : {}),
+			...(recurrence ? { recurrence } : {}),
+			...(reminder ? { reminder } : {}),
 			...(tags.length > 0 ? { tags } : {}),
 		});
 		console.log(
 			asJson
 				? JSON.stringify(result, null, 2)
 				: `Created task (${String((result as { id?: string })?.id ?? "ok")}).`,
+		);
+		return;
+	}
+
+	if (command === "add-save") {
+		const url = positional[0]?.trim();
+		if (!url) {
+			console.error(
+				"Usage: little-later-mcp add-save <url> [--title <title>] [--tag <tag>...]",
+			);
+			process.exit(1);
+		}
+		const title = flags.get("title")?.[0];
+		const result = await callBridgeTool("create_save", {
+			url,
+			...(title ? { title, customName: title } : {}),
+			...(tags.length > 0 ? { tags } : {}),
+		});
+		console.log(
+			asJson
+				? JSON.stringify(result, null, 2)
+				: `Saved page (${String((result as { id?: string })?.id ?? "ok")}).`,
 		);
 		return;
 	}
@@ -848,6 +910,25 @@ const runQuickCommand = async (
 		console.log(
 			asJson ? JSON.stringify(result, null, 2) : `Completed task ${id}.`,
 		);
+		return;
+	}
+
+	if (command === "reopen") {
+		const id = positional[0]?.trim();
+		if (!id) {
+			console.error("Usage: little-later-mcp reopen <task-id>");
+			process.exit(1);
+		}
+		const result = await callBridgeTool("reopen_task", { id });
+		console.log(
+			asJson ? JSON.stringify(result, null, 2) : `Reopened task ${id}.`,
+		);
+		return;
+	}
+
+	if (command === "overview") {
+		const result = await callBridgeTool("get_productivity_overview", {});
+		console.log(JSON.stringify(result, null, 2));
 	}
 };
 
@@ -859,20 +940,26 @@ const USAGE = [
 	"  little-later-mcp uninstall",
 	"  little-later-mcp search <query> [--tag <tag>] [--limit <n>] [--json]",
 	"  little-later-mcp list <saves|tasks|reminders|notes|images> [--tag <tag>] [--all] [--json]",
+	"  little-later-mcp overview [--json]",
+	"  little-later-mcp add-save <url> [--title <title>] [--tag <tag>...]",
 	"  little-later-mcp add-note <content> [--title <title>] [--tag <tag>...]",
-	"  little-later-mcp add-task <information> [--label <label>] [--priority low|medium|high] [--tag <tag>...]",
+	"  little-later-mcp add-task <information> [--priority low|medium|high] [--due <spec>] [--repeat daily|weekly|monthly|yearly] [--time HH:MM] [--days mon,wed,fri] [--reminder normal|escalating] [--tag <tag>...]",
 	"  little-later-mcp add-reminder <message> --at <30m|2h|1d|ISO-time> [--escalate] [--tag <tag>...]",
 	"  little-later-mcp done <task-id>",
+	"  little-later-mcp reopen <task-id>",
 	"  little-later-mcp --version",
 ].join("\n");
 
 const QUICK_COMMANDS = new Set([
 	"search",
 	"list",
+	"overview",
+	"add-save",
 	"add-note",
 	"add-task",
 	"add-reminder",
 	"done",
+	"reopen",
 ]);
 
 const runCli = (): void => {
