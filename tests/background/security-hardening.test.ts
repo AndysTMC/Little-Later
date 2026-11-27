@@ -18,7 +18,11 @@ import {
 	fetchProviderModels,
 	testAIConnection,
 } from "../../src/services/ai/config";
-import { describePendingAction, LittleAI } from "../../src/services/ai/main";
+import {
+	describePendingAction,
+	LittleAI,
+	sameConnection,
+} from "../../src/services/ai/main";
 import { callMcpTool, listMcpTools } from "../../src/services/ai/mcpClient";
 import { currentOwner } from "../../src/services/ai/owner";
 import { importProfileKeys } from "../../src/storage/keys";
@@ -425,12 +429,26 @@ describe("security hardening — backup locked-note gate & AI/MCP redirect + app
 			expect(call?.redirect).toBe("error");
 		}
 
-		const summary = await describePendingAction(owner, "mcp__read_file", {
-			path: "/etc/hosts",
-			limit: 10,
-		});
+		const summary = await describePendingAction(
+			owner,
+			"mcp__read_file",
+			{
+				path: "/etc/hosts",
+				limit: 10,
+			},
+			{ mcpServerUrl: "http://127.0.0.1:4009/mcp" },
+		);
 		expect(summary).toContain('Run local MCP tool "read_file"');
-		expect(summary).toContain("http://127.0.0.1:3001");
+		expect(summary).toContain("http://127.0.0.1:4009");
 		expect(summary).toContain("/etc/hosts");
+
+		// Connection equality includes mcpServerUrl so edits expire pending approvals.
+		const connA = await LittleAI.connectionOf(owner);
+		expect(
+			sameConnection(connA, {
+				...connA,
+				mcpServerUrl: "http://127.0.0.1:4009/mcp",
+			}),
+		).toBe(false);
 	});
 });

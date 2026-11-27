@@ -5,8 +5,16 @@ import { staging } from "../../storage/staging";
 import { UIStateContext } from "../contexts/UIStateContext";
 import { asPickedFiles, pickKey, type PickedFile } from "../filePick";
 
+export type PickedOwner = { profileId: string; unlockId: string };
+
 // `id` is the staged file's name, to remove one file from the slot.
-export type PickedBlob = { id: string; blob: Blob; name: string; size: number };
+export type PickedBlob = {
+	id: string;
+	blob: Blob;
+	name: string;
+	size: number;
+	owner?: PickedOwner;
+};
 
 // The files uploaded for a slot on the shared upload screen (filePick.ts),
 // if any are waiting. They stay until `clear` is called: call it once they
@@ -27,6 +35,7 @@ const usePickedFile = (slot: string, options?: { sensitive?: boolean }) => {
 			const needsKeys =
 				sensitive || picked.some((meta) => Boolean(meta.encrypted));
 			let keys: Awaited<ReturnType<typeof importProfileKeys>> | undefined;
+			let owner: PickedOwner | undefined;
 			if (needsKeys) {
 				const session = await sessionStore.get();
 				if (
@@ -46,6 +55,10 @@ const usePickedFile = (slot: string, options?: { sensitive?: boolean }) => {
 					throw new Error("Staged file session mismatch.");
 				}
 				keys = await importProfileKeys(session);
+				owner = {
+					profileId: session.profileId,
+					unlockId: session.unlockId,
+				};
 			}
 			return Promise.all(
 				picked.map(async (meta: PickedFile) => ({
@@ -60,6 +73,7 @@ const usePickedFile = (slot: string, options?: { sensitive?: boolean }) => {
 					).slice(0, undefined, meta.type),
 					name: meta.name,
 					size: meta.size,
+					...(owner ? { owner } : {}),
 				})),
 			);
 		};

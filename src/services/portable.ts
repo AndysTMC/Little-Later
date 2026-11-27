@@ -20,14 +20,24 @@ import { MAX_TAGS_PER_RECORD, normalizeTags } from "../utils/tags";
 const MAX_BOOKMARK_IMPORTS = 500;
 const ISO_WEEKDAY_ICS = ["", "MO", "TU", "WE", "TH", "FR", "SA", "SU"];
 
-const acquireKeys = async () => {
+const acquireKeys = async (expectedOwner?: {
+	profileId: string;
+	unlockId: string;
+}) => {
 	const session = await sessionStore.get();
 	if (!session) {
 		throw new Error("Unlock a profile first.");
 	}
+	if (
+		expectedOwner &&
+		(session.profileId !== expectedOwner.profileId ||
+			session.unlockId !== expectedOwner.unlockId)
+	) {
+		throw new Error("The profile was locked, so the operation stopped.");
+	}
 	const keys = await importProfileKeys(session);
 	const profile = await littleDB.profiles.get(session.profileId);
-	const owner = {
+	const owner = expectedOwner ?? {
 		profileId: session.profileId,
 		unlockId: session.unlockId,
 	};
@@ -547,12 +557,13 @@ export const parseBookmarksHtml = (html: string): Array<ParsedBookmark> =>
 
 export const importBookmarksHtml = async (
 	html: string,
+	expectedOwner?: { profileId: string; unlockId: string },
 ): Promise<{ imported: number; skipped: number; truncated: number }> => {
 	const { bookmarks, truncated } = parseBookmarksHtmlDetailed(html);
 	if (bookmarks.length === 0) {
 		throw new Error("No valid http/https bookmarks found in that file.");
 	}
-	const { keys, owner, checkUnlocked } = await acquireKeys();
+	const { keys, owner, checkUnlocked } = await acquireKeys(expectedOwner);
 	let imported = 0;
 	let skipped = 0;
 	for (const item of bookmarks) {

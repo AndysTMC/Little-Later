@@ -163,12 +163,14 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 		const raw = await staging.read(picked[0]!.file);
 		expect(new TextDecoder().decode(raw)).not.toContain("secret.test");
 
-		// Matching session reads decrypted text via usePickedFile.
+		// Matching session reads decrypted text and carries the verified owner.
 		let readText = "";
+		let readOwner: { profileId: string; unlockId: string } | undefined;
 		const Reader = () => {
 			const res = usePickedFile("bookmarks-html", { sensitive: true });
-			if (res.blob) {
-				void res.blob.text().then((t) => {
+			if (res.files[0]) {
+				readOwner = res.files[0].owner;
+				void res.files[0].blob.text().then((t) => {
 					readText = t;
 				});
 			}
@@ -182,9 +184,17 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 			);
 		});
 		await vi.waitFor(() => expect(readText).toBe(secretHtml));
+		expect(readOwner).toEqual({
+			profileId: sessionA.profileId,
+			unlockId: sessionA.unlockId,
+		});
 
-		// Switching to another profile causes usePickedFile to fail closed and clear draft.
+		// Switching to another profile causes usePickedFile to fail closed and clear draft,
+		// and passing Ada's owner to importBookmarksHtml under Bea rejects immediately.
 		await send("profile.create", { name: "Bea", password: null });
+		await expect(
+			importBookmarksHtml(secretHtml, readOwner),
+		).rejects.toThrow(/locked/i);
 		let readByBea = false;
 		const BeaReader = () => {
 			const res = usePickedFile("bookmarks-html", { sensitive: true });
@@ -320,6 +330,68 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 		await setInputValue(findInputs().apiKey!, "sk-deepseek-secret");
 		expect(findInputs().apiKey?.value).toBe("sk-deepseek-secret");
 		await setInputValue(findInputs().baseUrl!, "https://evil.example/v1");
+		expect(findInputs().apiKey?.value).toBe("");
+	});
+
+	it("preserves origin binding when restoring an unsaved AI settings draft over an empty saved key", async () => {
+		await send("profile.create", { name: "Ada", password: null });
+		await send("settings.update", {
+			ai: {
+				provider: LAI_PROVIDERS.CUSTOM,
+				baseUrl: "https://api.openai.com/v1",
+				apiKey: "",
+				model: "gpt-4o",
+			},
+		});
+
+		const store = memoryStore();
+		store.setDraft("settings.ai", {
+			provider: LAI_PROVIDERS.CUSTOM,
+			baseUrl: "https://api.openai.com/v1",
+			apiKey: "sk-unsaved-draft-key",
+			model: "gpt-4o",
+		});
+
+		await act(async () => {
+			root.render(
+				<ThemeContext.Provider value={themeValue}>
+					<UIStateContext.Provider value={store}>
+						<MemoryRouter initialEntries={["/settings/ai"]}>
+							<Routes>
+								<Route
+									path="/settings/ai"
+									element={<LUIAISettings />}
+								/>
+							</Routes>
+						</MemoryRouter>
+					</UIStateContext.Provider>
+				</ThemeContext.Provider>,
+			);
+		});
+
+		const findInputs = () => ({
+			baseUrl:
+				container.querySelector<HTMLInputElement>('input[type="url"]'),
+			apiKey: container.querySelector<HTMLInputElement>(
+				'input[type="password"]',
+			),
+		});
+
+		await vi.waitFor(() => {
+			expect(findInputs().apiKey?.value).toBe("sk-unsaved-draft-key");
+		});
+
+		await act(async () => {
+			const setter = Object.getOwnPropertyDescriptor(
+				window.HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			const input = findInputs().baseUrl!;
+			setter?.call(input, "https://other.example/v1");
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+			input.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+
 		expect(findInputs().apiKey?.value).toBe("");
 	});
 });

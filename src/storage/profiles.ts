@@ -26,6 +26,7 @@ import {
 	type SecondFactor,
 } from "./secondFactor";
 import { fromBase64, toBase64, type SessionStore } from "./session";
+import { importProfileKeys, type ProfileKeys } from "./keys";
 
 // Profiles and their keys (decision 0010, Keys). A profile has a random root
 // key and a random index key; a password, when set, only wraps the root key.
@@ -145,6 +146,7 @@ const startSession = async (
 	session: SessionStore,
 	profile: ProfileRow,
 	roots: Map<number, Uint8Array>,
+	beforePublish?: (keys: ProfileKeys) => Promise<void>,
 ) => {
 	const { keyId } = readEnvelopeHeader(profile.indexKey);
 	const root = roots.get(keyId);
@@ -159,7 +161,7 @@ const startSession = async (
 		indexKeyLocation(profile.id),
 		profile.indexKey,
 	);
-	await session.set({
+	const nextSession = {
 		profileId: profile.id,
 		currentKeyId: profile.currentKeyId,
 		rootKeys: Object.fromEntries(
@@ -167,7 +169,11 @@ const startSession = async (
 		),
 		indexKey: toBase64(indexKey),
 		unlockId: crypto.randomUUID(),
-	});
+	};
+	if (beforePublish) {
+		await beforePublish(await importProfileKeys(nextSession));
+	}
+	await session.set(nextSession);
 };
 
 // A new profile's row with fresh root and index keys, not yet stored. A
@@ -221,12 +227,14 @@ export const unlockProfile = async (
 	profileId: string,
 	password: string | null,
 	factor?: Factor,
+	options?: { beforePublish?: (keys: ProfileKeys) => Promise<void> },
 ): Promise<void> => {
 	const profile = await getProfile(db, profileId);
 	await startSession(
 		session,
 		profile,
 		await readRootKeys(profile, password, factor),
+		options?.beforePublish,
 	);
 };
 

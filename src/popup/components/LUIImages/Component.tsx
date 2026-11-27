@@ -210,21 +210,16 @@ const Component = ({
 		void (async () => {
 			let savedCount = 0;
 			try {
-				const session = await sessionStore.get();
-				if (!session) {
-					throw new Error("Unlock a profile first.");
-				}
-				const owner: SendOptions = {
-					profileId: session.profileId,
-					unlockId: session.unlockId,
-				};
 				for (const file of filesToSave) {
 					try {
+						if (!file.owner) {
+							throw new Error("Staged image session expired.");
+						}
 						const ok = await saveBlobAsImage(
 							file.blob,
 							file.name,
 							file.blob.type,
-							owner,
+							file.owner,
 						);
 						if (ok) savedCount += 1;
 					} finally {

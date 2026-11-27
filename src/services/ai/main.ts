@@ -36,6 +36,7 @@ import {
 	listMcpTools,
 	toOpenAIMcpTool,
 } from "./mcpClient";
+import { backupNeedsProfilePassword } from "../backup";
 import {
 	AIOutputContent,
 	ToolDefinition,
@@ -374,6 +375,8 @@ type PendingMutation = {
 	// What the user is asked to approve, built from the record the call
 	// names and the values that will be stored.
 	summary: string;
+	// Snapshot of the MCP server URL bound at discovery and shown in consent.
+	mcpServerUrl?: string;
 };
 
 const quoted = (value: unknown, maxLength = 60): string =>
@@ -391,6 +394,7 @@ export const describePendingAction = async (
 	owner: AIOwner,
 	toolName: string,
 	args: Record<string, unknown>,
+	context?: { mcpServerUrl?: string },
 ): Promise<string> => {
 	const id = typeof args.id === "string" ? args.id : undefined;
 	const find = async <T extends { id: string }>(
@@ -558,8 +562,12 @@ export const describePendingAction = async (
 				const mcpTool = toolName.slice(MCP_TOOL_PREFIX.length);
 				let target = "local MCP server";
 				try {
-					const settings = await readSettings(await owner.keys());
-					const rawUrl = settings.ai.mcpServerUrl?.trim() ?? "";
+					const rawUrl =
+						context?.mcpServerUrl?.trim() ??
+						(
+							await readSettings(await owner.keys())
+						).ai.mcpServerUrl?.trim() ??
+						"";
 					if (rawUrl !== "") {
 						target = new URL(rawUrl).origin;
 					}
@@ -1479,6 +1487,7 @@ export abstract class LittleAI {
 			model: isAISettingsConfigured(aiSettings) ? model : "",
 			apiKey: provider === LAI_PROVIDERS.CUSTOM ? apiKey.trim() : "",
 			baseUrl: getResolvedBaseUrl(aiSettings),
+			mcpServerUrl: aiSettings.mcpServerUrl?.trim() ?? "",
 		};
 	};
 
@@ -1499,13 +1508,15 @@ export type AIConnection = {
 	model: string;
 	apiKey: string;
 	baseUrl: string;
+	mcpServerUrl?: string;
 };
 
 export const sameConnection = (a: AIConnection, b: AIConnection): boolean =>
 	a.provider === b.provider &&
 	a.model === b.model &&
 	a.apiKey === b.apiKey &&
-	a.baseUrl === b.baseUrl;
+	a.baseUrl === b.baseUrl &&
+	(a.mcpServerUrl ?? "") === (b.mcpServerUrl ?? "");
 
 export class OpenAICompatibleAI extends LittleAI {
 	constructor({
@@ -1603,6 +1614,25 @@ export class OpenAICompatibleAI extends LittleAI {
 				throw new RunStoppedError();
 			}
 			await this.owner.assertCurrent();
+			if (item.mcpServerUrl !== undefined) {
+				const currentSettings = await readSettings(
+					await this.owner.keys(),
+				);
+				const currentMcpUrl =
+					currentSettings.ai.mcpServerUrl?.trim() ?? "";
+				if (currentMcpUrl !== item.mcpServerUrl) {
+					const expiredMsg =
+						"The local MCP server URL changed after this approval was requested. Ask again to run the tool on the updated server.";
+					hasToolError = true;
+					expression = LFACE_EXPRESSION.FROWNING;
+					messages.push(expiredMsg);
+					this.appendToolResult(item.call.id, {
+						message: expiredMsg,
+						expression: LFACE_EXPRESSION.FROWNING,
+					});
+					continue;
+				}
+			}
 			const normalizedArgs = item.definition.normalizeArgs(item.args);
 			const args =
 				item.call.function.name === "export_data"
@@ -1817,6 +1847,7 @@ export class OpenAICompatibleAI extends LittleAI {
 		const dynamicMcpTools: Array<OpenAI.Chat.Completions.ChatCompletionFunctionTool> =
 			[];
 		const dynamicMcpDefinitions = new Map<string, ToolDefinition>();
+		const dynamicMcpEndpoints = new Map<string, string>();
 		if (personalization.mcpServerUrl) {
 			const mcpUrl = personalization.mcpServerUrl;
 			try {
@@ -1824,6 +1855,7 @@ export class OpenAICompatibleAI extends LittleAI {
 				for (const descriptor of descriptors) {
 					const openAITool = toOpenAIMcpTool(descriptor);
 					dynamicMcpTools.push(openAITool);
+					dynamicMcpEndpoints.set(openAITool.function.name, mcpUrl);
 					dynamicMcpDefinitions.set(openAITool.function.name, {
 						tool: openAITool,
 						safety: { kind: "external", undoable: false },
@@ -2035,14 +2067,40 @@ export class OpenAICompatibleAI extends LittleAI {
 							if (activeTab.title) args.title = activeTab.title;
 						}
 					}
+					if (
+						call.function.name === "export_data" &&
+						definition.normalizeArgs(args).type ===
+							LEXPORT_TYPE.IMPORTABLE &&
+						(await backupNeedsProfilePassword(
+							await this.owner.keys(),
+						))
+					) {
+						const redirectMsg =
+							"This profile contains locked notes, so an encrypted backup requires verifying your current profile password on the Export screen (Settings → Export). Open Export to create the backup.";
+						aggregatedToolMessages.push(redirectMsg);
+						hasToolError = true;
+						aggregatedExpression = LFACE_EXPRESSION.FROWNING;
+						this.appendToolResult(call.id, {
+							message: redirectMsg,
+							expression: LFACE_EXPRESSION.FROWNING,
+						});
+						continue;
+					}
+					const mcpServerUrl = dynamicMcpEndpoints.get(
+						call.function.name,
+					);
 					pendingThisRound.push({
 						call,
 						definition,
 						args,
+						...(mcpServerUrl !== undefined ? { mcpServerUrl } : {}),
 						summary: await describePendingAction(
 							this.owner,
 							call.function.name,
 							definition.normalizeArgs(args),
+							mcpServerUrl !== undefined
+								? { mcpServerUrl }
+								: undefined,
 						),
 					});
 					continue;

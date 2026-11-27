@@ -155,7 +155,6 @@ const Page = () => {
 										inputType="password"
 										passedValue={profilePassword}
 										onChange={setProfilePassword}
-										lengthLimit={128}
 										disableLengthCounter
 										validate={(value) =>
 											value === ""

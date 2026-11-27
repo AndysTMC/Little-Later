@@ -88,8 +88,14 @@ const Page = () => {
 		const file = pickedBookmarks.files[0]!;
 		void (async () => {
 			try {
+				if (!file.owner) {
+					throw new Error("Staged bookmark file session expired.");
+				}
 				const html = await file.blob.text();
-				const { imported, truncated } = await importBookmarksHtml(html);
+				const { imported, truncated } = await importBookmarksHtml(
+					html,
+					file.owner,
+				);
 				const baseMsg =
 					imported === 1
 						? "Imported 1 bookmark."
@@ -119,11 +125,10 @@ const Page = () => {
 		typeof chrome !== "undefined" && chrome.runtime?.id
 			? chrome.runtime.id
 			: "";
-	const OFFICIAL_EXTENSION_ID = "jbmjjboeppfcjblnbiiaicoakpabghom";
 	const installCommand =
-		extensionId === "" || extensionId === OFFICIAL_EXTENSION_ID
-			? "npx -y little-later-mcp install"
-			: `npx -y little-later-mcp install ${extensionId}`;
+		extensionId !== ""
+			? `npx -y little-later-mcp install ${extensionId}`
+			: "npx -y little-later-mcp install";
 	const mcpClientConfig = JSON.stringify(
 		{
 			mcpServers: {

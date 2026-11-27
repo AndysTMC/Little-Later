@@ -125,25 +125,24 @@ export const profileUnlock = defineCommand({
 		};
 	},
 	run: async (ctx, input) => {
+		// Enforce "When profile locks" and age-based chat retention before
+		// publishing the unlocked session so subscribed views (such as Little
+		// AI's side panel) can never observe expired history from prior sessions.
 		await unlockProfile(
 			ctx.db,
 			ctx.session,
 			input.profileId,
 			input.password,
 			toFactor(input.factor),
+			{
+				beforePublish: async (keys) => {
+					await enforceChatRetention(ctx.db, keys, {
+						onLock: true,
+						now: ctx.now(),
+					});
+				},
+			},
 		);
-		// A browser restart clears chrome.storage.session without firing
-		// profile.lock; enforce "When profile locks" and age-based retention
-		// immediately on unlock for chats left over from prior sessions.
-		try {
-			const keys = await ctx.keys();
-			await enforceChatRetention(ctx.db, keys, {
-				onLock: true,
-				now: ctx.now(),
-			});
-		} catch {
-			// Never block unlocking if chat retention cleanup fails.
-		}
 		// Unlock is the other moment 0012 sweeps leftovers (Messaging).
 		await ctx.staging.sweep(
 			ctx.now() - STAGED_FILE_MAX_AGE,

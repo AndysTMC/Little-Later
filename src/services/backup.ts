@@ -21,6 +21,7 @@ import {
 import { littleDB } from "../storage/pageDB";
 import {
 	getSettings,
+	listNotes,
 	type ChatContent,
 	type ChatMessageContent,
 	type ImageContent,
@@ -383,6 +384,20 @@ export type BackupExportOptions = {
 	// locked notes, so an unlocked session alone cannot re-wrap locked notes
 	// under a newly chosen backup password.
 	profilePassword?: string;
+};
+
+/**
+ * Returns true when creating an encrypted backup for `keys` requires
+ * re-verifying the current profile password (password-protected profile with
+ * at least one locked note).
+ */
+export const backupNeedsProfilePassword = async (
+	keys: ProfileKeys,
+): Promise<boolean> => {
+	const profile = await littleDB.profiles.get(keys.profileId);
+	if (profile?.protection !== "password") return false;
+	const notes = await listNotes(littleDB, keys);
+	return notes.some((note) => note.locked);
 };
 
 // The unlocked profile as an importable backup. Passing kdf lets tests use

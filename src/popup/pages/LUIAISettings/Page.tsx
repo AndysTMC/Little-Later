@@ -152,20 +152,21 @@ const Page = () => {
 	const [presetName, setPresetName] = useState("");
 	const isDark = theme === LTHEME.DARK;
 
-	const savedProvider = userSettings?.ai.provider;
-	const savedBaseUrl = userSettings?.ai.baseUrl;
-	const savedApiKey = userSettings?.ai.apiKey;
+	const effectiveProvider = aiSettings?.provider;
+	const effectiveBaseUrl = aiSettings?.baseUrl;
+	const effectiveApiKey = aiSettings?.apiKey;
 	useEffect(() => {
-		if (savedProvider === undefined || savedApiKey === undefined) return;
-		if (
-			savedProvider === LAI_PROVIDERS.CUSTOM &&
-			savedApiKey.trim() !== ""
-		) {
-			keyOriginRef.current = urlOrigin(savedBaseUrl ?? "");
-		} else if (savedApiKey.trim() === "") {
+		if (effectiveProvider === undefined || effectiveApiKey === undefined)
+			return;
+		if (effectiveApiKey.trim() === "") {
 			keyOriginRef.current = null;
+		} else if (
+			effectiveProvider === LAI_PROVIDERS.CUSTOM &&
+			keyOriginRef.current === null
+		) {
+			keyOriginRef.current = urlOrigin(effectiveBaseUrl ?? "");
 		}
-	}, [savedProvider, savedBaseUrl, savedApiKey]);
+	}, [effectiveProvider, effectiveBaseUrl, effectiveApiKey]);
 
 	const withEndpoint = (
 		prev: LAISettings,
@@ -174,7 +175,11 @@ const Page = () => {
 	): LAISettings => {
 		const nextOrigin =
 			provider === LAI_PROVIDERS.CUSTOM ? urlOrigin(baseUrl) : null;
-		const boundOrigin = keyOriginRef.current;
+		const boundOrigin =
+			keyOriginRef.current ??
+			(prev.provider === LAI_PROVIDERS.CUSTOM && prev.apiKey.trim() !== ""
+				? urlOrigin(prev.baseUrl)
+				: null);
 		const originChanged =
 			prev.apiKey !== "" &&
 			(provider !== LAI_PROVIDERS.CUSTOM ||
