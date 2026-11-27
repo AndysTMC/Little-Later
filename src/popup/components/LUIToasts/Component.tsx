@@ -24,7 +24,7 @@ const Component = () => {
 	useEffect(() => {
 		const baseDelay = 3000;
 		const stagger = 900;
-		const exitDuration = 160;
+		const exitDuration = 200;
 
 		const list = [...toasts];
 

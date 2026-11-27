@@ -56,7 +56,7 @@ const Component = ({
 			<div
 				role="tablist"
 				aria-label="Home features"
-				className={`flex h-9 w-full items-center gap-x-1 rounded-xl border p-1 ${
+				className={`flex h-9 w-full items-center gap-x-1 overflow-hidden rounded-xl border p-1 ${
 					isDark
 						? "border-neutral-800 bg-neutral-900"
 						: "border-neutral-200 bg-neutral-100"
@@ -82,7 +82,7 @@ const Component = ({
 								role="tab"
 								aria-selected={isActive}
 								aria-label={tab.label}
-								className={`flex h-full cursor-pointer items-center justify-center gap-x-1.5 rounded-lg transition-all duration-150 active:scale-95 ${
+								className={`flex h-full cursor-pointer items-center justify-center gap-x-1.5 rounded-lg transition-[color,background-color,transform] duration-200 active:scale-95 ${
 									isActive
 										? "ll-accent-fill w-full min-w-0 px-2.5 min-[380px]:px-3"
 										: `w-9 shrink-0 min-[380px]:w-12 ${
