@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { MOTION } from "../../../route-transitions";
 import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { send } from "../../../utils/send";
@@ -61,6 +62,7 @@ const Page = () => {
 					className={`flex h-full w-full flex-col overflow-y-hidden`}
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
+					transition={MOTION.reveal}
 				>
 					<LUIBasicNav navigateTo="/home" move="into" />
 					{savedUP ? (

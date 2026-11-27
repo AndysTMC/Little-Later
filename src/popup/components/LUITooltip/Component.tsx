@@ -15,8 +15,8 @@ import { useTheme } from "../../hooks/useTheme";
 /** Default hover intent delay (ms) so casual cursor sweeps never trigger tooltip noise. */
 export const TOOLTIP_OPEN_DELAY_MS = 350;
 
-/** Brief close grace period (ms) to absorb minor pointer jitter. */
-export const TOOLTIP_CLOSE_DELAY_MS = 80;
+/** Brief close grace period (ms) allowing pointer travel from trigger to tooltip. */
+export const TOOLTIP_CLOSE_DELAY_MS = 120;
 
 const VIEWPORT_MARGIN_PX = 8;
 const ANCHOR_OFFSET_PX = 6;
@@ -26,18 +26,21 @@ const INTERACTIVE_SELECTOR =
 export type TooltipPlacement = "top" | "bottom";
 
 /**
- * Accessible, viewport-safe tooltip primitive (docs/design.md, Tooltips).
+ * Accessible, WCAG 2.2-compliant, viewport-safe tooltip primitive
+ * (docs/design.md, Notes, toasts, tooltips & primitives).
  *
  * Interaction design:
+ * - Always keeps the trigger mounted in a stable wrapper span, even when
+ *   `disabled` toggles, so keyboard focus is never lost.
  * - Hover opens after `delayMs` (default 350ms) so pointer sweeps stay calm.
- * - Keyboard focus opens immediately so keyboard and screen-reader users get
- *   instant feedback without waiting.
- * - Pointer press, click, Escape, scroll, or blur dismiss immediately.
+ * - Keyboard focus opens immediately and persists even if the pointer moves
+ *   away while focus stays on the trigger.
+ * - Hoverable: moving the pointer from the trigger onto the tooltip keeps it
+ *   visible without flickering.
+ * - Dismissable: Escape, pointer press, blur (when not hovered), scroll, or
+ *   leaving both trigger and tooltip close it cleanly.
  * - Portal-rendered in `document.body` and clamped to viewport edges so cards
  *   and narrow side panels (~320px) never clip the label.
- * - Works on both interactive and `disabled` buttons via its lightweight
- *   wrapper span, while linking `aria-describedby` directly to the inner
- *   control when visible.
  */
 const Component = ({
 	content,
@@ -58,7 +61,7 @@ const Component = ({
 	placement?: TooltipPlacement;
 	/** Hover open delay in milliseconds. Defaults to 350ms. */
 	delayMs?: number;
-	/** Suppresses the tooltip completely (e.g. when a label is already visible). */
+	/** Suppresses the tooltip without unmounting the trigger. */
 	disabled?: boolean;
 	/** Optional class names merged onto the inline-flex trigger wrapper. */
 	triggerClassName?: string;
@@ -76,6 +79,9 @@ const Component = ({
 	const tooltipRef = useRef<HTMLDivElement | null>(null);
 	const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const hoveredTriggerRef = useRef(false);
+	const hoveredTooltipRef = useRef(false);
+	const focusedRef = useRef(false);
 
 	const clearTimers = useCallback(() => {
 		if (openTimerRef.current !== null) {
@@ -93,8 +99,11 @@ const Component = ({
 		setOpen(false);
 	}, [clearTimers]);
 
+	const isSuppressed = disabled || content.trim() === "";
+
 	const scheduleOpen = useCallback(
 		(immediate: boolean) => {
+			if (isSuppressed) return;
 			clearTimers();
 			if (immediate || delayMs <= 0) {
 				setOpen(true);
@@ -102,23 +111,40 @@ const Component = ({
 			}
 			openTimerRef.current = setTimeout(() => {
 				openTimerRef.current = null;
-				if (wrapperRef.current?.isConnected) {
+				if (
+					wrapperRef.current?.isConnected &&
+					(hoveredTriggerRef.current ||
+						hoveredTooltipRef.current ||
+						focusedRef.current)
+				) {
 					setOpen(true);
 				}
 			}, delayMs);
 		},
-		[clearTimers, delayMs],
+		[clearTimers, delayMs, isSuppressed],
 	);
 
 	const scheduleClose = useCallback(() => {
+		if (
+			hoveredTriggerRef.current ||
+			hoveredTooltipRef.current ||
+			focusedRef.current
+		) {
+			return;
+		}
 		clearTimers();
 		closeTimerRef.current = setTimeout(() => {
 			closeTimerRef.current = null;
-			setOpen(false);
+			if (
+				!hoveredTriggerRef.current &&
+				!hoveredTooltipRef.current &&
+				!focusedRef.current
+			) {
+				setOpen(false);
+			}
 		}, TOOLTIP_CLOSE_DELAY_MS);
 	}, [clearTimers]);
 
-	const isSuppressed = disabled || content.trim() === "";
 	const isVisible = open && !isSuppressed;
 
 	useEffect(() => {
@@ -226,15 +252,34 @@ const Component = ({
 		tip.style.opacity = "1";
 	}, [isVisible, placement, content, shortcut]);
 
-	if (isSuppressed) {
-		return <>{children}</>;
-	}
-
-	const handleMouseEnter = () => {
+	const handleTriggerMouseEnter = () => {
+		hoveredTriggerRef.current = true;
 		scheduleOpen(false);
 	};
-	const handleFocus = () => {
+	const handleTriggerMouseLeave = () => {
+		hoveredTriggerRef.current = false;
+		scheduleClose();
+	};
+	const handleTriggerFocus = () => {
+		focusedRef.current = true;
 		scheduleOpen(true);
+	};
+	const handleTriggerBlur = () => {
+		focusedRef.current = false;
+		if (!hoveredTriggerRef.current && !hoveredTooltipRef.current) {
+			hideImmediately();
+		}
+	};
+	const handleTriggerPointerDown = () => {
+		hideImmediately();
+	};
+	const handleTooltipMouseEnter = () => {
+		hoveredTooltipRef.current = true;
+		clearTimers();
+	};
+	const handleTooltipMouseLeave = () => {
+		hoveredTooltipRef.current = false;
+		scheduleClose();
 	};
 
 	const portal =
@@ -245,8 +290,10 @@ const Component = ({
 						id={tooltipId}
 						role="tooltip"
 						style={{ opacity: 0, top: 0, left: 0 }}
+						onMouseEnter={handleTooltipMouseEnter}
+						onMouseLeave={handleTooltipMouseLeave}
 						className={twMerge(
-							`pointer-events-none fixed z-50 flex max-w-56 items-center gap-x-1.5 rounded-lg border px-2 py-1 text-[11px] leading-tight font-medium shadow-lg transition-opacity duration-150 ${
+							`pointer-events-auto fixed z-50 flex max-w-56 items-center gap-x-1.5 rounded-lg border px-2 py-1 text-[11px] leading-tight font-medium shadow-lg transition-opacity duration-150 ${
 								isDark
 									? "border-neutral-700 bg-neutral-800 text-neutral-100"
 									: "border-neutral-800 bg-neutral-900 text-white"
@@ -280,12 +327,12 @@ const Component = ({
 					"inline-flex items-center",
 					triggerClassName,
 				)}
-				onMouseEnter={handleMouseEnter}
-				onMouseLeave={scheduleClose}
-				onFocus={handleFocus}
-				onBlur={hideImmediately}
-				onPointerDown={hideImmediately}
-				onClick={hideImmediately}
+				onMouseEnter={handleTriggerMouseEnter}
+				onMouseLeave={handleTriggerMouseLeave}
+				onFocus={handleTriggerFocus}
+				onBlur={handleTriggerBlur}
+				onPointerDown={handleTriggerPointerDown}
+				onClick={handleTriggerPointerDown}
 			>
 				{children}
 			</span>

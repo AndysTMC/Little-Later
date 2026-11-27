@@ -26,6 +26,7 @@ import type { LinkRow } from "../../../storage/schema";
 import { linkedFrom, linkedTo, reminderKind } from "../../records";
 import { prettyDate, prettyRule } from "../../../utils/dates";
 import { send } from "../../../utils/send";
+import { MOTION } from "../../../route-transitions";
 
 const Component = ({
 	className,
@@ -286,7 +287,7 @@ const Component = ({
 						initial={{ opacity: 0, height: 0 }}
 						animate={{ opacity: 1, height: "auto" }}
 						exit={{ opacity: 0, height: 0 }}
-						transition={{ duration: 0.16, ease: "easeOut" }}
+						transition={MOTION.drawer}
 						className="overflow-hidden"
 					>
 						<div

@@ -70,7 +70,11 @@ const Component = ({
 							content={tab.label}
 							placement="bottom"
 							disabled={isActive}
-							triggerClassName="h-full shrink-0"
+							triggerClassName={
+								isActive
+									? "h-full min-w-0 grow"
+									: "h-full shrink-0"
+							}
 							triggerRole="none"
 						>
 							<button
@@ -80,7 +84,7 @@ const Component = ({
 								aria-label={tab.label}
 								className={`flex h-full cursor-pointer items-center justify-center gap-x-1.5 rounded-lg transition-all duration-150 active:scale-95 ${
 									isActive
-										? "ll-accent-fill min-w-0 grow px-2.5 min-[380px]:px-3"
+										? "ll-accent-fill w-full min-w-0 px-2.5 min-[380px]:px-3"
 										: `w-9 shrink-0 min-[380px]:w-12 ${
 												isDark
 													? "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"

@@ -23,6 +23,7 @@ import { useUserAvatar } from "../../../hooks/useUserAvatar";
 import { useObjectUrl } from "../../../hooks/useObjectUrl";
 import { isAISettingsConfigured } from "../../../../services/ai/config";
 import { useSidePanelMode } from "../../../hooks/useSidePanelMode";
+import { MOTION } from "../../../../route-transitions";
 
 const Component = ({
 	className,
@@ -202,18 +203,18 @@ const Component = ({
 									? "border-neutral-800 bg-neutral-900"
 									: "border-neutral-200 bg-white"
 							}`}
-							initial={{ opacity: 0, y: -6, scale: 0.98 }}
+							initial={{ opacity: 0, y: -4, scale: 0.98 }}
 							animate={{
 								opacity: 1,
 								y: 0,
 								scale: 1,
+								transition: MOTION.popover,
 							}}
-							transition={{ duration: 0.14 }}
 							exit={{
 								opacity: 0,
-								y: -6,
+								y: -4,
 								scale: 0.98,
-								transition: { duration: 0.1 },
+								transition: MOTION.popoverExit,
 							}}
 						>
 							<LUIHMNavMenuOption

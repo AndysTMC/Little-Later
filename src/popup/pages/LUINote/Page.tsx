@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { MOTION } from "../../../route-transitions";
 import { useParams } from "react-router";
 import { useMemo, useState } from "react";
 import { LockIcon, PasswordIcon } from "@phosphor-icons/react";
@@ -171,6 +172,7 @@ const Page = () => {
 					className="flex h-full min-h-0 w-full flex-col overflow-y-hidden"
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
+					transition={MOTION.reveal}
 				>
 					<LUIBasicNav navigateTo="/home" />
 					{!note ? (

@@ -43,6 +43,7 @@ import { LUIEmptyState } from "../LUIEmptyState/Component";
 import { LUIPillButton } from "../LUIPillButton/Component";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { useDraft } from "../../hooks/useDraft";
+import { MOTION } from "../../../route-transitions";
 
 type SearchResult = {
 	noOfMatches: number;
@@ -239,15 +240,22 @@ const Component = ({ className }: { className?: string }) => {
 				/>
 			</div>
 
-			<AnimatePresence mode="wait">
+			<AnimatePresence mode="wait" initial={false}>
 				{isSearchFocused && searchQuery !== "" ? (
 					<motion.div
 						key="search"
 						className={`flex min-h-0 w-full grow flex-col gap-y-1 overflow-y-hidden ${theme}-scrollbar`}
-						initial={{ opacity: 0, y: -10 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: -10 }}
-						transition={{ duration: 0.2 }}
+						initial={{ opacity: 0, y: -6 }}
+						animate={{
+							opacity: 1,
+							y: 0,
+							transition: MOTION.tab,
+						}}
+						exit={{
+							opacity: 0,
+							y: -6,
+							transition: MOTION.tabExit,
+						}}
 					>
 						{paginationSearchResults.length > 0 ? (
 							<div className="flex min-h-0 w-full grow flex-col gap-y-1 overflow-y-hidden">
@@ -409,10 +417,17 @@ const Component = ({ className }: { className?: string }) => {
 					<motion.div
 						key="main"
 						className="flex w-full grow flex-col gap-y-1 overflow-y-hidden"
-						initial={{ opacity: 0, y: -10 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: -10 }}
-						transition={{ duration: 0.2 }}
+						initial={{ opacity: 0, y: -6 }}
+						animate={{
+							opacity: 1,
+							y: 0,
+							transition: MOTION.tab,
+						}}
+						exit={{
+							opacity: 0,
+							y: -6,
+							transition: MOTION.tabExit,
+						}}
 					>
 						<div className="mx-auto w-full max-w-3xl">
 							<LUIHomeMainFeatureMenu
@@ -422,7 +437,7 @@ const Component = ({ className }: { className?: string }) => {
 						</div>
 						{isReady ? (
 							<div className="w-full grow overflow-y-hidden">
-								<AnimatePresence mode="wait">
+								<AnimatePresence mode="wait" initial={false}>
 									{currentContent ===
 										LHOME_MAIN_CONTENT.SAVES && (
 										<motion.div
@@ -433,9 +448,14 @@ const Component = ({ className }: { className?: string }) => {
 													: "bg-white"
 											}`}
 											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0 }}
-											transition={{ duration: 0.2 }}
+											animate={{
+												opacity: 1,
+												transition: MOTION.tab,
+											}}
+											exit={{
+												opacity: 0,
+												transition: MOTION.tabExit,
+											}}
 										>
 											<LUIVBMs
 												links={links}
@@ -457,9 +477,14 @@ const Component = ({ className }: { className?: string }) => {
 													: "bg-white"
 											}`}
 											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0 }}
-											transition={{ duration: 0.2 }}
+											animate={{
+												opacity: 1,
+												transition: MOTION.tab,
+											}}
+											exit={{
+												opacity: 0,
+												transition: MOTION.tabExit,
+											}}
 										>
 											<LUITasks
 												links={links}
@@ -480,9 +505,14 @@ const Component = ({ className }: { className?: string }) => {
 													: "bg-white"
 											}`}
 											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0 }}
-											transition={{ duration: 0.2 }}
+											animate={{
+												opacity: 1,
+												transition: MOTION.tab,
+											}}
+											exit={{
+												opacity: 0,
+												transition: MOTION.tabExit,
+											}}
 										>
 											<LUIReminders
 												links={links}
@@ -503,9 +533,14 @@ const Component = ({ className }: { className?: string }) => {
 													: "bg-white"
 											}`}
 											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0 }}
-											transition={{ duration: 0.2 }}
+											animate={{
+												opacity: 1,
+												transition: MOTION.tab,
+											}}
+											exit={{
+												opacity: 0,
+												transition: MOTION.tabExit,
+											}}
 										>
 											<LUINotes
 												notes={unlinkedNotes}
@@ -523,9 +558,14 @@ const Component = ({ className }: { className?: string }) => {
 													: "bg-white"
 											}`}
 											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											exit={{ opacity: 0 }}
-											transition={{ duration: 0.2 }}
+											animate={{
+												opacity: 1,
+												transition: MOTION.tab,
+											}}
+											exit={{
+												opacity: 0,
+												transition: MOTION.tabExit,
+											}}
 										>
 											<LUIImages
 												images={images}

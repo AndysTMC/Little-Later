@@ -78,7 +78,7 @@ The button blocks a second press while its action runs and shows a spinner when 
 ## Notes, toasts, tooltips & primitives
 
 - `LUINote`: an icon and quiet italic text below the rows or form it explains. A warning uses the warning icon and `role="alert"`.
-- `LUITooltip`: portal-rendered, viewport-clamped tooltip (`role="tooltip"` + `aria-describedby`). Appears only on icon-only, collapsed, or disabled controls where a short hint prevents confusion without clutter (never redundantly on buttons whose label is already visible). Opens after a `350ms` hover intent delay, opens immediately on keyboard focus, and dismisses immediately on pointer press, Escape, scroll, or blur.
+- `LUITooltip`: portal-rendered, viewport-clamped tooltip (`role="tooltip"` + `aria-describedby`). Appears only on icon-only, collapsed, or disabled controls where a short hint prevents confusion without clutter (never redundantly on buttons whose label is already visible). Opens after a `350ms` hover intent delay, opens immediately on keyboard focus, stays open while hovered or focused (WCAG 2.2), keeps a stable trigger mount across disabled-state transitions so keyboard focus is never dropped, and dismisses immediately on pointer press, Escape, scroll, or blur.
 - `LUIBadge`: standardized `rounded-full` status/metadata chip (`neutral`, `accent`, `muted`, `danger` tones; `xs` and `sm` sizes; optional leading icon).
 - `LUISectionHeader`: standardized section title with optional description and right-aligned action or count slot.
 - Toasts (`LUIToast`): responsive `w-[min(22rem,calc(100vw-2rem))] rounded-xl border shadow-lg` with semantic icon tint.
@@ -94,7 +94,7 @@ The button blocks a second press while its action runs and shows a spinner when 
 
 - Fields and dropdowns show focus as one accent ring on their own edge; buttons, rows and swatches show it outside their edge; the text caret is the accent.
 - Interactive icon controls and pills use `150ms` transitions and subtle tactile press feedback (`active:scale-95`).
-- Navigation carries directional moves (`src/route-transitions.ts`); card drawers expand smoothly (`160ms`); all transitions and animations respect `prefers-reduced-motion`.
+- Navigation carries symmetric directional moves (`src/route-transitions.ts`: `170ms` quint-out enter, `110ms` brisk exit, `±24px` slide or `0.96 ↔ 1.04` zoom); tabs, card drawers, popovers, sheets, content reveals, and toasts share the centralized `MOTION` timing tokens so motion feels smooth, snappy, and consistent across both the extension and LittleAI. All transitions and animations respect `prefers-reduced-motion`.
 
 ## LittleAI
 

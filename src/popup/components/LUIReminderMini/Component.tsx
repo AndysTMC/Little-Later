@@ -20,6 +20,7 @@ import { LUIBadge } from "../LUIBadge/Component";
 import { LUIPillButton } from "../LUIPillButton/Component";
 import { LUITagChips } from "../LUITagChips/Component";
 import { LUITooltip } from "../LUITooltip/Component";
+import { MOTION } from "../../../route-transitions";
 
 const Component = ({
 	className,
@@ -200,7 +201,7 @@ const Component = ({
 						initial={{ opacity: 0, height: 0 }}
 						animate={{ opacity: 1, height: "auto" }}
 						exit={{ opacity: 0, height: 0 }}
-						transition={{ duration: 0.16, ease: "easeOut" }}
+						transition={MOTION.drawer}
 					>
 						<div
 							className={`flex flex-col gap-y-2.5 border-t px-3 pt-2.5 pb-3 ${

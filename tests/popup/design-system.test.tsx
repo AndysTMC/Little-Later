@@ -135,7 +135,9 @@ describe("Design system primitives", () => {
 		expect(onClick).toHaveBeenCalledTimes(1);
 		expect(document.querySelector('[role="tooltip"]')).toBeNull();
 
-		// Disabled suppresses tooltip completely.
+		// Disabled suppresses tooltip without unmounting the trigger or dropping focus.
+		button.focus();
+		expect(document.activeElement).toBe(button);
 		act(() => {
 			root.render(
 				<ThemeContext.Provider value={themeValue}>
@@ -145,10 +147,68 @@ describe("Design system primitives", () => {
 				</ThemeContext.Provider>,
 			);
 		});
+		expect(container.querySelector("button")).toBe(button);
+		expect(document.activeElement).toBe(button);
 		act(() => {
-			container
-				.querySelector("button")!
-				.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+			button.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+		});
+		expect(document.querySelector('[role="tooltip"]')).toBeNull();
+	});
+
+	it("LUITooltip stays visible when hovering the tooltip itself or leaving a focused trigger (WCAG 2.2)", () => {
+		vi.useFakeTimers();
+		act(() => {
+			root.render(
+				<ThemeContext.Provider value={themeValue}>
+					<LUITooltip content="Profile & settings">
+						<button type="button">Profile</button>
+					</LUITooltip>
+				</ThemeContext.Provider>,
+			);
+		});
+
+		const button = container.querySelector("button")!;
+		// Hover trigger past delay to show tooltip.
+		act(() => {
+			button.dispatchEvent(
+				new MouseEvent("mouseover", { bubbles: true }),
+			);
+			vi.advanceTimersByTime(TOOLTIP_OPEN_DELAY_MS);
+		});
+		const tip = document.querySelector<HTMLElement>('[role="tooltip"]')!;
+		expect(tip).toBeTruthy();
+
+		// Moving pointer off trigger onto the tooltip keeps it open past close delay.
+		act(() => {
+			button.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+			tip.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+			vi.advanceTimersByTime(TOOLTIP_CLOSE_DELAY_MS + 100);
+		});
+		expect(document.querySelector('[role="tooltip"]')).toBeTruthy();
+
+		// Leaving the tooltip closes it.
+		act(() => {
+			tip.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+			vi.advanceTimersByTime(TOOLTIP_CLOSE_DELAY_MS);
+		});
+		expect(document.querySelector('[role="tooltip"]')).toBeNull();
+
+		// Focus opens tooltip; pointer leaving the focused trigger must NOT hide it.
+		act(() => {
+			button.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+			button.dispatchEvent(
+				new MouseEvent("mouseover", { bubbles: true }),
+			);
+			button.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+			vi.advanceTimersByTime(TOOLTIP_CLOSE_DELAY_MS + 100);
+		});
+		expect(document.querySelector('[role="tooltip"]')).toBeTruthy();
+
+		// Escape still dismisses even while focused.
+		act(() => {
+			window.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Escape" }),
+			);
 		});
 		expect(document.querySelector('[role="tooltip"]')).toBeNull();
 	});
