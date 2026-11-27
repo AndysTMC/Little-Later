@@ -91,15 +91,16 @@ test("custom provider edits and a long API key survive immediate navigation", as
 		await button(page, "Open profile menu").click();
 		await button(page, "Settings").click();
 		await button(page, "AI").click();
+		await button(page, /Provider & Model/).click();
 		const key = "test-value-" + "0123456789".repeat(280);
-		const apiKey = page.getByPlaceholder("API Key (Custom provider only)", {
+		const apiKey = page.getByPlaceholder("API Key (optional)", {
 			exact: true,
 		});
 		await page.getByPlaceholder("Model", { exact: true }).fill("after");
 		await apiKey.fill(key);
 		await button(page, "Go back").click();
-		await expect(page).toHaveURL(/#\/settings$/);
-		await button(page, "AI").click();
+		await expect(page).toHaveURL(/#\/settings\/ai$/);
+		await button(page, /Provider & Model/).click();
 		await expect(apiKey).toHaveValue(key);
 		await expect(
 			page.getByPlaceholder("Model", { exact: true }),
@@ -107,9 +108,9 @@ test("custom provider edits and a long API key survive immediate navigation", as
 		expect(provider.requests).toHaveLength(0);
 		await page.close();
 		const restored = await openPopup("/");
-		await expect(restored).toHaveURL(/#\/settings\/ai$/);
+		await expect(restored).toHaveURL(/#\/settings\/ai\/provider$/);
 		await expect(
-			restored.getByPlaceholder("API Key (Custom provider only)", {
+			restored.getByPlaceholder("API Key (optional)", {
 				exact: true,
 			}),
 		).toHaveValue(key);
@@ -130,6 +131,7 @@ test("typing a custom URL sends nothing until Load models is pressed", async ({
 		await button(page, "Open profile menu").click();
 		await button(page, "Settings").click();
 		await button(page, "AI").click();
+		await button(page, /Provider & Model/).click();
 		await page.clock.install();
 		const base = page.getByLabel("Base URL");
 		await base.fill(provider.url);

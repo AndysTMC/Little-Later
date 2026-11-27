@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { usePageMotion } from "../../hooks/usePageMove";
 import { LTHEME } from "little-shared/enums";
 import { motion } from "framer-motion";
+import { MOTION } from "../../../route-transitions";
 import { useTheme } from "../../hooks/useTheme";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
 import { LUIReminderForm } from "../../components/LUIReminderForm/Component";
@@ -47,6 +48,7 @@ const Page = () => {
 					className={`flex h-full w-full flex-col overflow-y-hidden`}
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
+					transition={MOTION.reveal}
 				>
 					<LUIBasicNav navigateTo="/home" />
 					{reminder ? (

@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { MOTION } from "../../../route-transitions";
 import { LTHEME } from "little-shared/enums";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react";
 import { useTheme } from "../../hooks/useTheme";
@@ -58,7 +59,7 @@ const Component = ({ className }: { className?: string }) => {
 								initial={{ opacity: 0 }}
 								animate={{ opacity: 1 }}
 								exit={{ opacity: 0 }}
-								transition={{ duration: 0.2 }}
+								transition={MOTION.reveal}
 							>
 								{/* Room for the page controls even before there is a
 							    second page: appearing later, they pushed the

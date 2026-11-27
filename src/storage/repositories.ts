@@ -529,6 +529,7 @@ export const listChats = async (
 	db: LittleDB,
 	keys: ProfileKeys,
 ): Promise<Array<Chat>> => {
+	if (keys.chatHistoryBlocked) return [];
 	const [from, to] = ownedBy(keys.profileId);
 	const rows = await db.chats
 		.where("[profileId+updatedAt]")
@@ -544,6 +545,7 @@ export const listChatMessages = async (
 	keys: ProfileKeys,
 	chatId: string,
 ): Promise<Array<ChatMessage>> => {
+	if (keys.chatHistoryBlocked) return [];
 	const rows = await db.chatMessages
 		.where("[chatId+createdAt]")
 		.between([chatId, Dexie.minKey], [chatId, Dexie.maxKey])
@@ -560,6 +562,9 @@ export const listLatestChatMessages = async (
 	chatId: string,
 	count: number,
 ): Promise<{ messages: Array<ChatMessage>; hasEarlier: boolean }> => {
+	if (keys.chatHistoryBlocked) {
+		return { messages: [], hasEarlier: false };
+	}
 	const rows = await db.chatMessages
 		.where("[chatId+createdAt]")
 		.between([chatId, Dexie.minKey], [chatId, Dexie.maxKey])

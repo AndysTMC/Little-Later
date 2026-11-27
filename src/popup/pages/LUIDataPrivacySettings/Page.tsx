@@ -62,7 +62,9 @@ const Page = () => {
 	const go = useMoveNavigate();
 	const userSettings = useCurrentUserSettings();
 	const loading = useLoading([userSettings]);
-	const pickedBookmarks = usePickedFile(BOOKMARKS_PICK_SLOT);
+	const pickedBookmarks = usePickedFile(BOOKMARKS_PICK_SLOT, {
+		sensitive: true,
+	});
 	const importingRef = useRef(false);
 	const [importingBookmarks, setImportingBookmarks] = useState(false);
 	const [ignoreInput, setIgnoreInput] = useState("");
@@ -86,8 +88,14 @@ const Page = () => {
 		const file = pickedBookmarks.files[0]!;
 		void (async () => {
 			try {
+				if (!file.owner) {
+					throw new Error("Staged bookmark file session expired.");
+				}
 				const html = await file.blob.text();
-				const { imported, truncated } = await importBookmarksHtml(html);
+				const { imported, truncated } = await importBookmarksHtml(
+					html,
+					file.owner,
+				);
 				const baseMsg =
 					imported === 1
 						? "Imported 1 bookmark."
@@ -117,11 +125,10 @@ const Page = () => {
 		typeof chrome !== "undefined" && chrome.runtime?.id
 			? chrome.runtime.id
 			: "";
-	const OFFICIAL_EXTENSION_ID = "nchfnpignmgklabjemdobnanfickfbhl";
 	const installCommand =
-		extensionId === "" || extensionId === OFFICIAL_EXTENSION_ID
-			? "npx -y little-later-mcp install"
-			: `npx -y little-later-mcp install ${extensionId}`;
+		extensionId !== ""
+			? `npx -y little-later-mcp install ${extensionId}`
+			: "npx -y little-later-mcp install";
 	const mcpClientConfig = JSON.stringify(
 		{
 			mcpServers: {
@@ -288,6 +295,7 @@ const Page = () => {
 													maxFiles: 1,
 													pasteHint:
 														"Drop or paste a bookmarks.html file",
+													sensitive: true,
 												},
 												BOOKMARKS_PICK_SLOT,
 												"/settings/privacy",
@@ -460,6 +468,89 @@ const Page = () => {
 									}, "Couldn't update external MCP access.");
 								}}
 							/>
+							{(misc.externalMcpMode ?? "off") !== "off" ? (
+								<div className="flex flex-col gap-y-2 py-1">
+									<label className="flex cursor-pointer items-center justify-between gap-x-3 text-xs">
+										<span
+											className={
+												isDark
+													? "text-neutral-300"
+													: "text-neutral-700"
+											}
+										>
+											Include browsing history
+										</span>
+										<input
+											type="checkbox"
+											checked={Boolean(
+												misc.externalMcpAllowHistory,
+											)}
+											onChange={(event) => {
+												if (!userSettings) return;
+												const checked =
+													event.target.checked;
+												void attempt(
+													() =>
+														send(
+															"settings.update",
+															{
+																misc: {
+																	...userSettings.misc,
+																	externalMcpAllowHistory:
+																		checked ||
+																		undefined,
+																},
+															},
+														),
+													"Couldn't update external MCP history access.",
+												);
+											}}
+											className="size-4 cursor-pointer accent-[var(--ll-accent)]"
+										/>
+									</label>
+									{(misc.externalMcpMode ?? "off") ===
+									"write" ? (
+										<label className="flex cursor-pointer items-center justify-between gap-x-3 text-xs">
+											<span
+												className={
+													isDark
+														? "text-neutral-300"
+														: "text-neutral-700"
+												}
+											>
+												Allow permanent deletions
+											</span>
+											<input
+												type="checkbox"
+												checked={Boolean(
+													misc.externalMcpAllowDelete,
+												)}
+												onChange={(event) => {
+													if (!userSettings) return;
+													const checked =
+														event.target.checked;
+													void attempt(
+														() =>
+															send(
+																"settings.update",
+																{
+																	misc: {
+																		...userSettings.misc,
+																		externalMcpAllowDelete:
+																			checked ||
+																			undefined,
+																	},
+																},
+															),
+														"Couldn't update external MCP delete access.",
+													);
+												}}
+												className="size-4 cursor-pointer accent-[var(--ll-accent)]"
+											/>
+										</label>
+									) : null}
+								</div>
+							) : null}
 							{(misc.externalMcpMode ?? "off") !== "off" ? (
 								<div
 									className={`flex flex-col gap-y-2.5 rounded-xl border p-3 select-text ${

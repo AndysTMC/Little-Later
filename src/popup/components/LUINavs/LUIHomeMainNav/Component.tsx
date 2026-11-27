@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { LUIHMNavMenuOption } from "../../LUIHMNavMenuOption/Component";
 import { LUIThemedIcon } from "../../LUIThemedIcon/Component";
+import { LUITooltip } from "../../LUITooltip/Component";
 import { useMoveNavigate } from "../../../hooks/usePageMove";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../../hooks/useTheme";
@@ -22,6 +23,7 @@ import { useUserAvatar } from "../../../hooks/useUserAvatar";
 import { useObjectUrl } from "../../../hooks/useObjectUrl";
 import { isAISettingsConfigured } from "../../../../services/ai/config";
 import { useSidePanelMode } from "../../../hooks/useSidePanelMode";
+import { MOTION } from "../../../../route-transitions";
 
 const Component = ({
 	className,
@@ -104,73 +106,88 @@ const Component = ({
 				className={`relative flex h-full grow items-center justify-end gap-x-2 pr-2`}
 			>
 				{isAISettingsConfigured(aiSettings) ? (
+					<LUITooltip content="Little AI" placement="bottom">
+						<button
+							type="button"
+							aria-label="Open Little AI"
+							className={`h-max w-max cursor-pointer rounded-full p-1 transition-all duration-150 active:scale-95 ${
+								theme === LTHEME.DARK
+									? "hover:bg-neutral-800"
+									: "hover:bg-neutral-200"
+							}`}
+							onClick={handleOpenAI}
+						>
+							<LUIThemedIcon
+								Icon={SparkleIcon}
+								weight="regular"
+								className="size-7"
+							/>
+						</button>
+					</LUITooltip>
+				) : null}
+				<LUITooltip
+					content={
+						theme === LTHEME.DARK ? "Light theme" : "Dark theme"
+					}
+					placement="bottom"
+				>
 					<button
 						type="button"
-						aria-label="Open Little AI"
-						className={`h-max w-max cursor-pointer rounded-full p-1 active:scale-90 ${
+						aria-label={
+							theme === LTHEME.DARK
+								? "Switch to light theme"
+								: "Switch to dark theme"
+						}
+						className={`h-max w-max transition-all duration-150 active:scale-95 ${
 							theme === LTHEME.DARK
 								? "hover:bg-neutral-800"
 								: "hover:bg-neutral-200"
-						}`}
-						onClick={handleOpenAI}
+						} cursor-pointer rounded-full p-1`}
+						onClick={toggleTheme}
 					>
 						<LUIThemedIcon
-							Icon={SparkleIcon}
-							weight="regular"
+							Icon={theme === LTHEME.DARK ? MoonIcon : SunDimIcon}
+							weight="fill"
 							className="size-7"
 						/>
 					</button>
-				) : null}
-				<button
-					type="button"
-					aria-label={
-						theme === LTHEME.DARK
-							? "Switch to light theme"
-							: "Switch to dark theme"
-					}
-					className={`h-max w-max ${
-						theme === LTHEME.DARK
-							? "hover:bg-neutral-800"
-							: "hover:bg-neutral-200"
-					} cursor-pointer rounded-full p-1`}
-					onClick={toggleTheme}
-				>
-					<LUIThemedIcon
-						Icon={theme === LTHEME.DARK ? MoonIcon : SunDimIcon}
-						weight="fill"
-						className="size-7"
-					/>
-				</button>
+				</LUITooltip>
 				<div className="relative h-max w-max">
-					<button
-						ref={toggleRef}
-						type="button"
-						aria-label="Open profile menu"
-						aria-expanded={isMenuOpen}
-						className={`h-max w-max rounded-full border-4 bg-transparent ${
-							isMenuOpen
-								? theme === LTHEME.DARK
-									? "border-neutral-700"
-									: "border-neutral-300"
-								: "border-transparent"
-						} cursor-pointer`}
-						onClick={toggleMenu}
+					<LUITooltip
+						content="Profile & settings"
+						placement="bottom"
+						disabled={isMenuOpen}
 					>
-						{avatarUrl ? (
-							<img
-								src={avatarUrl}
-								alt=""
-								className={`h-7 w-7 rounded-full object-cover`}
-								draggable="false"
-							/>
-						) : (
-							<LUIThemedIcon
-								Icon={UserCircleIcon}
-								weight="fill"
-								className="size-7"
-							/>
-						)}
-					</button>
+						<button
+							ref={toggleRef}
+							type="button"
+							aria-label="Open profile menu"
+							aria-expanded={isMenuOpen}
+							className={`h-max w-max rounded-full border-4 bg-transparent transition-all duration-150 active:scale-95 ${
+								isMenuOpen
+									? theme === LTHEME.DARK
+										? "border-neutral-700"
+										: "border-neutral-300"
+									: "border-transparent"
+							} cursor-pointer`}
+							onClick={toggleMenu}
+						>
+							{avatarUrl ? (
+								<img
+									src={avatarUrl}
+									alt=""
+									className={`h-7 w-7 rounded-full object-cover`}
+									draggable="false"
+								/>
+							) : (
+								<LUIThemedIcon
+									Icon={UserCircleIcon}
+									weight="fill"
+									className="size-7"
+								/>
+							)}
+						</button>
+					</LUITooltip>
 				</div>
 			</div>
 			<div
@@ -186,18 +203,18 @@ const Component = ({
 									? "border-neutral-800 bg-neutral-900"
 									: "border-neutral-200 bg-white"
 							}`}
-							initial={{ opacity: 0, y: -6, scale: 0.98 }}
+							initial={{ opacity: 0, y: -4, scale: 0.98 }}
 							animate={{
 								opacity: 1,
 								y: 0,
 								scale: 1,
+								transition: MOTION.popover,
 							}}
-							transition={{ duration: 0.14 }}
 							exit={{
 								opacity: 0,
-								y: -6,
+								y: -4,
 								scale: 0.98,
-								transition: { duration: 0.1 },
+								transition: MOTION.popoverExit,
 							}}
 						>
 							<LUIHMNavMenuOption

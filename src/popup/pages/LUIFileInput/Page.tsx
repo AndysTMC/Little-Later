@@ -15,6 +15,8 @@ import {
 	XIcon,
 } from "@phosphor-icons/react";
 import { LTHEME } from "little-shared/enums";
+import { importProfileKeys } from "../../../storage/keys";
+import { sessionStore } from "../../../storage/session";
 import { staging } from "../../../storage/staging";
 import { inToolbarPopup } from "../../ceremonyWindow";
 import { LUIBasicNav } from "../../components/LUINavs/LUIBasicNav/Component";
@@ -82,6 +84,33 @@ const Page = () => {
 		[pendingKey, setDraft, clearDraft],
 	);
 
+	// Drop any sensitive pending files staged under a previous unlock/profile.
+	useEffect(() => {
+		if (!rules?.sensitive || pending.length === 0) return;
+		let active = true;
+		void sessionStore.get().then(async (session) => {
+			if (!active) return;
+			const stale = pending.filter(
+				(item) =>
+					!session ||
+					!item.encrypted ||
+					item.profileId !== session.profileId ||
+					item.unlockId !== session.unlockId,
+			);
+			if (stale.length === 0) return;
+			const valid = pending.filter((item) => !stale.includes(item));
+			remember(valid);
+			await Promise.all(
+				stale.map((item) =>
+					staging.discard(item.file).catch(() => undefined),
+				),
+			);
+		});
+		return () => {
+			active = false;
+		};
+	}, [rules?.sensitive, pending, remember]);
+
 	const add = useCallback(
 		async (files: Array<File>, source: "paste" | "drop" | "browse") => {
 			if (!rules || slot === "" || workingRef.current) {
@@ -103,6 +132,26 @@ const Page = () => {
 			const problems: Array<string> = [];
 			let next = pending;
 			try {
+				let keys:
+					Awaited<ReturnType<typeof importProfileKeys>> | undefined;
+				let ownerMeta:
+					| { encrypted: true; profileId: string; unlockId: string }
+					| undefined;
+				if (rules.sensitive) {
+					const session = await sessionStore.get();
+					if (!session) {
+						setProblem(
+							"Unlock your profile before adding these files.",
+						);
+						return;
+					}
+					keys = await importProfileKeys(session);
+					ownerMeta = {
+						encrypted: true,
+						profileId: session.profileId,
+						unlockId: session.unlockId,
+					};
+				}
 				for (const file of files) {
 					const reason = pickProblem(rules, file);
 					if (reason) {
@@ -110,12 +159,13 @@ const Page = () => {
 						continue;
 					}
 					const picked: PickedFile = {
-						// Straight to disk: a large file is never all in
-						// memory.
-						file: await staging.putBlob(file),
+						// Sensitive uploads are sealed under the profile's
+						// asset key before touching OPFS (decision 0012).
+						file: await staging.putBlob(file, keys),
 						type: file.type,
 						name: file.name || "Pasted file",
 						size: file.size,
+						...(ownerMeta ?? {}),
 					};
 					if (rules.maxFiles === 1) {
 						// One is wanted: the newest replaces the last.
@@ -165,6 +215,28 @@ const Page = () => {
 	const handleUpload = async () => {
 		if (pending.length === 0) {
 			return;
+		}
+		if (rules?.sensitive) {
+			const session = await sessionStore.get();
+			const invalid = pending.some(
+				(item) =>
+					!session ||
+					!item.encrypted ||
+					item.profileId !== session.profileId ||
+					item.unlockId !== session.unlockId,
+			);
+			if (invalid) {
+				await Promise.all(
+					pending.map((item) =>
+						staging.discard(item.file).catch(() => undefined),
+					),
+				);
+				remember([]);
+				setProblem(
+					"The profile changed or locked. Add your files again.",
+				);
+				return;
+			}
 		}
 		// Whatever was uploaded for this slot before is replaced.
 		const previous = asPickedFiles(getDraft(pickKey(slot)));

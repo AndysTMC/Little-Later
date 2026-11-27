@@ -16,8 +16,11 @@ import { linkedFrom, reminderKind } from "../../records";
 import { prettyDate } from "../../../utils/dates";
 import { send } from "../../../utils/send";
 import { LUIDeleteButton } from "../LUIDeleteButton/Component";
+import { LUIBadge } from "../LUIBadge/Component";
 import { LUIPillButton } from "../LUIPillButton/Component";
 import { LUITagChips } from "../LUITagChips/Component";
+import { LUITooltip } from "../LUITooltip/Component";
+import { MOTION } from "../../../route-transitions";
 
 const Component = ({
 	className,
@@ -107,15 +110,13 @@ const Component = ({
 							>
 								{prettyDate(reminder.target)}
 							</span>
-							<span
-								className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-									isDark
-										? "bg-neutral-800 text-neutral-300"
-										: "bg-neutral-200 text-neutral-700"
-								}`}
+							<LUIBadge
+								tone={
+									kind === "escalating" ? "accent" : "neutral"
+								}
 							>
 								{capitalize(kind)}
-							</span>
+							</LUIBadge>
 							{nextFire ? (
 								<span
 									className={`text-xs ${
@@ -140,28 +141,37 @@ const Component = ({
 
 				<div className="flex shrink-0 items-center gap-x-0.5">
 					{!disableNavs && !showDetails ? (
-						<button
-							className={`flex size-8 cursor-pointer items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-								isDark
-									? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
-									: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
-							}`}
-							type="button"
-							aria-label={
+						<LUITooltip
+							content={
 								linkedTask
 									? "Edit this reminder on its task"
 									: "Edit reminder"
 							}
-							onClick={handleEdit}
-							disabled={linkedTask !== undefined}
+							placement="top"
 						>
-							<LUIThemedIcon
-								Icon={NotePencilIcon}
-								color="currentColor"
-								weight="regular"
-								className="size-4"
-							/>
-						</button>
+							<button
+								className={`flex size-8 cursor-pointer items-center justify-center rounded-lg transition-all duration-150 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${
+									isDark
+										? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+										: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
+								}`}
+								type="button"
+								aria-label={
+									linkedTask
+										? "Edit this reminder on its task"
+										: "Edit reminder"
+								}
+								onClick={handleEdit}
+								disabled={linkedTask !== undefined}
+							>
+								<LUIThemedIcon
+									Icon={NotePencilIcon}
+									color="currentColor"
+									weight="regular"
+									className="size-4"
+								/>
+							</button>
+						</LUITooltip>
 					) : null}
 					<button
 						type="button"
@@ -191,7 +201,7 @@ const Component = ({
 						initial={{ opacity: 0, height: 0 }}
 						animate={{ opacity: 1, height: "auto" }}
 						exit={{ opacity: 0, height: 0 }}
-						transition={{ duration: 0.16, ease: "easeOut" }}
+						transition={MOTION.drawer}
 					>
 						<div
 							className={`flex flex-col gap-y-2.5 border-t px-3 pt-2.5 pb-3 ${

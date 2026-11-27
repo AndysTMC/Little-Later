@@ -48,6 +48,13 @@ export type LAIMemory = {
 	createdAt: number;
 };
 
+export type LAIMcpServer = {
+	id: string;
+	name: string;
+	url: string;
+	enabled: boolean;
+};
+
 export type LExternalMcpMode = "off" | "read" | "write";
 
 export type LAISettings = {
@@ -60,6 +67,7 @@ export type LAISettings = {
 	presets?: Array<LAIPreset>;
 	memories?: Array<LAIMemory>;
 	mcpServerUrl?: string;
+	mcpServers?: Array<LAIMcpServer>;
 };
 
 export type LUserSettings = {
@@ -76,6 +84,8 @@ export type LUserSettings = {
 		lastBackupAt?: number;
 		chatRetentionDays?: number;
 		externalMcpMode?: LExternalMcpMode;
+		externalMcpAllowHistory?: boolean;
+		externalMcpAllowDelete?: boolean;
 	};
 };
 

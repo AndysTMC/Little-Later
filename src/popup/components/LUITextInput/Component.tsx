@@ -9,7 +9,7 @@ const Component = ({
 	name,
 	passedValue,
 	onChange,
-	lengthLimit = 16,
+	lengthLimit,
 	validate = () => ({ success: true, error: "" }),
 	disabled = false,
 	disableLengthCounter = false,
@@ -19,7 +19,7 @@ const Component = ({
 	name: string;
 	passedValue: string;
 	onChange: (value: string) => void;
-	lengthLimit: number;
+	lengthLimit?: number;
 	validate: (value: string) => Validation;
 	disabled?: boolean;
 	disableLengthCounter?: boolean;
@@ -57,7 +57,7 @@ const Component = ({
 				>
 					{name}
 				</label>
-				{!disableLengthCounter ? (
+				{!disableLengthCounter && lengthLimit !== undefined ? (
 					<span
 						className={`text-[11px] tabular-nums ${
 							isDark ? "text-neutral-500" : "text-neutral-400"

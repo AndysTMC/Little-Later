@@ -11,15 +11,20 @@ import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 // name with the app's own dropdown (LUISelectT2).
 
 // A row that opens a page. Rows in one list either all have an icon or
-// none do.
+// none do. Optional `subtitle` and `badge` let hub screens (such as AI
+// settings) summarize current configuration without cluttering the row.
 const LUISettingLink = ({
 	label,
+	subtitle,
+	badge,
 	to,
 	referrer,
 	icon,
 	move = "forward",
 }: {
 	label: string;
+	subtitle?: string;
+	badge?: string;
 	to: string;
 	// Where the opened page's Back returns to.
 	referrer: string;
@@ -32,7 +37,7 @@ const LUISettingLink = ({
 	return (
 		<button
 			type="button"
-			className={`group flex h-11 w-full cursor-pointer items-center justify-start gap-x-2.5 rounded-xl px-2.5 transition-colors ${isDark ? "hover:bg-neutral-800/80" : "hover:bg-neutral-200/70"}`}
+			className={`group flex min-h-11 w-full cursor-pointer items-center justify-start gap-x-2.5 rounded-xl px-2.5 py-1.5 text-left transition-colors ${isDark ? "hover:bg-neutral-800/80" : "hover:bg-neutral-200/70"}`}
 			onClick={() => go(to, move, { state: { referrer } })}
 		>
 			{icon ? (
@@ -44,12 +49,32 @@ const LUISettingLink = ({
 					/>
 				</div>
 			) : null}
-			<span
-				className={`text-base font-medium ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
-			>
-				{label}
-			</span>
-			<div className="flex grow justify-end">
+			<div className="flex min-w-0 grow flex-col">
+				<span
+					className={`truncate text-base font-medium ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
+				>
+					{label}
+				</span>
+				{subtitle ? (
+					<span
+						className={`truncate text-xs ${isDark ? "text-neutral-400" : "text-neutral-500"}`}
+					>
+						{subtitle}
+					</span>
+				) : null}
+			</div>
+			<div className="flex shrink-0 items-center gap-x-1.5">
+				{badge ? (
+					<span
+						className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+							isDark
+								? "bg-neutral-800 text-neutral-300"
+								: "bg-neutral-200 text-neutral-700"
+						}`}
+					>
+						{badge}
+					</span>
+				) : null}
 				<div
 					className={`flex size-8 items-center justify-center transition-transform duration-150 group-hover:translate-x-0.5 ${isDark ? "text-neutral-400" : "text-neutral-500"}`}
 				>

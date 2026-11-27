@@ -123,11 +123,21 @@ test("saves Active/Archived filter, cross-record tags, and Images tab work end-t
 	await expect(page.getByText("External agent MCP")).toBeVisible();
 	await button(page, "Go back").click();
 	await button(page, "AI").click();
+	await expect(button(page, /Provider & Model/)).toBeVisible();
+	await expect(button(page, /Behavior & Instructions/)).toBeVisible();
+	await expect(button(page, /Memories/)).toBeVisible();
+	await expect(button(page, /MCP Tool Servers/)).toBeVisible();
+	await button(page, /Provider & Model/).click();
 	await tab(page, "Cloud").click();
 	await expect(button(page, "OpenAI")).toBeVisible();
 	await expect(button(page, "Google Gemini")).toBeVisible();
 	await expect(button(page, "Anthropic Claude")).toBeVisible();
+	await expect(page.getByPlaceholder("Base URL")).toHaveCount(0);
+	await expect(
+		page.getByPlaceholder("API Key", { exact: true }),
+	).toBeVisible();
 	await tab(page, "Local").click();
 	await expect(button(page, "Ollama")).toBeVisible();
 	await expect(button(page, "LM Studio")).toBeVisible();
+	await expect(page.getByText(/Built-in URL/)).toHaveCount(0);
 });
