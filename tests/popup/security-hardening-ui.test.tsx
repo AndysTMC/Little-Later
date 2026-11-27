@@ -300,7 +300,14 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 		await setInputValue(findInputs().baseUrl!, "https://api.openai.com/v2");
 		expect(findInputs().apiKey?.value).toBe("sk-openai-secret");
 
-		// Switching to another Cloud provider clears the API key.
+		// Switching to the Cloud tab and picking another provider clears the API key.
+		const cloudTab = Array.from(
+			container.querySelectorAll('[role="tab"]'),
+		).find((b) => b.textContent?.trim() === "Cloud") as
+			| HTMLButtonElement
+			| undefined;
+		expect(cloudTab).toBeTruthy();
+		await act(async () => cloudTab!.click());
 		const deepSeekBtn = Array.from(
 			container.querySelectorAll("button"),
 		).find((b) => b.textContent?.trim() === "DeepSeek");
