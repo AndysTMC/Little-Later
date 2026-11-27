@@ -24,7 +24,7 @@
 	<br />
 	<img width="260" alt="Notes and locked notes" src="./assets/screenshots/notes.png" />
 	<img width="260" alt="Encrypted images vault" src="./assets/screenshots/images.png" />
-	<img width="260" alt="Little AI side panel" src="./assets/screenshots/little-ai.png" />
+	<img width="260" alt="Little AI" src="./assets/screenshots/little-ai.png" />
 </p>
 
 Little Later has no account, no server and no sync. Everything you save is stored in your browser profile and encrypted on disk. The only data that ever leaves your machine is what you choose to send to an AI provider you set up yourself.
@@ -39,7 +39,8 @@ Little Later has no account, no server and no sync. Everything you save is store
 - **Tags, links and search.** Organise saves, tasks, reminders, notes and images with `#tags`, link records together, and search across everything.
 - **Profiles and security.** Multiple profiles with accent themes (light or dark), optional password encryption and optional passkey or security-key two-factor unlock.
 - **Backups and portable exports.** Export a profile as an encrypted `.lldat` backup you can import later, or export readable JSON, Obsidian Markdown (`.md`), iCalendar (`.ics`), or Netscape Bookmarks (`.html`) — and import browser bookmarks HTML.
-- **Little AI & local MCP/CLI (optional).** Side-panel AI assistant with searchable model switching, local or cloud providers, encrypted chat history, hybrid search, optional local MCP, and the `little-later-mcp` bridge & terminal quick-capture CLI (`npx -y little-later-mcp`). Every write waits for your confirmation in the chat.
+- **Popup or side panel.** Use Little Later from the toolbar popup or run the entire extension (or just Little AI) in Chrome's side panel (**Settings → Misc → Side panel**).
+- **Little AI & local MCP/CLI (optional).** Built-in AI assistant (in the popup, side panel, or a tab) with searchable model switching, local or cloud providers, encrypted chat history, hybrid search, multi-server local MCP support, and the `little-later-mcp` bridge & full-parity CLI (`npx -y little-later-mcp`). Every AI write waits for your confirmation in the chat.
 
 ## Install
 

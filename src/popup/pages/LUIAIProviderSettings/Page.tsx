@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { MOTION } from "../../../route-transitions";
 import { CheckCircleIcon, CircleIcon, XIcon } from "@phosphor-icons/react";
 import { LAI_PROVIDERS, LTHEME } from "little-shared/enums";
 import type { LAIPreset, LAISettings } from "little-shared/types";
@@ -410,6 +411,7 @@ const Page = () => {
 					className="flex h-full w-full flex-col overflow-y-hidden"
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
+					transition={MOTION.reveal}
 				>
 					<LUIBasicNav navigateTo="/settings/ai" />
 					<LUISettingsLayout pageName="Provider & Model">

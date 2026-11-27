@@ -1,19 +1,19 @@
 ---
 type: now
-updated: 2026-11-23
-horizon: 2026-11-23 → 2026-12-07
+updated: 2026-11-27
+horizon: 2026-11-27 → 2026-12-11
 ---
 
 # Now
 
 ## Focus
 
-Preparing the `3.2.0` release on `dev`: desktop CLI quick-capture and upgraded `little-later-mcp` Native Messaging distribution (#72, #73), portable Markdown/iCalendar/Bookmarks exports and bookmark HTML import (#73), encrypted offline article snapshots (#73), and an exhaustive UI/security/reliability polish pass (#74) covering Little AI header/chats swap, `task.label` UI retirement in favor of `#tags`, 320px side-panel density, readable-export/context-menu hardening, and sharded CI.
+Preparing the `3.3.0` release on `dev`: security hardening pass (#82), full UI parity for the external `little-later-mcp` bridge and CLI with explicit history/delete opt-in grants (#83), modular AI Settings hub and multi-server local MCP client (#84), shared design-system primitives (`LUITooltip`, `LUIBadge`, `LUISectionHeader`) and unified smooth motion/transitions (#85), and trimmed GitHub Release assets (#86).
 
 ## Next
 
-- Merge `chore/release-3.2.0` into `dev`, cut the `dev` → `main` release PR, and tag `v3.2.0`.
-- Publish `little-later-mcp@3.2.0` to public npm.
+- Merge `chore/release-3.3.0` into `dev`, cut the `dev` → `main` release PR, and tag `v3.3.0`.
+- Publish `little-later-mcp@3.3.0` to public npm.
 - Review and decide whether to mark proposed decisions `0008`, `0009`, and `0013`–`0018` as `accepted` (with the `human-accepted` PR label).
 - Recompute floating schedules when a page opens; the alarm, start-up, idle and after-command triggers from decision 0011 are in place.
 
