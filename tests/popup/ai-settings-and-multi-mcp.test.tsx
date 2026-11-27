@@ -488,5 +488,27 @@ describe("AI Settings redesign & multi-MCP support", () => {
 		});
 		const connAfter = await LittleAI.connectionOf(owner);
 		expect(sameConnection(connBefore, connAfter)).toBe(false);
+
+		// Scoped model & preset switches (as sent by ChatScreen ModelPicker)
+		// preserve paused/removed MCP servers and behavior settings.
+		await send("settings.update", {
+			ai: { model: "llama3.2" },
+		});
+		await send("settings.update", {
+			ai: {
+				provider: LAI_PROVIDERS.CUSTOM,
+				baseUrl: "https://api.openai.com/v1",
+				apiKey: "sk-preset",
+				model: "gpt-4o-mini",
+			},
+		});
+		const afterModelSwitch = await getSettings(littleDB, keys);
+		expect(afterModelSwitch.ai.model).toBe("gpt-4o-mini");
+		expect(afterModelSwitch.ai.mcpServers).toEqual(
+			afterPatches.ai.mcpServers?.map((server) =>
+				server.id === "srv-a" ? { ...server, enabled: false } : server,
+			),
+		);
+		expect(afterModelSwitch.ai.verbosity).toBe("detailed");
 	});
 });

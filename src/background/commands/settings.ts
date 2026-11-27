@@ -392,15 +392,18 @@ export const settingsUpdate = defineCommand({
 						const op = input.ai.memoryOp;
 						const baseMemories = [...(memories ?? [])];
 						if (op.op === "add") {
+							const normalizedText = op.entry.text.toLowerCase();
 							if (
-								baseMemories.length < MAX_MEMORIES &&
 								!baseMemories.some(
-									(item) => item.id === op.entry.id,
+									(item) =>
+										item.id === op.entry.id ||
+										item.text.toLowerCase() ===
+											normalizedText,
 								)
 							) {
 								baseMemories.push(op.entry);
 							}
-							memories = baseMemories;
+							memories = baseMemories.slice(-MAX_MEMORIES);
 						} else if (op.op === "remove") {
 							memories = baseMemories.filter(
 								(item) => item.id !== op.id,

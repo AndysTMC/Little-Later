@@ -308,7 +308,7 @@ const ModelPicker = ({
 		if (nextModel === model) return;
 		await attempt(() =>
 			send("settings.update", {
-				ai: { ...ai, model: nextModel },
+				ai: { model: nextModel },
 			}),
 		);
 	};
@@ -320,7 +320,6 @@ const ModelPicker = ({
 		await attempt(() =>
 			send("settings.update", {
 				ai: {
-					...ai,
 					provider: preset.provider,
 					baseUrl: preset.baseUrl,
 					apiKey: preset.apiKey,
