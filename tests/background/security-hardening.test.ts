@@ -13,7 +13,7 @@ import {
 	createSerialQueue,
 	type Dispatch,
 } from "../../src/background/commands/registry";
-import { createBackup } from "../../src/services/backup";
+import { createBackup, importBackup } from "../../src/services/backup";
 import {
 	fetchProviderModels,
 	testAIConnection,
@@ -29,6 +29,7 @@ import { importProfileKeys } from "../../src/storage/keys";
 import { littleDB } from "../../src/storage/pageDB";
 import {
 	getSettings,
+	listChatMessages,
 	listChats,
 	listNotes,
 } from "../../src/storage/repositories";
@@ -503,5 +504,57 @@ describe("security hardening — backup locked-note gate & AI/MCP redirect + app
 			db.close();
 			await db.delete();
 		}
+	});
+
+	it("omits chat history from backup snapshots while chatHistoryBlocked is set", async () => {
+		await littleDB.open();
+		await sessionStore.clear();
+		await send("profile.create", {
+			name: "Ada",
+			password: null,
+		});
+		const createdChat = await send("chat.create", {
+			title: "Expired chat",
+		});
+		await send("chat.addMessage", {
+			chatId: createdChat.id,
+			message: { role: "user", text: "Sensitive expired message" },
+		});
+		await send("note.create", { content: "Keep this note" });
+
+		// Simulate a retention-deletion failure with readable settings on unlock.
+		const sessionData = await sessionStore.get();
+		expect(sessionData).not.toBeNull();
+		await sessionStore.set({
+			...sessionData!,
+			chatHistoryBlocked: true,
+		});
+
+		const backup = await createBackup("BackupPass#9", FAST_KDF());
+		const beforeIds = new Set(
+			(await littleDB.profiles.toArray()).map((profile) => profile.id),
+		);
+		await send("profile.lock", null);
+		await importBackup(backup, "BackupPass#9");
+
+		const profiles = await littleDB.profiles.toArray();
+		const restoredProfile = profiles.find(
+			(profile) => !beforeIds.has(profile.id),
+		);
+		expect(restoredProfile).toBeDefined();
+		await send("profile.unlock", {
+			profileId: restoredProfile!.id,
+			password: "BackupPass#9",
+		});
+		const restoredSession = await sessionStore.get();
+		expect(restoredSession?.profileId).toBe(restoredProfile!.id);
+		expect(restoredSession?.chatHistoryBlocked).toBeUndefined();
+		const restoredKeys = await importProfileKeys(restoredSession!);
+
+		expect(await listNotes(littleDB, restoredKeys)).toHaveLength(1);
+		expect(await listChats(littleDB, restoredKeys)).toEqual([]);
+		expect(
+			await listChatMessages(littleDB, restoredKeys, createdChat.id),
+		).toEqual([]);
 	});
 });

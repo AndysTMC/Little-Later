@@ -141,7 +141,7 @@ const openForExport = async <T>(
 // held here; assets, the large part, are read afterwards, so the snapshot
 // notes which records had one: an asset gone by then means the profile
 // changed under the export.
-const recordsSnapshot = async (profileId: string) => {
+const recordsSnapshot = async (profileId: string, includeChats: boolean) => {
 	const owned = <T>(
 		table: EntityTable<T & { id: string }, "id">,
 		index: string,
@@ -170,11 +170,15 @@ const recordsSnapshot = async (profileId: string) => {
 			tasks: await owned(littleDB.tasks, "[profileId+keyId]"),
 			reminders: await owned(littleDB.reminders, "[profileId+keyId]"),
 			links: await owned(littleDB.links, "[profileId+fromId]"),
-			chats: await owned(littleDB.chats, "[profileId+keyId]"),
+			chats: includeChats
+				? await owned(littleDB.chats, "[profileId+keyId]")
+				: [],
 			// In the order they were written: a chat reads top to bottom.
-			chatMessages: (
-				await owned(littleDB.chatMessages, "[profileId+keyId]")
-			).sort((a, b) => a.createdAt - b.createdAt),
+			chatMessages: includeChats
+				? (
+						await owned(littleDB.chatMessages, "[profileId+keyId]")
+					).sort((a, b) => a.createdAt - b.createdAt)
+				: [],
 			assetOwners: new Set(
 				(
 					(await littleDB.assets
@@ -230,7 +234,10 @@ async function* profileEntries(
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	});
-	const snapshot = await recordsSnapshot(profileId);
+	// Honor the unlock retention gate: if chat retention cleanup failed on
+	// unlock, omit chat tables from backup snapshots so expired history is
+	// never carried into an export.
+	const snapshot = await recordsSnapshot(profileId, !keys.chatHistoryBlocked);
 	await checkUnlocked();
 	for (const row of snapshot.saves) {
 		yield {
