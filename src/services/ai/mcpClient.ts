@@ -49,6 +49,7 @@ const postJsonRpc = async (
 	try {
 		const response = await fetch(validated, {
 			method: "POST",
+			redirect: "error",
 			headers: {
 				"Content-Type": "application/json",
 				Accept: "application/json",

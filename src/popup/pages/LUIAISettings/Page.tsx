@@ -37,6 +37,16 @@ type ProviderCategory = "local" | "cloud" | "custom";
 const sameAI = (a: LAISettings, b: LAISettings) =>
 	JSON.stringify(a) === JSON.stringify(b);
 
+const urlOrigin = (value: string): string | null => {
+	const trimmed = value.trim();
+	if (trimmed === "") return null;
+	try {
+		return new URL(trimmed).origin;
+	} catch {
+		return null;
+	}
+};
+
 const VERBOSITY_OPTIONS: Array<{ value: LAIVerbosity; label: string }> = [
 	{ value: "concise", label: "Concise" },
 	{ value: "balanced", label: "Balanced" },
@@ -132,12 +142,89 @@ const Page = () => {
 		modelState.fetching;
 	const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const latestFetchIdRef = useRef(0);
+	// Tracks `{ apiKey, origin }` together so external updates (such as switching
+	// providers in the side panel) or restored drafts never keep a stale origin.
+	const keyBindingRef = useRef<{
+		apiKey: string;
+		origin: string | null;
+	} | null>(null);
 	const [testing, setTesting] = useState(false);
 	const [testResult, setTestResult] = useState<AIConnectionTestResult | null>(
 		null,
 	);
 	const [presetName, setPresetName] = useState("");
 	const isDark = theme === LTHEME.DARK;
+
+	const savedProvider = userSettings?.ai.provider;
+	const savedBaseUrl = userSettings?.ai.baseUrl;
+	const savedApiKey = userSettings?.ai.apiKey;
+	useEffect(() => {
+		if (savedProvider === undefined || savedApiKey === undefined) return;
+		if (savedApiKey.trim() === "") {
+			if (keyBindingRef.current?.apiKey === "") {
+				keyBindingRef.current = null;
+			}
+			return;
+		}
+		// Always rebind when persisted settings change (e.g. provider switch
+		// from the side panel while this page is open).
+		keyBindingRef.current = {
+			apiKey: savedApiKey,
+			origin:
+				savedProvider === LAI_PROVIDERS.CUSTOM
+					? urlOrigin(savedBaseUrl ?? "")
+					: null,
+		};
+	}, [savedProvider, savedBaseUrl, savedApiKey]);
+
+	const effectiveProvider = aiSettings?.provider;
+	const effectiveBaseUrl = aiSettings?.baseUrl;
+	const effectiveApiKey = aiSettings?.apiKey;
+	useEffect(() => {
+		if (effectiveProvider === undefined || effectiveApiKey === undefined)
+			return;
+		if (effectiveApiKey.trim() === "") {
+			keyBindingRef.current = null;
+		} else if (keyBindingRef.current?.apiKey !== effectiveApiKey) {
+			keyBindingRef.current = {
+				apiKey: effectiveApiKey,
+				origin:
+					effectiveProvider === LAI_PROVIDERS.CUSTOM
+						? urlOrigin(effectiveBaseUrl ?? "")
+						: null,
+			};
+		}
+	}, [effectiveProvider, effectiveBaseUrl, effectiveApiKey]);
+
+	const withEndpoint = (
+		prev: LAISettings,
+		provider: LAI_PROVIDERS,
+		baseUrl: string,
+	): LAISettings => {
+		const nextOrigin =
+			provider === LAI_PROVIDERS.CUSTOM ? urlOrigin(baseUrl) : null;
+		const boundOrigin =
+			keyBindingRef.current?.apiKey === prev.apiKey
+				? keyBindingRef.current.origin
+				: prev.provider === LAI_PROVIDERS.CUSTOM &&
+					  prev.apiKey.trim() !== ""
+					? urlOrigin(prev.baseUrl)
+					: null;
+		const originChanged =
+			prev.apiKey !== "" &&
+			(provider !== LAI_PROVIDERS.CUSTOM ||
+				boundOrigin === null ||
+				nextOrigin !== boundOrigin);
+		if (originChanged) {
+			keyBindingRef.current = null;
+		}
+		return {
+			...prev,
+			provider,
+			baseUrl,
+			...(originChanged ? { apiKey: "" } : {}),
+		};
+	};
 
 	useDebouncedSave(
 		userSettings !== undefined &&
@@ -214,13 +301,11 @@ const Page = () => {
 			) {
 				setAISettings((prev) =>
 					prev
-						? {
-								...prev,
-								provider: LAI_PROVIDERS.OLLAMA,
-								baseUrl: getDefaultBaseUrl(
-									LAI_PROVIDERS.OLLAMA,
-								),
-							}
+						? withEndpoint(
+								prev,
+								LAI_PROVIDERS.OLLAMA,
+								getDefaultBaseUrl(LAI_PROVIDERS.OLLAMA),
+							)
 						: prev,
 				);
 			}
@@ -232,13 +317,13 @@ const Page = () => {
 				const alreadyCloud = CLOUD_PROVIDER_PRESETS.some(
 					(preset) => preset.baseUrl === prev.baseUrl.trim(),
 				);
-				return {
-					...prev,
-					provider: LAI_PROVIDERS.CUSTOM,
-					baseUrl: alreadyCloud
+				return withEndpoint(
+					prev,
+					LAI_PROVIDERS.CUSTOM,
+					alreadyCloud
 						? prev.baseUrl
 						: CLOUD_PROVIDER_PRESETS[0].baseUrl,
-				};
+				);
 			});
 			return;
 		}
@@ -252,11 +337,11 @@ const Page = () => {
 				LOCAL_PROVIDER_PRESETS.some(
 					(preset) => preset.baseUrl === prev.baseUrl.trim(),
 				);
-			return {
-				...prev,
-				provider: LAI_PROVIDERS.CUSTOM,
-				baseUrl: isKnownPreset ? "" : prev.baseUrl,
-			};
+			return withEndpoint(
+				prev,
+				LAI_PROVIDERS.CUSTOM,
+				isKnownPreset ? "" : prev.baseUrl,
+			);
 		});
 	};
 
@@ -318,6 +403,11 @@ const Page = () => {
 	const handleApplyPreset = (preset: LAIPreset) => {
 		setTestResult(null);
 		setSelectedCategory(null);
+		keyBindingRef.current =
+			preset.provider === LAI_PROVIDERS.CUSTOM &&
+			preset.apiKey.trim() !== ""
+				? { apiKey: preset.apiKey, origin: urlOrigin(preset.baseUrl) }
+				: null;
 		setAISettings((prev) =>
 			prev
 				? {
@@ -444,13 +534,11 @@ const Page = () => {
 															setAISettings(
 																(prev) =>
 																	prev
-																		? {
-																				...prev,
-																				provider:
-																					preset.provider,
-																				baseUrl:
-																					preset.baseUrl,
-																			}
+																		? withEndpoint(
+																				prev,
+																				preset.provider,
+																				preset.baseUrl,
+																			)
 																		: prev,
 															);
 														}}
@@ -488,13 +576,11 @@ const Page = () => {
 															setAISettings(
 																(prev) =>
 																	prev
-																		? {
-																				...prev,
-																				provider:
-																					LAI_PROVIDERS.CUSTOM,
-																				baseUrl:
-																					preset.baseUrl,
-																			}
+																		? withEndpoint(
+																				prev,
+																				LAI_PROVIDERS.CUSTOM,
+																				preset.baseUrl,
+																			)
 																		: prev,
 															);
 														}}
@@ -540,12 +626,11 @@ const Page = () => {
 												setTestResult(null);
 												setAISettings((prevSettings) =>
 													prevSettings
-														? {
-																...prevSettings,
-																provider:
-																	LAI_PROVIDERS.CUSTOM,
-																baseUrl: value,
-															}
+														? withEndpoint(
+																prevSettings,
+																LAI_PROVIDERS.CUSTOM,
+																value,
+															)
 														: prevSettings,
 												);
 											}}
@@ -569,6 +654,16 @@ const Page = () => {
 											}
 											onChange={(value) => {
 												setTestResult(null);
+												keyBindingRef.current =
+													value.trim() === ""
+														? null
+														: {
+																apiKey: value,
+																origin: urlOrigin(
+																	aiSettings?.baseUrl ??
+																		"",
+																),
+															};
 												setAISettings((prevSettings) =>
 													prevSettings
 														? {
