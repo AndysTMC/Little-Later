@@ -25,6 +25,9 @@ export type PickRequest = {
 	maxFiles: number;
 	// What to do, shown in the empty upload area.
 	pasteHint: string;
+	// Sensitive user content (images, bookmarks HTML): sealed under the
+	// unlocked profile's key before touching OPFS and bound to that unlock.
+	sensitive?: boolean;
 };
 
 // The request arrives in the address, so it is checked like any input.
@@ -48,7 +51,9 @@ export const parsePickRequest = (text: string | null): PickRequest | null => {
 			!(
 				value.types === null ||
 				(Array.isArray(value.types) && value.types.every(isText))
-			)
+			) ||
+			(value.sensitive !== undefined &&
+				typeof value.sensitive !== "boolean")
 		) {
 			return null;
 		}
@@ -59,6 +64,7 @@ export const parsePickRequest = (text: string | null): PickRequest | null => {
 			maxBytes: value.maxBytes as number,
 			maxFiles: value.maxFiles as number,
 			pasteHint: value.pasteHint,
+			...(value.sensitive ? { sensitive: true } : {}),
 		};
 	} catch {
 		return null;
@@ -72,6 +78,9 @@ export type PickedFile = {
 	type: string;
 	name: string;
 	size: number;
+	encrypted?: boolean;
+	profileId?: string;
+	unlockId?: string;
 };
 
 export const isPickedFile = (value: unknown): value is PickedFile =>
@@ -79,7 +88,13 @@ export const isPickedFile = (value: unknown): value is PickedFile =>
 	value !== null &&
 	typeof (value as PickedFile).file === "string" &&
 	typeof (value as PickedFile).type === "string" &&
-	typeof (value as PickedFile).name === "string";
+	typeof (value as PickedFile).name === "string" &&
+	((value as PickedFile).encrypted === undefined ||
+		typeof (value as PickedFile).encrypted === "boolean") &&
+	((value as PickedFile).profileId === undefined ||
+		typeof (value as PickedFile).profileId === "string") &&
+	((value as PickedFile).unlockId === undefined ||
+		typeof (value as PickedFile).unlockId === "string");
 
 // The files handed to the asking screen.
 export const pickKey = (slot: string): string => `pick.${slot}`;

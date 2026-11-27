@@ -82,6 +82,7 @@ const Component = ({
 	saves = NO_SAVES,
 	tagSuggestions = NO_TAGS,
 	canLock = false,
+	lockedPassword,
 	onLockNow,
 }: {
 	className?: string;
@@ -99,6 +100,7 @@ const Component = ({
 	saves?: Array<Save>;
 	tagSuggestions?: ReadonlyArray<string>;
 	canLock?: boolean;
+	lockedPassword?: string;
 	onLockNow?: () => void;
 }) => {
 	const { theme } = useTheme();
@@ -362,6 +364,7 @@ const Component = ({
 				tags?: Array<string>;
 				locked?: boolean;
 				title?: string;
+				password?: string;
 			} = {
 				id: note.id,
 				content: draftContent,
@@ -371,6 +374,9 @@ const Component = ({
 			if (lockedChanged) updatePayload.locked = locked;
 			if (titleChanged || lockedChanged) {
 				updatePayload.title = locked ? trimmedTitle : "";
+			}
+			if (baselineLocked && lockedPassword !== undefined) {
+				updatePayload.password = lockedPassword;
 			}
 			await send("note.update", updatePayload);
 			setEditedSaveIds(null);

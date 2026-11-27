@@ -27,6 +27,10 @@ import { LUINoteCreator } from "./components/LUINoteCreator/Component";
 import { LUIProfile } from "./pages/LUIProfile/Page";
 import { LUISettings } from "./pages/LUISettings/Page";
 import { LUIAISettings } from "./pages/LUIAISettings/Page";
+import { LUIAIProviderSettings } from "./pages/LUIAIProviderSettings/Page";
+import { LUIAIBehaviorSettings } from "./pages/LUIAIBehaviorSettings/Page";
+import { LUIAIMemoriesSettings } from "./pages/LUIAIMemoriesSettings/Page";
+import { LUIAIMcpSettings } from "./pages/LUIAIMcpSettings/Page";
 import { LUIExport } from "./pages/LUIExport/Page";
 import { LUILock } from "./pages/LUILock/Page";
 import { LUIVBM } from "./pages/LUIVBM/Page";
@@ -133,6 +137,19 @@ function AnimatedRoutes() {
 				<Route path="/profile" element={<LUIProfile />} />
 				<Route path="/settings" element={<LUISettings />} />
 				<Route path="/settings/ai" element={<LUIAISettings />} />
+				<Route
+					path="/settings/ai/provider"
+					element={<LUIAIProviderSettings />}
+				/>
+				<Route
+					path="/settings/ai/behavior"
+					element={<LUIAIBehaviorSettings />}
+				/>
+				<Route
+					path="/settings/ai/memories"
+					element={<LUIAIMemoriesSettings />}
+				/>
+				<Route path="/settings/ai/mcp" element={<LUIAIMcpSettings />} />
 				<Route path="/settings/misc" element={<LUIMiscSettings />} />
 				<Route
 					path="/settings/security"

@@ -1,4 +1,11 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useContext,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { UIStateContext } from "../contexts/UIStateContext";
 
 // A stored setting being edited. The edit is remembered the moment it is
@@ -25,7 +32,7 @@ const useSettingDraft = <T>(
 	}
 	const value = draft !== undefined && !caughtUp ? draft : stored;
 	const latest = useRef(value);
-	useEffect(() => {
+	useLayoutEffect(() => {
 		latest.current = value;
 	});
 

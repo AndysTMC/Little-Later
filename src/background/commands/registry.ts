@@ -123,6 +123,9 @@ export type DispatchOptions = {
 	// Runs it only if that profile has not locked since this unlock, for
 	// work that must end with it, such as an AI request.
 	unlockId?: string;
+	// Optional authorization/invariant guard executed inside the worker's
+	// serialized write queue immediately before command execution.
+	beforeRun?: (ctx: CommandContext) => Promise<void>;
 };
 
 export type Dispatch = (
@@ -182,6 +185,9 @@ export const createDispatcher = (
 				);
 			}
 			try {
+				if (options?.beforeRun) {
+					await options.beforeRun(ctx);
+				}
 				return {
 					ok: true,
 					value: await command.run(ctx, command.parse(input)),

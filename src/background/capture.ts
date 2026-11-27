@@ -183,7 +183,9 @@ export const createPageCapture = ({
 					return;
 				}
 			} catch {
-				// Proceed normally if settings couldn't be read.
+				// Fail closed: skip automatic capture if privacy settings
+				// cannot be read.
+				return;
 			}
 			// The page is recorded per profile: another profile opened on
 			// it has no record of it yet.
