@@ -72,24 +72,6 @@ const Page = () => {
 	const ai = userSettings?.ai;
 	const servers = resolveMcpServers(ai);
 
-	const persistServers = (
-		next: Array<LAIMcpServer>,
-		failureMessage: string,
-	) => {
-		if (!ai) return;
-		void attempt(
-			() =>
-				send("settings.update", {
-					ai: {
-						...ai,
-						mcpServerUrl: "",
-						mcpServers: next,
-					},
-				}),
-			failureMessage,
-		);
-	};
-
 	const urlProblem = getLoopbackUrlProblem(urlInput);
 	const canAdd =
 		urlInput.trim() !== "" &&
@@ -108,16 +90,27 @@ const Page = () => {
 		};
 		setNameInput("");
 		setUrlInput("");
-		persistServers([...servers, entry], "Couldn't add that MCP server.");
+		void attempt(
+			() =>
+				send("settings.update", {
+					ai: { mcpServerOp: { op: "add", server: entry } },
+				}),
+			"Couldn't add that MCP server.",
+		);
 	};
 
-	const handleToggle = (id: string) => {
-		persistServers(
-			servers.map((server) =>
-				server.id === id
-					? { ...server, enabled: !server.enabled }
-					: server,
-			),
+	const handleToggle = (server: LAIMcpServer) => {
+		void attempt(
+			() =>
+				send("settings.update", {
+					ai: {
+						mcpServerOp: {
+							op: "setEnabled",
+							id: server.id,
+							enabled: !server.enabled,
+						},
+					},
+				}),
 			"Couldn't update that MCP server.",
 		);
 	};
@@ -128,8 +121,11 @@ const Page = () => {
 			delete next[id];
 			return next;
 		});
-		persistServers(
-			servers.filter((server) => server.id !== id),
+		void attempt(
+			() =>
+				send("settings.update", {
+					ai: { mcpServerOp: { op: "remove", id } },
+				}),
 			"Couldn't remove that MCP server.",
 		);
 	};
@@ -285,7 +281,7 @@ const Page = () => {
 															aria-label={`Enable ${server.name}`}
 															onClick={() =>
 																handleToggle(
-																	server.id,
+																	server,
 																)
 															}
 															className={`h-7 cursor-pointer rounded-lg border px-2 text-[11px] font-medium transition-colors ${

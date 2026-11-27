@@ -33,7 +33,12 @@ import {
 
 type ProviderCategory = "local" | "cloud" | "custom";
 
-const sameAI = (a: LAISettings, b: LAISettings) =>
+type ProviderDraft = Pick<
+	LAISettings,
+	"provider" | "baseUrl" | "apiKey" | "model" | "presets"
+>;
+
+const sameProviderDraft = (a: ProviderDraft, b: ProviderDraft) =>
 	JSON.stringify(a) === JSON.stringify(b);
 
 const urlOrigin = (value: string): string | null => {
@@ -55,7 +60,9 @@ const CATEGORY_OPTIONS: ReadonlyArray<{
 	{ value: "custom", label: "Custom" },
 ];
 
-const inferCategory = (ai?: LAISettings): ProviderCategory => {
+const inferCategory = (
+	ai?: Pick<LAISettings, "provider" | "baseUrl">,
+): ProviderCategory => {
 	if (!ai) return "local";
 	if (
 		ai.provider === LAI_PROVIDERS.OLLAMA ||
@@ -92,23 +99,42 @@ const Page = () => {
 	const isDark = theme === LTHEME.DARK;
 	const pageMotion = usePageMotion();
 	const userSettings = useCurrentUserSettings();
-	const [aiSettings, setAISettings] = useSettingDraft<LAISettings>(
-		"settings.ai",
-		userSettings?.ai,
-		sameAI,
+	const storedProviderDraft: ProviderDraft | undefined = userSettings
+		? {
+				provider: userSettings.ai.provider,
+				baseUrl: userSettings.ai.baseUrl,
+				apiKey: userSettings.ai.apiKey,
+				model: userSettings.ai.model,
+				...(userSettings.ai.presets
+					? { presets: userSettings.ai.presets }
+					: {}),
+			}
+		: undefined;
+	const [aiSettings, setAISettings] = useSettingDraft<ProviderDraft>(
+		"settings.ai.provider",
+		storedProviderDraft,
+		sameProviderDraft,
 	);
 	const loading = useLoading([userSettings]);
 	const [selectedCategory, setSelectedCategory] =
 		useState<ProviderCategory | null>(null);
 	const category = selectedCategory ?? inferCategory(aiSettings);
 
-	// A custom or cloud server is asked for its models only when the user
-	// explicitly asks, never while typing a URL or API key.
-	const [loadToken, setLoadToken] = useState(0);
+	// Scope model discovery and connection-test results to the active endpoint
+	// so switching presets or custom URLs immediately clears stale models.
+	const endpointKey = aiSettings
+		? `${aiSettings.provider}:${getResolvedBaseUrl(aiSettings)}`
+		: "";
+	const [loadRequest, setLoadRequest] = useState<{
+		endpointKey: string;
+		token: number;
+	}>({ endpointKey: "", token: 0 });
+	const activeLoadToken =
+		loadRequest.endpointKey === endpointKey ? loadRequest.token : 0;
 	const fetchScope =
 		aiSettings &&
-		!(aiSettings.provider === LAI_PROVIDERS.CUSTOM && loadToken === 0)
-			? `${aiSettings.provider}:${loadToken}`
+		!(aiSettings.provider === LAI_PROVIDERS.CUSTOM && activeLoadToken === 0)
+			? `${endpointKey}:${activeLoadToken}`
 			: null;
 	const [modelState, setModelState] = useState<{
 		scope: string;
@@ -125,54 +151,63 @@ const Page = () => {
 		modelState.fetching;
 	const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const latestFetchIdRef = useRef(0);
-	const keyOriginRef = useRef<string | null>(null);
+	// Tracks `{ apiKey, origin }` together so external updates (such as switching
+	// providers in the side panel) or restored drafts never keep a stale origin.
+	const keyBindingRef = useRef<{
+		apiKey: string;
+		origin: string | null;
+	} | null>(null);
 	const [testing, setTesting] = useState(false);
-	const [testResult, setTestResult] = useState<AIConnectionTestResult | null>(
-		null,
-	);
+	const [testState, setTestState] = useState<{
+		endpointKey: string;
+		result: AIConnectionTestResult;
+	} | null>(null);
+	const testResult =
+		testState && testState.endpointKey === endpointKey
+			? testState.result
+			: null;
 	const [presetName, setPresetName] = useState("");
 
-	const savedProvider = userSettings?.ai.provider;
-	const savedBaseUrl = userSettings?.ai.baseUrl;
-	const savedApiKey = userSettings?.ai.apiKey;
+	const effectiveProvider = aiSettings?.provider;
+	const effectiveBaseUrl = aiSettings?.baseUrl;
+	const effectiveApiKey = aiSettings?.apiKey;
 	useEffect(() => {
-		if (savedProvider === undefined || savedApiKey === undefined) return;
-		if (
-			savedProvider === LAI_PROVIDERS.CUSTOM &&
-			savedApiKey.trim() !== ""
-		) {
-			keyOriginRef.current = urlOrigin(savedBaseUrl ?? "");
-		} else if (savedApiKey.trim() === "") {
-			keyOriginRef.current = null;
+		if (effectiveProvider === undefined || effectiveApiKey === undefined)
+			return;
+		if (effectiveApiKey.trim() === "") {
+			keyBindingRef.current = null;
+		} else if (keyBindingRef.current?.apiKey !== effectiveApiKey) {
+			keyBindingRef.current = {
+				apiKey: effectiveApiKey,
+				origin:
+					effectiveProvider === LAI_PROVIDERS.CUSTOM
+						? urlOrigin(effectiveBaseUrl ?? "")
+						: null,
+			};
 		}
-	}, [savedProvider, savedBaseUrl, savedApiKey]);
+	}, [effectiveProvider, effectiveBaseUrl, effectiveApiKey]);
 
 	const withEndpoint = (
-		prev: LAISettings,
+		prev: ProviderDraft,
 		provider: LAI_PROVIDERS,
 		baseUrl: string,
-	): LAISettings => {
+	): ProviderDraft => {
 		const nextOrigin =
 			provider === LAI_PROVIDERS.CUSTOM ? urlOrigin(baseUrl) : null;
-		const isPrevSavedOrPreset =
-			prev.baseUrl === savedBaseUrl ||
-			CLOUD_PROVIDER_PRESETS.some(
-				(preset) => preset.baseUrl === prev.baseUrl.trim(),
-			) ||
-			LOCAL_PROVIDER_PRESETS.some(
-				(preset) => preset.baseUrl === prev.baseUrl.trim(),
-			);
 		const boundOrigin =
-			keyOriginRef.current ??
-			(prev.apiKey !== "" && isPrevSavedOrPreset
-				? urlOrigin(prev.baseUrl)
-				: null);
+			keyBindingRef.current?.apiKey === prev.apiKey
+				? keyBindingRef.current.origin
+				: prev.provider === LAI_PROVIDERS.CUSTOM &&
+					  prev.apiKey.trim() !== ""
+					? urlOrigin(prev.baseUrl)
+					: null;
 		const originChanged =
 			prev.apiKey !== "" &&
 			(provider !== LAI_PROVIDERS.CUSTOM ||
-				(boundOrigin !== null && nextOrigin !== boundOrigin));
+				boundOrigin === null ||
+				nextOrigin !== boundOrigin);
 		if (originChanged) {
-			keyOriginRef.current = null;
+			keyBindingRef.current = null;
 		}
 		return {
 			...prev,
@@ -183,10 +218,19 @@ const Page = () => {
 	};
 
 	useDebouncedSave(
-		userSettings !== undefined &&
+		storedProviderDraft !== undefined &&
 			aiSettings !== undefined &&
-			JSON.stringify(aiSettings) !== JSON.stringify(userSettings.ai)
-			? () => send("settings.update", { ai: aiSettings })
+			!sameProviderDraft(aiSettings, storedProviderDraft)
+			? () =>
+					send("settings.update", {
+						ai: {
+							provider: aiSettings.provider,
+							baseUrl: aiSettings.baseUrl,
+							apiKey: aiSettings.apiKey,
+							model: aiSettings.model,
+							presets: aiSettings.presets ?? [],
+						},
+					})
 			: null,
 		500,
 		aiSettings,
@@ -244,7 +288,7 @@ const Page = () => {
 
 	const handleCategoryChange = (nextCategory: ProviderCategory) => {
 		setSelectedCategory(nextCategory);
-		setTestResult(null);
+		setTestState(null);
 		if (nextCategory === "local") {
 			if (
 				aiSettings &&
@@ -301,14 +345,16 @@ const Page = () => {
 
 	const handleTestConnection = async () => {
 		if (!aiSettings || testing) return;
+		const testedEndpoint = endpointKey;
+		const testedScope = fetchScope;
 		setTesting(true);
-		setTestResult(null);
+		setTestState(null);
 		try {
 			const result = await testAIConnection(aiSettings);
-			setTestResult(result);
-			if (result.models.length > 0 && fetchScope !== null) {
+			setTestState({ endpointKey: testedEndpoint, result });
+			if (result.models.length > 0 && testedScope !== null) {
 				setModelState({
-					scope: fetchScope,
+					scope: testedScope,
 					models: result.models,
 					fetching: false,
 				});
@@ -345,12 +391,12 @@ const Page = () => {
 	};
 
 	const handleApplyPreset = (preset: LAIPreset) => {
-		setTestResult(null);
+		setTestState(null);
 		setSelectedCategory(null);
-		keyOriginRef.current =
+		keyBindingRef.current =
 			preset.provider === LAI_PROVIDERS.CUSTOM &&
 			preset.apiKey.trim() !== ""
-				? urlOrigin(preset.baseUrl)
+				? { apiKey: preset.apiKey, origin: urlOrigin(preset.baseUrl) }
 				: null;
 		setAISettings((prev) =>
 			prev
@@ -459,7 +505,7 @@ const Page = () => {
 														type="button"
 														aria-pressed={active}
 														onClick={() => {
-															setTestResult(null);
+															setTestState(null);
 															setAISettings(
 																(prev) =>
 																	prev
@@ -502,7 +548,7 @@ const Page = () => {
 														type="button"
 														aria-pressed={active}
 														onClick={() => {
-															setTestResult(null);
+															setTestState(null);
 															setAISettings(
 																(prev) =>
 																	prev
@@ -536,7 +582,7 @@ const Page = () => {
 										inputType="url"
 										passedValue={aiSettings?.baseUrl ?? ""}
 										onChange={(value) => {
-											setTestResult(null);
+											setTestState(null);
 											setAISettings((prevSettings) =>
 												prevSettings
 													? withEndpoint(
@@ -566,15 +612,17 @@ const Page = () => {
 										inputType="password"
 										passedValue={aiSettings?.apiKey ?? ""}
 										onChange={(value) => {
-											setTestResult(null);
-											keyOriginRef.current =
+											setTestState(null);
+											keyBindingRef.current =
 												value.trim() === ""
 													? null
-													: (keyOriginRef.current ??
-														urlOrigin(
-															aiSettings?.baseUrl ??
-																"",
-														));
+													: {
+															apiKey: value,
+															origin: urlOrigin(
+																aiSettings?.baseUrl ??
+																	"",
+															),
+														};
 											setAISettings((prevSettings) =>
 												prevSettings
 													? {
@@ -642,9 +690,14 @@ const Page = () => {
 												) === ""
 											}
 											onClick={() =>
-												setLoadToken(
-													(token) => token + 1,
-												)
+												setLoadRequest((prev) => ({
+													endpointKey,
+													token:
+														prev.endpointKey ===
+														endpointKey
+															? prev.token + 1
+															: 1,
+												}))
 											}
 										/>
 									) : null}

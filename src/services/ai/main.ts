@@ -33,7 +33,9 @@ import type { RecurrenceRule } from "little-shared/utils/schedule";
 import {
 	MAX_TOTAL_MCP_TOOLS,
 	MCP_TOOL_PREFIX,
+	buildMcpExposedName,
 	callMcpTool,
+	formatSafeMcpEndpoint,
 	listMcpTools,
 	resolveMcpServers,
 	toOpenAIMcpTool,
@@ -370,6 +372,13 @@ const isOutputContentEmpty = (content: AIOutputContent): boolean =>
 	content.tasks.length === 0 &&
 	content.notes.length === 0;
 
+type PendingMcpMeta = {
+	serverId: string;
+	serverName: string;
+	serverUrl: string;
+	toolName: string;
+};
+
 type PendingMutation = {
 	call: OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall;
 	definition: ToolDefinition;
@@ -377,6 +386,9 @@ type PendingMutation = {
 	// What the user is asked to approve, built from the record the call
 	// names and the values that will be stored.
 	summary: string;
+	// Pinned MCP server identity & endpoint captured during discovery so
+	// confirmation revalidates the exact enabled server before dispatch.
+	mcpMeta?: PendingMcpMeta;
 };
 
 const quoted = (value: unknown, maxLength = 60): string =>
@@ -390,7 +402,7 @@ const quoted = (value: unknown, maxLength = 60): string =>
 // are the normalised arguments, the values that will actually be stored.
 // A record that cannot be found is said to be missing; the call then
 // fails when it runs.
-const describePendingAction = async (
+export const describePendingAction = async (
 	owner: AIOwner,
 	toolName: string,
 	args: Record<string, unknown>,
@@ -561,25 +573,16 @@ const describePendingAction = async (
 			if (toolName.startsWith(MCP_TOOL_PREFIX)) {
 				const rawTool =
 					mcpMeta?.toolName ?? toolName.slice(MCP_TOOL_PREFIX.length);
-				let target = mcpMeta?.serverName ?? "local MCP server";
-				const rawUrl = mcpMeta?.serverUrl;
-				if (rawUrl) {
-					try {
-						target = `${mcpMeta.serverName} (${new URL(rawUrl).origin})`;
-					} catch {
-						// Keep serverName fallback.
-					}
-				}
+				const endpoint = mcpMeta?.serverUrl
+					? formatSafeMcpEndpoint(mcpMeta.serverUrl)
+					: "";
+				const target =
+					mcpMeta?.serverName && endpoint !== ""
+						? `${mcpMeta.serverName} (${endpoint})`
+						: endpoint || mcpMeta?.serverName || "local MCP server";
 				const keys = Object.keys(args);
-				let argDetail = "";
-				if (keys.length > 0) {
-					const serialized = JSON.stringify(args);
-					const clipped =
-						serialized.length > 160
-							? `${serialized.slice(0, 159)}…`
-							: serialized;
-					argDetail = ` with ${clipped}`;
-				}
+				const argDetail =
+					keys.length > 0 ? ` with ${JSON.stringify(args)}` : "";
 				return `Run local MCP tool "${rawTool}" on ${target}${argDetail}`;
 			}
 			return `Run ${toolName}`;
@@ -1478,12 +1481,18 @@ export abstract class LittleAI {
 	static connectionOf = async (owner: AIOwner): Promise<AIConnection> => {
 		const { ai: aiSettings } = await readSettings(await owner.keys());
 		const { provider, model, apiKey } = aiSettings;
+		const mcpSignature = resolveMcpServers(aiSettings)
+			.filter((server) => server.enabled)
+			.map((server) => `${server.id}:${server.url}`)
+			.sort()
+			.join("|");
 		return {
 			provider,
 			// Without a configured provider there is no model to ask.
 			model: isAISettingsConfigured(aiSettings) ? model : "",
 			apiKey: provider === LAI_PROVIDERS.CUSTOM ? apiKey.trim() : "",
 			baseUrl: getResolvedBaseUrl(aiSettings),
+			mcpSignature,
 		};
 	};
 
@@ -1504,13 +1513,15 @@ export type AIConnection = {
 	model: string;
 	apiKey: string;
 	baseUrl: string;
+	mcpSignature?: string;
 };
 
 export const sameConnection = (a: AIConnection, b: AIConnection): boolean =>
 	a.provider === b.provider &&
 	a.model === b.model &&
 	a.apiKey === b.apiKey &&
-	a.baseUrl === b.baseUrl;
+	a.baseUrl === b.baseUrl &&
+	(a.mcpSignature ?? "") === (b.mcpSignature ?? "");
 
 export class OpenAICompatibleAI extends LittleAI {
 	constructor({
@@ -1608,6 +1619,28 @@ export class OpenAICompatibleAI extends LittleAI {
 				throw new RunStoppedError();
 			}
 			await this.owner.assertCurrent();
+			if (item.mcpMeta) {
+				const liveSettings = await readSettings(
+					await this.owner.keys(),
+				);
+				const stillEnabled = resolveMcpServers(liveSettings.ai).some(
+					(server) =>
+						server.enabled &&
+						server.id === item.mcpMeta!.serverId &&
+						server.url === item.mcpMeta!.serverUrl,
+				);
+				if (!stillEnabled) {
+					const expiredMsg = `The local MCP server "${item.mcpMeta.serverName}" was paused, removed, or changed after approval was requested. Ask again to run on the updated configuration.`;
+					hasToolError = true;
+					expression = LFACE_EXPRESSION.FROWNING;
+					messages.push(expiredMsg);
+					this.appendToolResult(item.call.id, {
+						message: expiredMsg,
+						expression: LFACE_EXPRESSION.FROWNING,
+					});
+					continue;
+				}
+			}
 			const normalizedArgs = item.definition.normalizeArgs(item.args);
 			const args =
 				item.call.function.name === "export_data"
@@ -1822,10 +1855,7 @@ export class OpenAICompatibleAI extends LittleAI {
 		const dynamicMcpTools: Array<OpenAI.Chat.Completions.ChatCompletionFunctionTool> =
 			[];
 		const dynamicMcpDefinitions = new Map<string, ToolDefinition>();
-		const dynamicMcpMeta = new Map<
-			string,
-			{ serverName: string; serverUrl: string; toolName: string }
-		>();
+		const dynamicMcpMeta = new Map<string, PendingMcpMeta>();
 		if (personalization.mcpServers.length > 0) {
 			const discovered = await Promise.allSettled(
 				personalization.mcpServers.map(async (server) => ({
@@ -1836,25 +1866,20 @@ export class OpenAICompatibleAI extends LittleAI {
 			for (const outcome of discovered) {
 				if (outcome.status !== "fulfilled") continue;
 				const { server, descriptors } = outcome.value;
-				const slug =
-					server.name
-						.toLowerCase()
-						.replace(/[^a-z0-9]+/g, "_")
-						.replace(/^_+|_+$/g, "")
-						.slice(0, 20) || "server";
 				for (const descriptor of descriptors) {
 					if (dynamicMcpTools.length >= MAX_TOTAL_MCP_TOOLS) break;
-					let exposedName = `${MCP_TOOL_PREFIX}${descriptor.name}`;
-					if (dynamicMcpDefinitions.has(exposedName)) {
-						exposedName = `${MCP_TOOL_PREFIX}${slug}__${descriptor.name}`;
-					}
-					if (dynamicMcpDefinitions.has(exposedName)) continue;
+					const exposedName = buildMcpExposedName(
+						server,
+						descriptor.name,
+						dynamicMcpDefinitions,
+					);
 					const openAITool = toOpenAIMcpTool(descriptor, {
 						exposedName,
 						serverName: server.name,
 					});
 					dynamicMcpTools.push(openAITool);
 					dynamicMcpMeta.set(exposedName, {
+						serverId: server.id,
 						serverName: server.name,
 						serverUrl: server.url,
 						toolName: descriptor.name,
@@ -2068,15 +2093,17 @@ export class OpenAICompatibleAI extends LittleAI {
 							if (activeTab.title) args.title = activeTab.title;
 						}
 					}
+					const mcpMeta = dynamicMcpMeta.get(call.function.name);
 					pendingThisRound.push({
 						call,
 						definition,
 						args,
+						...(mcpMeta ? { mcpMeta } : {}),
 						summary: await describePendingAction(
 							this.owner,
 							call.function.name,
 							definition.normalizeArgs(args),
-							dynamicMcpMeta.get(call.function.name),
+							mcpMeta,
 						),
 					});
 					continue;

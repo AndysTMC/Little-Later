@@ -33,17 +33,6 @@ const Page = () => {
 	const ai = userSettings?.ai;
 	const memories = ai?.memories ?? [];
 
-	const saveMemories = (next: Array<LAIMemory>, failureMessage: string) => {
-		if (!ai) return;
-		void attempt(
-			() =>
-				send("settings.update", {
-					ai: { ...ai, memories: next },
-				}),
-			failureMessage,
-		);
-	};
-
 	const handleAdd = () => {
 		const text = draft.trim().slice(0, MAX_MEMORY_LENGTH);
 		if (text === "" || memories.length >= MAX_MEMORIES) return;
@@ -53,12 +42,21 @@ const Page = () => {
 			createdAt: Date.now(),
 		};
 		setDraft("");
-		saveMemories([...memories, entry], "Couldn't save that memory.");
+		void attempt(
+			() =>
+				send("settings.update", {
+					ai: { memoryOp: { op: "add", entry } },
+				}),
+			"Couldn't save that memory.",
+		);
 	};
 
 	const handleDelete = (id: string) => {
-		saveMemories(
-			memories.filter((item) => item.id !== id),
+		void attempt(
+			() =>
+				send("settings.update", {
+					ai: { memoryOp: { op: "remove", id } },
+				}),
 			"Couldn't remove that memory.",
 		);
 	};

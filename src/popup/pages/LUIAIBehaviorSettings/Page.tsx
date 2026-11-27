@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { LTHEME } from "little-shared/enums";
-import type { LAISettings, LAIVerbosity } from "little-shared/types";
+import type { LAIVerbosity } from "little-shared/types";
 import { send } from "../../../utils/send";
 import { useTheme } from "../../hooks/useTheme";
 import { usePageMotion } from "../../hooks/usePageMove";
@@ -14,8 +14,13 @@ import { LUISettingSelect } from "../../components/LUISettingRow/Component";
 import { LUINote } from "../../components/LUINote/Component";
 import { LUILoading } from "../../components/LUILoading/Component";
 
-const sameAI = (a: LAISettings, b: LAISettings) =>
-	JSON.stringify(a) === JSON.stringify(b);
+type BehaviorDraft = {
+	verbosity: LAIVerbosity;
+	instructions: string;
+};
+
+const sameBehavior = (a: BehaviorDraft, b: BehaviorDraft) =>
+	a.verbosity === b.verbosity && a.instructions === b.instructions;
 
 const VERBOSITY_OPTIONS: Array<{ value: LAIVerbosity; label: string }> = [
 	{ value: "concise", label: "Concise" },
@@ -33,24 +38,36 @@ const Page = () => {
 	const isDark = theme === LTHEME.DARK;
 	const pageMotion = usePageMotion();
 	const userSettings = useCurrentUserSettings();
-	const [aiSettings, setAISettings] = useSettingDraft<LAISettings>(
-		"settings.ai",
-		userSettings?.ai,
-		sameAI,
+	const storedBehavior: BehaviorDraft | undefined = userSettings
+		? {
+				verbosity: userSettings.ai.verbosity ?? "balanced",
+				instructions: userSettings.ai.instructions ?? "",
+			}
+		: undefined;
+	const [behavior, setBehavior] = useSettingDraft<BehaviorDraft>(
+		"settings.ai.behavior",
+		storedBehavior,
+		sameBehavior,
 	);
 	const loading = useLoading([userSettings]);
 
 	useDebouncedSave(
-		userSettings !== undefined &&
-			aiSettings !== undefined &&
-			JSON.stringify(aiSettings) !== JSON.stringify(userSettings.ai)
-			? () => send("settings.update", { ai: aiSettings })
+		storedBehavior !== undefined &&
+			behavior !== undefined &&
+			!sameBehavior(behavior, storedBehavior)
+			? () =>
+					send("settings.update", {
+						ai: {
+							verbosity: behavior.verbosity,
+							instructions: behavior.instructions,
+						},
+					})
 			: null,
 		500,
-		aiSettings,
+		behavior,
 	);
 
-	const instructions = aiSettings?.instructions ?? "";
+	const instructions = behavior?.instructions ?? "";
 
 	return (
 		<motion.div
@@ -58,7 +75,7 @@ const Page = () => {
 			{...pageMotion}
 		>
 			<LUIBasicNav navigateTo="/settings/ai" />
-			{loading || !aiSettings ? (
+			{loading || !behavior ? (
 				<LUILoading />
 			) : (
 				<LUISettingsLayout pageName="Behavior & Instructions">
@@ -72,10 +89,10 @@ const Page = () => {
 							<LUISettingSelect<LAIVerbosity>
 								label="Detail level"
 								testId="ai-verbosity-select"
-								value={aiSettings.verbosity ?? "balanced"}
+								value={behavior.verbosity}
 								options={VERBOSITY_OPTIONS}
 								onChange={(verbosity) =>
-									setAISettings((prev) =>
+									setBehavior((prev) =>
 										prev ? { ...prev, verbosity } : prev,
 									)
 								}
@@ -110,7 +127,7 @@ const Page = () => {
 								placeholder='e.g. "Prefer short bullet points. Use ISO dates (YYYY-MM-DD)."'
 								onChange={(event) => {
 									const nextValue = event.target.value;
-									setAISettings((prev) =>
+									setBehavior((prev) =>
 										prev
 											? {
 													...prev,

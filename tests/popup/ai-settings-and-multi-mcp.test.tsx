@@ -13,8 +13,16 @@ import { LUIAISettings } from "../../src/popup/pages/LUIAISettings/Page";
 import { LUIAIProviderSettings } from "../../src/popup/pages/LUIAIProviderSettings/Page";
 import { LUIAIMcpSettings } from "../../src/popup/pages/LUIAIMcpSettings/Page";
 import { getProviderDisplayName } from "../../src/services/ai/config";
-import { resolveMcpServers } from "../../src/services/ai/mcpClient";
-import { LittleAI } from "../../src/services/ai/main";
+import {
+	buildMcpExposedName,
+	formatSafeMcpEndpoint,
+	resolveMcpServers,
+} from "../../src/services/ai/mcpClient";
+import {
+	describePendingAction,
+	LittleAI,
+	sameConnection,
+} from "../../src/services/ai/main";
 import { currentOwner } from "../../src/services/ai/owner";
 import { littleDB } from "../../src/storage/pageDB";
 import { getSettings } from "../../src/storage/repositories";
@@ -387,5 +395,98 @@ describe("AI Settings redesign & multi-MCP support", () => {
 		const ai = await LittleAI.getLAIAssistInstance(owner);
 		await ai.prompt("Check both servers");
 		expect(sentTools).toEqual(["mcp__status", "mcp__git__status"]);
+	});
+
+	it("bounds MCP aliases to 64 chars across 3 same-named servers, redacts endpoint secrets, revalidates paused servers, and isolates partial settings patches", async () => {
+		const used = new Set<string>();
+		const longTool = "a".repeat(58);
+		const names = ["s1", "s2", "s3"].map((id) => {
+			const alias = buildMcpExposedName(
+				{ id, name: "Workspace Tools" },
+				longTool,
+				used,
+			);
+			used.add(alias);
+			return alias;
+		});
+		expect(new Set(names).size).toBe(3);
+		for (const name of names) {
+			expect(name.length).toBeLessThanOrEqual(64);
+			expect(name).toMatch(/^[a-zA-Z0-9_-]{1,64}$/);
+		}
+
+		// Endpoint formatting keeps distinguishing paths and redacts query values.
+		expect(
+			formatSafeMcpEndpoint(
+				"http://user:secret@127.0.0.1:3001/mcp/git?token=abc123#frag",
+			),
+		).toBe("http://127.0.0.1:3001/mcp/git?token=[redacted]");
+
+		// Full arguments & path appear in approval summary without silent clipping.
+		const owner = await currentOwner();
+		const longArg = "z".repeat(220);
+		const summary = await describePendingAction(
+			owner,
+			"mcp__exec",
+			{ payload: longArg },
+			{
+				serverName: "Tools",
+				serverUrl: "http://127.0.0.1:3001/mcp/git",
+				toolName: "exec",
+			},
+		);
+		expect(summary).toContain("http://127.0.0.1:3001/mcp/git");
+		expect(summary).toContain(longArg);
+
+		// Concurrent section & MCP row patches never overwrite each other.
+		await Promise.all([
+			send("settings.update", {
+				ai: {
+					mcpServerOp: {
+						op: "add",
+						server: {
+							id: "srv-a",
+							name: "Alpha",
+							url: "http://127.0.0.1:3001/mcp/a",
+							enabled: true,
+						},
+					},
+				},
+			}),
+			send("settings.update", {
+				ai: {
+					mcpServerOp: {
+						op: "add",
+						server: {
+							id: "srv-b",
+							name: "Beta",
+							url: "http://127.0.0.1:3001/mcp/b",
+							enabled: true,
+						},
+					},
+				},
+			}),
+			send("settings.update", {
+				ai: { verbosity: "detailed", instructions: "Be thorough." },
+			}),
+		]);
+		const keys = await importProfileKeys((await sessionStore.get())!);
+		const afterPatches = await getSettings(littleDB, keys);
+		expect(afterPatches.ai.mcpServers?.map((s) => s.id)).toEqual([
+			"srv-a",
+			"srv-b",
+		]);
+		expect(afterPatches.ai.verbosity).toBe("detailed");
+		expect(afterPatches.ai.instructions).toBe("Be thorough.");
+
+		// Pausing an MCP server changes connection signature and blocks pending confirmation.
+		const connBefore = await LittleAI.connectionOf(owner);
+		await send("settings.update", {
+			ai: {
+				mcpServerOp: { op: "setEnabled", id: "srv-a", enabled: false },
+			},
+		});
+		const connAfter = await LittleAI.connectionOf(owner);
+		expect(sameConnection(connBefore, connAfter)).toBe(false);
 	});
 });
