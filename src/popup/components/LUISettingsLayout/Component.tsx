@@ -28,7 +28,7 @@ const Component = ({
 				{pageName}
 			</h1>
 			<div
-				className={`min-h-0 w-full grow overflow-y-auto rounded-2xl border p-4 ${
+				className={`min-h-0 w-full grow [scrollbar-gutter:stable] overflow-y-auto rounded-2xl border p-4 ${
 					isDark
 						? "border-neutral-800 bg-neutral-900/70"
 						: "border-neutral-200 bg-neutral-100/70"

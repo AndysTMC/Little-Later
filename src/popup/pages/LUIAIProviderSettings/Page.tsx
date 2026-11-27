@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { MOTION } from "../../../route-transitions";
 import { CheckCircleIcon, CircleIcon, XIcon } from "@phosphor-icons/react";
 import { LAI_PROVIDERS, LTHEME } from "little-shared/enums";
 import type { LAIPreset, LAISettings } from "little-shared/types";
@@ -148,8 +147,7 @@ const Page = () => {
 			: [];
 	const isFetchingModels =
 		fetchScope !== null &&
-		modelState?.scope === fetchScope &&
-		modelState.fetching;
+		(modelState?.scope !== fetchScope || modelState.fetching);
 	const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const latestFetchIdRef = useRef(0);
 	const [testing, setTesting] = useState(false);
@@ -218,6 +216,11 @@ const Page = () => {
 		}
 
 		const scope = fetchScope;
+		const delay =
+			aiSettings.provider === LAI_PROVIDERS.OLLAMA ||
+			aiSettings.provider === LAI_PROVIDERS.LM_STUDIO
+				? 0
+				: 250;
 		fetchTimeoutRef.current = setTimeout(async () => {
 			const currentFetchId = latestFetchIdRef.current + 1;
 			latestFetchIdRef.current = currentFetchId;
@@ -246,7 +249,7 @@ const Page = () => {
 						: prevSettings,
 				);
 			}
-		}, 350);
+		}, delay);
 
 		return () => {
 			latestFetchIdRef.current += 1;
@@ -401,434 +404,247 @@ const Page = () => {
 
 	return (
 		<motion.div
-			className={`h-full w-full select-none ${isDark ? "bg-black" : "bg-white"}`}
+			className={`flex h-full w-full flex-col overflow-y-hidden select-none ${isDark ? "bg-black" : "bg-white"}`}
 			{...pageMotion}
 		>
+			<LUIBasicNav navigateTo="/settings/ai" />
 			{loading ? (
 				<LUILoading />
 			) : (
-				<motion.div
-					className="flex h-full w-full flex-col overflow-y-hidden"
-					initial={{ opacity: 0 }}
-					animate={{ opacity: 1 }}
-					transition={MOTION.reveal}
-				>
-					<LUIBasicNav navigateTo="/settings/ai" />
-					<LUISettingsLayout pageName="Provider & Model">
-						<div className="flex h-max w-full flex-col gap-y-4 pb-4">
-							<div className="flex h-max w-full flex-col gap-y-2.5">
-								{/* Local | Cloud | Custom segmented control */}
-								<div
-									role="tablist"
-									aria-label="Provider category"
-									className={`grid w-full grid-cols-3 gap-1 rounded-xl border p-1 ${
-										isDark
-											? "border-neutral-800 bg-neutral-900"
-											: "border-neutral-200 bg-neutral-100"
-									}`}
-								>
-									{CATEGORY_OPTIONS.map((option) => {
+				<LUISettingsLayout pageName="Provider & Model">
+					<div className="flex h-max w-full flex-col gap-y-4 pb-4">
+						<div className="flex h-max w-full flex-col gap-y-2.5">
+							{/* Local | Cloud | Custom segmented control */}
+							<div
+								role="tablist"
+								aria-label="Provider category"
+								className={`grid w-full grid-cols-3 gap-1 rounded-xl border p-1 ${
+									isDark
+										? "border-neutral-800 bg-neutral-900"
+										: "border-neutral-200 bg-neutral-100"
+								}`}
+							>
+								{CATEGORY_OPTIONS.map((option) => {
+									const active = category === option.value;
+									return (
+										<button
+											key={option.value}
+											type="button"
+											role="tab"
+											aria-selected={active}
+											onClick={() =>
+												handleCategoryChange(
+													option.value,
+												)
+											}
+											className={`cursor-pointer rounded-lg py-1.5 text-xs font-medium transition-colors ${
+												active
+													? "ll-accent-fill"
+													: isDark
+														? "text-neutral-400 hover:text-white"
+														: "text-neutral-600 hover:text-black"
+											}`}
+										>
+											{option.label}
+										</button>
+									);
+								})}
+							</div>
+
+							{category === "local" ? (
+								<div className="flex flex-wrap gap-1.5">
+									{LOCAL_PROVIDER_PRESETS.map((preset) => {
 										const active =
-											category === option.value;
+											aiSettings?.provider ===
+												preset.provider &&
+											(preset.provider !==
+												LAI_PROVIDERS.CUSTOM ||
+												aiSettings.baseUrl.trim() ===
+													preset.baseUrl);
 										return (
 											<button
-												key={option.value}
+												key={preset.name}
 												type="button"
-												role="tab"
-												aria-selected={active}
-												onClick={() =>
-													handleCategoryChange(
-														option.value,
-													)
-												}
-												className={`cursor-pointer rounded-lg py-1.5 text-xs font-medium transition-colors ${
+												aria-pressed={active}
+												onClick={() => {
+													setTestState(null);
+													setAISettings((prev) =>
+														prev
+															? withEndpoint(
+																	prev,
+																	preset.provider,
+																	preset.baseUrl,
+																)
+															: prev,
+													);
+												}}
+												className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
 													active
-														? "ll-accent-fill"
+														? "ll-accent-fill border-transparent"
 														: isDark
-															? "text-neutral-400 hover:text-white"
-															: "text-neutral-600 hover:text-black"
+															? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-neutral-700 hover:text-white"
+															: "border-neutral-200 bg-neutral-100 text-neutral-700 hover:border-neutral-300 hover:text-black"
 												}`}
 											>
-												{option.label}
+												{preset.name}
 											</button>
 										);
 									})}
 								</div>
+							) : null}
 
-								{category === "local" ? (
-									<div className="flex flex-wrap gap-1.5">
-										{LOCAL_PROVIDER_PRESETS.map(
-											(preset) => {
-												const active =
-													aiSettings?.provider ===
-														preset.provider &&
-													(preset.provider !==
-														LAI_PROVIDERS.CUSTOM ||
-														aiSettings.baseUrl.trim() ===
-															preset.baseUrl);
-												return (
-													<button
-														key={preset.name}
-														type="button"
-														aria-pressed={active}
-														onClick={() => {
-															setTestState(null);
-															setAISettings(
-																(prev) =>
-																	prev
-																		? withEndpoint(
-																				prev,
-																				preset.provider,
-																				preset.baseUrl,
-																			)
-																		: prev,
-															);
-														}}
-														className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-															active
-																? "ll-accent-fill border-transparent"
-																: isDark
-																	? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-neutral-700 hover:text-white"
-																	: "border-neutral-200 bg-neutral-100 text-neutral-700 hover:border-neutral-300 hover:text-black"
-														}`}
-													>
-														{preset.name}
-													</button>
-												);
-											},
-										)}
-									</div>
-								) : null}
+							{category === "cloud" ? (
+								<div className="flex flex-wrap gap-1.5">
+									{CLOUD_PROVIDER_PRESETS.map((preset) => {
+										const active =
+											aiSettings?.provider ===
+												LAI_PROVIDERS.CUSTOM &&
+											aiSettings.baseUrl.trim() ===
+												preset.baseUrl;
+										return (
+											<button
+												key={preset.name}
+												type="button"
+												aria-pressed={active}
+												onClick={() => {
+													setTestState(null);
+													setAISettings((prev) =>
+														prev
+															? withEndpoint(
+																	prev,
+																	LAI_PROVIDERS.CUSTOM,
+																	preset.baseUrl,
+																)
+															: prev,
+													);
+												}}
+												className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+													active
+														? "ll-accent-fill border-transparent"
+														: isDark
+															? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-neutral-700 hover:text-white"
+															: "border-neutral-200 bg-neutral-100 text-neutral-700 hover:border-neutral-300 hover:text-black"
+												}`}
+											>
+												{preset.name}
+											</button>
+										);
+									})}
+								</div>
+							) : null}
 
-								{category === "cloud" ? (
-									<div className="flex flex-wrap gap-1.5">
-										{CLOUD_PROVIDER_PRESETS.map(
-											(preset) => {
-												const active =
-													aiSettings?.provider ===
-														LAI_PROVIDERS.CUSTOM &&
-													aiSettings.baseUrl.trim() ===
-														preset.baseUrl;
-												return (
-													<button
-														key={preset.name}
-														type="button"
-														aria-pressed={active}
-														onClick={() => {
-															setTestState(null);
-															setAISettings(
-																(prev) =>
-																	prev
-																		? withEndpoint(
-																				prev,
-																				LAI_PROVIDERS.CUSTOM,
-																				preset.baseUrl,
-																			)
-																		: prev,
-															);
-														}}
-														className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-															active
-																? "ll-accent-fill border-transparent"
-																: isDark
-																	? "border-neutral-800 bg-neutral-900 text-neutral-300 hover:border-neutral-700 hover:text-white"
-																	: "border-neutral-200 bg-neutral-100 text-neutral-700 hover:border-neutral-300 hover:text-black"
-														}`}
-													>
-														{preset.name}
-													</button>
-												);
-											},
-										)}
-									</div>
-								) : null}
+							{showBaseUrlInput ? (
+								<LUITextInputT1
+									name="Base URL"
+									inputType="url"
+									passedValue={aiSettings?.baseUrl ?? ""}
+									onChange={(value) => {
+										setTestState(null);
+										setAISettings((prevSettings) =>
+											prevSettings
+												? withEndpoint(
+														prevSettings,
+														LAI_PROVIDERS.CUSTOM,
+														value,
+													)
+												: prevSettings,
+										);
+									}}
+									validate={(value) => {
+										const problem =
+											getBaseUrlProblem(value);
+										return {
+											success: problem === null,
+											error: problem ?? "",
+										};
+									}}
+									lengthLimit={256}
+									disableLengthCounter
+								/>
+							) : null}
 
-								{showBaseUrlInput ? (
-									<LUITextInputT1
-										name="Base URL"
-										inputType="url"
-										passedValue={aiSettings?.baseUrl ?? ""}
-										onChange={(value) => {
-											setTestState(null);
-											setAISettings((prevSettings) =>
-												prevSettings
-													? withEndpoint(
-															prevSettings,
-															LAI_PROVIDERS.CUSTOM,
-															value,
-														)
-													: prevSettings,
-											);
-										}}
-										validate={(value) => {
-											const problem =
-												getBaseUrlProblem(value);
-											return {
-												success: problem === null,
-												error: problem ?? "",
-											};
-										}}
-										lengthLimit={256}
-										disableLengthCounter
-									/>
-								) : null}
+							{showApiKeyInput ? (
+								<LUITextInputT1
+									name={apiKeyFieldLabel}
+									inputType="password"
+									passedValue={aiSettings?.apiKey ?? ""}
+									onChange={(value) => {
+										setTestState(null);
+										setAISettings((prevSettings) =>
+											prevSettings
+												? {
+														...prevSettings,
+														apiKey: value,
+													}
+												: prevSettings,
+										);
+									}}
+									validate={() => ({
+										success: true,
+										error: "",
+									})}
+									lengthLimit={4096}
+									disableLengthCounter
+								/>
+							) : null}
 
-								{showApiKeyInput ? (
-									<LUITextInputT1
-										name={apiKeyFieldLabel}
-										inputType="password"
-										passedValue={aiSettings?.apiKey ?? ""}
-										onChange={(value) => {
-											setTestState(null);
-											setAISettings((prevSettings) =>
-												prevSettings
-													? {
-															...prevSettings,
-															apiKey: value,
-														}
-													: prevSettings,
-											);
-										}}
-										validate={() => ({
-											success: true,
-											error: "",
-										})}
-										lengthLimit={4096}
-										disableLengthCounter
-									/>
-								) : null}
+							{showManualModelInput ? (
+								<LUITextInputT1
+									name="Model"
+									passedValue={aiSettings?.model ?? ""}
+									onChange={(value) => {
+										setAISettings((prevSettings) =>
+											prevSettings
+												? {
+														...prevSettings,
+														model: value,
+													}
+												: prevSettings,
+										);
+									}}
+									validate={() => ({
+										success: true,
+										error: "",
+									})}
+									lengthLimit={256}
+									disableLengthCounter
+								/>
+							) : null}
 
-								{showManualModelInput ? (
-									<LUITextInputT1
-										name="Model"
-										passedValue={aiSettings?.model ?? ""}
-										onChange={(value) => {
-											setAISettings((prevSettings) =>
-												prevSettings
-													? {
-															...prevSettings,
-															model: value,
-														}
-													: prevSettings,
-											);
-										}}
-										validate={() => ({
-											success: true,
-											error: "",
-										})}
-										lengthLimit={256}
-										disableLengthCounter
-									/>
-								) : null}
-
-								<div className="flex flex-wrap items-center gap-2 pt-0.5">
+							<div className="flex flex-wrap items-center gap-2 pt-0.5">
+								<LUIPillButton
+									label={
+										testing ? "Testing…" : "Test connection"
+									}
+									disabled={
+										testing ||
+										!aiSettings ||
+										getResolvedBaseUrl(aiSettings) === ""
+									}
+									onClick={() => void handleTestConnection()}
+								/>
+								{!isBuiltInLocal && aiSettings ? (
 									<LUIPillButton
-										label={
-											testing
-												? "Testing…"
-												: "Test connection"
-										}
+										label="Load models"
 										disabled={
-											testing ||
-											!aiSettings ||
 											getResolvedBaseUrl(aiSettings) ===
-												""
+											""
 										}
 										onClick={() =>
-											void handleTestConnection()
+											setLoadRequest((prev) => ({
+												endpointKey,
+												token:
+													prev.endpointKey ===
+													endpointKey
+														? prev.token + 1
+														: 1,
+											}))
 										}
 									/>
-									{!isBuiltInLocal && aiSettings ? (
-										<LUIPillButton
-											label="Load models"
-											disabled={
-												getResolvedBaseUrl(
-													aiSettings,
-												) === ""
-											}
-											onClick={() =>
-												setLoadRequest((prev) => ({
-													endpointKey,
-													token:
-														prev.endpointKey ===
-														endpointKey
-															? prev.token + 1
-															: 1,
-												}))
-											}
-										/>
-									) : null}
-								</div>
-
-								{showApiKeyInput ? (
-									<div
-										className={`text-xs ${
-											isDark
-												? "text-neutral-400"
-												: "text-neutral-600"
-										}`}
-									>
-										Testing or loading models sends your API
-										key to the selected provider. You can
-										also type a model name directly.
-									</div>
 								) : null}
-
-								{testResult ? (
-									<LUINote
-										warning={!testResult.ok}
-										className="w-full"
-									>
-										{testResult.message}
-									</LUINote>
-								) : null}
-
-								<div className="mt-1 flex h-max w-full flex-col gap-y-1.5">
-									<div
-										className={`text-sm font-semibold ${
-											isDark ? "text-white" : "text-black"
-										}`}
-									>
-										Models
-									</div>
-									<div
-										data-testid="ai-model-list"
-										className={`h-max max-h-44 w-full overflow-y-auto rounded-xl border p-1 ${
-											isDark
-												? "border-neutral-800 bg-neutral-900"
-												: "border-neutral-200 bg-neutral-100"
-										} ${theme}-scrollbar`}
-									>
-										{isFetchingModels ? (
-											<div
-												className={`px-3 py-2 text-sm ${
-													isDark
-														? "text-neutral-400"
-														: "text-neutral-600"
-												}`}
-											>
-												Loading models…
-											</div>
-										) : models.length === 0 ? (
-											<div
-												className={`px-3 py-2 text-sm ${
-													isDark
-														? "text-neutral-400"
-														: "text-neutral-600"
-												}`}
-											>
-												{isBuiltInLocal
-													? "No models found. Make sure your local server is running."
-													: "Press Load models above, or type a model name."}
-											</div>
-										) : (
-											models.map((modelName) => {
-												const isSelected =
-													(aiSettings?.model ??
-														"") === modelName;
-												return (
-													<button
-														type="button"
-														key={modelName}
-														aria-pressed={
-															isSelected
-														}
-														data-testid="ai-model-option"
-														data-model-name={
-															modelName
-														}
-														className={`mb-1 flex h-9 w-full cursor-pointer items-center justify-between rounded-lg px-3 text-sm transition-colors last:mb-0 ${
-															isSelected
-																? isDark
-																	? "bg-neutral-800"
-																	: "bg-neutral-200"
-																: isDark
-																	? "hover:bg-neutral-800/60"
-																	: "hover:bg-neutral-200/60"
-														}`}
-														onClick={() => {
-															setAISettings(
-																(
-																	prevSettings,
-																) =>
-																	prevSettings
-																		? {
-																				...prevSettings,
-																				model: modelName,
-																			}
-																		: prevSettings,
-															);
-														}}
-													>
-														<span
-															className={`${
-																isDark
-																	? "text-white"
-																	: "text-black"
-															} max-w-[85%] truncate`}
-														>
-															{modelName}
-														</span>
-														{aiSettings &&
-														isCloudModel(
-															aiSettings.provider,
-															modelName,
-														) ? (
-															<span
-																className={`mr-2 ml-auto shrink-0 rounded-full border px-2 text-xs ${
-																	isDark
-																		? "border-neutral-600 text-neutral-300"
-																		: "border-neutral-400 text-neutral-600"
-																}`}
-															>
-																Cloud
-															</span>
-														) : null}
-														{isSelected ? (
-															<LUIThemedIcon
-																Icon={
-																	CheckCircleIcon
-																}
-																color="currentColor"
-																weight="fill"
-																className="size-4 shrink-0 text-[var(--ll-accent)]"
-															/>
-														) : (
-															<LUIThemedIcon
-																Icon={
-																	CircleIcon
-																}
-																color="currentColor"
-																weight="regular"
-																className={`size-4 shrink-0 ${
-																	isDark
-																		? "text-neutral-600"
-																		: "text-neutral-400"
-																}`}
-															/>
-														)}
-													</button>
-												);
-											})
-										)}
-									</div>
-								</div>
 							</div>
 
-							<div
-								className={`flex flex-col gap-y-2 border-t pt-3 ${
-									isDark
-										? "border-neutral-800"
-										: "border-neutral-200"
-								}`}
-							>
-								<div
-									className={`text-sm font-semibold ${
-										isDark ? "text-white" : "text-black"
-									}`}
-								>
-									Saved connections
-								</div>
+							{showApiKeyInput ? (
 								<div
 									className={`text-xs ${
 										isDark
@@ -836,140 +652,299 @@ const Page = () => {
 											: "text-neutral-600"
 									}`}
 								>
-									Save provider and model combinations to
-									switch quickly from Little AI chat.
+									Testing or loading models sends your API key
+									to the selected provider. You can also type
+									a model name directly.
 								</div>
-								<div className="flex items-center gap-2">
-									<input
-										type="text"
-										value={presetName}
-										maxLength={60}
-										aria-label="Preset label (optional)"
-										placeholder="Label (optional)"
-										onChange={(event) =>
-											setPresetName(event.target.value)
-										}
-										className={`ll-field h-9 min-w-0 grow rounded-xl border px-3 text-xs ${
-											isDark
-												? "border-neutral-700 bg-neutral-900 text-white placeholder:text-neutral-500"
-												: "border-neutral-300 bg-neutral-100 text-black placeholder:text-neutral-500"
-										}`}
-									/>
-									<LUIPillButton
-										label="Save current"
-										disabled={
-											!aiSettings ||
-											aiSettings.model.trim() === ""
-										}
-										onClick={handleSavePreset}
-									/>
-								</div>
-								{(aiSettings?.presets ?? []).length > 0 ? (
-									<div className="flex flex-col gap-1.5">
-										{(aiSettings?.presets ?? []).map(
-											(preset) => {
-												const active =
-													aiSettings?.provider ===
-														preset.provider &&
-													aiSettings?.baseUrl ===
-														preset.baseUrl &&
-													aiSettings?.model ===
-														preset.model;
-												return (
-													<div
-														key={preset.id}
-														className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 ${
-															active
-																? isDark
-																	? "border-neutral-600 bg-neutral-800/80"
-																	: "border-neutral-400 bg-neutral-200/70"
-																: isDark
-																	? "border-neutral-800 bg-neutral-900"
-																	: "border-neutral-200 bg-neutral-100"
-														}`}
-													>
-														<div className="min-w-0">
-															<div
-																className={`truncate text-xs font-medium ${
-																	isDark
-																		? "text-white"
-																		: "text-black"
-																}`}
-															>
-																{preset.name}
-															</div>
-															<div
-																className={`truncate text-[11px] ${
-																	isDark
-																		? "text-neutral-400"
-																		: "text-neutral-600"
-																}`}
-															>
-																{getProviderDisplayName(
-																	preset,
-																)}{" "}
-																· {preset.model}
-															</div>
-														</div>
-														<div className="flex shrink-0 items-center gap-1.5">
-															{active ? (
-																<span
-																	className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-																		isDark
-																			? "bg-neutral-700 text-neutral-200"
-																			: "bg-neutral-300 text-neutral-800"
-																	}`}
-																>
-																	Active
-																</span>
-															) : (
-																<LUIPillButton
-																	label="Use"
-																	onClick={() =>
-																		handleApplyPreset(
-																			preset,
-																		)
-																	}
-																/>
-															)}
-															<button
-																type="button"
-																aria-label={`Remove ${preset.name}`}
-																onClick={() =>
-																	handleDeletePreset(
-																		preset.id,
-																	)
-																}
-																className={`flex size-7 cursor-pointer items-center justify-center rounded-full transition-colors ${
-																	isDark
-																		? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
-																		: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
-																}`}
-															>
-																<LUIThemedIcon
-																	Icon={XIcon}
-																	color="currentColor"
-																	weight="regular"
-																	className="size-3.5"
-																/>
-															</button>
-														</div>
-													</div>
-												);
-											},
-										)}
-									</div>
-								) : null}
-							</div>
+							) : null}
 
-							{aiSettings ? (
-								<LUINote className="w-full">
-									{describeProcessing(aiSettings)}
+							{testResult ? (
+								<LUINote
+									warning={!testResult.ok}
+									className="w-full"
+								>
+									{testResult.message}
 								</LUINote>
 							) : null}
+
+							<div className="mt-1 flex h-max w-full flex-col gap-y-1.5">
+								<div
+									className={`text-sm font-semibold ${
+										isDark ? "text-white" : "text-black"
+									}`}
+								>
+									Models
+								</div>
+								<div
+									data-testid="ai-model-list"
+									className={`h-36 w-full overflow-y-auto rounded-xl border p-1 ${
+										isDark
+											? "border-neutral-800 bg-neutral-900"
+											: "border-neutral-200 bg-neutral-100"
+									} ${theme}-scrollbar`}
+								>
+									{isFetchingModels ? (
+										<div
+											className={`px-3 py-2 text-sm ${
+												isDark
+													? "text-neutral-400"
+													: "text-neutral-600"
+											}`}
+										>
+											Loading models…
+										</div>
+									) : models.length === 0 ? (
+										<div
+											className={`px-3 py-2 text-sm ${
+												isDark
+													? "text-neutral-400"
+													: "text-neutral-600"
+											}`}
+										>
+											{isBuiltInLocal
+												? "No models found. Make sure your local server is running."
+												: "Press Load models above, or type a model name."}
+										</div>
+									) : (
+										models.map((modelName) => {
+											const isSelected =
+												(aiSettings?.model ?? "") ===
+												modelName;
+											return (
+												<button
+													type="button"
+													key={modelName}
+													aria-pressed={isSelected}
+													data-testid="ai-model-option"
+													data-model-name={modelName}
+													className={`mb-1 flex h-9 w-full cursor-pointer items-center justify-between rounded-lg px-3 text-sm transition-colors last:mb-0 ${
+														isSelected
+															? isDark
+																? "bg-neutral-800"
+																: "bg-neutral-200"
+															: isDark
+																? "hover:bg-neutral-800/60"
+																: "hover:bg-neutral-200/60"
+													}`}
+													onClick={() => {
+														setAISettings(
+															(prevSettings) =>
+																prevSettings
+																	? {
+																			...prevSettings,
+																			model: modelName,
+																		}
+																	: prevSettings,
+														);
+													}}
+												>
+													<span
+														className={`${
+															isDark
+																? "text-white"
+																: "text-black"
+														} max-w-[85%] truncate`}
+													>
+														{modelName}
+													</span>
+													{aiSettings &&
+													isCloudModel(
+														aiSettings.provider,
+														modelName,
+													) ? (
+														<span
+															className={`mr-2 ml-auto shrink-0 rounded-full border px-2 text-xs ${
+																isDark
+																	? "border-neutral-600 text-neutral-300"
+																	: "border-neutral-400 text-neutral-600"
+															}`}
+														>
+															Cloud
+														</span>
+													) : null}
+													{isSelected ? (
+														<LUIThemedIcon
+															Icon={
+																CheckCircleIcon
+															}
+															color="currentColor"
+															weight="fill"
+															className="size-4 shrink-0 text-[var(--ll-accent)]"
+														/>
+													) : (
+														<LUIThemedIcon
+															Icon={CircleIcon}
+															color="currentColor"
+															weight="regular"
+															className={`size-4 shrink-0 ${
+																isDark
+																	? "text-neutral-600"
+																	: "text-neutral-400"
+															}`}
+														/>
+													)}
+												</button>
+											);
+										})
+									)}
+								</div>
+							</div>
 						</div>
-					</LUISettingsLayout>
-				</motion.div>
+
+						<div
+							className={`flex flex-col gap-y-2 border-t pt-3 ${
+								isDark
+									? "border-neutral-800"
+									: "border-neutral-200"
+							}`}
+						>
+							<div
+								className={`text-sm font-semibold ${
+									isDark ? "text-white" : "text-black"
+								}`}
+							>
+								Saved connections
+							</div>
+							<div
+								className={`text-xs ${
+									isDark
+										? "text-neutral-400"
+										: "text-neutral-600"
+								}`}
+							>
+								Save provider and model combinations to switch
+								quickly from Little AI chat.
+							</div>
+							<div className="flex items-center gap-2">
+								<input
+									type="text"
+									value={presetName}
+									maxLength={60}
+									aria-label="Preset label (optional)"
+									placeholder="Label (optional)"
+									onChange={(event) =>
+										setPresetName(event.target.value)
+									}
+									className={`ll-field h-9 min-w-0 grow rounded-xl border px-3 text-xs ${
+										isDark
+											? "border-neutral-700 bg-neutral-900 text-white placeholder:text-neutral-500"
+											: "border-neutral-300 bg-neutral-100 text-black placeholder:text-neutral-500"
+									}`}
+								/>
+								<LUIPillButton
+									label="Save current"
+									disabled={
+										!aiSettings ||
+										aiSettings.model.trim() === ""
+									}
+									onClick={handleSavePreset}
+								/>
+							</div>
+							{(aiSettings?.presets ?? []).length > 0 ? (
+								<div className="flex flex-col gap-1.5">
+									{(aiSettings?.presets ?? []).map(
+										(preset) => {
+											const active =
+												aiSettings?.provider ===
+													preset.provider &&
+												aiSettings?.baseUrl ===
+													preset.baseUrl &&
+												aiSettings?.model ===
+													preset.model;
+											return (
+												<div
+													key={preset.id}
+													className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 ${
+														active
+															? isDark
+																? "border-neutral-600 bg-neutral-800/80"
+																: "border-neutral-400 bg-neutral-200/70"
+															: isDark
+																? "border-neutral-800 bg-neutral-900"
+																: "border-neutral-200 bg-neutral-100"
+													}`}
+												>
+													<div className="min-w-0">
+														<div
+															className={`truncate text-xs font-medium ${
+																isDark
+																	? "text-white"
+																	: "text-black"
+															}`}
+														>
+															{preset.name}
+														</div>
+														<div
+															className={`truncate text-[11px] ${
+																isDark
+																	? "text-neutral-400"
+																	: "text-neutral-600"
+															}`}
+														>
+															{getProviderDisplayName(
+																preset,
+															)}{" "}
+															· {preset.model}
+														</div>
+													</div>
+													<div className="flex shrink-0 items-center gap-1.5">
+														{active ? (
+															<span
+																className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+																	isDark
+																		? "bg-neutral-700 text-neutral-200"
+																		: "bg-neutral-300 text-neutral-800"
+																}`}
+															>
+																Active
+															</span>
+														) : (
+															<LUIPillButton
+																label="Use"
+																onClick={() =>
+																	handleApplyPreset(
+																		preset,
+																	)
+																}
+															/>
+														)}
+														<button
+															type="button"
+															aria-label={`Remove ${preset.name}`}
+															onClick={() =>
+																handleDeletePreset(
+																	preset.id,
+																)
+															}
+															className={`flex size-7 cursor-pointer items-center justify-center rounded-full transition-colors ${
+																isDark
+																	? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+																	: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
+															}`}
+														>
+															<LUIThemedIcon
+																Icon={XIcon}
+																color="currentColor"
+																weight="regular"
+																className="size-3.5"
+															/>
+														</button>
+													</div>
+												</div>
+											);
+										},
+									)}
+								</div>
+							) : null}
+						</div>
+
+						{aiSettings ? (
+							<LUINote className="w-full">
+								{describeProcessing(aiSettings)}
+							</LUINote>
+						) : null}
+					</div>
+				</LUISettingsLayout>
 			)}
 		</motion.div>
 	);

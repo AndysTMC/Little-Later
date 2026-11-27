@@ -2,27 +2,27 @@ import type { Transition, Variants } from "framer-motion";
 
 // Shared easing curves and durations across Little Later and Little AI
 // (docs/design.md, Focus & motion).
-// - Quint-out deceleration on enter feels immediate yet smoothly settled.
-// - Slightly brisker exit keeps AnimatePresence `mode="wait"` screen swaps
-//   responsive (~280ms total instead of 600ms) with zero sluggish lag.
+// - Quint-out deceleration on enter feels smooth and natural without dragging.
+// - Balanced exit keeps AnimatePresence `mode="wait"` screen swaps steady
+//   (~400ms total) — neither sluggish nor rushed.
 export const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 export const EASE_EXIT = [0.4, 0, 1, 1] as const;
 
-export const PAGE_ENTER_DURATION = 0.17;
-export const PAGE_EXIT_DURATION = 0.11;
+export const PAGE_ENTER_DURATION = 0.24;
+export const PAGE_EXIT_DURATION = 0.16;
 
 /** Consistent motion presets shared by views, drawers, popovers, and toasts. */
 export const MOTION = {
-	tab: { duration: 0.14, ease: EASE_OUT } satisfies Transition,
-	tabExit: { duration: 0.09, ease: EASE_EXIT } satisfies Transition,
-	drawer: { duration: 0.16, ease: EASE_OUT } satisfies Transition,
-	popover: { duration: 0.13, ease: EASE_OUT } satisfies Transition,
-	popoverExit: { duration: 0.09, ease: EASE_EXIT } satisfies Transition,
-	toastEnter: { duration: 0.18, ease: EASE_OUT } satisfies Transition,
-	toastExit: { duration: 0.13, ease: EASE_EXIT } satisfies Transition,
-	reveal: { duration: 0.14, ease: EASE_OUT } satisfies Transition,
-	sheet: { duration: 0.16, ease: EASE_OUT } satisfies Transition,
-	sheetExit: { duration: 0.11, ease: EASE_EXIT } satisfies Transition,
+	tab: { duration: 0.2, ease: EASE_OUT } satisfies Transition,
+	tabExit: { duration: 0.14, ease: EASE_EXIT } satisfies Transition,
+	drawer: { duration: 0.22, ease: EASE_OUT } satisfies Transition,
+	popover: { duration: 0.18, ease: EASE_OUT } satisfies Transition,
+	popoverExit: { duration: 0.13, ease: EASE_EXIT } satisfies Transition,
+	toastEnter: { duration: 0.24, ease: EASE_OUT } satisfies Transition,
+	toastExit: { duration: 0.18, ease: EASE_EXIT } satisfies Transition,
+	reveal: { duration: 0.2, ease: EASE_OUT } satisfies Transition,
+	sheet: { duration: 0.22, ease: EASE_OUT } satisfies Transition,
+	sheetExit: { duration: 0.16, ease: EASE_EXIT } satisfies Transition,
 } as const;
 
 // A page transition is one move, carried by the navigation that causes it

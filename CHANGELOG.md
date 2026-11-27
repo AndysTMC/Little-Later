@@ -4,6 +4,14 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-11-27
+
+### Fixed
+
+- **Home feature tab bar overflow:** Scoped Home tab button transitions to color, background, and transform (with `overflow-hidden` on the tab bar track) so switching tabs never animates width out of bounds.
+- **Balanced transition & animation pacing:** Tuned route transitions (`240ms` enter / `160ms` exit) and shared `MOTION` presets (`tab`, `drawer`, `popover`, `sheet`, `reveal`, `toast`) to a natural, unhurried speed.
+- **AI Provider & Model page layout stability:** Added `scrollbar-gutter: stable` to `LUISettingsLayout`, kept `LUIBasicNav` mounted while loading, fixed pending model-fetch state and debounce so local discovery starts cleanly without flashing an empty state, and gave the Models list a fixed height to eliminate vertical and horizontal page shake.
+
 ## [3.3.0] - 2026-11-27
 
 ### Added
