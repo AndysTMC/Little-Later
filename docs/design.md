@@ -94,7 +94,7 @@ The button blocks a second press while its action runs and shows a spinner when 
 
 - Fields and dropdowns show focus as one accent ring on their own edge; buttons, rows and swatches show it outside their edge; the text caret is the accent.
 - Interactive icon controls and pills use `150ms` transitions and subtle tactile press feedback (`active:scale-95`).
-- Navigation carries symmetric directional moves (`src/route-transitions.ts`: `170ms` quint-out enter, `110ms` brisk exit, `±24px` slide or `0.96 ↔ 1.04` zoom); tabs, card drawers, popovers, sheets, content reveals, and toasts share the centralized `MOTION` timing tokens so motion feels smooth, snappy, and consistent across both the extension and Little AI. All transitions and animations respect `prefers-reduced-motion`.
+- Navigation carries symmetric directional moves (`src/route-transitions.ts`: `240ms` quint-out enter, `160ms` smooth exit, `±24px` slide or `0.96 ↔ 1.04` zoom); tabs, card drawers, popovers, sheets, content reveals, and toasts share the centralized `MOTION` timing tokens so motion feels balanced and consistent across both the extension and Little AI. All transitions and animations respect `prefers-reduced-motion`.
 
 ## Little AI
 
