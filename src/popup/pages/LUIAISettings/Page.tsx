@@ -142,15 +142,40 @@ const Page = () => {
 		modelState.fetching;
 	const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const latestFetchIdRef = useRef(0);
-	// Tracks the origin that the current API key belongs to so switching
-	// providers or editing the Base URL to another host never leaks a key.
-	const keyOriginRef = useRef<string | null>(null);
+	// Tracks `{ apiKey, origin }` together so external updates (such as switching
+	// providers in the side panel) or restored drafts never keep a stale origin.
+	const keyBindingRef = useRef<{
+		apiKey: string;
+		origin: string | null;
+	} | null>(null);
 	const [testing, setTesting] = useState(false);
 	const [testResult, setTestResult] = useState<AIConnectionTestResult | null>(
 		null,
 	);
 	const [presetName, setPresetName] = useState("");
 	const isDark = theme === LTHEME.DARK;
+
+	const savedProvider = userSettings?.ai.provider;
+	const savedBaseUrl = userSettings?.ai.baseUrl;
+	const savedApiKey = userSettings?.ai.apiKey;
+	useEffect(() => {
+		if (savedProvider === undefined || savedApiKey === undefined) return;
+		if (savedApiKey.trim() === "") {
+			if (keyBindingRef.current?.apiKey === "") {
+				keyBindingRef.current = null;
+			}
+			return;
+		}
+		// Always rebind when persisted settings change (e.g. provider switch
+		// from the side panel while this page is open).
+		keyBindingRef.current = {
+			apiKey: savedApiKey,
+			origin:
+				savedProvider === LAI_PROVIDERS.CUSTOM
+					? urlOrigin(savedBaseUrl ?? "")
+					: null,
+		};
+	}, [savedProvider, savedBaseUrl, savedApiKey]);
 
 	const effectiveProvider = aiSettings?.provider;
 	const effectiveBaseUrl = aiSettings?.baseUrl;
@@ -159,12 +184,15 @@ const Page = () => {
 		if (effectiveProvider === undefined || effectiveApiKey === undefined)
 			return;
 		if (effectiveApiKey.trim() === "") {
-			keyOriginRef.current = null;
-		} else if (
-			effectiveProvider === LAI_PROVIDERS.CUSTOM &&
-			keyOriginRef.current === null
-		) {
-			keyOriginRef.current = urlOrigin(effectiveBaseUrl ?? "");
+			keyBindingRef.current = null;
+		} else if (keyBindingRef.current?.apiKey !== effectiveApiKey) {
+			keyBindingRef.current = {
+				apiKey: effectiveApiKey,
+				origin:
+					effectiveProvider === LAI_PROVIDERS.CUSTOM
+						? urlOrigin(effectiveBaseUrl ?? "")
+						: null,
+			};
 		}
 	}, [effectiveProvider, effectiveBaseUrl, effectiveApiKey]);
 
@@ -176,16 +204,19 @@ const Page = () => {
 		const nextOrigin =
 			provider === LAI_PROVIDERS.CUSTOM ? urlOrigin(baseUrl) : null;
 		const boundOrigin =
-			keyOriginRef.current ??
-			(prev.provider === LAI_PROVIDERS.CUSTOM && prev.apiKey.trim() !== ""
-				? urlOrigin(prev.baseUrl)
-				: null);
+			keyBindingRef.current?.apiKey === prev.apiKey
+				? keyBindingRef.current.origin
+				: prev.provider === LAI_PROVIDERS.CUSTOM &&
+					  prev.apiKey.trim() !== ""
+					? urlOrigin(prev.baseUrl)
+					: null;
 		const originChanged =
 			prev.apiKey !== "" &&
 			(provider !== LAI_PROVIDERS.CUSTOM ||
-				(boundOrigin !== null && nextOrigin !== boundOrigin));
+				boundOrigin === null ||
+				nextOrigin !== boundOrigin);
 		if (originChanged) {
-			keyOriginRef.current = null;
+			keyBindingRef.current = null;
 		}
 		return {
 			...prev,
@@ -372,10 +403,10 @@ const Page = () => {
 	const handleApplyPreset = (preset: LAIPreset) => {
 		setTestResult(null);
 		setSelectedCategory(null);
-		keyOriginRef.current =
+		keyBindingRef.current =
 			preset.provider === LAI_PROVIDERS.CUSTOM &&
 			preset.apiKey.trim() !== ""
-				? urlOrigin(preset.baseUrl)
+				? { apiKey: preset.apiKey, origin: urlOrigin(preset.baseUrl) }
 				: null;
 		setAISettings((prev) =>
 			prev
@@ -623,14 +654,16 @@ const Page = () => {
 											}
 											onChange={(value) => {
 												setTestResult(null);
-												keyOriginRef.current =
+												keyBindingRef.current =
 													value.trim() === ""
 														? null
-														: (keyOriginRef.current ??
-															urlOrigin(
-																aiSettings?.baseUrl ??
-																	"",
-															));
+														: {
+																apiKey: value,
+																origin: urlOrigin(
+																	aiSettings?.baseUrl ??
+																		"",
+																),
+															};
 												setAISettings((prevSettings) =>
 													prevSettings
 														? {

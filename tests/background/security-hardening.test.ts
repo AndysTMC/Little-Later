@@ -451,4 +451,57 @@ describe("security hardening — backup locked-note gate & AI/MCP redirect + app
 			}),
 		).toBe(false);
 	});
+
+	it("preserves profile unlock when chat retention cleanup fails while gating chat history reads", async () => {
+		const db = openLittleDB(`little-unlock-gate-${crypto.randomUUID()}`);
+		await db.open();
+		const session = createMemorySessionStore();
+		const clock = Date.UTC(2026, 10, 27, 12, 0, 0);
+		const dispatch = createDispatcher(
+			commands,
+			createCommandContext(db, session, () => clock),
+			createSerialQueue(),
+		);
+		try {
+			const created = await dispatch("profile.create", {
+				name: "Ada",
+				password: "VaultPassword#1",
+			});
+			expect(created.ok).toBe(true);
+			const profileId = (
+				created.ok
+					? (created.value as { profileId: string }).profileId
+					: ""
+			)!;
+			await dispatch("chat.create", { title: "Prior chat" });
+			await dispatch("note.create", { content: "Regular note" });
+			await dispatch("profile.lock", null);
+
+			// Corrupt the settings row so retention cleanup throws during unlock.
+			await db.settings.put({
+				id: profileId,
+				profileId,
+				keyId: 1,
+				body: new Uint8Array([1, 2, 3, 4]),
+				createdAt: clock,
+				updatedAt: clock,
+			});
+
+			// Unlock still succeeds for the rest of the profile, with chatHistoryBlocked set.
+			const unlocked = await dispatch("profile.unlock", {
+				profileId,
+				password: "VaultPassword#1",
+			});
+			expect(unlocked.ok).toBe(true);
+			const current = await session.get();
+			expect(current?.chatHistoryBlocked).toBe(true);
+			const keys = await importProfileKeys(current!);
+			// Notes remain accessible, while chat history is gated.
+			expect(await listNotes(db, keys)).toHaveLength(1);
+			expect(await listChats(db, keys)).toEqual([]);
+		} finally {
+			db.close();
+			await db.delete();
+		}
+	});
 });

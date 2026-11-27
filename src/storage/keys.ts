@@ -19,6 +19,7 @@ export type ProfileKeys = {
 	current: ContentKeys;
 	byId: Map<number, ContentKeys>;
 	index: CryptoKey;
+	chatHistoryBlocked?: boolean;
 };
 
 export const importProfileKeys = async (
@@ -42,6 +43,7 @@ export const importProfileKeys = async (
 		current,
 		byId,
 		index: await importIndexKey(fromBase64(session.indexKey)),
+		...(session.chatHistoryBlocked ? { chatHistoryBlocked: true } : {}),
 	};
 };
 

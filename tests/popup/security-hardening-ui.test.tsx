@@ -394,4 +394,71 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 
 		expect(findInputs().apiKey?.value).toBe("");
 	});
+
+	it("rebinds origin when an external update switches provider while AI settings is open", async () => {
+		await send("profile.create", { name: "Ada", password: null });
+		await send("settings.update", {
+			ai: {
+				provider: LAI_PROVIDERS.CUSTOM,
+				baseUrl: "https://api.openai.com/v1",
+				apiKey: "sk-openai",
+				model: "gpt-4o",
+			},
+		});
+
+		await act(async () => {
+			root.render(
+				<ThemeContext.Provider value={themeValue}>
+					<UIStateContext.Provider value={memoryStore()}>
+						<MemoryRouter initialEntries={["/settings/ai"]}>
+							<Routes>
+								<Route
+									path="/settings/ai"
+									element={<LUIAISettings />}
+								/>
+							</Routes>
+						</MemoryRouter>
+					</UIStateContext.Provider>
+				</ThemeContext.Provider>,
+			);
+		});
+
+		const findInputs = () => ({
+			baseUrl:
+				container.querySelector<HTMLInputElement>('input[type="url"]'),
+			apiKey: container.querySelector<HTMLInputElement>(
+				'input[type="password"]',
+			),
+		});
+
+		await vi.waitFor(() => {
+			expect(findInputs().apiKey?.value).toBe("sk-openai");
+		});
+
+		// Simulate side panel switching to DeepSeek while AI settings remains mounted.
+		await send("settings.update", {
+			ai: {
+				provider: LAI_PROVIDERS.CUSTOM,
+				baseUrl: "https://api.deepseek.com/v1",
+				apiKey: "sk-deepseek",
+				model: "deepseek-chat",
+			},
+		});
+		await vi.waitFor(() => {
+			expect(findInputs().apiKey?.value).toBe("sk-deepseek");
+		});
+
+		// Editing Base URL back to OpenAI's origin must clear DeepSeek's key.
+		await act(async () => {
+			const setter = Object.getOwnPropertyDescriptor(
+				window.HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			const input = findInputs().baseUrl!;
+			setter?.call(input, "https://api.openai.com/v1");
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+			input.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+		expect(findInputs().apiKey?.value).toBe("");
+	});
 });

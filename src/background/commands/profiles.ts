@@ -136,10 +136,17 @@ export const profileUnlock = defineCommand({
 			toFactor(input.factor),
 			{
 				beforePublish: async (keys) => {
-					await enforceChatRetention(ctx.db, keys, {
-						onLock: true,
-						now: ctx.now(),
-					});
+					try {
+						await enforceChatRetention(ctx.db, keys, {
+							onLock: true,
+							now: ctx.now(),
+						});
+					} catch {
+						// Never block profile unlock if retention cleanup fails
+						// (e.g. corrupt settings or DB error); gate chat history
+						// reads instead until cleanup succeeds.
+						return { chatHistoryBlocked: true };
+					}
 				},
 			},
 		);

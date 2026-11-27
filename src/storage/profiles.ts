@@ -146,7 +146,9 @@ const startSession = async (
 	session: SessionStore,
 	profile: ProfileRow,
 	roots: Map<number, Uint8Array>,
-	beforePublish?: (keys: ProfileKeys) => Promise<void>,
+	beforePublish?: (
+		keys: ProfileKeys,
+	) => Promise<{ chatHistoryBlocked?: boolean } | void>,
 ) => {
 	const { keyId } = readEnvelopeHeader(profile.indexKey);
 	const root = roots.get(keyId);
@@ -170,10 +172,13 @@ const startSession = async (
 		indexKey: toBase64(indexKey),
 		unlockId: crypto.randomUUID(),
 	};
-	if (beforePublish) {
-		await beforePublish(await importProfileKeys(nextSession));
-	}
-	await session.set(nextSession);
+	const hookResult = beforePublish
+		? await beforePublish(await importProfileKeys(nextSession))
+		: undefined;
+	await session.set({
+		...nextSession,
+		...(hookResult?.chatHistoryBlocked ? { chatHistoryBlocked: true } : {}),
+	});
 };
 
 // A new profile's row with fresh root and index keys, not yet stored. A
@@ -227,7 +232,11 @@ export const unlockProfile = async (
 	profileId: string,
 	password: string | null,
 	factor?: Factor,
-	options?: { beforePublish?: (keys: ProfileKeys) => Promise<void> },
+	options?: {
+		beforePublish?: (
+			keys: ProfileKeys,
+		) => Promise<{ chatHistoryBlocked?: boolean } | void>;
+	},
 ): Promise<void> => {
 	const profile = await getProfile(db, profileId);
 	await startSession(
