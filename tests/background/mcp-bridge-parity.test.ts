@@ -9,6 +9,7 @@ import {
 	type Dispatch,
 } from "../../src/background/commands/registry";
 import {
+	boundResourceItems,
 	handleExternalMcpRequest,
 	parseMcpInstant,
 	parseMcpTaskSchedule,
@@ -57,11 +58,19 @@ describe("Little Later External MCP — full UI parity & security boundaries", (
 		return JSON.parse(text) as T;
 	};
 
-	const setMcpMode = async (mode: "off" | "read" | "write") => {
+	const setMcpMode = async (
+		mode: "off" | "read" | "write",
+		opts?: { allowHistory?: boolean; allowDelete?: boolean },
+	) => {
 		const keys = await importProfileKeys((await session.get())!);
 		const current = await getSettings(db, keys);
 		await dispatch("settings.update", {
-			misc: { ...current.misc, externalMcpMode: mode },
+			misc: {
+				...current.misc,
+				externalMcpMode: mode,
+				externalMcpAllowHistory: opts?.allowHistory,
+				externalMcpAllowDelete: opts?.allowDelete,
+			},
 		});
 	};
 
@@ -84,7 +93,7 @@ describe("Little Later External MCP — full UI parity & security boundaries", (
 			name: "Ada",
 			password: "VaultPassword#2026",
 		});
-		await setMcpMode("write");
+		await setMcpMode("write", { allowHistory: true, allowDelete: true });
 	});
 
 	afterEach(async () => {
@@ -403,11 +412,102 @@ describe("Little Later External MCP — full UI parity & security boundaries", (
 		).tools.map((t) => t.name);
 		expect(toolNames).toContain("list_tasks");
 		expect(toolNames).toContain("get_productivity_overview");
+		expect(toolNames).not.toContain("list_history");
 		expect(toolNames).not.toContain("create_task");
 		expect(toolNames).not.toContain("update_task");
+		expect((await callTool("list_history", {})).error?.code).toBe(-32003);
 		expect(
 			(await callTool("create_task", { information: "Nope" })).error
 				?.code,
 		).toBe(-32003);
+
+		// Write mode without allowDelete hides/refuses destructive tools.
+		await setMcpMode("write", { allowHistory: false, allowDelete: false });
+		const writeList = (
+			(
+				await callMcp({
+					jsonrpc: "2.0",
+					id: 4,
+					method: "tools/list",
+				})
+			)?.result as { tools: Array<{ name: string }> }
+		).tools.map((t) => t.name);
+		expect(writeList).toContain("create_task");
+		expect(writeList).not.toContain("delete_task");
+		expect(writeList).not.toContain("list_history");
+		expect(
+			(await callTool("delete_save", { id: save.id })).error?.code,
+		).toBe(-32003);
+	});
+
+	it("enforces atomic create_save, preserves notes on default delete_save, separates overdue tasks, and bounds resources", async () => {
+		// Atomic create_save: invalid blank customName commits nothing.
+		const failedCreate = await callTool("create_save", {
+			url: "https://atomic.example/page",
+			customName: "   ",
+		});
+		expect(failedCreate.error?.code).toBe(-32602);
+		expect(parseToolJson(await callTool("list_saves", {}))).toHaveLength(0);
+
+		// Default delete_save preserves linked note bodies.
+		const save = parseToolJson<{ id: string }>(
+			await callTool("create_save", {
+				url: "https://keep-note.example/page",
+				title: "Keep Note Page",
+			}),
+		);
+		const note = parseToolJson<{ id: string }>(
+			await callTool("create_note", {
+				content: "Important linked note body",
+				saveIds: [save.id],
+			}),
+		);
+		const delRes = parseToolJson<{
+			deleted: boolean;
+			preservedNotes: boolean;
+		}>(await callTool("delete_save", { id: save.id }));
+		expect(delRes).toEqual({ deleted: true, preservedNotes: true });
+		expect(
+			parseToolJson<{ content: string }>(
+				await callTool("get_note", { id: note.id }),
+			).content,
+		).toBe("Important linked note body");
+
+		// Overdue tasks do not occupy upcomingTasks in get_productivity_overview.
+		const pastDue = Date.now() - 86_400_000;
+		const futureDue = Date.now() + 86_400_000;
+		await callTool("create_task", {
+			information: "Overdue item",
+			dueAt: pastDue,
+		});
+		await callTool("create_task", {
+			information: "Upcoming item",
+			dueAt: futureDue,
+		});
+		const overview = parseToolJson<{
+			overdueTasks: Array<{ information: string }>;
+			upcomingTasks: Array<{ information: string }>;
+		}>(await callTool("get_productivity_overview", {}));
+		expect(overview.overdueTasks.map((t) => t.information)).toEqual([
+			"Overdue item",
+		]);
+		expect(overview.upcomingTasks.map((t) => t.information)).toEqual([
+			"Upcoming item",
+		]);
+
+		// Resource response bounding enforces both item and byte budgets.
+		const bounded = boundResourceItems(
+			Array.from({ length: 10 }, (_, idx) => ({
+				id: idx,
+				body: "x".repeat(100),
+			})),
+			"Use paginated tool.",
+			5,
+			400,
+		);
+		expect(bounded.truncated).toBe(true);
+		expect(bounded.total).toBe(10);
+		expect(bounded.items.length).toBeLessThanOrEqual(5);
+		expect(bounded.hint).toBe("Use paginated tool.");
 	});
 });

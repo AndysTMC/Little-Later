@@ -27,7 +27,7 @@ import type { LittleDB, TaskSchedule } from "../storage/schema";
 import type { SessionStore } from "../storage/session";
 import { hybridRank } from "../services/ai/toolCalls/_utils/bm25";
 import { normalizeTag } from "../utils/tags";
-import type { Dispatch } from "./commands/registry";
+import { CommandError, type Dispatch } from "./commands/registry";
 
 export const EXTERNAL_MCP_HOST_NAME = "com.littlelater.mcp";
 
@@ -49,7 +49,51 @@ type McpToolDef = {
 	name: string;
 	description: string;
 	write?: boolean;
+	requiresHistory?: boolean;
+	requiresDelete?: boolean;
 	inputSchema: Record<string, unknown>;
+};
+
+const MAX_RESOURCE_ITEMS = 200;
+const MAX_RESOURCE_BYTES = 512 * 1024;
+const UTF8_ENCODER = new TextEncoder();
+
+export const boundResourceItems = <T>(
+	items: ReadonlyArray<T>,
+	hint: string,
+	maxItems = MAX_RESOURCE_ITEMS,
+	maxBytes = MAX_RESOURCE_BYTES,
+): {
+	items: Array<T>;
+	total: number;
+	truncated: boolean;
+	hint?: string;
+} => {
+	const included: Array<T> = [];
+	// Reserve overhead for envelope keys and JSON formatting.
+	let usedBytes = 256;
+	for (const item of items) {
+		if (included.length >= maxItems) break;
+		const serialized = JSON.stringify(item);
+		const itemBytes = UTF8_ENCODER.encode(serialized).byteLength + 2;
+		if (included.length > 0 && usedBytes + itemBytes > maxBytes) {
+			break;
+		}
+		if (usedBytes + itemBytes > maxBytes) {
+			// Single item already exceeds budget; truncate cleanly instead of
+			// risking Chrome's native messaging message size limit.
+			break;
+		}
+		included.push(item);
+		usedBytes += itemBytes;
+	}
+	const truncated = included.length < items.length;
+	return {
+		items: included,
+		total: items.length,
+		truncated,
+		...(truncated ? { hint } : {}),
+	};
 };
 
 const RECURRENCE_SCHEMA = {
@@ -132,7 +176,8 @@ const MCP_TOOLS: ReadonlyArray<McpToolDef> = [
 	{
 		name: "list_history",
 		description:
-			"List recently browsed (unsaved) web history from the unlocked profile.",
+			"List recently browsed (unsaved) web history from the unlocked profile (requires 'Include browsing history' opt-in in Data & Privacy settings).",
+		requiresHistory: true,
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -287,12 +332,19 @@ const MCP_TOOLS: ReadonlyArray<McpToolDef> = [
 	},
 	{
 		name: "delete_save",
-		description: "Delete a saved page by id.",
+		description:
+			"Remove a saved page by id. By default unsaves the page while preserving linked note bodies; set deleteOrphanNotes: true to permanently delete the bookmark and any unlocked notes whose only link is this bookmark. Requires 'Allow permanent deletions' opt-in.",
 		write: true,
+		requiresDelete: true,
 		inputSchema: {
 			type: "object",
 			properties: {
 				id: { type: "string" },
+				deleteOrphanNotes: {
+					type: "boolean",
+					description:
+						"When true, permanently deletes the bookmark and any unlocked notes linked only to it. Defaults to false.",
+				},
 			},
 			required: ["id"],
 		},
@@ -333,8 +385,9 @@ const MCP_TOOLS: ReadonlyArray<McpToolDef> = [
 	{
 		name: "delete_note",
 		description:
-			"Delete an unlocked note by id (locked notes are refused).",
+			"Delete an unlocked note by id (locked notes are refused; requires 'Allow permanent deletions' opt-in).",
 		write: true,
+		requiresDelete: true,
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -441,8 +494,10 @@ const MCP_TOOLS: ReadonlyArray<McpToolDef> = [
 	},
 	{
 		name: "delete_task",
-		description: "Delete a task (and its attached task reminder) by id.",
+		description:
+			"Delete a task (and its attached task reminder) by id (requires 'Allow permanent deletions' opt-in).",
 		write: true,
+		requiresDelete: true,
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -492,8 +547,10 @@ const MCP_TOOLS: ReadonlyArray<McpToolDef> = [
 	},
 	{
 		name: "delete_reminder",
-		description: "Delete a standalone reminder by id.",
+		description:
+			"Delete a standalone reminder by id (requires 'Allow permanent deletions' opt-in).",
 		write: true,
+		requiresDelete: true,
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -518,8 +575,10 @@ const MCP_TOOLS: ReadonlyArray<McpToolDef> = [
 	},
 	{
 		name: "delete_image",
-		description: "Delete a saved image by id.",
+		description:
+			"Delete a saved image by id (requires 'Allow permanent deletions' opt-in).",
 		write: true,
+		requiresDelete: true,
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -557,7 +616,12 @@ const MCP_TOOLS: ReadonlyArray<McpToolDef> = [
 	},
 ];
 
-const MCP_RESOURCES = [
+const MCP_RESOURCES: ReadonlyArray<{
+	uri: string;
+	name: string;
+	mimeType: string;
+	requiresHistory?: boolean;
+}> = [
 	{
 		uri: "littlelater://saves",
 		name: "Saved pages",
@@ -567,6 +631,7 @@ const MCP_RESOURCES = [
 		uri: "littlelater://history",
 		name: "Browsing history",
 		mimeType: "application/json",
+		requiresHistory: true,
 	},
 	{
 		uri: "littlelater://tasks",
@@ -991,6 +1056,8 @@ export const handleExternalMcpRequest = async ({
 	const keys = await importProfileKeys(unlocked);
 	const settings = await getSettings(db, keys);
 	const mode: LExternalMcpMode = settings.misc.externalMcpMode ?? "off";
+	const allowHistory = settings.misc.externalMcpAllowHistory === true;
+	const allowDelete = settings.misc.externalMcpAllowDelete === true;
 	if (mode === "off") {
 		return fail(
 			id,
@@ -1001,7 +1068,10 @@ export const handleExternalMcpRequest = async ({
 
 	if (method === "tools/list") {
 		const allowed = MCP_TOOLS.filter(
-			(tool) => !tool.write || mode === "write",
+			(tool) =>
+				(!tool.write || mode === "write") &&
+				(!tool.requiresHistory || allowHistory) &&
+				(!tool.requiresDelete || (mode === "write" && allowDelete)),
 		).map(({ name, description, inputSchema }) => ({
 			name,
 			description,
@@ -1011,7 +1081,10 @@ export const handleExternalMcpRequest = async ({
 	}
 
 	if (method === "resources/list") {
-		return ok(id, { resources: MCP_RESOURCES });
+		const resources = MCP_RESOURCES.filter(
+			(resource) => !resource.requiresHistory || allowHistory,
+		).map(({ uri, name, mimeType }) => ({ uri, name, mimeType }));
+		return ok(id, { resources });
 	}
 
 	if (method === "resources/read") {
@@ -1019,21 +1092,58 @@ export const handleExternalMcpRequest = async ({
 			typeof request.params?.uri === "string" ? request.params.uri : "";
 		let payload: unknown;
 		if (uri === "littlelater://saves") {
-			payload = await readSavesFrom(db, keys);
+			const saves = (await readSavesFrom(db, keys)).map((save) =>
+				shapeSaveForMcp(save, false),
+			);
+			payload = boundResourceItems(
+				saves,
+				"Use the list_saves or search_all tool with limit/tag filters to inspect additional saves.",
+			);
 		} else if (uri === "littlelater://history") {
-			payload = await readHistoryFrom(db, keys);
+			if (!allowHistory) {
+				return fail(
+					id,
+					-32003,
+					"Browsing history access is disabled. Enable 'Include browsing history' under External agent access in Data & Privacy settings.",
+				);
+			}
+			const history = (await readHistoryFrom(db, keys)).map((save) =>
+				shapeSaveForMcp(save, false),
+			);
+			payload = boundResourceItems(
+				history,
+				"Use the list_history tool with a smaller limit to inspect recent browsing history.",
+			);
 		} else if (uri === "littlelater://tasks") {
-			payload = await readTasksFrom(db, keys);
+			payload = boundResourceItems(
+				await readTasksFrom(db, keys),
+				"Use the list_tasks tool with filters to inspect additional tasks.",
+			);
 		} else if (uri === "littlelater://reminders") {
-			payload = await readRemindersFrom(db, keys);
+			payload = boundResourceItems(
+				await readRemindersFrom(db, keys),
+				"Use the list_reminders tool with filters to inspect additional reminders.",
+			);
 		} else if (uri === "littlelater://notes") {
-			payload = await readUnlockedNotesFrom(db, keys);
+			payload = boundResourceItems(
+				await readUnlockedNotesFrom(db, keys),
+				"Use the list_notes or search_all tool to inspect additional unlocked notes.",
+			);
 		} else if (uri === "littlelater://images") {
-			payload = await readImagesFrom(db, keys);
+			payload = boundResourceItems(
+				await readImagesFrom(db, keys),
+				"Use the list_images tool with filters to inspect additional images.",
+			);
 		} else if (uri === "littlelater://links") {
-			payload = await readSafeLinksFrom(db, keys);
+			payload = boundResourceItems(
+				await readSafeLinksFrom(db, keys),
+				"Use the list_links tool with a recordId filter to inspect specific links.",
+			);
 		} else if (uri === "littlelater://tags") {
-			payload = await readTagsSummary(db, keys);
+			payload = boundResourceItems(
+				await readTagsSummary(db, keys),
+				"Use the list_tags tool to inspect tags.",
+			);
 		} else {
 			return fail(id, -32602, `Unknown resource: ${uri}`);
 		}
@@ -1061,6 +1171,13 @@ export const handleExternalMcpRequest = async ({
 		if (!def) {
 			return fail(id, -32601, `Unknown tool: ${toolName}`);
 		}
+		if (def.requiresHistory && !allowHistory) {
+			return fail(
+				id,
+				-32003,
+				"Browsing history access is disabled. Enable 'Include browsing history' under External agent access in Data & Privacy settings.",
+			);
+		}
 		if (def.write && mode !== "write") {
 			return fail(
 				id,
@@ -1068,10 +1185,72 @@ export const handleExternalMcpRequest = async ({
 				"Write access is disabled. Switch External agent MCP to Read & write in Data & Privacy settings.",
 			);
 		}
+		if (def.requiresDelete && !allowDelete) {
+			return fail(
+				id,
+				-32003,
+				"Permanent deletions are disabled. Enable 'Allow permanent deletions' under External agent access in Data & Privacy settings.",
+			);
+		}
 		const owner = {
 			profileId: keys.profileId,
 			unlockId: unlocked.unlockId,
 		};
+		const MCP_DENIED_PREFIX = "MCP_DENIED:";
+		const mcpWriteDispatch = (
+			commandName: string,
+			input: unknown,
+			guard?: {
+				requiresDelete?: boolean;
+				forbidLockedNoteIds?: Array<string>;
+				lockedMessage?: string;
+			},
+		) =>
+			dispatch(commandName, input, {
+				...owner,
+				beforeRun: async (ctx) => {
+					// Re-check MCP grants and locked-note state inside the
+					// worker's serialized write queue so queued edits cannot
+					// race with an MCP permission revocation or note lock.
+					const liveKeys = await ctx.keys();
+					const liveSettings = await getSettings(ctx.db, liveKeys);
+					if (liveSettings.misc.externalMcpMode !== "write") {
+						throw new CommandError(
+							"rejected",
+							`${MCP_DENIED_PREFIX}Write access is disabled. Switch External agent MCP to Read & write in Data & Privacy settings.`,
+						);
+					}
+					if (
+						guard?.requiresDelete &&
+						liveSettings.misc.externalMcpAllowDelete !== true
+					) {
+						throw new CommandError(
+							"rejected",
+							`${MCP_DENIED_PREFIX}Permanent deletions are disabled. Enable 'Allow permanent deletions' under External agent access in Data & Privacy settings.`,
+						);
+					}
+					for (const candidateId of guard?.forbidLockedNoteIds ??
+						[]) {
+						if (
+							candidateId !== "" &&
+							(await isNoteLocked(ctx.db, liveKeys, candidateId))
+						) {
+							throw new CommandError(
+								"rejected",
+								`${MCP_DENIED_PREFIX}${guard?.lockedMessage ?? "Locked notes cannot be modified via external MCP."}`,
+							);
+						}
+					}
+				},
+			});
+		const failFromCommand = (error: { message: string }) =>
+			error.message.startsWith(MCP_DENIED_PREFIX)
+				? fail(
+						id,
+						-32003,
+						error.message.slice(MCP_DENIED_PREFIX.length),
+					)
+				: fail(id, -32602, error.message);
 
 		try {
 			switch (toolName) {
@@ -1238,11 +1417,11 @@ export const handleExternalMcpRequest = async ({
 							readImagesFrom(db, keys),
 						]);
 					const openTasks = tasks.filter((t) => !t.done);
-					const overdueTasks = openTasks.filter(
-						(t) => t.dueAt > 0 && t.dueAt < now,
-					);
+					const overdueTasks = openTasks
+						.filter((t) => t.dueAt > 0 && t.dueAt < now)
+						.sort((a, b) => a.dueAt - b.dueAt);
 					const upcomingTasks = openTasks
-						.filter((t) => t.dueAt > 0)
+						.filter((t) => t.dueAt >= now)
 						.sort((a, b) => a.dueAt - b.dueAt)
 						.slice(0, 5);
 					const upcomingReminders = [...reminders]
@@ -1263,130 +1442,103 @@ export const handleExternalMcpRequest = async ({
 								unlockedNotes: notes.length,
 								images: images.length,
 							},
+							overdueTasks: overdueTasks.slice(0, 5),
 							upcomingTasks,
 							upcomingReminders,
 						}),
 					);
 				}
 				case "create_save": {
-					const captured = await dispatch(
-						"save.capture",
-						{
-							url: args.url,
-							title:
-								typeof args.title === "string"
-									? args.title
-									: undefined,
-							saved: true,
-							snapshot:
-								typeof args.snapshot === "string"
-									? args.snapshot
-									: undefined,
-						},
-						owner,
-					);
+					// Validate and commit URL, customName, tags, and snapshot
+					// in one atomic worker command so validation failures never
+					// leave a partially created bookmark behind.
+					const captured = await mcpWriteDispatch("save.capture", {
+						url: args.url,
+						...(args.title !== undefined
+							? { title: args.title }
+							: {}),
+						...(args.customName !== undefined
+							? { customName: args.customName }
+							: {}),
+						...(args.tags !== undefined ? { tags: args.tags } : {}),
+						saved: true,
+						...(args.snapshot !== undefined
+							? { snapshot: args.snapshot }
+							: {}),
+					});
 					if (!captured.ok) {
-						return fail(id, -32602, captured.error.message);
+						return failFromCommand(captured.error);
 					}
-					const value = captured.value as {
-						id: string;
-						created: boolean;
-					};
-					if (
-						typeof args.customName === "string" ||
-						Array.isArray(args.tags)
-					) {
-						const updated = await dispatch(
-							"save.update",
-							{
-								id: value.id,
-								...(typeof args.customName === "string"
-									? { customName: args.customName }
-									: {}),
-								...(Array.isArray(args.tags)
-									? { tags: args.tags }
-									: {}),
-							},
-							owner,
-						);
-						if (!updated.ok) {
-							return fail(id, -32602, updated.error.message);
-						}
-					}
-					return ok(id, textToolResult(value));
+					return ok(id, textToolResult(captured.value));
 				}
 				case "update_save": {
-					const result = await dispatch(
-						"save.update",
-						{
-							id: args.id,
-							...(typeof args.customName === "string"
-								? { customName: args.customName }
-								: {}),
-							...(typeof args.archived === "boolean"
-								? { archived: args.archived }
-								: {}),
-							...(typeof args.saved === "boolean"
-								? { saved: args.saved }
-								: {}),
-							...(Array.isArray(args.tags)
-								? { tags: args.tags }
-								: {}),
-							...(args.snapshot !== undefined
-								? { snapshot: args.snapshot }
-								: {}),
-						},
-						owner,
-					);
+					const result = await mcpWriteDispatch("save.update", {
+						id: args.id,
+						...(typeof args.customName === "string"
+							? { customName: args.customName }
+							: {}),
+						...(typeof args.archived === "boolean"
+							? { archived: args.archived }
+							: {}),
+						...(typeof args.saved === "boolean"
+							? { saved: args.saved }
+							: {}),
+						...(Array.isArray(args.tags)
+							? { tags: args.tags }
+							: {}),
+						...(args.snapshot !== undefined
+							? { snapshot: args.snapshot }
+							: {}),
+					});
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult(result.value));
 				}
 				case "delete_save": {
-					const result = await dispatch(
-						"save.delete",
-						{ id: args.id },
-						owner,
-					);
+					const deleteOrphanNotes = args.deleteOrphanNotes === true;
+					const result = deleteOrphanNotes
+						? await mcpWriteDispatch(
+								"save.delete",
+								{ id: args.id },
+								{ requiresDelete: true },
+							)
+						: await mcpWriteDispatch(
+								"save.update",
+								{ id: args.id, saved: false },
+								{ requiresDelete: true },
+							);
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
-					return ok(id, textToolResult({ deleted: true }));
+					return ok(
+						id,
+						textToolResult({
+							deleted: true,
+							preservedNotes: !deleteOrphanNotes,
+						}),
+					);
 				}
 				case "create_note": {
-					const result = await dispatch(
-						"note.create",
-						{
-							title:
-								typeof args.title === "string"
-									? args.title
-									: undefined,
-							content: args.content,
-							tags: Array.isArray(args.tags)
-								? args.tags
+					const result = await mcpWriteDispatch("note.create", {
+						title:
+							typeof args.title === "string"
+								? args.title
 								: undefined,
-							saveIds: Array.isArray(args.saveIds)
-								? args.saveIds
-								: undefined,
-						},
-						owner,
-					);
+						content: args.content,
+						tags: Array.isArray(args.tags) ? args.tags : undefined,
+						saveIds: Array.isArray(args.saveIds)
+							? args.saveIds
+							: undefined,
+					});
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult(result.value));
 				}
 				case "update_note": {
 					const noteId = typeof args.id === "string" ? args.id : "";
-					if (await isNoteLocked(db, keys, noteId)) {
-						return fail(
-							id,
-							-32003,
-							"Locked notes cannot be modified via external MCP.",
-						);
-					}
-					const result = await dispatch(
+					const result = await mcpWriteDispatch(
 						"note.update",
 						{
 							id: args.id,
@@ -1401,29 +1553,31 @@ export const handleExternalMcpRequest = async ({
 								? { saveIds: args.saveIds }
 								: {}),
 						},
-						owner,
+						{
+							forbidLockedNoteIds: [noteId],
+							lockedMessage:
+								"Locked notes cannot be modified via external MCP.",
+						},
 					);
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult({ updated: true }));
 				}
 				case "delete_note": {
 					const noteId = typeof args.id === "string" ? args.id : "";
-					if (await isNoteLocked(db, keys, noteId)) {
-						return fail(
-							id,
-							-32003,
-							"Locked notes cannot be deleted via external MCP.",
-						);
-					}
-					const result = await dispatch(
+					const result = await mcpWriteDispatch(
 						"note.delete",
 						{ id: args.id },
-						owner,
+						{
+							requiresDelete: true,
+							forbidLockedNoteIds: [noteId],
+							lockedMessage:
+								"Locked notes cannot be deleted via external MCP.",
+						},
 					);
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult({ deleted: true }));
 				}
@@ -1433,28 +1587,22 @@ export const handleExternalMcpRequest = async ({
 						kind: "anytime" as const,
 					};
 					const reminder = parseReminderKind(args.reminder) ?? null;
-					const result = await dispatch(
-						"task.create",
-						{
-							information: args.information,
-							label:
-								typeof args.label === "string"
-									? args.label
-									: undefined,
-							priority,
-							schedule,
-							reminder,
-							tags: Array.isArray(args.tags)
-								? args.tags
+					const result = await mcpWriteDispatch("task.create", {
+						information: args.information,
+						label:
+							typeof args.label === "string"
+								? args.label
 								: undefined,
-							saveIds: Array.isArray(args.saveIds)
-								? args.saveIds
-								: undefined,
-						},
-						owner,
-					);
+						priority,
+						schedule,
+						reminder,
+						tags: Array.isArray(args.tags) ? args.tags : undefined,
+						saveIds: Array.isArray(args.saveIds)
+							? args.saveIds
+							: undefined,
+					});
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult(result.value));
 				}
@@ -1462,63 +1610,55 @@ export const handleExternalMcpRequest = async ({
 					const priority = parsePriority(args.priority);
 					const schedule = parseMcpTaskSchedule(args);
 					const reminder = parseReminderKind(args.reminder);
-					const result = await dispatch(
-						"task.update",
-						{
-							id: args.id,
-							...(typeof args.information === "string"
-								? { information: args.information }
-								: {}),
-							...(typeof args.label === "string"
-								? { label: args.label }
-								: {}),
-							...(priority !== undefined ? { priority } : {}),
-							...(schedule !== undefined ? { schedule } : {}),
-							...(reminder !== undefined ? { reminder } : {}),
-							...(Array.isArray(args.tags)
-								? { tags: args.tags }
-								: {}),
-							...(Array.isArray(args.saveIds)
-								? { saveIds: args.saveIds }
-								: {}),
-						},
-						owner,
-					);
+					const result = await mcpWriteDispatch("task.update", {
+						id: args.id,
+						...(typeof args.information === "string"
+							? { information: args.information }
+							: {}),
+						...(typeof args.label === "string"
+							? { label: args.label }
+							: {}),
+						...(priority !== undefined ? { priority } : {}),
+						...(schedule !== undefined ? { schedule } : {}),
+						...(reminder !== undefined ? { reminder } : {}),
+						...(Array.isArray(args.tags)
+							? { tags: args.tags }
+							: {}),
+						...(Array.isArray(args.saveIds)
+							? { saveIds: args.saveIds }
+							: {}),
+					});
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult({ updated: true }));
 				}
 				case "complete_task": {
-					const result = await dispatch(
-						"task.complete",
-						{ id: args.id },
-						owner,
-					);
+					const result = await mcpWriteDispatch("task.complete", {
+						id: args.id,
+					});
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult(result.value));
 				}
 				case "reopen_task": {
-					const result = await dispatch(
-						"task.reopen",
-						{ id: args.id },
-						owner,
-					);
+					const result = await mcpWriteDispatch("task.reopen", {
+						id: args.id,
+					});
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult({ reopened: true }));
 				}
 				case "delete_task": {
-					const result = await dispatch(
+					const result = await mcpWriteDispatch(
 						"task.delete",
 						{ id: args.id },
-						owner,
+						{ requiresDelete: true },
 					);
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult({ deleted: true }));
 				}
@@ -1531,23 +1671,17 @@ export const handleExternalMcpRequest = async ({
 							"target must be a valid epoch millisecond timestamp or ISO-8601 string.",
 						);
 					}
-					const result = await dispatch(
-						"reminder.create",
-						{
-							message: args.message,
-							target,
-							escalate: Boolean(args.escalate),
-							tags: Array.isArray(args.tags)
-								? args.tags
-								: undefined,
-							saveIds: Array.isArray(args.saveIds)
-								? args.saveIds
-								: undefined,
-						},
-						owner,
-					);
+					const result = await mcpWriteDispatch("reminder.create", {
+						message: args.message,
+						target,
+						escalate: Boolean(args.escalate),
+						tags: Array.isArray(args.tags) ? args.tags : undefined,
+						saveIds: Array.isArray(args.saveIds)
+							? args.saveIds
+							: undefined,
+					});
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult(result.value));
 				}
@@ -1563,109 +1697,97 @@ export const handleExternalMcpRequest = async ({
 							"target must be a valid epoch millisecond timestamp or ISO-8601 string.",
 						);
 					}
-					const result = await dispatch(
-						"reminder.update",
-						{
-							id: args.id,
-							...(typeof args.message === "string"
-								? { message: args.message }
-								: {}),
-							...(target !== undefined ? { target } : {}),
-							...(typeof args.escalate === "boolean"
-								? { escalate: args.escalate }
-								: {}),
-							...(Array.isArray(args.tags)
-								? { tags: args.tags }
-								: {}),
-							...(Array.isArray(args.saveIds)
-								? { saveIds: args.saveIds }
-								: {}),
-						},
-						owner,
-					);
+					const result = await mcpWriteDispatch("reminder.update", {
+						id: args.id,
+						...(typeof args.message === "string"
+							? { message: args.message }
+							: {}),
+						...(target !== undefined ? { target } : {}),
+						...(typeof args.escalate === "boolean"
+							? { escalate: args.escalate }
+							: {}),
+						...(Array.isArray(args.tags)
+							? { tags: args.tags }
+							: {}),
+						...(Array.isArray(args.saveIds)
+							? { saveIds: args.saveIds }
+							: {}),
+					});
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult({ updated: true }));
 				}
 				case "delete_reminder": {
-					const result = await dispatch(
+					const result = await mcpWriteDispatch(
 						"reminder.delete",
 						{ id: args.id },
-						owner,
+						{ requiresDelete: true },
 					);
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult({ deleted: true }));
 				}
 				case "update_image": {
-					const result = await dispatch(
-						"image.update",
-						{
-							id: args.id,
-							...(typeof args.title === "string"
-								? { title: args.title }
-								: {}),
-							...(Array.isArray(args.tags)
-								? { tags: args.tags }
-								: {}),
-						},
-						owner,
-					);
+					const result = await mcpWriteDispatch("image.update", {
+						id: args.id,
+						...(typeof args.title === "string"
+							? { title: args.title }
+							: {}),
+						...(Array.isArray(args.tags)
+							? { tags: args.tags }
+							: {}),
+					});
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult({ updated: true }));
 				}
 				case "delete_image": {
-					const result = await dispatch(
+					const result = await mcpWriteDispatch(
 						"image.delete",
 						{ id: args.id },
-						owner,
+						{ requiresDelete: true },
 					);
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult({ deleted: true }));
 				}
 				case "link_records": {
 					const fromId =
 						typeof args.fromId === "string" ? args.fromId : "";
-					if (await isNoteLocked(db, keys, fromId)) {
-						return fail(
-							id,
-							-32003,
-							"Locked notes cannot be linked via external MCP.",
-						);
-					}
-					const result = await dispatch(
+					const toId = typeof args.toId === "string" ? args.toId : "";
+					const result = await mcpWriteDispatch(
 						"link.create",
 						{ fromId: args.fromId, toId: args.toId },
-						owner,
+						{
+							forbidLockedNoteIds: [fromId, toId],
+							lockedMessage:
+								"Locked notes cannot be linked via external MCP.",
+						},
 					);
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult({ linked: true }));
 				}
 				case "unlink_records": {
 					const fromId =
 						typeof args.fromId === "string" ? args.fromId : "";
-					if (await isNoteLocked(db, keys, fromId)) {
-						return fail(
-							id,
-							-32003,
-							"Locked notes cannot be unlinked via external MCP.",
-						);
-					}
-					const result = await dispatch(
+					const toId = typeof args.toId === "string" ? args.toId : "";
+					const result = await mcpWriteDispatch(
 						"link.delete",
 						{ fromId: args.fromId, toId: args.toId },
-						owner,
+						{
+							forbidLockedNoteIds: [fromId, toId],
+							lockedMessage:
+								"Locked notes cannot be unlinked via external MCP.",
+						},
 					);
 					if (!result.ok) {
-						return fail(id, -32602, result.error.message);
+						return failFromCommand(result.error);
 					}
 					return ok(id, textToolResult({ unlinked: true }));
 				}

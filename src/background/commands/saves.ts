@@ -110,6 +110,14 @@ export const saveCapture = defineCommand({
 		return {
 			url,
 			title: asTitle(record.title),
+			customName:
+				record.customName === undefined
+					? undefined
+					: asString(record.customName, "customName")
+							.trim()
+							.slice(0, MAX_TITLE_LENGTH) ||
+						fail("customName cannot be empty."),
+			tags: optionalTags(record.tags),
 			saved: optionalBoolean(record.saved, "saved"),
 			snapshot: optionalSnapshot(record.snapshot),
 		};
@@ -128,40 +136,47 @@ export const saveCapture = defineCommand({
 
 		if (existing) {
 			const content = await openSave(keys, existing);
-			const existingTags = content.tags ?? [];
+			const nextTags = input.tags ?? content.tags ?? [];
 			const snapshot =
 				input.snapshot === undefined
 					? content.snapshot
 					: (input.snapshot ?? undefined);
 			const preservedMeta = {
 				...(content.archived ? { archived: true } : {}),
-				...(existingTags.length > 0 ? { tags: existingTags } : {}),
+				...(nextTags.length > 0 ? { tags: nextTags } : {}),
 				...(snapshot ? { snapshot } : {}),
 			};
 			const sealed = await sealBody<SaveContent>(
 				keys,
 				"saves",
 				existing.id,
-				// A page first seen before its title loaded (an error page,
-				// a slow site) was named after its host as a stand-in. The
-				// first real title replaces it; any other name, the first
-				// real title or one the user chose, is kept.
-				content.provisional && !untitled
+				input.customName !== undefined
 					? {
 							url: content.url,
-							title,
-							customName: title,
+							title: untitled ? content.title : title,
+							customName: input.customName,
 							...preservedMeta,
 						}
-					: {
-							url: content.url,
-							title: untitled ? content.title : title,
-							customName: content.customName,
-							...(content.provisional
-								? { provisional: true as const }
-								: {}),
-							...preservedMeta,
-						},
+					: // A page first seen before its title loaded (an error page,
+						// a slow site) was named after its host as a stand-in. The
+						// first real title replaces it; any other name, the first
+						// real title or one the user chose, is kept.
+						content.provisional && !untitled
+						? {
+								url: content.url,
+								title,
+								customName: title,
+								...preservedMeta,
+							}
+						: {
+								url: content.url,
+								title: untitled ? content.title : title,
+								customName: content.customName,
+								...(content.provisional
+									? { provisional: true as const }
+									: {}),
+								...preservedMeta,
+							},
 			);
 			await ctx.db.saves.put({
 				...existing,
@@ -179,11 +194,15 @@ export const saveCapture = defineCommand({
 			? []
 			: await pagesToEvict(ctx, keys, originKey);
 		const id = crypto.randomUUID();
+		const nextTags = input.tags ?? [];
 		const sealed = await sealBody<SaveContent>(keys, "saves", id, {
 			url: input.url,
 			title,
-			customName: title,
-			...(untitled ? { provisional: true as const } : {}),
+			customName: input.customName ?? title,
+			...(untitled && input.customName === undefined
+				? { provisional: true as const }
+				: {}),
+			...(nextTags.length > 0 ? { tags: nextTags } : {}),
 			...(input.snapshot ? { snapshot: input.snapshot } : {}),
 		});
 		await ctx.db.transaction("rw", cascadeTables(ctx.db), async () => {
