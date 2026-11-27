@@ -102,20 +102,20 @@ The full design, including exactly which fields stay readable, is in [decision 0
 
 ### Permissions
 
-| Permission                        | Why                                                                              |
-| --------------------------------- | -------------------------------------------------------------------------------- |
-| `tabs`, `activeTab`, `<all_urls>` | Record visited pages and take their screenshot previews                          |
-| `storage`, `unlimitedStorage`     | Keep your data and settings in the browser, without the default storage cap      |
-| `alarms`, `notifications`         | Fire reminders on time, even after Chrome suspends the background worker         |
-| `idle`                            | Lock the profile when the screen locks or after the idle time you set            |
-| `contextMenus`                    | **Save page**, **Save image**, **Save quote**, **Note text** and AI note actions |
-| `declarativeNetRequest`           | Let the extension's own requests reach local AI servers on this machine          |
-| `sidePanel`, `scripting`          | Run Little AI in Chrome's side panel and read the active page when you ask       |
-| `nativeMessaging` _(optional)_    | Opt-in local MCP bridge for external agents (**Settings → Data & Privacy**)      |
+| Permission                        | Why                                                                                        |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `tabs`, `activeTab`, `<all_urls>` | Record visited pages and take their screenshot previews                                    |
+| `storage`, `unlimitedStorage`     | Keep your data and settings in the browser, without the default storage cap                |
+| `alarms`, `notifications`         | Fire reminders on time, even after Chrome suspends the background worker                   |
+| `idle`                            | Lock the profile when the screen locks or after the idle time you set                      |
+| `contextMenus`                    | **Save page**, **Save image**, **Save quote**, **Note text** and AI note actions           |
+| `declarativeNetRequest`           | Let the extension's own requests reach local AI servers on this machine                    |
+| `sidePanel`, `scripting`          | Run Little Later or Little AI in Chrome's side panel and read the active page when you ask |
+| `nativeMessaging` _(optional)_    | Opt-in local MCP bridge for external agents (**Settings → Data & Privacy**)                |
 
 ## AI assistant
 
-Little AI is off until you configure it in **Settings → AI**. It supports **Local** servers ([Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai), Local vLLM, llama.cpp), **Cloud** presets (OpenAI, Gemini, Claude, OpenRouter, Groq, Together, Mistral, DeepSeek), and any **Custom** OpenAI-compatible API (`https` unless local). You can also connect a loopback-only local MCP server.
+Little AI is off until you configure it in **Settings → AI**. It supports **Local** servers ([Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai), Local vLLM, llama.cpp), **Cloud** presets (OpenAI, Gemini, Claude, OpenRouter, Groq, Together, Mistral, DeepSeek), and any **Custom** OpenAI-compatible API (`https` unless local). You can also connect multiple loopback-only local MCP servers in **Settings → AI → Local MCP Servers**.
 
 Start the local server, load a model, then pick the provider and model in settings. Local servers reject requests from extension pages by default, so Little Later sends its own requests to them with a `127.0.0.1` origin; websites you visit do not get that header.
 
@@ -126,7 +126,7 @@ When you use the assistant, your messages and the records it reads to answer the
 ```sh
 bun install
 bun run build:shared   # build the shared package once
-bun run dev            # then load dist/ in chrome://extensions
+bun run dev            # then load dist-dev/ in chrome://extensions
 ```
 
 While `bun run dev` runs, the loaded extension hot-reloads from the dev server. [CONTRIBUTING.md](./CONTRIBUTING.md) covers the end-to-end tests and every check CI runs.

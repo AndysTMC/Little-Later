@@ -43,7 +43,9 @@ body:
               - None
               - Ollama
               - LM Studio
-              - Other OpenAI-compatible
+              - Local vLLM / llama.cpp
+              - Cloud preset (OpenAI, Gemini, Claude, etc.)
+              - Custom OpenAI-compatible
     - type: textarea
       id: logs
       attributes:

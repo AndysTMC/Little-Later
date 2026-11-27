@@ -33,13 +33,13 @@ B.
 
 - **Locked (secure) notes:**
     - Notes can opt into `locked: true` only on password-protected profiles.
-    - Opening a locked note requires fresh password verification (`profile.verifyPassword`) held only in component memory, never persisted to session drafts, and immediately cleared when leaving the screen.
-    - Locked note bodies are never rendered in list previews, never indexed in plain Home search, and unconditionally filtered out before LittleAI (`src/services/ai/records.ts`) or external MCP (`src/background/mcpBridge.ts`) reads or mutates notes.
+    - Opening a locked note requires fresh password verification (`profile.verifyPassword`) held only in component memory, never persisted to session drafts, and immediately cleared when leaving the screen. Modifying, unlocking, deleting a locked note, or exporting an encrypted `.lldat` backup containing locked notes also requires fresh server-side password verification.
+    - Locked note bodies are never rendered in list previews, never indexed in plain Home search, and unconditionally filtered out before Little AI (`src/services/ai/records.ts`) or external MCP (`src/background/mcpBridge.ts`) reads or mutates notes.
 
 - **Local MCP client & external agent Native Messaging bridge:**
-    - **LittleAI as MCP client (`src/services/ai/mcpClient.ts`):** optionally connects to a user-configured Streamable HTTP MCP server restricted strictly to loopback addresses (`localhost`, `127.0.0.1`, `[::1]`). External tools are namespaced (`mcp__*`) and every call requires explicit in-chat user confirmation (`kind: "external"`).
-    - **External agents accessing Little Later (`src/background/mcpBridge.ts`, `packages/mcp-bridge/`):** disabled by default (`externalMcpMode: "off"`), controlled under Settings -> Data & Privacy (`Off`, `Read-only`, `Read & write`), using Chrome's `"optional_permissions": ["nativeMessaging"]` and a user-private (`0600`) local IPC socket.
-    - The bridge refuses every request while the profile is locked, rejects write tools unless `externalMcpMode === "write"`, routes all writes through the service worker command dispatcher, resets `externalMcpMode` to `"off"` on backup import, and never exposes vault keys, passwords, AI API keys, or locked notes.
+    - **Little AI as MCP client (`src/services/ai/mcpClient.ts`):** optionally connects to multiple user-configured named Streamable HTTP MCP servers (`mcpServers`) restricted strictly to loopback addresses (`localhost`, `127.0.0.1`, `[::1]`) with `redirect: "error"`. External tools receive deterministic, collision-free `mcp__*` aliases (`<= 64` chars), and every call pins its target server and requires explicit in-chat user confirmation (`kind: "external"`).
+    - **External agents accessing Little Later (`src/background/mcpBridge.ts`, `packages/mcp-bridge/`):** disabled by default (`externalMcpMode: "off"`), controlled under Settings -> Data & Privacy (`Off`, `Read-only`, `Read & write`) with separate opt-in toggles for browsing history (`externalMcpAllowHistory`) and permanent deletions (`externalMcpAllowDelete`), using Chrome's `"optional_permissions": ["nativeMessaging"]` and a user-private (`0600`) local IPC socket.
+    - The bridge refuses every request while the profile is locked, re-verifies live write/delete grants and locked-note state atomically inside the service worker's serialized write queue, bounds `resources/read` payloads (200 items / 512 KiB), resets MCP grants on backup import, and never exposes vault keys, passwords, AI API keys, or locked notes.
 
 ## Consequences
 

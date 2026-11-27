@@ -1,8 +1,8 @@
 {
 	"version": 1,
 	"name": "Little Later",
-	"tagline": "Local-first Chrome extension for visual bookmarks, tasks, reminders, notes, and AI assist.",
-	"description": "Little Later is a Manifest V3 Chrome extension with no backend. The 500 by 600 popup keeps visual bookmarks, tasks, reminders, and notes in one Dexie IndexedDB database, with every record encrypted under its profile's key. The service worker is the only writer: it captures tabs, fires reminder notifications, runs context-menu actions, and applies typed commands sent by the popup and the AI. AI Assist talks to Ollama, LM Studio, or a custom OpenAI-compatible endpoint and will not write or export until the user confirms in chat.",
+	"tagline": "Local-first Chrome extension for visual bookmarks, tasks, reminders, notes, images, and Little AI.",
+	"description": "Little Later is a Manifest V3 Chrome extension with no backend. Available in both the toolbar popup and Chrome's side panel, it keeps visual bookmarks, tasks, reminders, notes (including password-locked notes), images, and AI chats in one Dexie IndexedDB database, with every record encrypted under its profile's key. The service worker is the only writer: it captures tabs, fires reminder notifications, runs context-menu actions, serves an opt-in local MCP bridge, and applies typed commands sent by the UI and Little AI. Little AI supports Local, Cloud, and Custom OpenAI-compatible providers plus multiple loopback-only local MCP servers, and will not write, export, or call external MCP tools until the user confirms in chat.",
 	"year": "2025",
 	"tags": [
 		"local-first",
@@ -13,47 +13,49 @@
 		"reminders",
 		"notes",
 		"privacy",
-		"AI"
+		"AI",
+		"MCP"
 	],
 	"skills": ["TypeScript", "React", "Tailwind CSS", "Framer Motion"],
 	"highlights": [
-		"Shipped as a self-contained MV3 extension: React popup plus a service worker for tab capture, alarms, notifications, and context menus.",
-		"Each record is sealed with AES-256-GCM under a per-profile key; a password wraps that key with PBKDF2-SHA-256 at 600,000 iterations, and locking drops the unwrapped key.",
-		"The service worker is the only writer: the popup and the AI send typed commands, which run one at a time.",
-		"Times are epoch milliseconds and recurrence is an anchored rule computed with Temporal, so recurring times follow the device across time zones.",
-		"AI Assist uses the OpenAI SDK against Ollama, LM Studio, or a custom compatible URL. Reads run immediately; writes and exports wait for in-chat Confirm.",
-		"CI runs format, lint, typecheck, unit, property-based and Playwright end-to-end tests, CodeQL, OpenSSF Scorecard and workflow audits. Tagged releases ship a zip, a signed CRX, a CycloneDX SBOM, checksums and signed build provenance.",
-		"Public GitHub Releases exist for v1.0.0, v2.0.0 (extension-only rebuild), v2.1.0 (confirmed writes), v2.1.1 (security fixes and supply-chain hardening), v3.0.0 (encrypted storage format v1) and v3.0.1."
+		"Shipped as a self-contained MV3 extension across the toolbar popup and Chrome's side panel (Everything, AI only, or None modes), backed by a single service worker for tab capture, alarms, notifications, context menus, and background AI runs.",
+		"Each record is sealed with AES-256-GCM under a per-profile key; passwords wrap keys with PBKDF2-SHA-256 at 600,000 iterations, optional passkey/security-key 2FA adds a cryptographic second factor via WebAuthn PRF, and locked notes require fresh password verification.",
+		"The service worker is the only writer: extension pages, Little AI, and the opt-in external MCP bridge dispatch typed commands through a serialized write queue.",
+		"Times are epoch milliseconds and recurrence is an anchored rule computed with Temporal, so recurring schedules follow the device across time zones.",
+		"Little AI supports Local (Ollama, LM Studio, vLLM, llama.cpp), Cloud presets, and Custom OpenAI-compatible endpoints plus multiple loopback-only local MCP servers. Reads run immediately; writes, exports, and external MCP calls wait for in-chat confirmation.",
+		"Opt-in `little-later-mcp` Native Messaging bridge & CLI (`npx -y little-later-mcp`) exposes full vault parity to local agents with explicit history/delete opt-in grants and strict locked-note isolation.",
+		"CI runs format, lint, typecheck, knowledge checks, unit, property-based, and sharded real-Chrome Playwright extension tests, CodeQL, OpenSSF Scorecard, and workflow audits. Tagged releases ship `.zip`, signed `.crx`, CycloneDX SBOM, `checksums.txt`, and signed Sigstore/SLSA provenance.",
+		"Public GitHub Releases span v1.0.0 through v3.2.0 (with v3.3.0 prepared on dev covering security hardening, full MCP parity, modular AI Settings + multi-MCP, and design system/motion polish)."
 	],
 	"story": {
-		"why": "Keep browsing captures, tasks, reminders, and notes in the browser profile instead of a hosted account, and let a local model act on that data only after a click.",
-		"problem": "Bookmarks, todos, reminders, and notes usually live in separate cloud products. A local-only Chrome popup needs capture, encryption, notifications, and optional AI without a server.",
+		"why": "Keep browsing captures, tasks, reminders, notes, and images in the browser profile instead of a hosted account, and let local or chosen AI tools act on that data only after explicit confirmation.",
+		"problem": "Bookmarks, todos, reminders, notes, and visual references usually live in separate cloud products. A local-first Chrome extension needs capture, encryption, notifications, portable exports, and optional AI/MCP workflows without a server.",
 		"challenges": [
-			"The MV3 service worker suspends, so alarms drive reminders and catch up on missed fires. (src/background/scheduler.ts)",
-			"The whole product UI is a 500 by 600 HashRouter popup, not a website. (src/popup/index.css)",
+			"The MV3 service worker suspends, so alarms drive reminders, catch up on missed fires, and keep-alive pings sustain long Little AI runs. (src/background/scheduler.ts, src/services/ai/runs.ts)",
+			"The UI adapts cleanly from narrow 320px side panels to the 500px popup and full browser tabs using shared design-system primitives and motion curves. (docs/design.md, src/route-transitions.ts)",
 			"Local Ollama and LM Studio reject the extension Origin, so a DNR rule rewrites it for the extension's own requests only. (src/background/localAIOriginRule.ts)",
-			"Reminders must fire while a profile is locked, so schedules stay readable while their text stays encrypted. (src/storage/schema.ts)",
-			"Backups are a chunked, encrypted .lldat format that imports into a new profile with fresh keys. (src/storage/backup.ts)",
-			"Unsaved history is capped per site and overall so capture cannot grow without bound. (src/background/commands/saves.ts)"
+			"Reminders must fire while a profile is locked, so schedules stay readable while their content stays encrypted. (src/storage/schema.ts)",
+			"Sensitive file handoffs cross extension pages to the service worker via encrypted, session-bound OPFS staging, and backups use a chunked encrypted .lldat format. (src/storage/staging.ts, src/services/backup.ts)",
+			"Unsaved history is capped per site and overall, and chat retention runs on lock and unlock so data cannot grow or linger past policy. (src/background/commands/saves.ts, src/background/chatRetention.ts)"
 		],
 		"designDecisions": [
 			"Stay a Chrome extension with no backend or hosted sync. (manifest.json)",
-			"Encrypt each record under a wrapped profile key, in one versioned database. (src/storage/schema.ts)",
-			"Make the service worker the only writer, through typed commands. (src/background/commands/)",
+			"Encrypt each record under a wrapped profile key, in one versioned database, with optional passkey 2FA and password-gated locked notes. (src/storage/schema.ts, src/storage/secondFactor.ts)",
+			"Make the service worker the only writer, through typed commands in a serialized queue. (src/background/commands/)",
 			"Store instants as epoch milliseconds and recurrence as anchored rules. (packages/shared/src/utils/schedule.ts)",
-			"Queue mutate, destructive, and export AI tools until in-chat Confirm. (src/services/ai/main.ts)",
-			"Use built-in local URLs for Ollama and LM Studio; Custom supplies its own. (src/services/ai/config.ts)"
+			"Queue mutate, destructive, export, and external MCP AI tools until in-chat confirmation. (src/services/ai/main.ts)",
+			"Gate external agent MCP access behind optional nativeMessaging, explicit history/delete opt-in flags, and unconditional locked-note isolation. (src/background/mcpBridge.ts)"
 		]
 	},
 	"future": {
-		"next": "Build the AI tools on the worker commands with defineTool, and decide the product direction for AI features.",
+		"next": "Cut v3.3.0 to main, publish little-later-mcp@3.3.0 to npm, and review proposed architecture decisions (0008–0018) for acceptance.",
 		"roadmap": [
-			"A design-system pass across the popup, fixing the React Compiler lint warnings screen by screen.",
-			"The Playwright visual tour is still a local script, not a CI job."
+			"Recompute floating schedules immediately when a page opens.",
+			"Expand Little AI multimodal attachments, on-device voice, and page-action approval workflows."
 		],
 		"upcomingFeatures": [
-			"Note the current webpage from AI Assist",
-			"Link a note to the current webpage from AI Assist"
+			"On-device voice input and spoken replies",
+			"Approval-gated browser page actions from Little AI"
 		],
 		"ideas": ["More than one profile unlocked at once."]
 	}
