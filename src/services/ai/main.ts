@@ -387,7 +387,7 @@ const quoted = (value: unknown, maxLength = 60): string =>
 // are the normalised arguments, the values that will actually be stored.
 // A record that cannot be found is said to be missing; the call then
 // fails when it runs.
-const describePendingAction = async (
+export const describePendingAction = async (
 	owner: AIOwner,
 	toolName: string,
 	args: Record<string, unknown>,
@@ -555,7 +555,28 @@ const describePendingAction = async (
 		}
 		default:
 			if (toolName.startsWith(MCP_TOOL_PREFIX)) {
-				return `Run local MCP tool "${toolName.slice(MCP_TOOL_PREFIX.length)}"`;
+				const mcpTool = toolName.slice(MCP_TOOL_PREFIX.length);
+				let target = "local MCP server";
+				try {
+					const settings = await readSettings(await owner.keys());
+					const rawUrl = settings.ai.mcpServerUrl?.trim() ?? "";
+					if (rawUrl !== "") {
+						target = new URL(rawUrl).origin;
+					}
+				} catch {
+					// Fall back to generic target label.
+				}
+				const keys = Object.keys(args);
+				let argDetail = "";
+				if (keys.length > 0) {
+					const serialized = JSON.stringify(args);
+					const clipped =
+						serialized.length > 160
+							? `${serialized.slice(0, 159)}…`
+							: serialized;
+					argDetail = ` with ${clipped}`;
+				}
+				return `Run local MCP tool "${mcpTool}" on ${target}${argDetail}`;
 			}
 			return `Run ${toolName}`;
 	}
@@ -1318,6 +1339,7 @@ export abstract class LittleAI {
 		try {
 			const response = await fetch(endpoint, {
 				method: "POST",
+				redirect: "error",
 				headers: {
 					"Content-Type": "application/json",
 					// Only a custom provider has a key (effectiveApiKey).

@@ -4,12 +4,12 @@ import { ImageIcon, PlusIcon } from "@phosphor-icons/react";
 import { LTHEME, LTOAST_TYPE } from "little-shared/enums";
 import { twMerge } from "tailwind-merge";
 import type { ImageRecord } from "../../../storage/repositories";
-import { toBase64 } from "../../../storage/session";
+import { sessionStore, toBase64 } from "../../../storage/session";
 import {
 	ALLOWED_IMAGE_MIME_TYPES,
 	MAX_IMAGE_BYTES,
 } from "../../../background/commands/images";
-import { send } from "../../../utils/send";
+import { send, type SendOptions } from "../../../utils/send";
 import { createToast } from "../../../services/toasts";
 import { getNoteCardTimeLabel } from "../../../utils/notePreview";
 import { pickRoute, type PickRequest } from "../../filePick";
@@ -35,6 +35,7 @@ const IMAGE_PICK_REQUEST: PickRequest = {
 	maxBytes: MAX_IMAGE_BYTES,
 	maxFiles: 10,
 	pasteHint: "Copy an image or image file, then press Ctrl+V",
+	sensitive: true,
 };
 
 const ImageCard = ({
@@ -133,6 +134,7 @@ const saveBlobAsImage = async (
 	blob: Blob,
 	rawName: string,
 	rawType: string,
+	owner: SendOptions,
 ): Promise<boolean> => {
 	const cleanedType = (rawType || blob.type || "")
 		.toLowerCase()
@@ -156,11 +158,15 @@ const saveBlobAsImage = async (
 	const title = rawName
 		? rawName.replace(/\.[a-z0-9]{2,5}$/i, "").slice(0, 100)
 		: "Pasted image";
-	await send("image.create", {
-		bytesBase64: toBase64(bytes),
-		mimeType,
-		title: title || "Saved image",
-	});
+	await send(
+		"image.create",
+		{
+			bytesBase64: toBase64(bytes),
+			mimeType,
+			title: title || "Saved image",
+		},
+		owner,
+	);
 	return true;
 };
 
@@ -178,7 +184,7 @@ const Component = ({
 	const { theme } = useTheme();
 	const isDark = theme === LTHEME.DARK;
 	const go = useMoveNavigate();
-	const picked = usePickedFile(IMAGE_SLOT);
+	const picked = usePickedFile(IMAGE_SLOT, { sensitive: true });
 	const [busy, setBusy] = useState(false);
 	const consumingRef = useRef(false);
 
@@ -204,12 +210,21 @@ const Component = ({
 		void (async () => {
 			let savedCount = 0;
 			try {
+				const session = await sessionStore.get();
+				if (!session) {
+					throw new Error("Unlock a profile first.");
+				}
+				const owner: SendOptions = {
+					profileId: session.profileId,
+					unlockId: session.unlockId,
+				};
 				for (const file of filesToSave) {
 					try {
 						const ok = await saveBlobAsImage(
 							file.blob,
 							file.name,
 							file.blob.type,
+							owner,
 						);
 						if (ok) savedCount += 1;
 					} finally {
@@ -243,9 +258,19 @@ const Component = ({
 			if (files.length === 0 || busy) return;
 			setBusy(true);
 			try {
+				const session = await sessionStore.get();
+				if (!session) {
+					throw new Error("Unlock a profile first.");
+				}
+				const owner: SendOptions = {
+					profileId: session.profileId,
+					unlockId: session.unlockId,
+				};
 				let savedCount = 0;
 				for (const file of files) {
-					if (await saveBlobAsImage(file, file.name, file.type)) {
+					if (
+						await saveBlobAsImage(file, file.name, file.type, owner)
+					) {
 						savedCount += 1;
 					}
 				}

@@ -199,6 +199,7 @@ async function* profileEntries(
 	keys: ProfileKeys,
 	withAssets: boolean,
 	checkUnlocked: () => Promise<void>,
+	onLockedNote?: () => Promise<void>,
 ): AsyncGenerator<BackupEntry> {
 	const { profileId } = keys;
 	const profile = await littleDB.profiles.get(profileId);
@@ -244,13 +245,17 @@ async function* profileEntries(
 		};
 	}
 	for (const row of snapshot.notes) {
+		const content = await openForExport("notes", row.id, () =>
+			openBody<NoteContent>(keys, "notes", row.id, row.body),
+		);
+		if (content.locked && onLockedNote) {
+			await onLockedNote();
+		}
 		yield {
 			table: "notes",
 			...times(row),
 			privacy: row.privacy,
-			content: await openForExport("notes", row.id, () =>
-				openBody<NoteContent>(keys, "notes", row.id, row.body),
-			),
+			content,
 		};
 	}
 	for (const row of snapshot.images) {
@@ -373,12 +378,20 @@ const entrySize = (entry: BackupEntry): number =>
 			? (entry.avatar?.bytes.length ?? 0)
 			: JSON.stringify(entry).length;
 
+export type BackupExportOptions = {
+	// Required when exporting a password-protected profile that contains
+	// locked notes, so an unlocked session alone cannot re-wrap locked notes
+	// under a newly chosen backup password.
+	profilePassword?: string;
+};
+
 // The unlocked profile as an importable backup. Passing kdf lets tests use
 // a cheap iteration count.
 export const createBackup = async (
 	password: string,
 	kdf?: KdfParams,
 	keysOf?: KeysOf,
+	options?: BackupExportOptions,
 ): Promise<Blob> => {
 	// The imported profile opens with this password, so it follows the
 	// profile password rules (decision 0007, A1).
@@ -388,6 +401,30 @@ export const createBackup = async (
 		);
 	}
 	const { keys, checkUnlocked } = await acquireExportKeys(keysOf);
+	let lockedNoteVerified = false;
+	const verifyLockedNoteAccess = async () => {
+		if (lockedNoteVerified) return;
+		const profile = await littleDB.profiles.get(keys.profileId);
+		if (profile?.protection !== "password") {
+			lockedNoteVerified = true;
+			return;
+		}
+		if (!options?.profilePassword) {
+			throw new BackupError(
+				"This profile has locked notes. Enter your current profile password to include them in an encrypted backup.",
+			);
+		}
+		try {
+			await send(
+				"profile.verifyPassword",
+				{ password: options.profilePassword },
+				{ profileId: keys.profileId },
+			);
+		} catch {
+			throw new BackupError("Your current profile password is wrong.");
+		}
+		lockedNoteVerified = true;
+	};
 	const { header, keys: backupKeys } = await newBackupKey(password, kdf);
 	// Each sealed chunk is handed to a Blob at once, so the export never
 	// holds the whole backup in memory (the browser may page it to disk).
@@ -409,7 +446,12 @@ export const createBackup = async (
 			pending = [];
 			pendingBytes = 0;
 		};
-		for await (const entry of profileEntries(keys, true, checkUnlocked)) {
+		for await (const entry of profileEntries(
+			keys,
+			true,
+			checkUnlocked,
+			verifyLockedNoteAccess,
+		)) {
 			if (
 				pending.length > 0 &&
 				pendingBytes + entrySize(entry) > CHUNK_BYTES
@@ -583,9 +625,10 @@ export const createReadableExport = async (
 export const exportBackup = async (
 	password: string,
 	keysOf?: KeysOf,
+	options?: BackupExportOptions,
 ): Promise<void> =>
 	saveFile(
-		await createBackup(password, undefined, keysOf),
+		await createBackup(password, undefined, keysOf, options),
 		`Little-Later-Backup${BACKUP_EXTENSION}`,
 	);
 

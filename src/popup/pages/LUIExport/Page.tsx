@@ -18,7 +18,9 @@ import { LUINote } from "../../components/LUINote/Component";
 import { LUITextInputT1 } from "../../components/LUITextInput/Component";
 import { LUICUButton } from "../../components/LUICUButton/Component";
 import { createToast } from "../../../services/toasts";
+import { useCurrentUserProfile } from "../../hooks/useCurrentUserProfile";
 import { useCurrentUserSettings } from "../../hooks/useCurrentUserSettings";
+import { useNotes } from "../../hooks/useRecords";
 import { send } from "../../../utils/send";
 
 type ExportFormat = LEXPORT_TYPE | "markdown" | "calendar" | "bookmarks";
@@ -32,8 +34,13 @@ const Page = () => {
 		"string"
 			? (location.state as { referrer: string }).referrer
 			: "/settings";
+	const currentUserProfile = useCurrentUserProfile();
 	const userSettings = useCurrentUserSettings();
+	const notes = useNotes();
 	const lastBackupAt = userSettings?.misc.lastBackupAt ?? 0;
+	const hasLockedNotes = Boolean(notes?.some((note) => note.locked));
+	const needsProfilePassword =
+		Boolean(currentUserProfile?.hasPassword) && hasLockedNotes;
 	const exportOptions: ReadonlyArray<{ value: ExportFormat; label: string }> =
 		[
 			...Object.values(LEXPORT_TYPE).map((value) => ({
@@ -48,12 +55,18 @@ const Page = () => {
 		LEXPORT_TYPE.IMPORTABLE,
 	);
 	const [backupPassword, setBackupPassword] = useState("");
+	const [profilePassword, setProfilePassword] = useState("");
 	// The button blocks a second press while this runs.
 	const handleExport = async () => {
 		try {
 			if (exportType === LEXPORT_TYPE.IMPORTABLE) {
-				await exportBackup(backupPassword);
+				await exportBackup(
+					backupPassword,
+					undefined,
+					needsProfilePassword ? { profilePassword } : undefined,
+				);
 				setBackupPassword("");
+				setProfilePassword("");
 				if (userSettings) {
 					void send("settings.update", {
 						misc: {
@@ -130,6 +143,31 @@ const Page = () => {
 										: { success: true, error: "" }
 								}
 							/>
+							{needsProfilePassword ? (
+								<>
+									<LUINote className="w-full">
+										This profile contains locked notes.
+										Verify your current profile password to
+										include them in the backup.
+									</LUINote>
+									<LUITextInputT1
+										name="Current profile password"
+										inputType="password"
+										passedValue={profilePassword}
+										onChange={setProfilePassword}
+										lengthLimit={128}
+										disableLengthCounter
+										validate={(value) =>
+											value === ""
+												? {
+														success: false,
+														error: "Current password required",
+													}
+												: { success: true, error: "" }
+										}
+									/>
+								</>
+							) : null}
 						</>
 					) : exportType === "markdown" ? (
 						<LUINote className="w-full">
@@ -160,7 +198,9 @@ const Page = () => {
 							name="Export"
 							disabled={
 								exportType === LEXPORT_TYPE.IMPORTABLE &&
-								backupPassword.trim() === ""
+								(backupPassword.trim() === "" ||
+									(needsProfilePassword &&
+										profilePassword === ""))
 							}
 							onClick={handleExport}
 						/>

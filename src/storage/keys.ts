@@ -119,3 +119,39 @@ export const openAsset = async (
 		bodyLocation("assets", id, keys.profileId),
 		body,
 	);
+
+const stagedLocation = (name: string, profileId: string) => ({
+	table: "staging",
+	id: name,
+	profileId,
+	field: "blob",
+});
+
+// Sensitive files staged in OPFS (images, bookmarks HTML) are sealed under the
+// unlocked profile's asset subkey before touching disk (decision 0012).
+export const sealStaged = async (
+	keys: ProfileKeys,
+	name: string,
+	bytes: Uint8Array,
+): Promise<Uint8Array<ArrayBuffer>> =>
+	(
+		await sealBytes(
+			keys.current.asset,
+			keys.current.keyId,
+			stagedLocation(name, keys.profileId),
+			bytes,
+		)
+	).slice();
+
+export const openStaged = async (
+	keys: ProfileKeys,
+	name: string,
+	body: Uint8Array,
+): Promise<Uint8Array<ArrayBuffer>> =>
+	(
+		await openBytes(
+			keysFor(keys, body).asset,
+			stagedLocation(name, keys.profileId),
+			body,
+		)
+	).slice();

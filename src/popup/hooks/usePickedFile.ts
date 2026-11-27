@@ -1,4 +1,6 @@
 import { useCallback, useContext, useEffect, useState } from "react";
+import { importProfileKeys } from "../../storage/keys";
+import { sessionStore } from "../../storage/session";
 import { staging } from "../../storage/staging";
 import { UIStateContext } from "../contexts/UIStateContext";
 import { asPickedFiles, pickKey, type PickedFile } from "../filePick";
@@ -9,7 +11,8 @@ export type PickedBlob = { id: string; blob: Blob; name: string; size: number };
 // The files uploaded for a slot on the shared upload screen (filePick.ts),
 // if any are waiting. They stay until `clear` is called: call it once they
 // have been used or are no longer wanted.
-const usePickedFile = (slot: string) => {
+const usePickedFile = (slot: string, options?: { sensitive?: boolean }) => {
+	const sensitive = options?.sensitive ?? false;
 	const { getDraft, setDraft, clearDraft } = useContext(UIStateContext);
 	const key = pickKey(slot);
 	const [files, setFiles] = useState<Array<PickedBlob>>([]);
@@ -20,31 +23,59 @@ const usePickedFile = (slot: string) => {
 			return;
 		}
 		let active = true;
-		Promise.all(
-			picked.map(async (meta: PickedFile) => ({
-				id: meta.file,
-				// Backed by the staged file on disk, not read into memory.
-				blob: (await staging.readBlob(meta.file)).slice(
-					0,
-					undefined,
-					meta.type,
-				),
-				name: meta.name,
-				size: meta.size,
-			})),
-		).then(
+		const load = async (): Promise<Array<PickedBlob>> => {
+			const needsKeys =
+				sensitive || picked.some((meta) => Boolean(meta.encrypted));
+			let keys: Awaited<ReturnType<typeof importProfileKeys>> | undefined;
+			if (needsKeys) {
+				const session = await sessionStore.get();
+				if (
+					!session ||
+					picked.some(
+						(meta) =>
+							!meta.encrypted ||
+							meta.profileId !== session.profileId ||
+							meta.unlockId !== session.unlockId,
+					)
+				) {
+					await Promise.all(
+						picked.map((meta) =>
+							staging.discard(meta.file).catch(() => undefined),
+						),
+					);
+					throw new Error("Staged file session mismatch.");
+				}
+				keys = await importProfileKeys(session);
+			}
+			return Promise.all(
+				picked.map(async (meta: PickedFile) => ({
+					id: meta.file,
+					// Backed by the staged file on disk (or decrypted from
+					// sealed OPFS bytes for sensitive slots).
+					blob: (
+						await staging.readBlob(
+							meta.file,
+							needsKeys ? keys : undefined,
+						)
+					).slice(0, undefined, meta.type),
+					name: meta.name,
+					size: meta.size,
+				})),
+			);
+		};
+		load().then(
 			(loaded) => {
 				if (active) setFiles(loaded);
 			},
 			() => {
-				// Swept as leftovers, or already used: nothing to offer.
+				// Swept as leftovers, session changed, or already used: nothing to offer.
 				clearDraft(key);
 			},
 		);
 		return () => {
 			active = false;
 		};
-	}, [key, getDraft, clearDraft]);
+	}, [key, sensitive, getDraft, clearDraft]);
 
 	const clear = useCallback(async () => {
 		const picked = asPickedFiles(getDraft(key));

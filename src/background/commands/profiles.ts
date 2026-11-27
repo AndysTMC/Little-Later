@@ -132,6 +132,18 @@ export const profileUnlock = defineCommand({
 			input.password,
 			toFactor(input.factor),
 		);
+		// A browser restart clears chrome.storage.session without firing
+		// profile.lock; enforce "When profile locks" and age-based retention
+		// immediately on unlock for chats left over from prior sessions.
+		try {
+			const keys = await ctx.keys();
+			await enforceChatRetention(ctx.db, keys, {
+				onLock: true,
+				now: ctx.now(),
+			});
+		} catch {
+			// Never block unlocking if chat retention cleanup fails.
+		}
 		// Unlock is the other moment 0012 sweeps leftovers (Messaging).
 		await ctx.staging.sweep(
 			ctx.now() - STAGED_FILE_MAX_AGE,

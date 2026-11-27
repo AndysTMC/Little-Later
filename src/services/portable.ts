@@ -27,7 +27,27 @@ const acquireKeys = async () => {
 	}
 	const keys = await importProfileKeys(session);
 	const profile = await littleDB.profiles.get(session.profileId);
-	return { keys, profileName: profile?.name ?? "Little Later" };
+	const owner = {
+		profileId: session.profileId,
+		unlockId: session.unlockId,
+	};
+	const checkUnlocked = async () => {
+		const current = await sessionStore.get();
+		if (
+			current?.profileId !== owner.profileId ||
+			current.unlockId !== owner.unlockId
+		) {
+			throw new Error(
+				"The profile was locked, so the operation stopped.",
+			);
+		}
+	};
+	return {
+		keys,
+		profileName: profile?.name ?? "Little Later",
+		owner,
+		checkUnlocked,
+	};
 };
 
 const dateStamp = (now = Date.now()): string =>
@@ -137,11 +157,12 @@ export const buildObsidianMarkdown = ({
 };
 
 export const exportObsidianMarkdown = async (): Promise<void> => {
-	const { keys, profileName } = await acquireKeys();
+	const { keys, profileName, checkUnlocked } = await acquireKeys();
 	const [saves, notes] = await Promise.all([
 		listSaves(littleDB, keys, true),
 		listNotes(littleDB, keys),
 	]);
+	await checkUnlocked();
 	const md = buildObsidianMarkdown({ saves, notes, profileName });
 	const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
 	await saveFile(
@@ -303,12 +324,13 @@ export const buildCalendarIcs = ({
 };
 
 export const exportCalendarIcs = async (): Promise<void> => {
-	const { keys, profileName } = await acquireKeys();
+	const { keys, profileName, checkUnlocked } = await acquireKeys();
 	const [openTasks, doneTasks, reminders] = await Promise.all([
 		listTasks(littleDB, keys, false),
 		listTasks(littleDB, keys, true),
 		listReminders(littleDB, keys),
 	]);
+	await checkUnlocked();
 	const ics = buildCalendarIcs({
 		tasks: [...openTasks, ...doneTasks],
 		reminders,
@@ -381,8 +403,9 @@ export const buildBookmarksHtml = ({
 };
 
 export const exportBookmarksHtml = async (): Promise<void> => {
-	const { keys, profileName } = await acquireKeys();
+	const { keys, profileName, checkUnlocked } = await acquireKeys();
 	const saves = await listSaves(littleDB, keys, true);
+	await checkUnlocked();
 	const html = buildBookmarksHtml({ saves });
 	const blob = new Blob([html], { type: "text/html;charset=utf-8" });
 	await saveFile(
@@ -529,30 +552,40 @@ export const importBookmarksHtml = async (
 	if (bookmarks.length === 0) {
 		throw new Error("No valid http/https bookmarks found in that file.");
 	}
-	const { keys } = await acquireKeys();
+	const { keys, owner, checkUnlocked } = await acquireKeys();
 	let imported = 0;
 	let skipped = 0;
 	for (const item of bookmarks) {
+		await checkUnlocked();
 		try {
-			const captured = await send("save.capture", {
-				url: item.url,
-				title: item.title,
-				saved: true,
-			});
+			const captured = await send(
+				"save.capture",
+				{
+					url: item.url,
+					title: item.title,
+					saved: true,
+				},
+				owner,
+			);
 			if (captured.id && (item.tags.length > 0 || item.archived)) {
 				const existing = await getSave(littleDB, keys, captured.id);
 				const mergedTags = normalizeTags([
 					...(existing?.tags ?? []),
 					...item.tags,
 				]).slice(0, MAX_TAGS_PER_RECORD);
-				await send("save.update", {
-					id: captured.id,
-					...(mergedTags.length > 0 ? { tags: mergedTags } : {}),
-					...(item.archived ? { archived: true } : {}),
-				});
+				await send(
+					"save.update",
+					{
+						id: captured.id,
+						...(mergedTags.length > 0 ? { tags: mergedTags } : {}),
+						...(item.archived ? { archived: true } : {}),
+					},
+					owner,
+				);
 			}
 			imported += 1;
 		} catch {
+			await checkUnlocked();
 			skipped += 1;
 		}
 	}

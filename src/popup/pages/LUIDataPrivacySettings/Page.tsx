@@ -62,7 +62,9 @@ const Page = () => {
 	const go = useMoveNavigate();
 	const userSettings = useCurrentUserSettings();
 	const loading = useLoading([userSettings]);
-	const pickedBookmarks = usePickedFile(BOOKMARKS_PICK_SLOT);
+	const pickedBookmarks = usePickedFile(BOOKMARKS_PICK_SLOT, {
+		sensitive: true,
+	});
 	const importingRef = useRef(false);
 	const [importingBookmarks, setImportingBookmarks] = useState(false);
 	const [ignoreInput, setIgnoreInput] = useState("");
@@ -117,7 +119,7 @@ const Page = () => {
 		typeof chrome !== "undefined" && chrome.runtime?.id
 			? chrome.runtime.id
 			: "";
-	const OFFICIAL_EXTENSION_ID = "nchfnpignmgklabjemdobnanfickfbhl";
+	const OFFICIAL_EXTENSION_ID = "jbmjjboeppfcjblnbiiaicoakpabghom";
 	const installCommand =
 		extensionId === "" || extensionId === OFFICIAL_EXTENSION_ID
 			? "npx -y little-later-mcp install"
@@ -288,6 +290,7 @@ const Page = () => {
 													maxFiles: 1,
 													pasteHint:
 														"Drop or paste a bookmarks.html file",
+													sensitive: true,
 												},
 												BOOKMARKS_PICK_SLOT,
 												"/settings/privacy",

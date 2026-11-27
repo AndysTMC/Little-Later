@@ -30,7 +30,7 @@ const LockedNoteGate = ({
 	onUnlocked,
 }: {
 	title: string;
-	onUnlocked: () => void;
+	onUnlocked: (password: string) => void;
 }) => {
 	const { theme } = useTheme();
 	const isDark = theme === LTHEME.DARK;
@@ -42,10 +42,11 @@ const LockedNoteGate = ({
 			return;
 		}
 		setError("");
+		const candidate = password;
 		try {
-			await send("profile.verifyPassword", { password });
+			await send("profile.verifyPassword", { password: candidate });
 			setPassword("");
-			onUnlocked();
+			onUnlocked(candidate);
 		} catch (err) {
 			setError(
 				err instanceof Error
@@ -138,9 +139,13 @@ const Page = () => {
 		tasks,
 		reminders,
 	]);
-	// Unlocked state stays strictly in local memory and resets on unmount,
-	// route change, popup close, or profile lock.
-	const [unlockedId, setUnlockedId] = useState<string | null>(null);
+	// Unlocked state (including the verified password required for locked-note
+	// writes) stays strictly in local memory and resets on unmount, route
+	// change, popup close, or profile lock.
+	const [unlocked, setUnlocked] = useState<{
+		id: string;
+		password: string;
+	} | null>(null);
 
 	const note =
 		id === "new"
@@ -157,7 +162,7 @@ const Page = () => {
 		note !== undefined &&
 		note.id !== null &&
 		note.locked &&
-		unlockedId !== note.id;
+		unlocked?.id !== note.id;
 
 	return (
 		<motion.div
@@ -178,7 +183,12 @@ const Page = () => {
 					) : needsPassword ? (
 						<LockedNoteGate
 							title={note.title ?? ""}
-							onUnlocked={() => setUnlockedId(note.id)}
+							onUnlocked={(verifiedPassword) =>
+								setUnlocked({
+									id: note.id,
+									password: verifiedPassword,
+								})
+							}
 						/>
 					) : (
 						<LUINoteDetailForm
@@ -188,9 +198,14 @@ const Page = () => {
 							saves={savedPages}
 							tagSuggestions={tagSuggestions}
 							canLock={Boolean(currentUserProfile?.hasPassword)}
+							lockedPassword={
+								note.id !== null && unlocked?.id === note.id
+									? unlocked.password
+									: undefined
+							}
 							onLockNow={
 								note.id !== null && note.locked
-									? () => setUnlockedId(null)
+									? () => setUnlocked(null)
 									: undefined
 							}
 						/>
