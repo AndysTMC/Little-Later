@@ -151,12 +151,6 @@ const Page = () => {
 		modelState.fetching;
 	const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const latestFetchIdRef = useRef(0);
-	// Tracks `{ apiKey, origin }` together so external updates (such as switching
-	// providers in the side panel) or restored drafts never keep a stale origin.
-	const keyBindingRef = useRef<{
-		apiKey: string;
-		origin: string | null;
-	} | null>(null);
 	const [testing, setTesting] = useState(false);
 	const [testState, setTestState] = useState<{
 		endpointKey: string;
@@ -168,25 +162,6 @@ const Page = () => {
 			: null;
 	const [presetName, setPresetName] = useState("");
 
-	const effectiveProvider = aiSettings?.provider;
-	const effectiveBaseUrl = aiSettings?.baseUrl;
-	const effectiveApiKey = aiSettings?.apiKey;
-	useEffect(() => {
-		if (effectiveProvider === undefined || effectiveApiKey === undefined)
-			return;
-		if (effectiveApiKey.trim() === "") {
-			keyBindingRef.current = null;
-		} else if (keyBindingRef.current?.apiKey !== effectiveApiKey) {
-			keyBindingRef.current = {
-				apiKey: effectiveApiKey,
-				origin:
-					effectiveProvider === LAI_PROVIDERS.CUSTOM
-						? urlOrigin(effectiveBaseUrl ?? "")
-						: null,
-			};
-		}
-	}, [effectiveProvider, effectiveBaseUrl, effectiveApiKey]);
-
 	const withEndpoint = (
 		prev: ProviderDraft,
 		provider: LAI_PROVIDERS,
@@ -194,21 +169,16 @@ const Page = () => {
 	): ProviderDraft => {
 		const nextOrigin =
 			provider === LAI_PROVIDERS.CUSTOM ? urlOrigin(baseUrl) : null;
+		// Read the origin from the same draft as the key, even after a preset changes elsewhere.
 		const boundOrigin =
-			keyBindingRef.current?.apiKey === prev.apiKey
-				? keyBindingRef.current.origin
-				: prev.provider === LAI_PROVIDERS.CUSTOM &&
-					  prev.apiKey.trim() !== ""
-					? urlOrigin(prev.baseUrl)
-					: null;
+			prev.provider === LAI_PROVIDERS.CUSTOM
+				? urlOrigin(prev.baseUrl)
+				: null;
 		const originChanged =
 			prev.apiKey !== "" &&
 			(provider !== LAI_PROVIDERS.CUSTOM ||
 				boundOrigin === null ||
 				nextOrigin !== boundOrigin);
-		if (originChanged) {
-			keyBindingRef.current = null;
-		}
 		return {
 			...prev,
 			provider,
@@ -393,11 +363,6 @@ const Page = () => {
 	const handleApplyPreset = (preset: LAIPreset) => {
 		setTestState(null);
 		setSelectedCategory(null);
-		keyBindingRef.current =
-			preset.provider === LAI_PROVIDERS.CUSTOM &&
-			preset.apiKey.trim() !== ""
-				? { apiKey: preset.apiKey, origin: urlOrigin(preset.baseUrl) }
-				: null;
 		setAISettings((prev) =>
 			prev
 				? {
@@ -613,16 +578,6 @@ const Page = () => {
 										passedValue={aiSettings?.apiKey ?? ""}
 										onChange={(value) => {
 											setTestState(null);
-											keyBindingRef.current =
-												value.trim() === ""
-													? null
-													: {
-															apiKey: value,
-															origin: urlOrigin(
-																aiSettings?.baseUrl ??
-																	"",
-															),
-														};
 											setAISettings((prevSettings) =>
 												prevSettings
 													? {

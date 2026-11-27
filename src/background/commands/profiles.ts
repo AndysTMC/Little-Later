@@ -125,12 +125,30 @@ export const profileUnlock = defineCommand({
 		};
 	},
 	run: async (ctx, input) => {
+		// Enforce "When profile locks" and age-based chat retention before
+		// publishing the unlocked session so subscribed views (such as Little
+		// AI's side panel) can never observe expired history from prior sessions.
 		await unlockProfile(
 			ctx.db,
 			ctx.session,
 			input.profileId,
 			input.password,
 			toFactor(input.factor),
+			{
+				beforePublish: async (keys) => {
+					try {
+						await enforceChatRetention(ctx.db, keys, {
+							onLock: true,
+							now: ctx.now(),
+						});
+					} catch {
+						// Never block profile unlock if retention cleanup fails
+						// (e.g. corrupt settings or DB error); gate chat history
+						// reads instead until cleanup succeeds.
+						return { chatHistoryBlocked: true };
+					}
+				},
+			},
 		);
 		// Unlock is the other moment 0012 sweeps leftovers (Messaging).
 		await ctx.staging.sweep(

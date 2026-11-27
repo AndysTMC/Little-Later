@@ -254,6 +254,8 @@ const addEntry = async (
 			// carry over automatically to a newly imported profile.
 			delete misc.lastBackupAt;
 			delete misc.externalMcpMode;
+			delete misc.externalMcpAllowHistory;
+			delete misc.externalMcpAllowDelete;
 			rows.settings.push({ misc });
 			return;
 		}

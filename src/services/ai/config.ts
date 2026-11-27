@@ -87,6 +87,7 @@ const fetchJSON = async (
 	try {
 		const response = await fetch(url, {
 			method: "GET",
+			redirect: "error",
 			headers,
 			signal: controller.signal,
 		});
@@ -334,6 +335,7 @@ export const testAIConnection = async (
 		try {
 			const response = await fetch(endpoint, {
 				method: "GET",
+				redirect: "error",
 				headers,
 				signal: controller.signal,
 			});

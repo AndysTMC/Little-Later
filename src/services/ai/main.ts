@@ -41,6 +41,7 @@ import {
 	toOpenAIMcpTool,
 } from "./mcpClient";
 import type { LAIMcpServer } from "little-shared/types";
+import { backupNeedsProfilePassword } from "../backup";
 import {
 	AIOutputContent,
 	ToolDefinition,
@@ -1348,6 +1349,7 @@ export abstract class LittleAI {
 		try {
 			const response = await fetch(endpoint, {
 				method: "POST",
+				redirect: "error",
 				headers: {
 					"Content-Type": "application/json",
 					// Only a custom provider has a key (effectiveApiKey).
@@ -2092,6 +2094,25 @@ export class OpenAICompatibleAI extends LittleAI {
 							args.url = activeTab.url;
 							if (activeTab.title) args.title = activeTab.title;
 						}
+					}
+					if (
+						call.function.name === "export_data" &&
+						definition.normalizeArgs(args).type ===
+							LEXPORT_TYPE.IMPORTABLE &&
+						(await backupNeedsProfilePassword(
+							await this.owner.keys(),
+						))
+					) {
+						const redirectMsg =
+							"This profile contains locked notes, so an encrypted backup requires verifying your current profile password on the Export screen (Settings → Export). Open Export to create the backup.";
+						aggregatedToolMessages.push(redirectMsg);
+						hasToolError = true;
+						aggregatedExpression = LFACE_EXPRESSION.FROWNING;
+						this.appendToolResult(call.id, {
+							message: redirectMsg,
+							expression: LFACE_EXPRESSION.FROWNING,
+						});
+						continue;
 					}
 					const mcpMeta = dynamicMcpMeta.get(call.function.name);
 					pendingThisRound.push({

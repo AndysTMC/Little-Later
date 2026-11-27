@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	callBridgeTool,
 	isJsonRpcNotification,
+	parseAddTaskScheduleFlags,
 	parseCliArgs,
 	parseReminderTime,
 	startStdioServer,
@@ -229,6 +230,49 @@ describe("MCP bridge stdio CLI", () => {
 		expect(parsed.flags.get("tag")).toEqual(["dev", "urgent"]);
 		expect(parsed.flags.get("priority")).toEqual(["high"]);
 		expect(parsed.booleans.has("json")).toBe(true);
+	});
+
+	it("rejects malformed or conflicting CLI recurrence flags instead of silently altering schedules", () => {
+		const valid = parseAddTaskScheduleFlags(
+			parseCliArgs([
+				"--repeat",
+				"weekly",
+				"--interval",
+				"2",
+				"--days",
+				"mon,fri",
+				"--time",
+				"08:30",
+			]).flags,
+		);
+		expect(valid.recurrence).toEqual({
+			freq: "weekly",
+			interval: 2,
+			time: "08:30",
+			byWeekday: [1, 5],
+		});
+
+		expect(() =>
+			parseAddTaskScheduleFlags(
+				parseCliArgs(["--repeat", "daily", "--due", "2h"]).flags,
+			),
+		).toThrow(/combine/i);
+		expect(() =>
+			parseAddTaskScheduleFlags(
+				parseCliArgs(["--repeat", "daily", "--interval", "0"]).flags,
+			),
+		).toThrow(/interval/i);
+		expect(() =>
+			parseAddTaskScheduleFlags(
+				parseCliArgs(["--repeat", "weekly", "--days", "mon,funday"])
+					.flags,
+			),
+		).toThrow(/days/i);
+		expect(() =>
+			parseAddTaskScheduleFlags(
+				parseCliArgs(["--repeat", "daily", "--time", "25:00"]).flags,
+			),
+		).toThrow(/time/i);
 	});
 
 	it("invokes MCP tools directly via callBridgeTool over the local socket", async () => {
