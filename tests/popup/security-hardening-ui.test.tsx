@@ -18,7 +18,7 @@ import {
 import { ThemeContext } from "../../src/popup/contexts/ThemeContext";
 import { LUIFileInput } from "../../src/popup/pages/LUIFileInput/Page";
 import { usePickedFile } from "../../src/popup/hooks/usePickedFile";
-import { LUIAISettings } from "../../src/popup/pages/LUIAISettings/Page";
+import { LUIAIProviderSettings } from "../../src/popup/pages/LUIAIProviderSettings/Page";
 import {
 	exportObsidianMarkdown,
 	importBookmarksHtml,
@@ -254,7 +254,7 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 		await send("settings.update", {
 			ai: {
 				provider: LAI_PROVIDERS.CUSTOM,
-				baseUrl: "https://api.openai.com/v1",
+				baseUrl: "https://api.openai.com/custom/v1",
 				apiKey: "sk-openai-secret",
 				model: "gpt-4o",
 			},
@@ -264,11 +264,13 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 			root.render(
 				<ThemeContext.Provider value={themeValue}>
 					<UIStateContext.Provider value={memoryStore()}>
-						<MemoryRouter initialEntries={["/settings/ai"]}>
+						<MemoryRouter
+							initialEntries={["/settings/ai/provider"]}
+						>
 							<Routes>
 								<Route
-									path="/settings/ai"
-									element={<LUIAISettings />}
+									path="/settings/ai/provider"
+									element={<LUIAIProviderSettings />}
 								/>
 							</Routes>
 						</MemoryRouter>
@@ -310,26 +312,27 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 		await setInputValue(findInputs().baseUrl!, "https://api.openai.com/v2");
 		expect(findInputs().apiKey?.value).toBe("sk-openai-secret");
 
-		// Switching to the Cloud tab and picking another provider clears the API key.
+		await setInputValue(findInputs().baseUrl!, "https://other.example/v1");
+		expect(findInputs().apiKey?.value).toBe("");
+
+		// Switching a configured cloud preset clears the previous provider key.
 		const cloudTab = Array.from(
 			container.querySelectorAll('[role="tab"]'),
 		).find((b) => b.textContent?.trim() === "Cloud") as
 			HTMLButtonElement | undefined;
 		expect(cloudTab).toBeTruthy();
 		await act(async () => cloudTab!.click());
-		const deepSeekBtn = Array.from(
-			container.querySelectorAll("button"),
-		).find((b) => b.textContent?.trim() === "DeepSeek");
-		expect(deepSeekBtn).toBeTruthy();
-		await act(async () => deepSeekBtn!.click());
-		expect(findInputs().baseUrl?.value).toBe("https://api.deepseek.com/v1");
-		expect(findInputs().apiKey?.value).toBe("");
-
-		// Setting a new key on DeepSeek binds to DeepSeek's origin; editing to
-		// an arbitrary different host clears it immediately.
-		await setInputValue(findInputs().apiKey!, "sk-deepseek-secret");
-		expect(findInputs().apiKey?.value).toBe("sk-deepseek-secret");
-		await setInputValue(findInputs().baseUrl!, "https://evil.example/v1");
+		const selectCloud = async (label: string) => {
+			const button = Array.from(
+				container.querySelectorAll("button"),
+			).find((candidate) => candidate.textContent?.trim() === label);
+			expect(button).toBeTruthy();
+			await act(async () => button!.click());
+			expect(button?.getAttribute("aria-pressed")).toBe("true");
+		};
+		await selectCloud("OpenAI");
+		await setInputValue(findInputs().apiKey!, "sk-openai-cloud");
+		await selectCloud("DeepSeek");
 		expect(findInputs().apiKey?.value).toBe("");
 	});
 
@@ -338,16 +341,16 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 		await send("settings.update", {
 			ai: {
 				provider: LAI_PROVIDERS.CUSTOM,
-				baseUrl: "https://api.openai.com/v1",
+				baseUrl: "https://api.openai.com/custom/v1",
 				apiKey: "",
 				model: "gpt-4o",
 			},
 		});
 
 		const store = memoryStore();
-		store.setDraft("settings.ai", {
+		store.setDraft("settings.ai.provider", {
 			provider: LAI_PROVIDERS.CUSTOM,
-			baseUrl: "https://api.openai.com/v1",
+			baseUrl: "https://api.openai.com/custom/v1",
 			apiKey: "sk-unsaved-draft-key",
 			model: "gpt-4o",
 		});
@@ -356,11 +359,13 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 			root.render(
 				<ThemeContext.Provider value={themeValue}>
 					<UIStateContext.Provider value={store}>
-						<MemoryRouter initialEntries={["/settings/ai"]}>
+						<MemoryRouter
+							initialEntries={["/settings/ai/provider"]}
+						>
 							<Routes>
 								<Route
-									path="/settings/ai"
-									element={<LUIAISettings />}
+									path="/settings/ai/provider"
+									element={<LUIAIProviderSettings />}
 								/>
 							</Routes>
 						</MemoryRouter>
@@ -400,7 +405,7 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 		await send("settings.update", {
 			ai: {
 				provider: LAI_PROVIDERS.CUSTOM,
-				baseUrl: "https://api.openai.com/v1",
+				baseUrl: "https://api.openai.com/custom/v1",
 				apiKey: "sk-openai",
 				model: "gpt-4o",
 			},
@@ -410,11 +415,13 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 			root.render(
 				<ThemeContext.Provider value={themeValue}>
 					<UIStateContext.Provider value={memoryStore()}>
-						<MemoryRouter initialEntries={["/settings/ai"]}>
+						<MemoryRouter
+							initialEntries={["/settings/ai/provider"]}
+						>
 							<Routes>
 								<Route
-									path="/settings/ai"
-									element={<LUIAISettings />}
+									path="/settings/ai/provider"
+									element={<LUIAIProviderSettings />}
 								/>
 							</Routes>
 						</MemoryRouter>
@@ -439,7 +446,7 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 		await send("settings.update", {
 			ai: {
 				provider: LAI_PROVIDERS.CUSTOM,
-				baseUrl: "https://api.deepseek.com/v1",
+				baseUrl: "https://api.deepseek.com/custom/v1",
 				apiKey: "sk-deepseek",
 				model: "deepseek-chat",
 			},

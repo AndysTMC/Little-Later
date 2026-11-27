@@ -437,20 +437,24 @@ describe("security hardening — backup locked-note gate & AI/MCP redirect + app
 				path: "/etc/hosts",
 				limit: 10,
 			},
-			{ mcpServerUrl: "http://127.0.0.1:4009/mcp" },
+			{
+				serverName: "Local MCP",
+				serverUrl: "http://127.0.0.1:4009/mcp",
+				toolName: "read_file",
+			},
 		);
 		expect(summary).toContain('Run local MCP tool "read_file"');
-		expect(summary).toContain("http://127.0.0.1:4009");
+		expect(summary).toContain("http://127.0.0.1:4009/mcp");
 		expect(summary).toContain("/etc/hosts");
 
-		// Connection equality includes mcpServerUrl so edits expire pending approvals.
+		// Changing the configured endpoint expires pending approvals.
 		const connA = await LittleAI.connectionOf(owner);
-		expect(
-			sameConnection(connA, {
-				...connA,
-				mcpServerUrl: "http://127.0.0.1:4009/mcp",
-			}),
-		).toBe(false);
+		await send("settings.update", {
+			ai: { mcpServerUrl: "http://127.0.0.1:4009/mcp" },
+		});
+		expect(sameConnection(connA, await LittleAI.connectionOf(owner))).toBe(
+			false,
+		);
 	});
 
 	it("preserves profile unlock when chat retention cleanup fails while gating chat history reads", async () => {

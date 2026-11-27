@@ -31,11 +31,16 @@ import { toModelDate } from "./toolCalls/_utils/dateFilters";
 import { prettyRule } from "../../utils/dates";
 import type { RecurrenceRule } from "little-shared/utils/schedule";
 import {
+	MAX_TOTAL_MCP_TOOLS,
 	MCP_TOOL_PREFIX,
+	buildMcpExposedName,
 	callMcpTool,
+	formatSafeMcpEndpoint,
 	listMcpTools,
+	resolveMcpServers,
 	toOpenAIMcpTool,
 } from "./mcpClient";
+import type { LAIMcpServer } from "little-shared/types";
 import { backupNeedsProfilePassword } from "../backup";
 import {
 	AIOutputContent,
@@ -368,6 +373,13 @@ const isOutputContentEmpty = (content: AIOutputContent): boolean =>
 	content.tasks.length === 0 &&
 	content.notes.length === 0;
 
+type PendingMcpMeta = {
+	serverId: string;
+	serverName: string;
+	serverUrl: string;
+	toolName: string;
+};
+
 type PendingMutation = {
 	call: OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall;
 	definition: ToolDefinition;
@@ -375,8 +387,9 @@ type PendingMutation = {
 	// What the user is asked to approve, built from the record the call
 	// names and the values that will be stored.
 	summary: string;
-	// Snapshot of the MCP server URL bound at discovery and shown in consent.
-	mcpServerUrl?: string;
+	// Pinned MCP server identity & endpoint captured during discovery so
+	// confirmation revalidates the exact enabled server before dispatch.
+	mcpMeta?: PendingMcpMeta;
 };
 
 const quoted = (value: unknown, maxLength = 60): string =>
@@ -394,7 +407,7 @@ export const describePendingAction = async (
 	owner: AIOwner,
 	toolName: string,
 	args: Record<string, unknown>,
-	context?: { mcpServerUrl?: string },
+	mcpMeta?: { serverName: string; serverUrl: string; toolName: string },
 ): Promise<string> => {
 	const id = typeof args.id === "string" ? args.id : undefined;
 	const find = async <T extends { id: string }>(
@@ -559,32 +572,19 @@ export const describePendingAction = async (
 		}
 		default:
 			if (toolName.startsWith(MCP_TOOL_PREFIX)) {
-				const mcpTool = toolName.slice(MCP_TOOL_PREFIX.length);
-				let target = "local MCP server";
-				try {
-					const rawUrl =
-						context?.mcpServerUrl?.trim() ??
-						(
-							await readSettings(await owner.keys())
-						).ai.mcpServerUrl?.trim() ??
-						"";
-					if (rawUrl !== "") {
-						target = new URL(rawUrl).origin;
-					}
-				} catch {
-					// Fall back to generic target label.
-				}
+				const rawTool =
+					mcpMeta?.toolName ?? toolName.slice(MCP_TOOL_PREFIX.length);
+				const endpoint = mcpMeta?.serverUrl
+					? formatSafeMcpEndpoint(mcpMeta.serverUrl)
+					: "";
+				const target =
+					mcpMeta?.serverName && endpoint !== ""
+						? `${mcpMeta.serverName} (${endpoint})`
+						: endpoint || mcpMeta?.serverName || "local MCP server";
 				const keys = Object.keys(args);
-				let argDetail = "";
-				if (keys.length > 0) {
-					const serialized = JSON.stringify(args);
-					const clipped =
-						serialized.length > 160
-							? `${serialized.slice(0, 159)}…`
-							: serialized;
-					argDetail = ` with ${clipped}`;
-				}
-				return `Run local MCP tool "${mcpTool}" on ${target}${argDetail}`;
+				const argDetail =
+					keys.length > 0 ? ` with ${JSON.stringify(args)}` : "";
+				return `Run local MCP tool "${rawTool}" on ${target}${argDetail}`;
 			}
 			return `Run ${toolName}`;
 	}
@@ -1070,7 +1070,7 @@ export abstract class LittleAI {
 
 	protected async buildPersonalizationContextMessages(): Promise<{
 		messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>;
-		mcpServerUrl?: string;
+		mcpServers: Array<LAIMcpServer>;
 	}> {
 		try {
 			const { ai } = await readSettings(await this.owner.keys());
@@ -1103,10 +1103,12 @@ export abstract class LittleAI {
 					sections.length > 0
 						? [{ role: "system", content: sections.join("\n\n") }]
 						: [],
-				mcpServerUrl: ai.mcpServerUrl?.trim() || undefined,
+				mcpServers: resolveMcpServers(ai).filter(
+					(server) => server.enabled,
+				),
 			};
 		} catch {
-			return { messages: [] };
+			return { messages: [], mcpServers: [] };
 		}
 	}
 
@@ -1481,13 +1483,18 @@ export abstract class LittleAI {
 	static connectionOf = async (owner: AIOwner): Promise<AIConnection> => {
 		const { ai: aiSettings } = await readSettings(await owner.keys());
 		const { provider, model, apiKey } = aiSettings;
+		const mcpSignature = resolveMcpServers(aiSettings)
+			.filter((server) => server.enabled)
+			.map((server) => `${server.id}:${server.url}`)
+			.sort()
+			.join("|");
 		return {
 			provider,
 			// Without a configured provider there is no model to ask.
 			model: isAISettingsConfigured(aiSettings) ? model : "",
 			apiKey: provider === LAI_PROVIDERS.CUSTOM ? apiKey.trim() : "",
 			baseUrl: getResolvedBaseUrl(aiSettings),
-			mcpServerUrl: aiSettings.mcpServerUrl?.trim() ?? "",
+			mcpSignature,
 		};
 	};
 
@@ -1508,7 +1515,7 @@ export type AIConnection = {
 	model: string;
 	apiKey: string;
 	baseUrl: string;
-	mcpServerUrl?: string;
+	mcpSignature?: string;
 };
 
 export const sameConnection = (a: AIConnection, b: AIConnection): boolean =>
@@ -1516,7 +1523,7 @@ export const sameConnection = (a: AIConnection, b: AIConnection): boolean =>
 	a.model === b.model &&
 	a.apiKey === b.apiKey &&
 	a.baseUrl === b.baseUrl &&
-	(a.mcpServerUrl ?? "") === (b.mcpServerUrl ?? "");
+	(a.mcpSignature ?? "") === (b.mcpSignature ?? "");
 
 export class OpenAICompatibleAI extends LittleAI {
 	constructor({
@@ -1614,15 +1621,18 @@ export class OpenAICompatibleAI extends LittleAI {
 				throw new RunStoppedError();
 			}
 			await this.owner.assertCurrent();
-			if (item.mcpServerUrl !== undefined) {
-				const currentSettings = await readSettings(
+			if (item.mcpMeta) {
+				const liveSettings = await readSettings(
 					await this.owner.keys(),
 				);
-				const currentMcpUrl =
-					currentSettings.ai.mcpServerUrl?.trim() ?? "";
-				if (currentMcpUrl !== item.mcpServerUrl) {
-					const expiredMsg =
-						"The local MCP server URL changed after this approval was requested. Ask again to run the tool on the updated server.";
+				const stillEnabled = resolveMcpServers(liveSettings.ai).some(
+					(server) =>
+						server.enabled &&
+						server.id === item.mcpMeta!.serverId &&
+						server.url === item.mcpMeta!.serverUrl,
+				);
+				if (!stillEnabled) {
+					const expiredMsg = `The local MCP server "${item.mcpMeta.serverName}" was paused, removed, or changed after approval was requested. Ask again to run on the updated configuration.`;
 					hasToolError = true;
 					expression = LFACE_EXPRESSION.FROWNING;
 					messages.push(expiredMsg);
@@ -1842,27 +1852,47 @@ export class OpenAICompatibleAI extends LittleAI {
 			...temporalContextMessages,
 		];
 
-		// Discover optional local MCP tools (strictly loopback-only; every
-		// external MCP call is gated behind in-chat confirmation).
+		// Discover optional local MCP tools across all enabled loopback servers
+		// (every external MCP call is gated behind in-chat confirmation).
 		const dynamicMcpTools: Array<OpenAI.Chat.Completions.ChatCompletionFunctionTool> =
 			[];
 		const dynamicMcpDefinitions = new Map<string, ToolDefinition>();
-		const dynamicMcpEndpoints = new Map<string, string>();
-		if (personalization.mcpServerUrl) {
-			const mcpUrl = personalization.mcpServerUrl;
-			try {
-				const descriptors = await listMcpTools(mcpUrl);
+		const dynamicMcpMeta = new Map<string, PendingMcpMeta>();
+		if (personalization.mcpServers.length > 0) {
+			const discovered = await Promise.allSettled(
+				personalization.mcpServers.map(async (server) => ({
+					server,
+					descriptors: await listMcpTools(server.url),
+				})),
+			);
+			for (const outcome of discovered) {
+				if (outcome.status !== "fulfilled") continue;
+				const { server, descriptors } = outcome.value;
 				for (const descriptor of descriptors) {
-					const openAITool = toOpenAIMcpTool(descriptor);
+					if (dynamicMcpTools.length >= MAX_TOTAL_MCP_TOOLS) break;
+					const exposedName = buildMcpExposedName(
+						server,
+						descriptor.name,
+						dynamicMcpDefinitions,
+					);
+					const openAITool = toOpenAIMcpTool(descriptor, {
+						exposedName,
+						serverName: server.name,
+					});
 					dynamicMcpTools.push(openAITool);
-					dynamicMcpEndpoints.set(openAITool.function.name, mcpUrl);
-					dynamicMcpDefinitions.set(openAITool.function.name, {
+					dynamicMcpMeta.set(exposedName, {
+						serverId: server.id,
+						serverName: server.name,
+						serverUrl: server.url,
+						toolName: descriptor.name,
+					});
+					dynamicMcpDefinitions.set(exposedName, {
 						tool: openAITool,
 						safety: { kind: "external", undoable: false },
 						normalizeArgs: (args) => args,
 						execute: async (args) => {
 							const text = await callMcpTool(
-								mcpUrl,
+								server.url,
 								descriptor.name,
 								args,
 							);
@@ -1874,8 +1904,6 @@ export class OpenAICompatibleAI extends LittleAI {
 						},
 					});
 				}
-			} catch {
-				// Ignore unreachable local MCP server so normal chat continues.
 			}
 		}
 		const availableTools =
@@ -2086,21 +2114,17 @@ export class OpenAICompatibleAI extends LittleAI {
 						});
 						continue;
 					}
-					const mcpServerUrl = dynamicMcpEndpoints.get(
-						call.function.name,
-					);
+					const mcpMeta = dynamicMcpMeta.get(call.function.name);
 					pendingThisRound.push({
 						call,
 						definition,
 						args,
-						...(mcpServerUrl !== undefined ? { mcpServerUrl } : {}),
+						...(mcpMeta ? { mcpMeta } : {}),
 						summary: await describePendingAction(
 							this.owner,
 							call.function.name,
 							definition.normalizeArgs(args),
-							mcpServerUrl !== undefined
-								? { mcpServerUrl }
-								: undefined,
+							mcpMeta,
 						),
 					});
 					continue;

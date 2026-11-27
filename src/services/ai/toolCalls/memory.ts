@@ -10,27 +10,16 @@ const rememberFactToolCall = async (
 		throw new Error("text is required.");
 	}
 	return async () => {
-		const { ai } = await readSettings(await owner.keys());
-		const existing = ai.memories ?? [];
-		if (
-			existing.some(
-				(memory) => memory.text.toLowerCase() === cleaned.toLowerCase(),
-			)
-		) {
-			return;
-		}
-		const nextMemories = [
-			...existing,
-			{
-				id: crypto.randomUUID(),
-				text: cleaned,
-				createdAt: Date.now(),
-			},
-		].slice(-30);
 		await owner.send("settings.update", {
 			ai: {
-				...ai,
-				memories: nextMemories,
+				memoryOp: {
+					op: "add",
+					entry: {
+						id: crypto.randomUUID(),
+						text: cleaned,
+						createdAt: Date.now(),
+					},
+				},
 			},
 		});
 	};
@@ -56,14 +45,12 @@ const forgetFactToolCall = async (
 		throw new Error("Memory not found.");
 	}
 	return async () => {
-		const current = await readSettings(await owner.keys());
-		const nextMemories = (current.ai.memories ?? []).filter(
-			(memory) => memory.id !== target.id,
-		);
 		await owner.send("settings.update", {
 			ai: {
-				...current.ai,
-				memories: nextMemories,
+				memoryOp: {
+					op: "remove",
+					id: target.id,
+				},
 			},
 		});
 	};

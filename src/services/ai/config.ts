@@ -265,6 +265,37 @@ export const CLOUD_PROVIDER_PRESETS: ReadonlyArray<{
 	{ name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1" },
 ];
 
+/**
+ * Resolves a human-friendly provider display name for UI badges, saved
+ * connections, and the Little AI model switcher (e.g. "OpenAI" instead of
+ * raw "Custom").
+ */
+export const getProviderDisplayName = (
+	aiSettings: Pick<LAISettings, "provider" | "baseUrl">,
+): string => {
+	if (aiSettings.provider === LAI_PROVIDERS.OLLAMA) return "Ollama";
+	if (aiSettings.provider === LAI_PROVIDERS.LM_STUDIO) return "LM Studio";
+	const trimmed = aiSettings.baseUrl.trim();
+	const localMatch = LOCAL_PROVIDER_PRESETS.find(
+		(preset) =>
+			preset.provider === LAI_PROVIDERS.CUSTOM &&
+			preset.baseUrl === trimmed,
+	);
+	if (localMatch) return localMatch.name;
+	const cloudMatch = CLOUD_PROVIDER_PRESETS.find(
+		(preset) => preset.baseUrl === trimmed,
+	);
+	if (cloudMatch) return cloudMatch.name;
+	if (trimmed !== "") {
+		try {
+			return new URL(trimmed).host || "Custom";
+		} catch {
+			return "Custom";
+		}
+	}
+	return "Custom";
+};
+
 export type AIConnectionTestResult = {
 	ok: boolean;
 	message: string;
