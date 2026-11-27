@@ -22,8 +22,8 @@
 		"Each record is sealed with AES-256-GCM under a per-profile key; passwords wrap keys with PBKDF2-SHA-256 at 600,000 iterations, optional passkey/security-key 2FA adds a cryptographic second factor via WebAuthn PRF, and locked notes require fresh password verification.",
 		"The service worker is the only writer: extension pages, Little AI, and the opt-in external MCP bridge dispatch typed commands through a serialized write queue.",
 		"Times are epoch milliseconds and recurrence is an anchored rule computed with Temporal, so recurring schedules follow the device across time zones.",
-		"Little AI supports Local (Ollama, LM Studio, vLLM, llama.cpp), Cloud presets, and Custom OpenAI-compatible endpoints plus multiple loopback-only local MCP servers. Reads run immediately; writes, exports, and external MCP calls wait for in-chat confirmation.",
-		"Opt-in `little-later-mcp` Native Messaging bridge & CLI (`npx -y little-later-mcp`) exposes full vault parity to local agents with explicit history/delete opt-in grants and strict locked-note isolation.",
+		"Little AI supports Local (Ollama, LM Studio, vLLM, llama.cpp), Cloud presets, and Custom OpenAI-compatible endpoints plus multiple loopback-only local HTTP MCP servers (JSON-RPC over HTTP returning JSON). Reads run immediately; writes, exports, and external MCP calls wait for in-chat confirmation.",
+		"Opt-in `little-later-mcp` Native Messaging bridge & CLI (`npx -y little-later-mcp`) exposes vault tools, resources, and quick-capture commands to local agents with explicit history/delete opt-in grants and strict locked-note isolation.",
 		"CI runs format, lint, typecheck, knowledge checks, unit, property-based, and sharded real-Chrome Playwright extension tests, CodeQL, OpenSSF Scorecard, and workflow audits. Tagged releases ship `.zip`, signed `.crx`, CycloneDX SBOM, `checksums.txt`, and signed Sigstore/SLSA provenance.",
 		"Public GitHub Releases span v1.0.0 through v3.2.0 (with v3.3.0 prepared on dev covering security hardening, full MCP parity, modular AI Settings + multi-MCP, and design system/motion polish)."
 	],
@@ -48,7 +48,7 @@
 		]
 	},
 	"future": {
-		"next": "Cut v3.3.0 to main, publish little-later-mcp@3.3.0 to npm, and review proposed architecture decisions (0008–0018) for acceptance.",
+		"next": "Publish little-later-mcp@3.3.0 to npm before tagging v3.3.0 on main, and review proposed architecture decisions (0008–0018) for acceptance.",
 		"roadmap": [
 			"Recompute floating schedules immediately when a page opens.",
 			"Expand Little AI multimodal attachments, on-device voice, and page-action approval workflows."

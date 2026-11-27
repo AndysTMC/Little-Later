@@ -4,7 +4,7 @@ Connect local MCP clients (Codex, Claude Desktop, Cursor, VS Code, or CLI agents
 
 ## Security model
 
-- **Disabled by default**: enable in Little Later **Settings -> Data & Privacy -> External agent MCP** (`Read-only` or `Read & write`).
+- **Disabled by default**: enable in Little Later **Settings -> Data & Privacy -> External agent MCP** (`Read-only` or `Read & write`), with separate opt-in toggles for browsing history and permanent deletions.
 - **Unlocked only**: requests fail immediately while your Little Later profile is locked.
 - **No secret leakage**: vault keys, passwords, AI API keys, and **Locked Notes** are never exposed or writable over MCP.
 - **Local only**: communicates exclusively via Chrome Native Messaging and a user-private local IPC socket (`0600`).
@@ -14,13 +14,13 @@ Connect local MCP clients (Codex, Claude Desktop, Cursor, VS Code, or CLI agents
 Requires **Node.js 18 or newer** (no repository clone or standalone release binary required).
 
 1. In Little Later, open **Settings -> Data & Privacy**, set **External agent MCP** to **Read-only** or **Read & write**, and grant the optional `nativeMessaging` permission.
-2. Run the one-time Native Messaging host installer using the extension ID shown in **Settings -> Data & Privacy** (or `chrome://extensions`):
+2. Run the Native Messaging host installer using the extension ID shown in **Settings -> Data & Privacy** (or `chrome://extensions`):
 
     ```sh
     npx -y little-later-mcp install <extension-id>
     ```
 
-    Passing `<extension-id>` ensures Chrome registers the exact installed extension (whether installed from a signed `.crx`, Chrome Web Store, or unpacked build). The installer copies the self-contained host script to your user app-data directory and registers it with Chrome (and other detected Chromium browsers) using the absolute `node` path, so Chrome never depends on shell `PATH` or `npx` cache.
+    Passing `<extension-id>` ensures Chrome registers the exact installed extension (whether installed from a signed `.crx`, Chrome Web Store, or unpacked build). The installer copies the self-contained host script to your user app-data directory and registers it with Chrome (and other detected Chromium browsers) using the absolute `node` path, so Chrome never depends on shell `PATH` or `npx` cache. When upgrading from an earlier version of `little-later-mcp`, rerun `npx -y little-later-mcp install <extension-id>` to replace the native host script Chrome launches.
 
 3. Verify the connection:
 

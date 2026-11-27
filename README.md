@@ -40,7 +40,7 @@ Little Later has no account, no server and no sync. Everything you save is store
 - **Profiles and security.** Multiple profiles with accent themes (light or dark), optional password encryption and optional passkey or security-key two-factor unlock.
 - **Backups and portable exports.** Export a profile as an encrypted `.lldat` backup you can import later, or export readable JSON, Obsidian Markdown (`.md`), iCalendar (`.ics`), or Netscape Bookmarks (`.html`) — and import browser bookmarks HTML.
 - **Popup or side panel.** Use Little Later from the toolbar popup or run the entire extension (or just Little AI) in Chrome's side panel (**Settings → Misc → Side panel**).
-- **Little AI & local MCP/CLI (optional).** Built-in AI assistant (in the popup, side panel, or a tab) with searchable model switching, local or cloud providers, encrypted chat history, hybrid search, multi-server local MCP support, and the `little-later-mcp` bridge & full-parity CLI (`npx -y little-later-mcp`). Every AI write waits for your confirmation in the chat.
+- **Little AI & local MCP/CLI (optional).** Built-in AI assistant (in the popup, side panel, or a tab) with searchable model switching, local or cloud providers, encrypted chat history, hybrid search, multi-server local MCP support, and the `little-later-mcp` bridge & quick-capture CLI (`npx -y little-later-mcp`). Every AI write waits for your confirmation in the chat.
 
 ## Install
 
@@ -115,7 +115,7 @@ The full design, including exactly which fields stay readable, is in [decision 0
 
 ## AI assistant
 
-Little AI is off until you configure it in **Settings → AI**. It supports **Local** servers ([Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai), Local vLLM, llama.cpp), **Cloud** presets (OpenAI, Gemini, Claude, OpenRouter, Groq, Together, Mistral, DeepSeek), and any **Custom** OpenAI-compatible API (`https` unless local). You can also connect multiple loopback-only local MCP servers in **Settings → AI → Local MCP Servers**.
+Little AI is off until you configure it in **Settings → AI**. It supports **Local** servers ([Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai), Local vLLM, llama.cpp), **Cloud** presets (OpenAI, Gemini, Claude, OpenRouter, Groq, Together, Mistral, DeepSeek), and any **Custom** OpenAI-compatible API (`https` unless local). You can also connect multiple loopback-only local HTTP MCP servers in **Settings → AI → MCP Tool Servers** (loopback endpoints that accept direct JSON-RPC tool requests and return JSON).
 
 Start the local server, load a model, then pick the provider and model in settings. Local servers reject requests from extension pages by default, so Little Later sends its own requests to them with a `127.0.0.1` origin; websites you visit do not get that header.
 
