@@ -9,16 +9,18 @@ Connect local MCP clients (Codex, Claude Desktop, Cursor, VS Code, or CLI agents
 - **No secret leakage**: vault keys, passwords, AI API keys, and **Locked Notes** are never exposed or writable over MCP.
 - **Local only**: communicates exclusively via Chrome Native Messaging and a user-private local IPC socket (`0600`).
 
-## Setup (recommended: `npx` — no repo clone required)
+## Setup (`npx` — Node.js 18+ required)
+
+Requires **Node.js 18 or newer** (no repository clone or standalone release binary required).
 
 1. In Little Later, open **Settings -> Data & Privacy**, set **External agent MCP** to **Read-only** or **Read & write**, and grant the optional `nativeMessaging` permission.
-2. Run the one-time Native Messaging host installer (defaults to the official Little Later release ID; pass a custom ID only for unpacked dev builds):
+2. Run the one-time Native Messaging host installer using the extension ID shown in **Settings -> Data & Privacy** (or `chrome://extensions`):
 
     ```sh
-    npx -y little-later-mcp install
+    npx -y little-later-mcp install <extension-id>
     ```
 
-    This copies the self-contained host script to your user app-data directory and registers it with Chrome (and other detected Chromium browsers) using the absolute `node` path, so Chrome never depends on shell `PATH` or `npx` cache.
+    Passing `<extension-id>` ensures Chrome registers the exact installed extension (whether installed from a signed `.crx`, Chrome Web Store, or unpacked build). The installer copies the self-contained host script to your user app-data directory and registers it with Chrome (and other detected Chromium browsers) using the absolute `node` path, so Chrome never depends on shell `PATH` or `npx` cache.
 
 3. Verify the connection:
 
@@ -76,17 +78,6 @@ npx -y little-later-mcp reopen <task-id>
 ```
 
 Pass `--json` to `search`, `list`, `overview`, or any `add-*` command for machine-readable output.
-
-## Standalone binary (no Node.js required)
-
-Each GitHub Release also attaches standalone `little-later-mcp` binaries for Linux, macOS, and Windows:
-
-```sh
-./little-later-mcp install <your-extension-id>
-./little-later-mcp status
-```
-
-Then configure your MCP client with `"command": "/path/to/little-later-mcp"` and `"args": ["serve"]`.
 
 ## Uninstall
 

@@ -4,6 +4,10 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Changed
+
+- **Trimmed GitHub Release assets:** Releases now publish only the extension packages (`.zip`, `.crx`), CycloneDX SBOM (`.cdx.json`), Sigstore/SLSA provenance bundles (`.sigstore.json`, `.intoto.jsonl`), and `checksums.txt`. Individual per-file `.sha256` files and standalone `little-later-mcp-*` binaries are no longer attached; install the MCP bridge with Node.js 18+ via `npx -y little-later-mcp install <extension-id>`.
+
 ## [3.2.0] - 2026-11-23
 
 ### Added
