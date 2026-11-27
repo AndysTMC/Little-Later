@@ -21,6 +21,7 @@ import {
 import { littleDB } from "../storage/pageDB";
 import {
 	getSettings,
+	listNotes,
 	type ChatContent,
 	type ChatMessageContent,
 	type ImageContent,
@@ -140,7 +141,7 @@ const openForExport = async <T>(
 // held here; assets, the large part, are read afterwards, so the snapshot
 // notes which records had one: an asset gone by then means the profile
 // changed under the export.
-const recordsSnapshot = async (profileId: string) => {
+const recordsSnapshot = async (profileId: string, includeChats: boolean) => {
 	const owned = <T>(
 		table: EntityTable<T & { id: string }, "id">,
 		index: string,
@@ -169,11 +170,15 @@ const recordsSnapshot = async (profileId: string) => {
 			tasks: await owned(littleDB.tasks, "[profileId+keyId]"),
 			reminders: await owned(littleDB.reminders, "[profileId+keyId]"),
 			links: await owned(littleDB.links, "[profileId+fromId]"),
-			chats: await owned(littleDB.chats, "[profileId+keyId]"),
+			chats: includeChats
+				? await owned(littleDB.chats, "[profileId+keyId]")
+				: [],
 			// In the order they were written: a chat reads top to bottom.
-			chatMessages: (
-				await owned(littleDB.chatMessages, "[profileId+keyId]")
-			).sort((a, b) => a.createdAt - b.createdAt),
+			chatMessages: includeChats
+				? (
+						await owned(littleDB.chatMessages, "[profileId+keyId]")
+					).sort((a, b) => a.createdAt - b.createdAt)
+				: [],
 			assetOwners: new Set(
 				(
 					(await littleDB.assets
@@ -199,6 +204,7 @@ async function* profileEntries(
 	keys: ProfileKeys,
 	withAssets: boolean,
 	checkUnlocked: () => Promise<void>,
+	onLockedNote?: () => Promise<void>,
 ): AsyncGenerator<BackupEntry> {
 	const { profileId } = keys;
 	const profile = await littleDB.profiles.get(profileId);
@@ -228,7 +234,10 @@ async function* profileEntries(
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	});
-	const snapshot = await recordsSnapshot(profileId);
+	// Honor the unlock retention gate: if chat retention cleanup failed on
+	// unlock, omit chat tables from backup snapshots so expired history is
+	// never carried into an export.
+	const snapshot = await recordsSnapshot(profileId, !keys.chatHistoryBlocked);
 	await checkUnlocked();
 	for (const row of snapshot.saves) {
 		yield {
@@ -244,13 +253,17 @@ async function* profileEntries(
 		};
 	}
 	for (const row of snapshot.notes) {
+		const content = await openForExport("notes", row.id, () =>
+			openBody<NoteContent>(keys, "notes", row.id, row.body),
+		);
+		if (content.locked && onLockedNote) {
+			await onLockedNote();
+		}
 		yield {
 			table: "notes",
 			...times(row),
 			privacy: row.privacy,
-			content: await openForExport("notes", row.id, () =>
-				openBody<NoteContent>(keys, "notes", row.id, row.body),
-			),
+			content,
 		};
 	}
 	for (const row of snapshot.images) {
@@ -373,12 +386,34 @@ const entrySize = (entry: BackupEntry): number =>
 			? (entry.avatar?.bytes.length ?? 0)
 			: JSON.stringify(entry).length;
 
+export type BackupExportOptions = {
+	// Required when exporting a password-protected profile that contains
+	// locked notes, so an unlocked session alone cannot re-wrap locked notes
+	// under a newly chosen backup password.
+	profilePassword?: string;
+};
+
+/**
+ * Returns true when creating an encrypted backup for `keys` requires
+ * re-verifying the current profile password (password-protected profile with
+ * at least one locked note).
+ */
+export const backupNeedsProfilePassword = async (
+	keys: ProfileKeys,
+): Promise<boolean> => {
+	const profile = await littleDB.profiles.get(keys.profileId);
+	if (profile?.protection !== "password") return false;
+	const notes = await listNotes(littleDB, keys);
+	return notes.some((note) => note.locked);
+};
+
 // The unlocked profile as an importable backup. Passing kdf lets tests use
 // a cheap iteration count.
 export const createBackup = async (
 	password: string,
 	kdf?: KdfParams,
 	keysOf?: KeysOf,
+	options?: BackupExportOptions,
 ): Promise<Blob> => {
 	// The imported profile opens with this password, so it follows the
 	// profile password rules (decision 0007, A1).
@@ -388,6 +423,30 @@ export const createBackup = async (
 		);
 	}
 	const { keys, checkUnlocked } = await acquireExportKeys(keysOf);
+	let lockedNoteVerified = false;
+	const verifyLockedNoteAccess = async () => {
+		if (lockedNoteVerified) return;
+		const profile = await littleDB.profiles.get(keys.profileId);
+		if (profile?.protection !== "password") {
+			lockedNoteVerified = true;
+			return;
+		}
+		if (!options?.profilePassword) {
+			throw new BackupError(
+				"This profile has locked notes. Enter your current profile password to include them in an encrypted backup.",
+			);
+		}
+		try {
+			await send(
+				"profile.verifyPassword",
+				{ password: options.profilePassword },
+				{ profileId: keys.profileId },
+			);
+		} catch {
+			throw new BackupError("Your current profile password is wrong.");
+		}
+		lockedNoteVerified = true;
+	};
 	const { header, keys: backupKeys } = await newBackupKey(password, kdf);
 	// Each sealed chunk is handed to a Blob at once, so the export never
 	// holds the whole backup in memory (the browser may page it to disk).
@@ -409,7 +468,12 @@ export const createBackup = async (
 			pending = [];
 			pendingBytes = 0;
 		};
-		for await (const entry of profileEntries(keys, true, checkUnlocked)) {
+		for await (const entry of profileEntries(
+			keys,
+			true,
+			checkUnlocked,
+			verifyLockedNoteAccess,
+		)) {
 			if (
 				pending.length > 0 &&
 				pendingBytes + entrySize(entry) > CHUNK_BYTES
@@ -583,9 +647,10 @@ export const createReadableExport = async (
 export const exportBackup = async (
 	password: string,
 	keysOf?: KeysOf,
+	options?: BackupExportOptions,
 ): Promise<void> =>
 	saveFile(
-		await createBackup(password, undefined, keysOf),
+		await createBackup(password, undefined, keysOf, options),
 		`Little-Later-Backup${BACKUP_EXTENSION}`,
 	);
 

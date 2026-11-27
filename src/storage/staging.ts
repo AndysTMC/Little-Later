@@ -1,11 +1,15 @@
+import { openStaged, sealStaged, type ProfileKeys } from "./keys";
+
 // Binary input never crosses a runtime message (decision 0012, Messaging):
 // the page writes the bytes to a staging file in the origin private file
 // system and sends the file's name; the worker takes the file, which reads
 // and deletes it. Outside production the page and the handlers share one
 // context, so staging lives in memory.
 //
-// Only inputs that 0012 stages as they are use this today: a profile avatar
-// (plain for the lock screen) and a `.lldat` backup (already encrypted).
+// Plain staging is reserved for inputs 0012 allows unencrypted: a profile
+// avatar (plain for the lock screen) and a `.lldat` backup (already
+// encrypted). Sensitive uploads (images, bookmarks HTML) pass `keys` to
+// putBlob/readBlob so only AES-GCM ciphertext touches disk.
 
 const STAGING_DIR = "staging";
 const NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -25,10 +29,11 @@ export type Staging = {
 	// Returns the bytes and keeps the file: for a page that shows a chosen
 	// file before the command that takes it is sent.
 	read: (name: string) => Promise<Uint8Array<ArrayBuffer>>;
-	// The same for a file of any size: it is written and read as a Blob,
-	// which the browser keeps on disk, never as one buffer in memory.
-	putBlob: (blob: Blob) => Promise<string>;
-	readBlob: (name: string) => Promise<Blob>;
+	// The same for a file of any size: plain blobs stream directly to disk,
+	// while sensitive uploads pass `keys` to seal before writing and open on
+	// read.
+	putBlob: (blob: Blob, keys?: ProfileKeys) => Promise<string>;
+	readBlob: (name: string, keys?: ProfileKeys) => Promise<Blob>;
 	// Deletes a file without reading it, as when the page that staged it
 	// no longer needs it. A file already gone is not an error.
 	discard: (name: string) => Promise<void>;
@@ -79,19 +84,30 @@ export const createMemoryStaging = (
 			}
 			return file.bytes.slice();
 		},
-		putBlob: async (blob) => {
+		putBlob: async (blob, keys) => {
 			const name = crypto.randomUUID();
+			const raw = new Uint8Array(await blob.arrayBuffer());
+			const bytes = keys ? await sealStaged(keys, name, raw) : raw;
 			files.set(name, {
-				bytes: new Uint8Array(await blob.arrayBuffer()),
+				bytes,
 				stagedAt: now(),
 			});
 			return name;
 		},
-		readBlob: async (name) => {
+		readBlob: async (name, keys) => {
 			assertName(name);
 			const file = files.get(name);
 			if (!file) {
 				throw new StagingError("The staged file is gone.");
+			}
+			if (keys) {
+				try {
+					return new Blob([await openStaged(keys, name, file.bytes)]);
+				} catch {
+					throw new StagingError(
+						"The staged file could not be unlocked.",
+					);
+				}
 			}
 			return new Blob([file.bytes.slice()]);
 		},
@@ -156,14 +172,22 @@ export const createOpfsStaging = (): Staging => {
 				throw new StagingError("The staged file is gone.");
 			}
 		},
-		putBlob: async (blob) => {
+		putBlob: async (blob, keys) => {
 			const name = crypto.randomUUID();
+			const payload = keys
+				? await sealStaged(
+						keys,
+						name,
+						new Uint8Array(await blob.arrayBuffer()),
+					)
+				: blob;
 			const dir = await directory();
 			const file = await dir.getFileHandle(name, { create: true });
 			const writable = await file.createWritable();
 			try {
-				// Streamed from the Blob to disk.
-				await writable.write(blob);
+				// Streamed from the Blob to disk (or sealed ciphertext when
+				// keys are given).
+				await writable.write(payload);
 				await writable.close();
 			} catch (error) {
 				await writable.abort().catch(() => undefined);
@@ -172,15 +196,27 @@ export const createOpfsStaging = (): Staging => {
 			}
 			return name;
 		},
-		readBlob: async (name) => {
+		readBlob: async (name, keys) => {
 			assertName(name);
+			let diskFile: File;
 			try {
 				const file = await (await directory()).getFileHandle(name);
 				// A File backed by the disk; reading it is up to the caller.
-				return await file.getFile();
+				diskFile = await file.getFile();
 			} catch {
 				throw new StagingError("The staged file is gone.");
 			}
+			if (keys) {
+				try {
+					const raw = new Uint8Array(await diskFile.arrayBuffer());
+					return new Blob([await openStaged(keys, name, raw)]);
+				} catch {
+					throw new StagingError(
+						"The staged file could not be unlocked.",
+					);
+				}
+			}
+			return diskFile;
 		},
 		discard: async (name) => {
 			assertName(name);

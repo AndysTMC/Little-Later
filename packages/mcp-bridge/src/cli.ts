@@ -18,10 +18,11 @@ import {
 	getBridgeEndpoint,
 	startNativeHost,
 } from "./nativeHost";
+import pkg from "../package.json";
 
 // Fixed extension ID derived from Little Later's release signing key.
-export const OFFICIAL_EXTENSION_ID = "nchfnpignmgklabjemdobnanfickfbhl";
-const CLI_VERSION = "3.1.0";
+export const OFFICIAL_EXTENSION_ID = "jbmjjboeppfcjblnbiiaicoakpabghom";
+export const CLI_VERSION: string = pkg.version;
 
 const getAppDataDir = (): string => {
 	if (process.platform === "darwin") {
