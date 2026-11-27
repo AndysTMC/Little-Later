@@ -2,6 +2,7 @@ import { LTHEME } from "little-shared/enums";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../hooks/useTheme";
 
+/** Centered empty-state placeholder with title and optional guidance hint. */
 const Component = ({
 	title,
 	hint,

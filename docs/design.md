@@ -75,9 +75,12 @@ The button blocks a second press while its action runs and shows a spinner when 
 - **Something that needs the password** (deleting a profile, turning off two-factor unlock, removing a key): an identity screen with a `danger` button.
 - No browser dialogs (`confirm()`).
 
-## Notes, toasts & icons
+## Notes, toasts, tooltips & primitives
 
 - `LUINote`: an icon and quiet italic text below the rows or form it explains. A warning uses the warning icon and `role="alert"`.
+- `LUITooltip`: portal-rendered, viewport-clamped tooltip (`role="tooltip"` + `aria-describedby`). Appears only on icon-only, collapsed, or disabled controls where a short hint prevents confusion without clutter (never redundantly on buttons whose label is already visible). Opens after a `350ms` hover intent delay, opens immediately on keyboard focus, and dismisses immediately on pointer press, Escape, scroll, or blur.
+- `LUIBadge`: standardized `rounded-full` status/metadata chip (`neutral`, `accent`, `muted`, `danger` tones; `xs` and `sm` sizes; optional leading icon).
+- `LUISectionHeader`: standardized section title with optional description and right-aligned action or count slot.
 - Toasts (`LUIToast`): responsive `w-[min(22rem,calc(100vw-2rem))] rounded-xl border shadow-lg` with semantic icon tint.
 - Icons: Phosphor icons throughout (`regular` weight for resting UI controls, `fill` for active/status states), tinted via `LUIThemedIcon`.
 
@@ -90,7 +93,8 @@ The button blocks a second press while its action runs and shows a spinner when 
 ## Focus & motion
 
 - Fields and dropdowns show focus as one accent ring on their own edge; buttons, rows and swatches show it outside their edge; the text caret is the accent.
-- Navigation carries directional moves (`src/route-transitions.ts`); card drawers expand smoothly (`160ms`); motion respects reduced motion.
+- Interactive icon controls and pills use `150ms` transitions and subtle tactile press feedback (`active:scale-95`).
+- Navigation carries directional moves (`src/route-transitions.ts`); card drawers expand smoothly (`160ms`); all transitions and animations respect `prefers-reduced-motion`.
 
 ## LittleAI
 

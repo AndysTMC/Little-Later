@@ -1,10 +1,18 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useContext,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { UIStateContext } from "../contexts/UIStateContext";
 
-// State that survives the popup closing. It starts from what was
-// remembered under `key`, or from `initial`, and every change is
-// remembered. Call `clear` once the work is saved, so the next visit
-// starts fresh. Never use it for a password.
+/**
+ * Persists transient UI draft state across popup close/reopen cycles under `key`.
+ *
+ * Call the returned `clear` helper once the draft is committed so subsequent
+ * visits start fresh. Never store secrets or passwords in drafts.
+ */
 const useDraft = <T>(
 	key: string,
 	initial: T | (() => T),
@@ -18,7 +26,7 @@ const useDraft = <T>(
 		return typeof initial === "function" ? (initial as () => T)() : initial;
 	});
 	const latest = useRef(value);
-	useEffect(() => {
+	useLayoutEffect(() => {
 		latest.current = value;
 	});
 
