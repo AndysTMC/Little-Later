@@ -4,9 +4,27 @@ All notable changes to Little Later are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-27
+
+### Added
+
+- **Modular AI Settings & multi-server local MCP:** Split AI Settings into **Provider & Model**, **Behavior & Instructions**, **Memories**, and **MCP Tool Servers**; hide fixed built-in provider URLs and clarify Cloud/Custom API key labels; support multiple named loopback-only HTTP MCP servers (endpoints accepting direct JSON-RPC tool requests and returning JSON) with per-server toggles, collision-free tool aliasing, an active MCP counter in Little AI, and confirmation-gated dispatch.
+- **Expanded external MCP bridge & CLI (`little-later-mcp`):**
+    - **MCP tools & resources:** Read tools (`list_saves`, `list_history`, `list_tasks`, `list_reminders`, `list_notes`, `get_note`, `list_images`, `list_links`, `list_tags`, `search_all`, `get_productivity_overview`) and write tools for saves (`create_save`, `update_save`, `delete_save`), tasks (`create_task`, `update_task` with anytime/due/recurring schedules and attached reminders, `complete_task`, `reopen_task`, `delete_task`), reminders (`create_reminder`, `update_reminder`, `delete_reminder`), unlocked notes (`create_note`, `update_note`, `delete_note`), images (`update_image`, `delete_image` alongside `list_images`), and links (`link_records`, `unlink_records`), gated by explicit opt-in toggles for browsing history and permanent deletions in **Settings → Data & Privacy**.
+    - **Desktop CLI quick commands (`npx -y little-later-mcp`):** `search`, `list`, `overview`, `add-save`, `add-note`, `add-task` (`--due` or `--repeat`/`--interval`/`--days`/`--time`/`--month-day`/`--month` plus `--reminder`), `add-reminder`, `done`, `reopen`, `install <extension-id>`, `status`, `serve`, and `uninstall`.
+- **Design system primitives & motion polish:** Added shared `LUITooltip` (WCAG 2.2 hoverable, focus-persistent, stable trigger mount), `LUIBadge`, and `LUISectionHeader` components; refined route transitions (`170ms` enter / `110ms` exit) and unified tabs, card drawers, popovers, toasts, Little AI views, and content reveals on shared `MOTION` presets (`docs/design.md`).
+
 ### Changed
 
-- **Trimmed GitHub Release assets:** Releases now publish only the extension packages (`.zip`, `.crx`), CycloneDX SBOM (`.cdx.json`), Sigstore/SLSA provenance bundles (`.sigstore.json`, `.intoto.jsonl`), and `checksums.txt`. Individual per-file `.sha256` files and standalone `little-later-mcp-*` binaries are no longer attached; install the MCP bridge with Node.js 18+ via `npx -y little-later-mcp install <extension-id>`.
+- **Trimmed GitHub Release assets:** Releases now publish only the extension packages (`.zip`, `.crx`), CycloneDX SBOM (`.cdx.json`), Sigstore/SLSA provenance bundles (`.sigstore.json`, `.intoto.jsonl`), and `checksums.txt`. Individual per-file `.sha256` files and standalone `little-later-mcp-*` binaries are no longer attached; install the MCP bridge with Node.js 18+ via `npx -y little-later-mcp install <extension-id>`. Existing `little-later-mcp` users should rerun `npx -y little-later-mcp install <extension-id>` to replace the native host script Chrome launches.
+- **Scoped settings updates:** Section-scoped AI settings patches and atomic `mcpServerOp` / `memoryOp` operations prevent concurrent edits across AI settings pages, the Little AI side panel, and memory tools from overwriting one another.
+
+### Security
+
+- **Staged file & locked-note hardening:** Encrypted sensitive OPFS staging blobs under verified profile/session ownership (`owner` checked on import/save), required fresh profile password verification for locked-note updates/deletes/backups, and redirected password-protected locked-note backup requests from Little AI to `/export`.
+- **Origin-bound AI credentials & redirect protection:** Bound AI API keys to their endpoint origin so switching providers or changing a Custom host clears stale keys (including across external updates and restored drafts), enforced `redirect: "error"` on outbound AI and local MCP fetches, and pinned live MCP server targets to pending approvals.
+- **Fail-closed capture & resilient chat retention:** Failed closed on automatic visit capture when settings cannot be decrypted, enforced `"When profile locks"` chat retention on unlock after browser restarts, and preserved profile unlock with a chat-history gate (covering both UI reads and encrypted backup snapshots) if retention cleanup fails.
+- **External MCP bridge boundaries:** Atomically re-verified live MCP write/delete grants and locked-note state inside the worker write queue, bounded MCP resource reads (200 items / 512 KiB), hardened native-host socket framing and concurrency limits, and fixed the CLI's default signed release extension ID and `package.json` version sync.
 
 ## [3.2.0] - 2026-11-23
 

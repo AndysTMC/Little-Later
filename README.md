@@ -24,7 +24,7 @@
 	<br />
 	<img width="260" alt="Notes and locked notes" src="./assets/screenshots/notes.png" />
 	<img width="260" alt="Encrypted images vault" src="./assets/screenshots/images.png" />
-	<img width="260" alt="Little AI side panel" src="./assets/screenshots/little-ai.png" />
+	<img width="260" alt="Little AI" src="./assets/screenshots/little-ai.png" />
 </p>
 
 Little Later has no account, no server and no sync. Everything you save is stored in your browser profile and encrypted on disk. The only data that ever leaves your machine is what you choose to send to an AI provider you set up yourself.
@@ -39,7 +39,8 @@ Little Later has no account, no server and no sync. Everything you save is store
 - **Tags, links and search.** Organise saves, tasks, reminders, notes and images with `#tags`, link records together, and search across everything.
 - **Profiles and security.** Multiple profiles with accent themes (light or dark), optional password encryption and optional passkey or security-key two-factor unlock.
 - **Backups and portable exports.** Export a profile as an encrypted `.lldat` backup you can import later, or export readable JSON, Obsidian Markdown (`.md`), iCalendar (`.ics`), or Netscape Bookmarks (`.html`) — and import browser bookmarks HTML.
-- **Little AI & local MCP/CLI (optional).** Side-panel AI assistant with searchable model switching, local or cloud providers, encrypted chat history, hybrid search, optional local MCP, and the `little-later-mcp` bridge & terminal quick-capture CLI (`npx -y little-later-mcp`). Every write waits for your confirmation in the chat.
+- **Popup or side panel.** Use Little Later from the toolbar popup or run the entire extension (or just Little AI) in Chrome's side panel (**Settings → Misc → Side panel**).
+- **Little AI & local MCP/CLI (optional).** Built-in AI assistant (in the popup, side panel, or a tab) with searchable model switching, local or cloud providers, encrypted chat history, hybrid search, multi-server local MCP support, and the `little-later-mcp` bridge & quick-capture CLI (`npx -y little-later-mcp`). Every AI write waits for your confirmation in the chat.
 
 ## Install
 
@@ -101,20 +102,20 @@ The full design, including exactly which fields stay readable, is in [decision 0
 
 ### Permissions
 
-| Permission                        | Why                                                                              |
-| --------------------------------- | -------------------------------------------------------------------------------- |
-| `tabs`, `activeTab`, `<all_urls>` | Record visited pages and take their screenshot previews                          |
-| `storage`, `unlimitedStorage`     | Keep your data and settings in the browser, without the default storage cap      |
-| `alarms`, `notifications`         | Fire reminders on time, even after Chrome suspends the background worker         |
-| `idle`                            | Lock the profile when the screen locks or after the idle time you set            |
-| `contextMenus`                    | **Save page**, **Save image**, **Save quote**, **Note text** and AI note actions |
-| `declarativeNetRequest`           | Let the extension's own requests reach local AI servers on this machine          |
-| `sidePanel`, `scripting`          | Run Little AI in Chrome's side panel and read the active page when you ask       |
-| `nativeMessaging` _(optional)_    | Opt-in local MCP bridge for external agents (**Settings → Data & Privacy**)      |
+| Permission                        | Why                                                                                        |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `tabs`, `activeTab`, `<all_urls>` | Record visited pages and take their screenshot previews                                    |
+| `storage`, `unlimitedStorage`     | Keep your data and settings in the browser, without the default storage cap                |
+| `alarms`, `notifications`         | Fire reminders on time, even after Chrome suspends the background worker                   |
+| `idle`                            | Lock the profile when the screen locks or after the idle time you set                      |
+| `contextMenus`                    | **Save page**, **Save image**, **Save quote**, **Note text** and AI note actions           |
+| `declarativeNetRequest`           | Let the extension's own requests reach local AI servers on this machine                    |
+| `sidePanel`, `scripting`          | Run Little Later or Little AI in Chrome's side panel and read the active page when you ask |
+| `nativeMessaging` _(optional)_    | Opt-in local MCP bridge for external agents (**Settings → Data & Privacy**)                |
 
 ## AI assistant
 
-Little AI is off until you configure it in **Settings → AI**. It supports **Local** servers ([Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai), Local vLLM, llama.cpp), **Cloud** presets (OpenAI, Gemini, Claude, OpenRouter, Groq, Together, Mistral, DeepSeek), and any **Custom** OpenAI-compatible API (`https` unless local). You can also connect a loopback-only local MCP server.
+Little AI is off until you configure it in **Settings → AI**. It supports **Local** servers ([Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai), Local vLLM, llama.cpp), **Cloud** presets (OpenAI, Gemini, Claude, OpenRouter, Groq, Together, Mistral, DeepSeek), and any **Custom** OpenAI-compatible API (`https` unless local). You can also connect multiple loopback-only local HTTP MCP servers in **Settings → AI → MCP Tool Servers** (loopback endpoints that accept direct JSON-RPC tool requests and return JSON).
 
 Start the local server, load a model, then pick the provider and model in settings. Local servers reject requests from extension pages by default, so Little Later sends its own requests to them with a `127.0.0.1` origin; websites you visit do not get that header.
 
@@ -125,7 +126,7 @@ When you use the assistant, your messages and the records it reads to answer the
 ```sh
 bun install
 bun run build:shared   # build the shared package once
-bun run dev            # then load dist/ in chrome://extensions
+bun run dev            # then load dist-dev/ in chrome://extensions
 ```
 
 While `bun run dev` runs, the loaded extension hot-reloads from the dev server. [CONTRIBUTING.md](./CONTRIBUTING.md) covers the end-to-end tests and every check CI runs.
