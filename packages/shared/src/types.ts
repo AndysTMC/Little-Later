@@ -76,6 +76,8 @@ export type LUserSettings = {
 		lastBackupAt?: number;
 		chatRetentionDays?: number;
 		externalMcpMode?: LExternalMcpMode;
+		externalMcpAllowHistory?: boolean;
+		externalMcpAllowDelete?: boolean;
 	};
 };
 

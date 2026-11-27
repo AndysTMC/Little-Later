@@ -469,6 +469,89 @@ const Page = () => {
 								}}
 							/>
 							{(misc.externalMcpMode ?? "off") !== "off" ? (
+								<div className="flex flex-col gap-y-2 py-1">
+									<label className="flex cursor-pointer items-center justify-between gap-x-3 text-xs">
+										<span
+											className={
+												isDark
+													? "text-neutral-300"
+													: "text-neutral-700"
+											}
+										>
+											Include browsing history
+										</span>
+										<input
+											type="checkbox"
+											checked={Boolean(
+												misc.externalMcpAllowHistory,
+											)}
+											onChange={(event) => {
+												if (!userSettings) return;
+												const checked =
+													event.target.checked;
+												void attempt(
+													() =>
+														send(
+															"settings.update",
+															{
+																misc: {
+																	...userSettings.misc,
+																	externalMcpAllowHistory:
+																		checked ||
+																		undefined,
+																},
+															},
+														),
+													"Couldn't update external MCP history access.",
+												);
+											}}
+											className="size-4 cursor-pointer accent-[var(--ll-accent)]"
+										/>
+									</label>
+									{(misc.externalMcpMode ?? "off") ===
+									"write" ? (
+										<label className="flex cursor-pointer items-center justify-between gap-x-3 text-xs">
+											<span
+												className={
+													isDark
+														? "text-neutral-300"
+														: "text-neutral-700"
+												}
+											>
+												Allow permanent deletions
+											</span>
+											<input
+												type="checkbox"
+												checked={Boolean(
+													misc.externalMcpAllowDelete,
+												)}
+												onChange={(event) => {
+													if (!userSettings) return;
+													const checked =
+														event.target.checked;
+													void attempt(
+														() =>
+															send(
+																"settings.update",
+																{
+																	misc: {
+																		...userSettings.misc,
+																		externalMcpAllowDelete:
+																			checked ||
+																			undefined,
+																	},
+																},
+															),
+														"Couldn't update external MCP delete access.",
+													);
+												}}
+												className="size-4 cursor-pointer accent-[var(--ll-accent)]"
+											/>
+										</label>
+									) : null}
+								</div>
+							) : null}
+							{(misc.externalMcpMode ?? "off") !== "off" ? (
 								<div
 									className={`flex flex-col gap-y-2.5 rounded-xl border p-3 select-text ${
 										isDark

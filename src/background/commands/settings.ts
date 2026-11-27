@@ -192,6 +192,12 @@ export const asMisc = (value: unknown): Settings["misc"] => {
 	) {
 		base.externalMcpMode = misc.externalMcpMode as LExternalMcpMode;
 	}
+	if (misc.externalMcpAllowHistory === true) {
+		base.externalMcpAllowHistory = true;
+	}
+	if (misc.externalMcpAllowDelete === true) {
+		base.externalMcpAllowDelete = true;
+	}
 	return base;
 };
 
