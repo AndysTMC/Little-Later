@@ -7,6 +7,7 @@ import {
 } from "little-shared/constants";
 import type {
 	LExternalMcpMode,
+	LAIMcpServer,
 	LAIMemory,
 	LAIPreset,
 	LAIVerbosity,
@@ -14,7 +15,7 @@ import type {
 import { sealBody } from "../../storage/keys";
 import { getSettings, type Settings } from "../../storage/repositories";
 import { normalizeIgnoredDomains } from "../../utils/ignoredUrls";
-import { asRecord, asString, defineCommand, fail } from "./registry";
+import { asBoolean, asRecord, asString, defineCommand, fail } from "./registry";
 
 const MAX_URL_LENGTH = 2_048;
 const MAX_KEY_LENGTH = 4_096;
@@ -23,6 +24,7 @@ const MAX_INSTRUCTIONS_LENGTH = 1_000;
 const MAX_PRESETS = 12;
 const MAX_MEMORIES = 50;
 const MAX_MEMORY_LENGTH = 280;
+const MAX_MCP_SERVERS = 10;
 
 const VERBOSITIES: ReadonlyArray<LAIVerbosity> = [
 	"concise",
@@ -67,9 +69,12 @@ const optionalVerbosity = (value: unknown): LAIVerbosity | undefined => {
 		: fail("verbosity must be concise, balanced, or detailed.");
 };
 
-const optionalLoopbackUrl = (value: unknown): string | undefined => {
+const optionalLoopbackUrl = (
+	value: unknown,
+	field = "mcpServerUrl",
+): string | undefined => {
 	if (value === undefined) return undefined;
-	const trimmed = bounded(value, "mcpServerUrl", MAX_URL_LENGTH).trim();
+	const trimmed = bounded(value, field, MAX_URL_LENGTH).trim();
 	if (trimmed === "") return "";
 	let parsed: URL;
 	try {
@@ -90,6 +95,31 @@ const optionalLoopbackUrl = (value: unknown): string | undefined => {
 		);
 	}
 	return trimmed;
+};
+
+const optionalMcpServers = (
+	value: unknown,
+): Array<LAIMcpServer> | undefined => {
+	if (value === undefined) return undefined;
+	if (!Array.isArray(value) || value.length > MAX_MCP_SERVERS) {
+		return fail(
+			`mcpServers must be a list of at most ${MAX_MCP_SERVERS} servers.`,
+		);
+	}
+	return value.map((entry) => {
+		const item = asRecord(entry);
+		const url = optionalLoopbackUrl(item.url, "mcpServer.url") ?? "";
+		if (url === "") {
+			fail("Each MCP server must include a local URL.");
+		}
+		return {
+			id: bounded(item.id, "mcpServer.id", 80),
+			name:
+				bounded(item.name, "mcpServer.name", 60).trim() || "Local MCP",
+			url,
+			enabled: asBoolean(item.enabled, "mcpServer.enabled"),
+		};
+	});
 };
 
 const optionalPresets = (value: unknown): Array<LAIPreset> | undefined => {
@@ -249,6 +279,10 @@ export const settingsUpdate = defineCommand({
 						if (mcpServerUrl !== undefined) {
 							parsed.mcpServerUrl = mcpServerUrl;
 						}
+						const mcpServers = optionalMcpServers(ai.mcpServers);
+						if (mcpServers !== undefined) {
+							parsed.mcpServers = mcpServers;
+						}
 						return parsed;
 					})();
 		const misc =
@@ -287,6 +321,13 @@ export const settingsUpdate = defineCommand({
 							? input.ai.mcpServerUrl
 							: (current.ai.mcpServerUrl ?? "");
 					if (mcpServerUrl !== "") merged.mcpServerUrl = mcpServerUrl;
+					const mcpServers =
+						input.ai.mcpServers !== undefined
+							? input.ai.mcpServers
+							: current.ai.mcpServers;
+					if (mcpServers && mcpServers.length > 0) {
+						merged.mcpServers = mcpServers;
+					}
 					return merged;
 				})()
 			: current.ai;

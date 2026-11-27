@@ -16,6 +16,7 @@ import {
 	NoteIcon,
 	NotePencilIcon,
 	PencilSimpleIcon,
+	PlugsIcon,
 	PlusIcon,
 	SparkleIcon,
 	StopIcon,
@@ -33,9 +34,11 @@ import {
 import { flushSync } from "react-dom";
 import {
 	fetchProviderModels,
+	getProviderDisplayName,
 	isAISettingsConfigured,
 	isCloudModel,
 } from "../services/ai/config";
+import { resolveMcpServers } from "../services/ai/mcpClient";
 import { isReadablePage, type PageRef } from "../services/ai/pages";
 import type { RunStatus } from "../services/ai/runStatus";
 import type { ProfileKeys } from "../storage/keys";
@@ -372,7 +375,10 @@ const ModelPicker = ({
 									: "border-neutral-200 text-neutral-500"
 							}`}
 						>
-							<span>{PROVIDER_LABELS[ai.provider]}</span>
+							<span>
+								{getProviderDisplayName(ai) ||
+									PROVIDER_LABELS[ai.provider]}
+							</span>
 							<button
 								type="button"
 								aria-label="Refresh models"
@@ -625,6 +631,10 @@ const Composer = ({
 }) => {
 	const { theme } = useTheme();
 	const dark = theme === LTHEME.DARK;
+	const settings = useCurrentUserSettings();
+	const enabledMcpCount = resolveMcpServers(settings?.ai).filter(
+		(server) => server.enabled,
+	).length;
 	return (
 		<div
 			className={`ll-field flex w-full flex-col rounded-2xl border shadow-sm transition-colors ${dark ? "border-neutral-800 bg-neutral-900" : "border-neutral-200 bg-neutral-100"}`}
@@ -699,6 +709,26 @@ const Composer = ({
 					disabled={running}
 					onOpenSettings={onOpenSettings}
 				/>
+				{enabledMcpCount > 0 ? (
+					<button
+						type="button"
+						onClick={onOpenSettings}
+						title={`${enabledMcpCount} local MCP server${enabledMcpCount === 1 ? "" : "s"} active`}
+						aria-label={`${enabledMcpCount} local MCP server${enabledMcpCount === 1 ? "" : "s"} active, configure`}
+						className={`flex h-7 shrink-0 cursor-pointer items-center gap-x-1 rounded-lg border px-2 text-xs font-medium transition-colors ${
+							dark
+								? "border-neutral-800 bg-black/50 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800 hover:text-white"
+								: "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-200/70 hover:text-black"
+						}`}
+					>
+						<PlugsIcon
+							aria-hidden
+							weight="fill"
+							className="size-3 text-[var(--ll-accent)]"
+						/>
+						<span>{enabledMcpCount}</span>
+					</button>
+				) : null}
 				{running ? (
 					<button
 						type="button"

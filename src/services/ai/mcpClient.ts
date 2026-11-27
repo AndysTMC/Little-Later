@@ -1,4 +1,5 @@
 import type OpenAI from "openai";
+import type { LAIMcpServer, LAISettings } from "little-shared/types";
 import { isLoopbackUrl } from "./config";
 
 export type LocalMcpToolDescriptor = {
@@ -7,14 +8,27 @@ export type LocalMcpToolDescriptor = {
 	inputSchema: Record<string, unknown>;
 };
 
+export type McpServerTestResult = {
+	ok: boolean;
+	message: string;
+	toolCount: number;
+	tools: Array<LocalMcpToolDescriptor>;
+};
+
 const VALID_MCP_NAME = /^[a-zA-Z0-9_-]{1,64}$/;
-const MAX_MCP_TOOLS = 20;
+const MAX_MCP_TOOLS_PER_SERVER = 20;
+export const MAX_MCP_SERVERS = 10;
+export const MAX_TOTAL_MCP_TOOLS = 40;
 const MAX_MCP_OUTPUT_CHARS = 4_000;
 const MCP_LIST_TIMEOUT_MS = 3_500;
 const MCP_CALL_TIMEOUT_MS = 10_000;
 
 export const MCP_TOOL_PREFIX = "mcp__";
 
+/**
+ * Validates that an MCP server URL uses http or https on a loopback address
+ * (`localhost`, `127.0.0.1`, or `[::1]`).
+ */
 export const validateLoopbackMcpUrl = (serverUrl: string): string => {
 	const trimmed = serverUrl.trim();
 	if (trimmed === "") {
@@ -37,6 +51,31 @@ export const validateLoopbackMcpUrl = (serverUrl: string): string => {
 	return parsed.toString();
 };
 
+/**
+ * Resolves the configured local MCP servers from `LAISettings`, seamlessly
+ * upgrading a legacy single `mcpServerUrl` into an enabled server entry.
+ */
+export const resolveMcpServers = (
+	aiSettings?: Pick<LAISettings, "mcpServerUrl" | "mcpServers"> | null,
+): Array<LAIMcpServer> => {
+	if (!aiSettings) return [];
+	if (Array.isArray(aiSettings.mcpServers)) {
+		return aiSettings.mcpServers
+			.filter((server) => server.url.trim() !== "")
+			.slice(0, MAX_MCP_SERVERS);
+	}
+	const legacy = aiSettings.mcpServerUrl?.trim() ?? "";
+	if (legacy === "") return [];
+	return [
+		{
+			id: "legacy-local-mcp",
+			name: "Local MCP",
+			url: legacy,
+			enabled: true,
+		},
+	];
+};
+
 const postJsonRpc = async (
 	serverUrl: string,
 	method: string,
@@ -49,6 +88,7 @@ const postJsonRpc = async (
 	try {
 		const response = await fetch(validated, {
 			method: "POST",
+			redirect: "error",
 			headers: {
 				"Content-Type": "application/json",
 				Accept: "application/json",
@@ -112,21 +152,58 @@ export const listMcpTools = async (
 				? (record.inputSchema as Record<string, unknown>)
 				: { type: "object", properties: {} };
 		descriptors.push({ name, description, inputSchema });
-		if (descriptors.length >= MAX_MCP_TOOLS) break;
+		if (descriptors.length >= MAX_MCP_TOOLS_PER_SERVER) break;
 	}
 	return descriptors;
 };
 
+/**
+ * Tests connectivity to a local MCP server and reports the discovered tool count.
+ */
+export const testMcpServer = async (
+	serverUrl: string,
+): Promise<McpServerTestResult> => {
+	try {
+		const tools = await listMcpTools(serverUrl);
+		return {
+			ok: true,
+			toolCount: tools.length,
+			tools,
+			message:
+				tools.length === 1
+					? "Connected — 1 tool available."
+					: `Connected — ${tools.length} tools available.`,
+		};
+	} catch (error) {
+		return {
+			ok: false,
+			toolCount: 0,
+			tools: [],
+			message:
+				error instanceof Error
+					? error.message
+					: "Could not connect to local MCP server.",
+		};
+	}
+};
+
 export const toOpenAIMcpTool = (
 	descriptor: LocalMcpToolDescriptor,
-): OpenAI.Chat.Completions.ChatCompletionFunctionTool => ({
-	type: "function",
-	function: {
-		name: `${MCP_TOOL_PREFIX}${descriptor.name}`,
-		description: `[Local MCP] ${descriptor.description}`,
-		parameters: descriptor.inputSchema,
-	},
-});
+	options?: { exposedName?: string; serverName?: string },
+): OpenAI.Chat.Completions.ChatCompletionFunctionTool => {
+	const label = options?.serverName
+		? `[MCP · ${options.serverName}]`
+		: "[Local MCP]";
+	return {
+		type: "function",
+		function: {
+			name:
+				options?.exposedName ?? `${MCP_TOOL_PREFIX}${descriptor.name}`,
+			description: `${label} ${descriptor.description}`,
+			parameters: descriptor.inputSchema,
+		},
+	};
+};
 
 export const callMcpTool = async (
 	serverUrl: string,
