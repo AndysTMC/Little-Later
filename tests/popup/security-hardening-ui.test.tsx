@@ -304,8 +304,7 @@ describe("security hardening — UI staging, owner-bound portable I/O & origin-b
 		const cloudTab = Array.from(
 			container.querySelectorAll('[role="tab"]'),
 		).find((b) => b.textContent?.trim() === "Cloud") as
-			| HTMLButtonElement
-			| undefined;
+			HTMLButtonElement | undefined;
 		expect(cloudTab).toBeTruthy();
 		await act(async () => cloudTab!.click());
 		const deepSeekBtn = Array.from(
