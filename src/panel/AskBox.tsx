@@ -9,6 +9,7 @@ import { LTHEME } from "little-shared/enums";
 import { useEffect, useRef, useState } from "react";
 import type { StoredAIOutput } from "../storage/repositories";
 import { useTheme } from "../popup/hooks/useTheme";
+import { MOTION } from "../route-transitions";
 import { CONFIRMATION_ICON } from "./icons";
 import { IconButton } from "./ui";
 
@@ -81,10 +82,9 @@ const Shell = ({
 	return (
 		<motion.section
 			aria-label={label}
-			initial={{ opacity: 0, y: 12 }}
-			animate={{ opacity: 1, y: 0 }}
-			exit={{ opacity: 0, y: 12 }}
-			transition={{ duration: 0.18, ease: "easeOut" }}
+			initial={{ opacity: 0, y: 8 }}
+			animate={{ opacity: 1, y: 0, transition: MOTION.sheet }}
+			exit={{ opacity: 0, y: 8, transition: MOTION.sheetExit }}
 			className={`flex flex-col gap-y-2 rounded-2xl border p-3.5 shadow-sm ${dark ? "border-neutral-800 bg-neutral-900" : "border-neutral-200 bg-neutral-100"}`}
 		>
 			<div className="flex items-start gap-x-2">

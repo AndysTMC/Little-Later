@@ -26,6 +26,7 @@ import { LUIDeleteButton } from "../LUIDeleteButton/Component";
 import { LUIPillButton } from "../LUIPillButton/Component";
 import { LUITagChips } from "../LUITagChips/Component";
 import { CaretDownIcon, LockIcon, NoteIcon } from "@phosphor-icons/react";
+import { MOTION } from "../../../route-transitions";
 
 const Component = ({
 	className,
@@ -200,7 +201,7 @@ const Component = ({
 						initial={{ opacity: 0, height: 0 }}
 						animate={{ opacity: 1, height: "auto" }}
 						exit={{ opacity: 0, height: 0 }}
-						transition={{ duration: 0.16, ease: "easeOut" }}
+						transition={MOTION.drawer}
 						className="overflow-hidden"
 					>
 						<div

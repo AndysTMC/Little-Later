@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { MOTION } from "../../../route-transitions";
 import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { LTHEME } from "little-shared/enums";
 import { useParams } from "react-router";
@@ -63,6 +64,7 @@ const Page = () => {
 					className={`flex h-full w-full flex-col overflow-y-hidden`}
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
+					transition={MOTION.reveal}
 				>
 					<LUIBasicNav navigateTo="/browse-profiles" move="outOf" />
 					{savedUP ? (

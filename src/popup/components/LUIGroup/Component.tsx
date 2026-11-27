@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { twMerge } from "tailwind-merge";
 import { LUIThemedIcon } from "../LUIThemedIcon/Component";
 import { LUIPagination } from "../LUIPagination/Component";
+import { MOTION } from "../../../route-transitions";
 
 const Component = ({
 	className,
@@ -83,7 +84,7 @@ const Component = ({
 						initial={{ opacity: 0, height: 0 }}
 						animate={{ opacity: 1, height: "auto" }}
 						exit={{ opacity: 0, height: 0 }}
-						transition={{ duration: 0.16, ease: "easeOut" }}
+						transition={MOTION.drawer}
 					>
 						<div className="flex w-full flex-col gap-y-2">
 							{children}

@@ -2,9 +2,13 @@ import { LTHEME } from "little-shared/enums";
 import { twMerge } from "tailwind-merge";
 import { useTheme } from "../../hooks/useTheme";
 
-// A compact action inside a card: Edit, Collapse, Mark done, Delete
-// (docs/design.md, Buttons). Quiet neutral surface at rest; danger tone
-// is the armed state of LUIDeleteButton.
+/**
+ * Compact card and toolbar action button (docs/design.md, Buttons).
+ *
+ * Uses a quiet neutral surface at rest and stops event propagation so clicks
+ * inside expandable cards do not toggle the card itself. `danger` is reserved
+ * for irreversible armed states (such as `LUIDeleteButton`).
+ */
 const Component = ({
 	label,
 	onClick,

@@ -1,9 +1,12 @@
 import type { KeyboardEvent } from "react";
 
-// Makes an element that is not a <button> behave like one for keyboard and
-// assistive technology: focusable, announced as a button, and activated by
-// Enter or Space. For controls whose layout depends on being a block
-// element; plain controls should be real buttons.
+/**
+ * Makes a non-button container behave like a button for keyboard and assistive
+ * technology: focusable, exposed with `role="button"`, and activated by Enter
+ * or Space when focused directly.
+ *
+ * Reserve for composite card layouts that cannot be nested inside `<button>`.
+ */
 export const pressable = (onPress: () => void) => ({
 	role: "button" as const,
 	tabIndex: 0,

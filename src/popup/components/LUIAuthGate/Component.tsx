@@ -8,6 +8,7 @@ import {
 import { LUIIconField } from "../LUIIconField/Component";
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { MOTION } from "../../../route-transitions";
 import { send } from "../../../utils/send";
 import { useMoveNavigate } from "../../hooks/usePageMove";
 import { LUICUButton } from "../LUICUButton/Component";
@@ -188,9 +189,9 @@ const Component = ({
 						initial={{ opacity: 0 }}
 						animate={{
 							opacity: 1,
-							transition: { duration: 0.2 },
+							transition: MOTION.reveal,
 						}}
-						exit={{ opacity: 0, transition: { duration: 0.2 } }}
+						exit={{ opacity: 0, transition: MOTION.tabExit }}
 					>
 						{isConfirmingDelete ? (
 							<>

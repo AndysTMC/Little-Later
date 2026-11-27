@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { deleteToast } from "../../../services/toasts";
 import { fakeWait } from "little-shared/utils/misc";
 import { AnimatePresence, motion } from "framer-motion";
+import { MOTION } from "../../../route-transitions";
 
 const Component = () => {
 	const { theme } = useTheme();
@@ -23,7 +24,7 @@ const Component = () => {
 	useEffect(() => {
 		const baseDelay = 3000;
 		const stagger = 900;
-		const exitDuration = 300;
+		const exitDuration = 160;
 
 		const list = [...toasts];
 
@@ -81,10 +82,20 @@ const Component = () => {
 						!closingIds.has(toast.id) && (
 							<motion.div
 								key={toast.id}
-								initial={{ opacity: 0, y: 20 }}
-								animate={{ opacity: 1, y: 0 }}
-								exit={{ opacity: 0, y: 20 }}
-								transition={{ duration: 0.3 }}
+								layout
+								initial={{ opacity: 0, y: 12, scale: 0.98 }}
+								animate={{
+									opacity: 1,
+									y: 0,
+									scale: 1,
+									transition: MOTION.toastEnter,
+								}}
+								exit={{
+									opacity: 0,
+									y: 10,
+									scale: 0.98,
+									transition: MOTION.toastExit,
+								}}
 								className="pointer-events-auto mb-2 h-max w-max"
 							>
 								<LUIToast theme={theme} toast={toast} />

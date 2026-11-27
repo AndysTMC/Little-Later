@@ -50,6 +50,7 @@ import { LUILogo } from "../popup/components/LUILogo/Component";
 import { attempt } from "../popup/attempt";
 import { isInlineImageAllowed } from "../popup/markdownUrl";
 import { send } from "../utils/send";
+import { MOTION } from "../route-transitions";
 import { Answer } from "./Answer";
 import { ApprovalBox, QuestionBox } from "./AskBox";
 import { History } from "./History";
@@ -357,10 +358,19 @@ const ModelPicker = ({
 					<motion.div
 						role="listbox"
 						aria-label="Choose model"
-						initial={{ opacity: 0, y: 6 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: 6 }}
-						transition={{ duration: 0.14 }}
+						initial={{ opacity: 0, y: 4, scale: 0.98 }}
+						animate={{
+							opacity: 1,
+							y: 0,
+							scale: 1,
+							transition: MOTION.popover,
+						}}
+						exit={{
+							opacity: 0,
+							y: 4,
+							scale: 0.98,
+							transition: MOTION.popoverExit,
+						}}
 						className={`absolute bottom-full left-0 z-30 mb-2 flex w-64 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border shadow-lg ${
 							dark
 								? "border-neutral-800 bg-neutral-900 text-neutral-100"
@@ -1168,10 +1178,17 @@ const ChatScreen = ({
 					) : (
 						<motion.div
 							key="conversation"
-							initial={{ opacity: 0, y: 12 }}
-							animate={{ opacity: 1, y: 0 }}
-							exit={{ opacity: 0, y: -12 }}
-							transition={{ duration: 0.16, ease: "easeOut" }}
+							initial={{ opacity: 0, y: 10 }}
+							animate={{
+								opacity: 1,
+								y: 0,
+								transition: MOTION.sheet,
+							}}
+							exit={{
+								opacity: 0,
+								y: -10,
+								transition: MOTION.sheetExit,
+							}}
 							className="mx-auto flex min-h-0 w-full max-w-3xl grow flex-col"
 						>
 							{started ? (
@@ -1212,7 +1229,7 @@ const ChatScreen = ({
 														: false
 												}
 												animate={{ opacity: 1, y: 0 }}
-												transition={{ duration: 0.18 }}
+												transition={MOTION.reveal}
 											>
 												{message.role === "user" ? (
 													<Said
@@ -1271,14 +1288,24 @@ const ChatScreen = ({
 													initial={{
 														opacity: 0,
 														y: 6,
+														scale: 0.95,
 													}}
 													animate={{
 														opacity: 1,
 														y: 0,
+														scale: 1,
+														transition:
+															MOTION.popover,
 													}}
-													exit={{ opacity: 0, y: 6 }}
+													exit={{
+														opacity: 0,
+														y: 6,
+														scale: 0.95,
+														transition:
+															MOTION.popoverExit,
+													}}
 													onClick={scrollToEnd}
-													className={`absolute -top-11 left-1/2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border shadow-sm transition-colors ${dark ? "border-neutral-800 bg-neutral-900 text-neutral-200 hover:bg-neutral-800" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100"}`}
+													className={`absolute -top-11 left-1/2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border shadow-sm transition-all duration-150 active:scale-95 ${dark ? "border-neutral-800 bg-neutral-900 text-neutral-200 hover:bg-neutral-800" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100"}`}
 												>
 													<ArrowDownIcon
 														weight="bold"

@@ -7,6 +7,7 @@ import { LUIDeleteButton } from "../popup/components/LUIDeleteButton/Component";
 import { useTheme } from "../popup/hooks/useTheme";
 import { attempt } from "../popup/attempt";
 import { send } from "../utils/send";
+import { MOTION } from "../route-transitions";
 import { IconButton } from "./ui";
 
 const when = (at: number) => {
@@ -128,10 +129,9 @@ const History = ({
 	return (
 		<motion.nav
 			aria-label="Chats"
-			initial={{ opacity: 0, y: -16 }}
-			animate={{ opacity: 1, y: 0 }}
-			exit={{ opacity: 0, y: 16 }}
-			transition={{ duration: 0.18, ease: "easeOut" }}
+			initial={{ opacity: 0, y: -10 }}
+			animate={{ opacity: 1, y: 0, transition: MOTION.sheet }}
+			exit={{ opacity: 0, y: 10, transition: MOTION.sheetExit }}
 			className={`mx-auto flex min-h-0 w-full max-w-3xl grow flex-col ${dark ? "bg-black text-white" : "bg-white text-black"}`}
 		>
 			<div className="shrink-0 px-3 pt-3 pb-2">

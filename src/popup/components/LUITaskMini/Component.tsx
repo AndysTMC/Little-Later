@@ -7,8 +7,10 @@ import { capitalize } from "little-shared/utils/misc";
 import { pressable } from "../../a11y";
 import { attempt } from "../../attempt";
 import { LUIDeleteButton } from "../LUIDeleteButton/Component";
+import { LUIBadge } from "../LUIBadge/Component";
 import { LUIPillButton } from "../LUIPillButton/Component";
 import { LUITagChips } from "../LUITagChips/Component";
+import { LUITooltip } from "../LUITooltip/Component";
 import { useTheme } from "../../hooks/useTheme";
 import {
 	CaretDownIcon,
@@ -24,6 +26,7 @@ import type { LinkRow } from "../../../storage/schema";
 import { linkedFrom, linkedTo, reminderKind } from "../../records";
 import { prettyDate, prettyRule } from "../../../utils/dates";
 import { send } from "../../../utils/send";
+import { MOTION } from "../../../route-transitions";
 
 const Component = ({
 	className,
@@ -167,28 +170,18 @@ const Component = ({
 					{hasMeta ? (
 						<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
 							{showPriority ? (
-								<span
-									className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+								<LUIBadge
+									tone={
 										task.priority === "high"
-											? "ll-accent-fill"
-											: isDark
-												? "bg-neutral-800 text-neutral-400"
-												: "bg-neutral-200 text-neutral-600"
-									}`}
+											? "accent"
+											: "neutral"
+									}
 								>
 									{capitalize(task.priority)}
-								</span>
+								</LUIBadge>
 							) : null}
 							{showLegacyLabel ? (
-								<span
-									className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-										isDark
-											? "bg-neutral-800 text-neutral-300"
-											: "bg-neutral-200 text-neutral-700"
-									}`}
-								>
-									{task.label}
-								</span>
+								<LUIBadge tone="neutral">{task.label}</LUIBadge>
 							) : null}
 							{scheduleSummary ? (
 								<span
@@ -248,26 +241,28 @@ const Component = ({
 
 				<div className="flex shrink-0 items-center gap-x-0.5">
 					{!isExpanded && !disableNavs ? (
-						<button
-							type="button"
-							aria-label="Edit task"
-							className={`flex size-8 cursor-pointer items-center justify-center rounded-lg transition-colors ${
-								isDark
-									? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
-									: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
-							}`}
-							onClick={(event) => {
-								event.stopPropagation();
-								handleEdit();
-							}}
-						>
-							<LUIThemedIcon
-								Icon={NotePencilIcon}
-								weight="regular"
-								color="currentColor"
-								className="size-4"
-							/>
-						</button>
+						<LUITooltip content="Edit task" placement="top">
+							<button
+								type="button"
+								aria-label="Edit task"
+								className={`flex size-8 cursor-pointer items-center justify-center rounded-lg transition-all duration-150 active:scale-95 ${
+									isDark
+										? "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+										: "text-neutral-500 hover:bg-neutral-200 hover:text-black"
+								}`}
+								onClick={(event) => {
+									event.stopPropagation();
+									handleEdit();
+								}}
+							>
+								<LUIThemedIcon
+									Icon={NotePencilIcon}
+									weight="regular"
+									color="currentColor"
+									className="size-4"
+								/>
+							</button>
+						</LUITooltip>
 					) : null}
 					<span
 						aria-hidden
@@ -292,7 +287,7 @@ const Component = ({
 						initial={{ opacity: 0, height: 0 }}
 						animate={{ opacity: 1, height: "auto" }}
 						exit={{ opacity: 0, height: 0 }}
-						transition={{ duration: 0.16, ease: "easeOut" }}
+						transition={MOTION.drawer}
 						className="overflow-hidden"
 					>
 						<div

@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { EASE_OUT } from "../../../route-transitions";
 import { useMoveNavigate, usePageMotion } from "../../hooks/usePageMove";
 import { useEffect, useRef, useState } from "react";
 import { useResolvedCurrentUser } from "../../hooks/useCurrentUserProfile";
@@ -66,40 +67,36 @@ const Page = () => {
 				<motion.div
 					initial={{
 						opacity: 0,
-						transform: "translateY(-50px)",
-						color: "transparent",
+						y: -28,
 					}}
 					animate={{
-						transform: "translateY(0px)",
+						y: 0,
 						opacity: 1,
-						color: "black",
 					}}
 					transition={{
-						duration: 1,
-						delay: 0.5,
-						type: "spring",
+						duration: 0.55,
+						delay: 0.35,
+						ease: EASE_OUT,
 					}}
-					className="text-4xl font-extrabold tracking-tight sm:text-5xl"
+					className="text-4xl font-extrabold tracking-tight text-black sm:text-5xl"
 				>
 					Little
 				</motion.div>
 				<motion.div
 					initial={{
 						opacity: 0,
-						transform: "translatex(-50px)",
-						color: "transparent",
+						x: -28,
 					}}
 					animate={{
-						transform: "translateX(0px)",
+						x: 0,
 						opacity: 1,
-						color: "black",
 					}}
 					transition={{
-						duration: 1,
-						delay: 1.5,
-						type: "spring",
+						duration: 0.55,
+						delay: 0.9,
+						ease: EASE_OUT,
 					}}
-					className="text-4xl font-extrabold tracking-tight sm:text-5xl"
+					className="text-4xl font-extrabold tracking-tight text-black sm:text-5xl"
 				>
 					Later
 				</motion.div>
